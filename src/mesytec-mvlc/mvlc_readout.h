@@ -69,6 +69,7 @@ struct MESYTEC_MVLC_EXPORT CrateConfig
     std::vector<StackCommandBuilder> stacks;
     std::vector<u32> triggers;
     StackCommandBuilder initCommands;
+    StackCommandBuilder stopCommands;
 
     bool operator==(const CrateConfig &o) const;
     bool operator!=(const CrateConfig &o) const { return !(*this == o); }

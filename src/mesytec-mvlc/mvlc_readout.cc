@@ -90,6 +90,7 @@ bool CrateConfig::operator==(const CrateConfig &o) const
         && stacks == o.stacks
         && triggers == o.triggers
         && initCommands == o.initCommands
+        && stopCommands == o.stopCommands
         ;
 }
 
@@ -178,7 +179,8 @@ std::string to_yaml(const CrateConfig &crateConfig)
     out << YAML::EndSeq; // end readout_stacks
 
     out << YAML::Key << "stack_triggers" << YAML::Value << crateConfig.triggers;
-    out << YAML::Key << "init_sequence" << YAML::Value << crateConfig.initCommands;
+    out << YAML::Key << "init_commands" << YAML::Value << crateConfig.initCommands;
+    out << YAML::Key << "stop_commands" << YAML::Value << crateConfig.stopCommands;
 
     out << YAML::EndMap; // end crate
 
@@ -218,7 +220,8 @@ CrateConfig crate_config_from_yaml(const std::string &yamlText)
                 result.triggers.push_back(yTrig.as<u32>());
         }
 
-        result.initCommands = stack_command_builder_from_yaml(yCrate["init_sequence"]);
+        result.initCommands = stack_command_builder_from_yaml(yCrate["init_commands"]);
+        result.stopCommands = stack_command_builder_from_yaml(yCrate["stop_commands"]);
     }
 
     return result;
