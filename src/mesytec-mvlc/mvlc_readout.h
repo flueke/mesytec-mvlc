@@ -67,6 +67,7 @@ struct MESYTEC_MVLC_EXPORT CrateConfig
     std::string ethHost;
 
     std::vector<StackCommandBuilder> stacks;
+    std::vector<std::string> stackNames;
     std::vector<u32> triggers;
     StackCommandBuilder initCommands;
 

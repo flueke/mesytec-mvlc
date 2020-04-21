@@ -40,6 +40,7 @@ TEST(mvlc_readout_config, CrateConfigYaml)
             cc.triggers.push_back(triggerVal);
         }
 
+        ASSERT_EQ(cc.stacks.size(), 1u);
         ASSERT_EQ(cc.stacks.size(), cc.triggers.size());
         cout << to_yaml(cc) << endl;
     }

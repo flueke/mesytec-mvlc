@@ -88,6 +88,7 @@ bool CrateConfig::operator==(const CrateConfig &o) const
         && usbSerial == o.usbSerial
         && ethHost == o.ethHost
         && stacks == o.stacks
+        && stackNames == o.stackNames
         && triggers == o.triggers
         && initCommands == o.initCommands
         ;
@@ -166,6 +167,7 @@ std::string to_yaml(const CrateConfig &crateConfig)
 
     out << YAML::EndSeq; // end readout_stacks
 
+    out << YAML::Key << "stack_names" << YAML::Value << crateConfig.stackNames;
     out << YAML::Key << "stack_triggers" << YAML::Value << crateConfig.triggers;
     out << YAML::Key << "init_sequence" << YAML::Value << crateConfig.initCommands;
 
@@ -199,6 +201,12 @@ CrateConfig crate_config_from_yaml(const std::string &yamlText)
         {
             for (const auto &yStack: yStacks)
                 result.stacks.emplace_back(stack_command_builder_from_yaml(yStack));
+        }
+
+        if (const auto &yStackNames = yCrate["stack_names"])
+        {
+            for (const auto &yName: yStackNames)
+                result.stackNames.push_back(yName.as<std::string>());
         }
 
         if (const auto &yTriggers = yCrate["stack_triggers"])
