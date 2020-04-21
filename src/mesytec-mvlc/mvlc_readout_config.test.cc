@@ -21,7 +21,7 @@ TEST(mvlc_readout_config, CrateConfigYaml)
         cc.ethHost = "example.com";
 
         {
-            StackCommandBuilder sb;
+            StackCommandBuilder sb("event0");
             sb.beginGroup("module0");
             sb.addVMEBlockRead(0x00000000u, vme_amods::MBLT64, (1u << 16)-1);
             sb.beginGroup("module1");

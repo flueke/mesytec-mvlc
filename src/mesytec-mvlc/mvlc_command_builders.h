@@ -81,6 +81,8 @@ struct MESYTEC_MVLC_EXPORT StackCommand
     // A crude way of extending the StackCommandType enum.
     enum class CommandType: u8
     {
+        Invalid         = static_cast<u8>(0x0u),
+
         StackStart      = static_cast<u8>(StackCommandType::StackStart),
         StackEnd        = static_cast<u8>(StackCommandType::StackEnd),
         VMERead         = static_cast<u8>(StackCommandType::VMERead),
@@ -89,7 +91,6 @@ struct MESYTEC_MVLC_EXPORT StackCommand
         WriteSpecial    = static_cast<u8>(StackCommandType::WriteSpecial),
         // some value not used in the mvlc protocol
         SoftwareDelay   = static_cast<u8>(0xEDu),
-        Invalid         = static_cast<u8>(0x0u),
     };
 
     CommandType type = CommandType::Invalid;
@@ -115,6 +116,11 @@ struct MESYTEC_MVLC_EXPORT StackCommand
     {
         return !(*this == o);
     }
+
+    explicit operator bool() const
+    {
+        return type != CommandType::Invalid;
+    }
 };
 
 std::string MESYTEC_MVLC_EXPORT to_string(const StackCommand &cmd);
@@ -139,6 +145,8 @@ class MESYTEC_MVLC_EXPORT StackCommandBuilder
 
         StackCommandBuilder() {}
         explicit StackCommandBuilder(const std::vector<StackCommand> &commands);
+        explicit StackCommandBuilder(const std::string &name);
+        StackCommandBuilder(const std::string &name, const std::vector<StackCommand> &commands);
 
         bool operator==(const StackCommandBuilder &o) const;
         bool operator!=(const StackCommandBuilder &o) const { return !(*this == o); }
@@ -192,7 +200,11 @@ class MESYTEC_MVLC_EXPORT StackCommandBuilder
         // or an empty list if no such group exists.
         std::vector<StackCommand> getCommands(const std::string &groupName) const;
 
+        std::string getName() const { return m_name; }
+        StackCommandBuilder &setName(const std::string &name) { m_name = name; return *this; }
+
     private:
+        std::string m_name;
         std::vector<Group> m_groups;
 };
 

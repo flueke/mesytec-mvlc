@@ -282,9 +282,21 @@ StackCommandBuilder::StackCommandBuilder(const std::vector<StackCommand> &comman
         addCommand(cmd);
 }
 
+StackCommandBuilder::StackCommandBuilder(const std::string &name)
+    : m_name(name)
+{}
+
+StackCommandBuilder::StackCommandBuilder(const std::string &name, const std::vector<StackCommand> &commands)
+    : m_name(name)
+{
+    for (const auto &cmd: commands)
+        addCommand(cmd);
+}
+
 bool StackCommandBuilder::operator==(const StackCommandBuilder &o) const
 {
-    return m_groups == o.m_groups;
+    return m_name == o.m_name
+        && m_groups == o.m_groups;
 }
 
 StackCommandBuilder &StackCommandBuilder::addVMERead(u32 address, u8 amod, VMEDataWidth dataWidth)
