@@ -187,6 +187,36 @@ std::error_code setup_readout_stacks(
     return {};
 }
 
+inline u32 trigger_value(stacks::TriggerType triggerType, u8 irqLevel = 0)
+{
+    u32 triggerVal = triggerType << stacks::TriggerTypeShift;
+
+    if ((triggerType == stacks::TriggerType::IRQNoIACK
+         || triggerType == stacks::TriggerType::IRQWithIACK)
+        && irqLevel > 0)
+    {
+        triggerVal |= (irqLevel - 1) & stacks::TriggerBitsMask;
+    }
+
+    return triggerVal;
+}
+
+inline std::pair<stacks::TriggerType, u8> decode_trigger_value(const u32 triggerVal)
+{
+    stacks::TriggerType triggerType = static_cast<stacks::TriggerType>(
+        (triggerVal >> stacks::TriggerTypeShift) & stacks::TriggerTypeMask);
+
+    u8 irqLevel = 0;
+
+    if (triggerType == stacks::TriggerType::IRQNoIACK
+        || triggerType == stacks::TriggerType::IRQWithIACK)
+    {
+        irqLevel = 1 + (triggerVal & stacks::TriggerBitsMask);
+    }
+
+    return std::make_pair(triggerType, irqLevel);
+}
+
 template<typename DIALOG_API>
 std::error_code setup_stack_trigger(
     DIALOG_API &mvlc, u8 stackId,
