@@ -88,7 +88,6 @@ bool CrateConfig::operator==(const CrateConfig &o) const
         && usbSerial == o.usbSerial
         && ethHost == o.ethHost
         && stacks == o.stacks
-        && stackNames == o.stackNames
         && triggers == o.triggers
         && initCommands == o.initCommands
         ;
@@ -99,7 +98,11 @@ namespace
 
 YAML::Emitter &operator<<(YAML::Emitter &out, const StackCommandBuilder &stack)
 {
-    out << YAML::BeginSeq;
+    out << YAML::BeginMap;
+
+    out << YAML::Key << "name" << YAML::Value << stack.getName();
+
+    out << YAML::Key << "groups" << YAML::BeginSeq;
 
     for (const auto &group: stack.getGroups())
     {
@@ -116,7 +119,9 @@ YAML::Emitter &operator<<(YAML::Emitter &out, const StackCommandBuilder &stack)
         out << YAML::EndMap;
     }
 
-    out << YAML::EndSeq;
+    out << YAML::EndSeq; // groups
+
+    out << YAML::EndMap;
 
     return out;
 }
@@ -125,16 +130,21 @@ StackCommandBuilder stack_command_builder_from_yaml(const YAML::Node &yStack)
 {
     StackCommandBuilder stack;
 
-    for (const auto &yGroup: yStack)
+    stack.setName(yStack["name"].as<std::string>());
+
+    if (const auto &yGroups = yStack["groups"])
     {
-        std::string groupName = yGroup["name"].as<std::string>();
+        for (const auto &yGroup: yGroups)
+        {
+            std::string groupName = yGroup["name"].as<std::string>();
 
-        std::vector<StackCommand> groupCommands;
+            std::vector<StackCommand> groupCommands;
 
-        for (const auto &yCmd: yGroup["contents"])
-            groupCommands.emplace_back(stack_command_from_string(yCmd.as<std::string>()));
+            for (const auto &yCmd: yGroup["contents"])
+                groupCommands.emplace_back(stack_command_from_string(yCmd.as<std::string>()));
 
-        stack.addGroup(groupName, groupCommands);
+            stack.addGroup(groupName, groupCommands);
+        }
     }
 
     return stack;
@@ -167,7 +177,6 @@ std::string to_yaml(const CrateConfig &crateConfig)
 
     out << YAML::EndSeq; // end readout_stacks
 
-    out << YAML::Key << "stack_names" << YAML::Value << crateConfig.stackNames;
     out << YAML::Key << "stack_triggers" << YAML::Value << crateConfig.triggers;
     out << YAML::Key << "init_sequence" << YAML::Value << crateConfig.initCommands;
 
@@ -201,12 +210,6 @@ CrateConfig crate_config_from_yaml(const std::string &yamlText)
         {
             for (const auto &yStack: yStacks)
                 result.stacks.emplace_back(stack_command_builder_from_yaml(yStack));
-        }
-
-        if (const auto &yStackNames = yCrate["stack_names"])
-        {
-            for (const auto &yName: yStackNames)
-                result.stackNames.push_back(yName.as<std::string>());
         }
 
         if (const auto &yTriggers = yCrate["stack_triggers"])
