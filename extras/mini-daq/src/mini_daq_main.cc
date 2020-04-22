@@ -28,8 +28,23 @@ using namespace mesytec::mvlc;
 using namespace mesytec::mvlc::listfile;
 using namespace nonstd;
 
+#if 0
 template<typename Out>
 Out &log_buffer(Out &out, const std::vector<u32> &buffer, const std::string &header = {})
+{
+    out << "begin buffer '" << header << "' (size=" << buffer.size() << ")" << endl;
+
+    for (const auto &value: buffer)
+        out << fmt::format("  {:#010x}", value) << endl;
+
+    out << "end buffer " << header << "' (size=" << buffer.size() << ")" << endl;
+
+    return out;
+}
+#endif
+
+template<typename Out, typename View>
+Out &log_buffer(Out &out, const View &buffer, const std::string &header = {})
 {
     out << "begin buffer '" << header << "' (size=" << buffer.size() << ")" << endl;
 
@@ -75,13 +90,17 @@ void listfile_writer(listfile::WriteHandle *lfh, ReadoutBufferQueues &bufferQueu
 
 int main(int argc, char *argv[])
 {
-    if (argc != 2)
+    if (argc < 2)
     {
         cerr << "Error: no crate config file specified." << endl;
         return 1;
     }
 
     std::ifstream inConfig(argv[1]);
+    auto timeToRun = std::chrono::seconds(10);
+
+    if (argc > 2)
+        timeToRun = std::chrono::seconds(std::atol(argv[2]));
 
     auto crateConfig = crate_config_from_yaml(inConfig);
 
@@ -181,11 +200,10 @@ int main(int argc, char *argv[])
 
     ZipCreator zipWriter;
     zipWriter.createArchive("mini-daq.zip");
-    auto lfh = zipWriter.createLZ4Entry("listfile.mvlclst", 0);
-    //auto lfh = zipWriter.createZIPEntry("listfile.mvlclst", 0);
+    //auto lfh = zipWriter.createLZ4Entry("listfile.mvlclst", 0);
+    auto lfh = zipWriter.createZIPEntry("listfile.mvlclst", 0);
 
     const size_t BufferSize = Megabytes(1);
-    cout << "BufferSize=" << BufferSize << endl;
     const size_t BufferCount = 10;
     ReadoutBufferQueues bufferQueues(BufferSize, BufferCount);
     auto &filled = bufferQueues.filledBufferQueue();
@@ -195,7 +213,6 @@ int main(int argc, char *argv[])
 
     size_t totalBytesTransferred = 0u;
     size_t totalPacketsReceived = 0u;
-    auto timeToRun = std::chrono::seconds(10);
     auto tStart = std::chrono::steady_clock::now();
 
     // TODO: FlushBufferTimeout, consumer buffer queue
@@ -284,6 +301,9 @@ int main(int argc, char *argv[])
             readBuffer->use(bytesTransferred);
             totalBytesTransferred += bytesTransferred;
 
+            log_buffer(cout, readBuffer->viewU32(), "readout buffer");
+
+            // FIXME: if the buffer is empty this will cause the listfile_writer to quit
             filled.enqueue(readBuffer);
 
             if (ec == ErrorType::ConnectionError)
@@ -324,8 +344,7 @@ int main(int argc, char *argv[])
         << " MB, resulting data rate: " << mbs << "MB/s"
         << endl;
 
-    cout << endl
-        << "totalPacketsReceived=" << totalPacketsReceived << endl;
+    cout << "totalPacketsReceived=" << totalPacketsReceived << endl;
 
     if (auto ec = disable_all_triggers(mvlc))
     {

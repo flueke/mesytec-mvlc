@@ -21,6 +21,9 @@
 #ifndef __MVME_MVLC_DIALOG_UTIL_H__
 #define __MVME_MVLC_DIALOG_UTIL_H__
 
+#include <iostream>
+#include <iomanip>
+
 #include "mvlc_command_builders.h"
 #include "mvlc_constants.h"
 #include "mvlc_error.h"
@@ -257,6 +260,10 @@ std::error_code setup_readout_triggers(
     {
         if (stackId >= stacks::StackCount)
             return make_error_code(MVLCErrorCode::StackCountExceeded);
+
+        std::cerr << "stackId=" << static_cast<unsigned>(stackId)
+            << ", triggerVal=0x" << std::hex << triggerVal << std::dec
+            << std::endl;
 
         if (auto ec = write_stack_trigger_value(mvlc, stackId, triggerVal))
             return ec;
