@@ -41,6 +41,7 @@
 #include "mvlc_basic_interface.h"
 #include "mvlc_constants.h"
 #include "mvlc_counters.h"
+#include "mvlc_eth_interface.h"
 #include "util/ticketmutex.h"
 
 namespace mesytec
@@ -50,111 +51,7 @@ namespace mvlc
 namespace eth
 {
 
-struct MESYTEC_MVLC_EXPORT PayloadHeaderInfo
-{
-    u32 header0;
-    u32 header1;
-
-    inline u16 packetChannel() const
-    {
-        return (header0 >> header0::PacketChannelShift) & header0::PacketChannelMask;
-    }
-
-    inline u16 packetNumber() const
-    {
-        return (header0 >> header0::PacketNumberShift)  & header0::PacketNumberMask;
-    }
-
-    inline u16 dataWordCount() const
-    {
-        return (header0 >> header0::NumDataWordsShift)  & header0::NumDataWordsMask;
-    }
-
-    inline u16 udpTimestamp() const
-    {
-        return (header1 >> header1::TimestampShift)     & header1::TimestampMask;
-    }
-
-    inline u16 nextHeaderPointer() const
-    {
-        return (header1 >> header1::HeaderPointerShift) & header1::HeaderPointerMask;
-    }
-
-    inline u16 isNextHeaderPointerPresent() const
-    {
-        return nextHeaderPointer() != header1::NoHeaderPointerPresent;
-    }
-};
-
-struct MESYTEC_MVLC_EXPORT PacketReadResult
-{
-    std::error_code ec;
-    u8 *buffer;             // Equal to the dest pointer passed to read_packet()
-    u16 bytesTransferred;
-    s32 lostPackets;        // Loss between the previous and current packets
-
-    inline bool hasHeaders() const { return bytesTransferred >= HeaderBytes; }
-
-    inline u32 header0() const { return reinterpret_cast<u32 *>(buffer)[0]; }
-    inline u32 header1() const { return reinterpret_cast<u32 *>(buffer)[1]; }
-
-    inline u16 packetChannel() const
-    {
-        return PayloadHeaderInfo{header0(), header1()}.packetChannel();
-    }
-
-    inline u16 packetNumber() const
-    {
-        return PayloadHeaderInfo{header0(), header1()}.packetNumber();
-    }
-
-    inline u16 dataWordCount() const
-    {
-        return PayloadHeaderInfo{header0(), header1()}.dataWordCount();
-    }
-
-    inline u16 udpTimestamp() const
-    {
-        return PayloadHeaderInfo{header0(), header1()}.udpTimestamp();
-    }
-
-    inline u16 nextHeaderPointer() const
-    {
-        return PayloadHeaderInfo{header0(), header1()}.nextHeaderPointer();
-    }
-
-    inline u16 availablePayloadWords() const
-    {
-        return (bytesTransferred - HeaderBytes) / sizeof(u32);
-    }
-
-    inline u16 leftoverBytes() const
-    {
-        return bytesTransferred % sizeof(u32);
-    }
-
-    inline u32 *payloadBegin() const
-    {
-        return reinterpret_cast<u32 *>(buffer + HeaderBytes);
-    }
-
-    inline u32 *payloadEnd() const
-    {
-        return payloadBegin() + availablePayloadWords();
-    }
-
-    inline bool isNextHeaderPointerValid() const
-    {
-        const u16 nhp = nextHeaderPointer();
-
-        if (nhp != header1::NoHeaderPointerPresent)
-            return payloadBegin() + nhp < payloadEnd();
-
-        return true;
-    }
-};
-
-class MESYTEC_MVLC_EXPORT Impl: public MVLCBasicInterface
+class MESYTEC_MVLC_EXPORT Impl: public MVLCBasicInterface, public MVLC_ETH_Interface
 {
     public:
         explicit Impl(const std::string &host);
@@ -176,7 +73,7 @@ class MESYTEC_MVLC_EXPORT Impl: public MVLCBasicInterface
         std::error_code read(Pipe pipe, u8 *buffer, size_t size,
                              size_t &bytesTransferred) override;
 
-        PacketReadResult read_packet(Pipe pipe, u8 *buffer, size_t size);
+        PacketReadResult read_packet(Pipe pipe, u8 *buffer, size_t size) override;
 
         ConnectionType connectionType() const override { return ConnectionType::ETH; }
         std::string connectionInfo() const override;

@@ -31,6 +31,7 @@
 #ifdef __WIN32
 #include "mvlc_impl_support.h"
 #endif
+#include "mvlc_usb_interface.h"
 
 namespace mesytec
 {
@@ -109,7 +110,7 @@ enum class EndpointDirection: u8
     Out
 };
 
-class MESYTEC_MVLC_EXPORT Impl: public MVLCBasicInterface
+class MESYTEC_MVLC_EXPORT Impl: public MVLCBasicInterface, public MVLC_USB_Interface
 {
     public:
         // The constructors do not call connect(). They just setup the
@@ -145,8 +146,9 @@ class MESYTEC_MVLC_EXPORT Impl: public MVLCBasicInterface
         std::error_code read(Pipe pipe, u8 *buffer, size_t size,
                              size_t &bytesTransferred) override;
 
-        std::error_code read_unbuffered(Pipe pipe, u8 *buffer, size_t size,
-                                        size_t &bytesTransferred);
+        std::error_code read_unbuffered(
+            Pipe pipe, u8 *buffer, size_t size,
+            size_t &bytesTransferred) override;
 
         std::error_code abortPipe(Pipe pipe, EndpointDirection dir);
 
