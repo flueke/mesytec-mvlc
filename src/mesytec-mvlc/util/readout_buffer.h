@@ -48,6 +48,12 @@ class MESYTEC_MVLC_EXPORT ReadoutBuffer
             m_used += bytes;
         }
 
+        void setUsed(size_t bytes)
+        {
+            assert(bytes <= m_used);
+            m_used -= bytes;
+        }
+
         const std::vector<u8> &buffer() const { return m_buffer; }
         std::vector<u8> &buffer() { return m_buffer; }
 

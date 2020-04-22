@@ -498,6 +498,24 @@ std::error_code Impl::connect()
         }
     }
 
+    {
+        LOG_TRACE("Sending initial empty request to the UDP data port");
+
+        static const std::array<u32, 2> EmptyRequest = { 0xF1000000, 0xF2000000 };
+        size_t bytesTransferred = 0;
+
+        if (auto ec = this->write(
+                Pipe::Data,
+                reinterpret_cast<const u8 *>(EmptyRequest.data()),
+                EmptyRequest.size() * sizeof(u32),
+                bytesTransferred))
+        {
+            LOG_WARN("Error sending initial empty request to the UDP data port: %s", ec.message().c_str());
+            close_sockets();
+            return ec;
+        }
+    }
+
     LOG_TRACE("ETH connect sequence finished");
 
     assert(m_cmdSock >= 0 && m_dataSock >= 0);

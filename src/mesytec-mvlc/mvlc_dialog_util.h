@@ -21,9 +21,6 @@
 #ifndef __MVME_MVLC_DIALOG_UTIL_H__
 #define __MVME_MVLC_DIALOG_UTIL_H__
 
-#include <utility>
-#include <vector>
-
 #include "mvlc_command_builders.h"
 #include "mvlc_constants.h"
 #include "mvlc_error.h"
