@@ -218,11 +218,19 @@ inline std::pair<stacks::TriggerType, u8> decode_trigger_value(const u32 trigger
 }
 
 template<typename DIALOG_API>
+std::error_code write_stack_trigger_value(
+    DIALOG_API &mvlc, u8 stackId, u32 triggerVal)
+{
+    u16 triggerReg = stacks::get_trigger_register(stackId);
+
+    return mvlc.writeRegister(triggerReg, triggerVal);
+}
+
+template<typename DIALOG_API>
 std::error_code setup_stack_trigger(
     DIALOG_API &mvlc, u8 stackId,
     stacks::TriggerType triggerType, u8 irqLevel = 0)
 {
-    u16 triggerReg = stacks::get_trigger_register(stackId);
     u32 triggerVal = triggerType << stacks::TriggerTypeShift;
 
     if ((triggerType == stacks::TriggerType::IRQNoIACK
@@ -232,7 +240,7 @@ std::error_code setup_stack_trigger(
         triggerVal |= (irqLevel - 1) & stacks::TriggerBitsMask;
     }
 
-    return mvlc.writeRegister(triggerReg, triggerVal);
+    return write_stack_trigger_value(mvlc, stackId, triggerVal);
 }
 
 template<typename DIALOG_API>
@@ -240,6 +248,26 @@ std::error_code setup_stack_trigger(
     DIALOG_API &mvlc, u8 stackId, const StackTrigger &st)
 {
     return setup_stack_trigger(mvlc, stackId, st.triggerType, st.irqLevel);
+}
+
+template<typename DIALOG_API>
+std::error_code setup_readout_triggers(
+    DIALOG_API &mvlc, const std::vector<u32> &readoutTriggers)
+{
+    u8 stackId = stacks::ImmediateStackID + 1;
+
+    for (u32 triggerVal: readoutTriggers)
+    {
+        if (stackId >= stacks::StackCount)
+            return make_error_code(MVLCErrorCode::StackCountExceeded);
+
+        if (auto ec = write_stack_trigger_value(mvlc, stackId, triggerVal))
+            return ec;
+
+        ++stackId;
+    }
+
+    return {};
 }
 
 } // end namespace mvlc
