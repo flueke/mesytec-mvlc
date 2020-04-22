@@ -2,8 +2,9 @@
 
 #include <atomic>
 #include <yaml-cpp/yaml.h>
+#include <yaml-cpp/emittermanip.h>
 
-#include "yaml-cpp/emittermanip.h"
+#include "mvlc_factory.h"
 
 namespace mesytec
 {
@@ -91,6 +92,7 @@ bool CrateConfig::operator==(const CrateConfig &o) const
         && triggers == o.triggers
         && initCommands == o.initCommands
         && stopCommands == o.stopCommands
+        && initTriggerIO == o.initTriggerIO
         ;
 }
 
@@ -181,6 +183,7 @@ std::string to_yaml(const CrateConfig &crateConfig)
     out << YAML::Key << "stack_triggers" << YAML::Value << crateConfig.triggers;
     out << YAML::Key << "init_commands" << YAML::Value << crateConfig.initCommands;
     out << YAML::Key << "stop_commands" << YAML::Value << crateConfig.stopCommands;
+    out << YAML::Key << "init_trigger_io" << YAML::Value << crateConfig.initTriggerIO;
 
     out << YAML::EndMap; // end crate
 
@@ -191,9 +194,15 @@ std::string to_yaml(const CrateConfig &crateConfig)
 
 CrateConfig crate_config_from_yaml(const std::string &yamlText)
 {
+    std::istringstream iss(yamlText);
+    return crate_config_from_yaml(iss);
+}
+
+CrateConfig crate_config_from_yaml(std::istream &input)
+{
     CrateConfig result = {};
 
-    YAML::Node yRoot = YAML::Load(yamlText);
+    YAML::Node yRoot = YAML::Load(input);
 
     if (!yRoot || !yRoot["crate"])
         return result;
@@ -222,9 +231,30 @@ CrateConfig crate_config_from_yaml(const std::string &yamlText)
 
         result.initCommands = stack_command_builder_from_yaml(yCrate["init_commands"]);
         result.stopCommands = stack_command_builder_from_yaml(yCrate["stop_commands"]);
+        result.initTriggerIO = stack_command_builder_from_yaml(yCrate["init_trigger_io"]);
     }
 
     return result;
+}
+
+MVLC MESYTEC_MVLC_EXPORT make_mvlc(const CrateConfig &crateConfig)
+{
+    switch (crateConfig.connectionType)
+    {
+        case ConnectionType::USB:
+            if (crateConfig.usbIndex >= 0)
+                return make_mvlc_usb(crateConfig.usbIndex);
+
+            if (!crateConfig.usbSerial.empty())
+                return make_mvlc_usb(crateConfig.usbSerial);
+
+            return make_mvlc_usb();
+
+        case ConnectionType::ETH:
+            return make_mvlc_eth(crateConfig.ethHost);
+    }
+
+    throw std::runtime_error("unknown CrateConfig::connectionType");
 }
 
 } // end namespace mvlc
