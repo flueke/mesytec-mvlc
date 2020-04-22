@@ -11,6 +11,7 @@ add_library(mesytec-mvlc SHARED
     mvlc_dialog.cc
     mvlc_dialog_util.cc
     mvlc_error.cc
+    mvlc_eth_interface.cc
     mvlc_factory.cc
     mvlc_impl_eth.cc
     mvlc_impl_support.cc
@@ -20,6 +21,7 @@ add_library(mesytec-mvlc SHARED
     mvlc_readout.cc
     mvlc_readout_parser.cc
     mvlc_stack_executor.cc
+    mvlc_usb_interface.cc
     mvlc_util.cc
     util/string_util.cc
     util/threadsafequeue.cc
