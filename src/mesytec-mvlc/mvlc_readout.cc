@@ -166,7 +166,7 @@ std::string to_yaml(const CrateConfig &crateConfig)
 
     out << YAML::Key << "mvlc_connection" << YAML::Value << YAML::BeginMap;
     out << YAML::Key << "type" << YAML::Value << to_string(crateConfig.connectionType);
-    out << YAML::Key << "usbIndex" << YAML::Value << crateConfig.usbIndex;
+    out << YAML::Key << "usbIndex" << YAML::Value << std::to_string(crateConfig.usbIndex);
     out << YAML::Key << "usbSerial" << YAML::Value << crateConfig.usbSerial;
     out << YAML::Key << "ethHost" << YAML::Value << crateConfig.ethHost;
     out << YAML::EndMap; // end mvlc_connection
