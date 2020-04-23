@@ -120,15 +120,17 @@ int main(int argc, char *argv[])
     // init
     //
 
+#if 0
     if (auto ec = disable_all_triggers(mvlc))
     {
         cerr << "Error disabling MVLC triggers: " << ec.message() << endl;
         return 1;
     }
+#endif
 
     // exec init_commands using all of the stack memory
     {
-        auto options = Options{ .ignoreDelays = false, .noBatching = false };
+        CommandExecOptions options;
 
         std::vector<u32> response;
 
@@ -136,7 +138,7 @@ int main(int argc, char *argv[])
             mvlc, crateConfig.initCommands,
             stacks::StackMemoryWords, options, response);
 
-        log_buffer(cout, response, "init_commands response");
+        //log_buffer(cout, response, "init_commands response");
 
         if (ec)
         {
@@ -144,12 +146,18 @@ int main(int argc, char *argv[])
             return 1;
         }
 
-        auto parsedResults = parse_response(crateConfig.initCommands, response);
+        auto parsedResults = parse_stack_exec_response(crateConfig.initCommands, response);
 
-        for (const auto &pr: parsedResults)
-        {
-            cout << to_string(pr.cmd) << endl;
-        }
+        cout << parsedResults << endl;
+
+
+        //for (const auto &resultGroup: parsedResults.groups)
+        //{
+        //    cout << "Stack Group " << resultGroup.name << ":" << endl;
+
+        //    for (const auto &pr: resultGroup.results)
+        //        cout << "  " << to_string(pr.cmd) << endl;
+        //}
     }
 
     // stack uploads
@@ -163,7 +171,7 @@ int main(int argc, char *argv[])
     // uses only the immediate stack reserved stack memory to not overwrite the
     // readout stacks.
     {
-        auto options = Options{ .ignoreDelays = false, .noBatching = false };
+        CommandExecOptions options;
 
         std::vector<u32> response;
 
@@ -177,13 +185,6 @@ int main(int argc, char *argv[])
         {
             cerr << "Error running init_trigger_io: " << ec.message() << endl;
             return 1;
-        }
-
-        auto parsedResults = parse_response(crateConfig.initTriggerIO, response);
-
-        for (const auto &pr: parsedResults)
-        {
-            //cout << to_string(pr.cmd) << endl;
         }
     }
 
@@ -200,8 +201,8 @@ int main(int argc, char *argv[])
 
     ZipCreator zipWriter;
     zipWriter.createArchive("mini-daq.zip");
-    //auto lfh = zipWriter.createLZ4Entry("listfile.mvlclst", 0);
-    auto lfh = zipWriter.createZIPEntry("listfile.mvlclst", 0);
+    auto lfh = zipWriter.createLZ4Entry("listfile.mvlclst", 0);
+    //auto lfh = zipWriter.createZIPEntry("listfile.mvlclst", 0);
 
     const size_t BufferSize = Megabytes(1);
     const size_t BufferCount = 10;
@@ -329,9 +330,6 @@ int main(int argc, char *argv[])
 
     writerThread.join();
 
-#if 1
-
-
     auto tEnd = std::chrono::steady_clock::now();
     auto runDuration = std::chrono::duration_cast<std::chrono::milliseconds>(tEnd - tStart);
     double runSeconds = runDuration.count() / 1000.0;
@@ -353,7 +351,6 @@ int main(int argc, char *argv[])
     }
 
     mvlc.disconnect();
-#endif
 
     return 0;
 }
