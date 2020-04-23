@@ -301,7 +301,7 @@ int main(int argc, char *argv[])
             readBuffer->use(bytesTransferred);
             totalBytesTransferred += bytesTransferred;
 
-            log_buffer(cout, readBuffer->viewU32(), "readout buffer");
+            //log_buffer(cout, readBuffer->viewU32(), "readout buffer");
 
             // FIXME: if the buffer is empty this will cause the listfile_writer to quit
             filled.enqueue(readBuffer);
