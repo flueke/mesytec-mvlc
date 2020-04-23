@@ -319,9 +319,8 @@ TEST(mvlc_commands, StackGroups)
     ASSERT_EQ(builder.getCommands(1)[0].type, StackCT::VMEWrite);
     ASSERT_EQ(builder.getCommands(1)[0].address, 0x1338u);
 
-    ASSERT_TRUE(builder.getGroup(999).name.empty());
-    ASSERT_TRUE(builder.getGroup(999).commands.empty());
-
+    // String lookups do not return a group ref but a copy of the group.
+    // Looking up a nonexistent group should yield an empty group result.
     ASSERT_TRUE(builder.getGroup("noexistent").name.empty());
     ASSERT_TRUE(builder.getGroup("noexistent").commands.empty());
 }
