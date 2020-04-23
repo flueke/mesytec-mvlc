@@ -11,6 +11,7 @@
 #include <mesytec-mvlc/mesytec_mvlc.h>
 #include <mesytec-mvlc/mvlc_dialog_util.h>
 #include <mesytec-mvlc/mvlc_eth_interface.h>
+#include <mesytec-mvlc/mvlc_readout.h>
 #include <mesytec-mvlc/mvlc_stack_executor.h>
 #include <mesytec-mvlc/mvlc_usb_interface.h>
 #include <mesytec-mvlc/util/perf.h>
@@ -128,6 +129,7 @@ int main(int argc, char *argv[])
     }
 #endif
 
+#if 0
     // exec init_commands using all of the stack memory
     {
         CommandExecOptions options;
@@ -194,6 +196,21 @@ int main(int argc, char *argv[])
         cerr << "Error setting up readout triggers: " << ec.message() << endl;
         return 1;
     }
+#else
+    {
+        auto initResults = init_readout(
+            mvlc, crateConfig);
+
+        cout << "Results from init_commands:" << endl << initResults.init << endl;
+        cout << "Result from init_trigger_io:" << endl << initResults.triggerIO << endl;
+
+        if (initResults.ec)
+        {
+            cerr << "Error running readout init sequence: " << initResults.ec.message() << endl;
+            return 1;
+        }
+    }
+#endif
 
     //
     // readout
