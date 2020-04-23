@@ -9,6 +9,7 @@
 #include <numeric>
 #include <system_error>
 #include <thread>
+#include <iomanip>
 
 #include "mvlc_buffer_validators.h"
 #include "mvlc_command_builders.h"
@@ -28,7 +29,6 @@ using namespace nonstd;
 struct Result
 {
     StackCommand cmd;
-    size_t groupIndex = 0;
     std::error_code ec;
     std::vector<u32> response;
     bool isValid = false;
@@ -49,7 +49,7 @@ struct Result
     bool valid() const { return isValid; }
 };
 
-struct Options
+struct CommandExecOptions
 {
     bool ignoreDelays = false;
     bool noBatching  = false;
@@ -87,14 +87,14 @@ inline bool is_sw_delay (const StackCommand &cmd)
 
 MESYTEC_MVLC_EXPORT std::vector<std::vector<StackCommand>> split_commands(
     const std::vector<StackCommand> &commands,
-    const Options &options = {},
+    const CommandExecOptions &options = {},
     const u16 immediateStackMaxSize = stacks::ImmediateStackReservedWords);
 
 template<typename DIALOG_API>
 std::error_code run_part(
     DIALOG_API &mvlc,
     const std::vector<StackCommand> &part,
-    const Options &options,
+    const CommandExecOptions &options,
     std::vector<u32> &responseDest)
 {
     if (part.empty())
@@ -121,7 +121,7 @@ template<typename DIALOG_API>
 std::error_code run_parts(
     DIALOG_API &mvlc,
     const std::vector<std::vector<StackCommand>> &parts,
-    const Options &options,
+    const CommandExecOptions &options,
     //AbortPredicate abortPredicate,
     std::vector<u32> &combinedResponses)
 {
@@ -194,87 +194,101 @@ template<typename DIALOG_API>
 } // end namespace detail
 
 template<typename DIALOG_API>
-std::error_code execute_stack(
+std::error_code execute_commands(
     DIALOG_API &mvlc,
-    const StackCommandBuilder &stack,
+    const std::vector<StackCommand> &commands,
     u16 immediateStackMaxSize,
-    const Options &options,
-    //AbortPredicate &abortPredicate,
+    const CommandExecOptions &options,
     std::vector<u32> &responseBuffer)
 {
-    if (stack.getGroupCount() == 0)
-        return {};
-
-    auto commands = stack.getCommands();
+    responseBuffer.clear();
 
     auto parts = detail::split_commands(commands, options, immediateStackMaxSize);
 
     if (parts.empty())
         return {};
 
-    responseBuffer.clear();
-
-    auto ec = detail::run_parts(mvlc, parts, options, /* abortPredicate, */ responseBuffer);
-
-    return ec;
+    return detail::run_parts(mvlc, parts, options, responseBuffer);
 }
 
-std::vector<Result> MESYTEC_MVLC_EXPORT parse_response(
+template<typename DIALOG_API>
+std::error_code execute_stack(
+    DIALOG_API &mvlc,
+    const StackCommandBuilder &stack,
+    u16 immediateStackMaxSize,
+    const CommandExecOptions &options,
+    std::vector<u32> &responseBuffer)
+{
+    return execute_commands(mvlc, stack.getCommands(), immediateStackMaxSize, options, responseBuffer);
+}
+
+std::vector<Result> MESYTEC_MVLC_EXPORT parse_response_list(
+    const std::vector<StackCommand> &commands, const std::vector<u32> &responseBuffer);
+
+struct MESYTEC_MVLC_EXPORT StackGroupResults
+{
+    struct Group
+    {
+        std::string name;
+        std::vector<Result> results;
+    };
+
+    std::vector<Group> groups;
+};
+
+StackGroupResults MESYTEC_MVLC_EXPORT parse_stack_exec_response(
     const StackCommandBuilder &stack, const std::vector<u32> &responseBuffer);
 
+template<typename Out>
+Out &output_hex_value(Out &out, u32 value)
+{
+    out << "0x" << std::hex << std::setw(8) << std::setfill('0')
+        << value
+        << std::dec << std::setw(0) << std::setfill(' ');
 
-#if 0
-    while (!response.empty())
+    return out;
+}
+
+template<typename Out>
+Out &operator<<(Out &out, const StackGroupResults &groupedResults)
+{
+    for (const auto &group: groupedResults.groups)
     {
-        const auto groupEnd = std::end(group.get().commands);
+        out << group.name << ":" << std::endl;
 
-        if (cmdIter == groupEnd)
+        for (const auto &result: group.results)
         {
-            if (++groupIndex >= stack.getGroupCount())
-                throw std::runtime_error("execute_stack: groupIndex out of range (response too long?)");
+            out << "  " << to_string(result.cmd) << " -> ";
 
-            group = std::ref(stack.getGroup(groupIndex));
-            cmdIter = std::begin(group.get().commands);
-        }
-
-        assert(cmdIter != groupEnd);
-
-        using CT = StackCommand::CommandType;
-
-        Result result(*cmdIter);
-
-        switch (cmdIter->type)
-        {
-            case CT::StackStart:
-            case CT::StackEnd:
-            case CT::SoftwareDelay:
-                break;
-
-            case CT::VMERead:
-                if (!vme_amods::is_block_mode(cmdIter->amod))
+            if (result.ec)
+            {
+                out << "Error: " << result.ec.message();
+            }
+            else if (result.cmd.type == StackCommand::CommandType::VMERead)
+            {
+                if (!vme_amods::is_block_mode(result.cmd.amod)
+                    && !result.response.empty())
                 {
-                    result.response = { response[0] };
-                    response.remove_prefix(1);
+                    output_hex_value(out, result.response[0]) << std::endl;
                 }
                 else
                 {
-                    u32 header = response[0];
-                    if (!is_stack_buffer(header))
-                        throw std::runtime_error("execute_stack: expected stack buffer response");
+                    out << std::endl;
 
-                    do
+                    for (const u32 value: result.response)
                     {
-                    } while (is_stack_buffer_continuation(header));
-
+                        out << "    ";
+                        output_hex_value(out, value) << std::endl;
+                    }
                 }
-            case CT::VMEWrite:
-            case CT::WriteSpecial:
-            case CT::WriteMarker:
-                break;
+            }
+            else
+                out << "Ok" << std::endl;
         }
-
     }
-#endif
+
+    return out;
+}
 
 } // end namespace mvlc
 } // end namespace mesytec

@@ -2,6 +2,7 @@
 #include "mvlc_constants.h"
 #include "mvlc_readout_parser.h"
 #include "vme_constants.h"
+#include <bits/c++config.h>
 
 namespace mesytec
 {
@@ -12,7 +13,7 @@ namespace detail
 
  std::vector<std::vector<StackCommand>> split_commands(
     const std::vector<StackCommand> &commands,
-    const Options &options,
+    const CommandExecOptions &options,
     const u16 immediateStackMaxSize)
 {
     std::vector<std::vector<StackCommand>> result;
@@ -199,11 +200,9 @@ Iter parse_stack_frame(
 
 } // end namespace detail
 
-std::vector<Result> parse_response(
-    const StackCommandBuilder &stack, const std::vector<u32> &responseBuffer)
+std::vector<Result> parse_response_list(
+    const std::vector<StackCommand> &commands, const std::vector<u32> &responseBuffer)
 {
-    auto commands = stack.getCommands();
-
     if (commands.empty())
         return {};
 
@@ -265,6 +264,36 @@ std::vector<Result> parse_response(
     }
 
     return results;
+}
+
+StackGroupResults MESYTEC_MVLC_EXPORT parse_stack_exec_response(
+    const StackCommandBuilder &stack, const std::vector<u32> &responseBuffer)
+{
+    auto results = parse_response_list(stack.getCommands(), responseBuffer);
+
+    StackGroupResults ret;
+
+    auto stackGroups  = stack.getGroups();
+    auto itResults = std::begin(results);
+    const auto endResults = std::end(results);
+
+    for (const auto &stackGroup: stackGroups)
+    {
+        StackGroupResults::Group resultsGroup;
+        resultsGroup.name = stackGroup.name;
+
+        for (size_t i = 0; i < stackGroup.commands.size(); ++i)
+        {
+            if (itResults >= endResults)
+                break;
+
+            resultsGroup.results.push_back(*itResults++);
+        }
+
+        ret.groups.emplace_back(resultsGroup);
+    }
+
+    return ret;
 }
 
 #if 0

@@ -7,6 +7,7 @@
 #include <limits>
 
 #include "mesytec-mvlc/mvlc_constants.h"
+#include "mvlc_constants.h"
 #include "mvlc_dialog_util.h"
 #include "mvlc_factory.h"
 #include "mvlc_stack_executor.h"
@@ -91,7 +92,10 @@ TEST(mvlc_stack_executor, MVLCTestTransactions)
             cout << "split_commands returned " << parts.size() << " parts:" << endl;
 
             for (const auto &part: parts)
-                cout << " size=" << part.size() << "words, encodedSize=" << get_encoded_stack_size(part) << endl;
+            {
+                cout << " size=" << part.size()
+                    << "words, encodedSize=" << get_encoded_stack_size(part) << endl;
+            }
 
             std::vector<u32> response;
 
@@ -177,7 +181,7 @@ TEST(mvlc_stack_executor, SplitCommandsOptions)
     {
         const u16 StackReservedWords = stacks::ImmediateStackReservedWords;
         auto commands = stack.getCommands();
-        Options options { .ignoreDelays = true, .noBatching = false };
+        CommandExecOptions options { .ignoreDelays = true, .noBatching = false };
         auto parts = detail::split_commands(commands, options, StackReservedWords);
         ASSERT_EQ(parts.size(), 1);
         ASSERT_EQ(parts[0].size(), 5);
@@ -192,7 +196,7 @@ TEST(mvlc_stack_executor, SplitCommandsOptions)
     {
         const u16 StackReservedWords = stacks::ImmediateStackReservedWords;
         auto commands = stack.getCommands();
-        Options options { .ignoreDelays = false, .noBatching = true };
+        CommandExecOptions options { .ignoreDelays = false, .noBatching = true };
         auto parts = detail::split_commands(commands, options, StackReservedWords);
         ASSERT_EQ(parts.size(), 5);
 
@@ -213,7 +217,7 @@ TEST(mvlc_stack_executor, SplitCommandsOptions)
     {
         const u16 StackReservedWords = stacks::ImmediateStackReservedWords;
         auto commands = stack.getCommands();
-        Options options { .ignoreDelays = false, .noBatching = true };
+        CommandExecOptions options { .ignoreDelays = false, .noBatching = true };
         auto parts = detail::split_commands(commands, options, StackReservedWords);
         ASSERT_EQ(parts.size(), 5);
 
@@ -357,7 +361,7 @@ TEST(mvlc_stack_executor, MVLCTestExecParseWrites)
             stack.addVMEWrite(mcst + 0x603a, 1, amod, dw);
             stack.addVMEWrite(mcst + 0x6034, 1, amod, dw);
 
-            struct Options options;
+            struct CommandExecOptions options;
             options.ignoreDelays = false;
             options.noBatching = false;
 
@@ -370,9 +374,9 @@ TEST(mvlc_stack_executor, MVLCTestExecParseWrites)
             if (ec)
                 throw ec;
 
-            auto parsedResults = parse_response(stack, response);
-
             const auto commands = stack.getCommands();
+
+            auto parsedResults = parse_response_list(commands, response);
 
             ASSERT_EQ(parsedResults.size(), commands.size());
 
@@ -438,7 +442,7 @@ TEST(mvlc_stack_executor, MVLCTestExecParseReads)
 
             stack.addVMEWrite(mcst + 0x6034, 1, amod, dw); // readout reset
 
-            struct Options options;
+            struct CommandExecOptions options;
             options.ignoreDelays = false;
             options.noBatching = false;
 
@@ -463,9 +467,9 @@ TEST(mvlc_stack_executor, MVLCTestExecParseReads)
                 log_buffer(cout, response, "mtdc readout_test response");
                 cout << "response.size() = " << response.size() << std::endl;
 
-                auto parsedResults = parse_response(stack, response);
-
                 const auto commands = stack.getCommands();
+
+                auto parsedResults = parse_response_list(commands, response);
 
                 ASSERT_EQ(parsedResults.size(), commands.size());
 
@@ -550,7 +554,7 @@ TEST(mvlc_stack_executor, MVLCTestExecParseBlockRead)
 
             stack.addVMEWrite(mcst + 0x6034, 1, amod, dw); // readout reset
 
-            struct Options options;
+            struct CommandExecOptions options;
             options.ignoreDelays = false;
             options.noBatching = false;
 
@@ -575,9 +579,9 @@ TEST(mvlc_stack_executor, MVLCTestExecParseBlockRead)
                 //log_buffer(cout, response, "mtdc readout_test response");
                 cout << "response.size() = " << response.size() << std::endl;
 
-                auto parsedResults = parse_response(stack, response);
-
                 const auto commands = stack.getCommands();
+
+                auto parsedResults = parse_response_list(commands, response);
 
                 ASSERT_EQ(parsedResults.size(), commands.size());
 
@@ -627,6 +631,79 @@ TEST(mvlc_stack_executor, MVLCTestExecParseBlockRead)
                                ) << std::endl;
             cout << endl;
 #endif
+        }
+    }
+}
+
+TEST(mvlc_stack_executor, MVLCTestParseStackGroups)
+{
+    {
+        auto mvlc = make_testing_mvlc();
+
+        mvlc.setDisableTriggersOnConnect(true);
+
+        if (auto ec = mvlc.connect())
+        {
+            std::cout << ec.message() << std::endl;
+            throw ec;
+        }
+
+        const u32 base = 0x00000000u;
+        const u32 noModuleBase = 0x10000000u;
+        const u8 mcstByte = 0xbbu;
+        const u32 mcst = mcstByte << 24;
+        const u8 irq = 1;
+        const auto amod = vme_amods::A32;
+        const auto dw = VMEDataWidth::D16;
+
+        {
+            StackCommandBuilder stack;
+
+            stack.beginGroup("group0");
+            stack.addVMERead(base + 0x6008, amod, dw);
+            stack.addVMERead(base + 0x600E, amod, dw);
+
+            stack.beginGroup("group1");
+            stack.addVMERead(noModuleBase + 0x6008, amod, dw);
+            stack.addVMERead(noModuleBase + 0x600E, amod, dw);
+
+            stack.beginGroup("group2");
+            // block read from mtdc fifo
+            stack.addVMEBlockRead(base, vme_amods::MBLT64, std::numeric_limits<u16>::max());
+            stack.addVMERead(base + 0x6096, amod, dw); // event counter low
+            stack.addVMERead(base + 0x6098, amod, dw); // event counter high
+
+            stack.beginGroup("group3");
+            stack.addVMEWrite(mcst + 0x6034, 1, amod, dw); // readout reset
+
+            struct CommandExecOptions options;
+            options.ignoreDelays = false;
+            options.noBatching = false;
+
+            std::vector<u32> response;
+
+            if (auto ec = execute_stack(mvlc, stack, stacks::StackMemoryWords, options, response))
+                throw ec;
+
+            auto groupedResults = parse_stack_exec_response(stack, response);
+
+            ASSERT_EQ(groupedResults.groups.size(), stack.getGroupCount());
+
+            for (size_t groupIndex = 0; groupIndex < groupedResults.groups.size(); ++groupIndex)
+            {
+                const auto &stackGroup = stack.getGroup(groupIndex);
+                const auto &resultsGroup = groupedResults.groups[groupIndex];
+
+                ASSERT_EQ(stackGroup.commands.size(), resultsGroup.results.size());
+                ASSERT_EQ(stackGroup.name, resultsGroup.name);
+
+                for (size_t cmdIndex = 0; cmdIndex < resultsGroup.results.size(); ++cmdIndex)
+                {
+                    ASSERT_EQ(stackGroup.commands[cmdIndex], resultsGroup.results[cmdIndex].cmd);
+                }
+            }
+
+            cout << groupedResults << endl;
         }
     }
 }
