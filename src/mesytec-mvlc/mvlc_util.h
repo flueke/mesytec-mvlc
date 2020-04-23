@@ -18,8 +18,8 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  */
-#ifndef __MVME_MVLC_UTIL_H__
-#define __MVME_MVLC_UTIL_H__
+#ifndef __MESYTEC_MVLC_MVME_MVLC_UTIL_H__
+#define __MESYTEC_MVLC_MVME_MVLC_UTIL_H__
 
 #include <iomanip>
 #include <vector>
@@ -100,4 +100,4 @@ stacks::TimerBaseUnit MESYTEC_MVLC_EXPORT timer_base_unit_from_string(const std:
 } // end namespace mvlc
 } // end namespace mesytec
 
-#endif /* __MVLC_UTIL_H__ */
+#endif /* __MESYTEC_MVLC_MVLC_UTIL_H__ */
