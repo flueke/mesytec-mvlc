@@ -202,7 +202,7 @@ int main(int argc, char *argv[])
             mvlc, crateConfig);
 
         cout << "Results from init_commands:" << endl << initResults.init << endl;
-        cout << "Result from init_trigger_io:" << endl << initResults.triggerIO << endl;
+        // cout << "Result from init_trigger_io:" << endl << initResults.triggerIO << endl;
 
         if (initResults.ec)
         {
