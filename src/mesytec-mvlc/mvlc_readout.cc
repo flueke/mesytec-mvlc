@@ -1,6 +1,11 @@
 #include "mvlc_readout.h"
 
+#include <chrono>
 #include <iostream>
+
+#ifndef __WIN32
+#include <sys/prctl.h>
+#endif
 
 #include "mvlc_factory.h"
 #include "mvlc_dialog_util.h"
@@ -83,7 +88,7 @@ ReadoutInitResults MESYTEC_MVLC_EXPORT init_readout(
 {
     ReadoutInitResults ret;
 
-    // exec init_commands using all of the stack memory
+    // exec init_commands using all of the available stack memory
     {
         std::vector<u32> response;
 
@@ -114,8 +119,8 @@ ReadoutInitResults MESYTEC_MVLC_EXPORT init_readout(
     }
 
     // Run the trigger_io init sequence after the stacks are in place.
-    // Uses only the immediate stack reserved stack memory to not overwrite the
-    // readout stacks.
+    // Uses only the immediate stack reserved stack memory area to not
+    // overwrite the readout stacks.
     {
         CommandExecOptions options;
 
@@ -150,5 +155,93 @@ ReadoutInitResults MESYTEC_MVLC_EXPORT init_readout(
     return ret;
 }
 
+void MESYTEC_MVLC_EXPORT listfile_buffer_writer(
+    listfile::WriteHandle *lfh,
+    ReadoutBufferQueues &bufferQueues,
+    ListfileBufferWriterState &state,
+    TicketMutex &stateMutex)
+{
+#ifndef __WIN32
+    prctl(PR_SET_NAME,"listfile_writer",0,0,0);
+#endif
+
+    auto &filled = bufferQueues.filledBufferQueue();
+    auto &empty = bufferQueues.emptyBufferQueue();
+
+    cerr << "listfile_writer entering write loop" << endl;
+
+    size_t bytesWritten = 0u;
+    size_t writes = 0u;
+
+    {
+        std::unique_lock<TicketMutex> guard(stateMutex);
+        state.tStart = ListfileBufferWriterState::Clock::now();
+        state.state = ListfileBufferWriterState::Running;
+    }
+
+    try
+    {
+        while (true)
+        {
+            auto buffer = filled.dequeue_blocking();
+
+            assert(buffer);
+
+            if (!buffer)
+                break;
+
+            if (buffer->empty())
+            {
+                empty.enqueue(buffer);
+                break;
+            }
+
+            try
+            {
+                auto bufferView = buffer->viewU8();
+
+                bytesWritten += lfh->write(bufferView.data(), bufferView.size());
+                ++writes;
+
+                empty.enqueue(buffer);
+
+                std::unique_lock<TicketMutex> guard(stateMutex);
+                state.bytesWritten = bytesWritten;
+                state.writes = writes;
+
+            } catch (...)
+            {
+                empty.enqueue(buffer);
+                throw;
+            }
+        }
+    }
+    catch (const std::runtime_error &e)
+    {
+        {
+            std::unique_lock<TicketMutex> guard(stateMutex);
+            state.exception = std::current_exception();
+        }
+
+        cerr << "listfile_writer caught a std::runtime_error: " << e.what() << endl;
+    }
+    catch (...)
+    {
+        {
+            std::unique_lock<TicketMutex> guard(stateMutex);
+            state.exception = std::current_exception();
+        }
+
+        cerr << "listfile_writer caught an unknown exception." << endl;
+    }
+
+    {
+        std::unique_lock<TicketMutex> guard(stateMutex);
+        state.state = ListfileBufferWriterState::Idle;
+        state.tEnd = ListfileBufferWriterState::Clock::now();
+    }
+
+    cerr << "listfile_writer left write loop, writes=" << writes << ", bytesWritten=" << bytesWritten << endl;
+}
 } // end namespace mvlc
 } // end namespace mesytec

@@ -3,7 +3,7 @@
 
 #include "mesytec-mvlc_export.h"
 
-#include "mvlc_readout.h"
+#include "mvlc_readout_config.h"
 #include "util/int_types.h"
 
 namespace mesytec

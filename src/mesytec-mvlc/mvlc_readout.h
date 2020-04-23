@@ -4,9 +4,10 @@
 #include "mesytec-mvlc_export.h"
 
 #include "mvlc.h"
+#include "mvlc_listfile.h"
 #include "mvlc_readout_config.h"
 #include "mvlc_stack_executor.h"
-#include "util/readout_buffer.h"
+#include "util/readout_buffer_queues.h"
 
 namespace mesytec
 {
@@ -68,6 +69,30 @@ struct ReadoutInitResults
 ReadoutInitResults MESYTEC_MVLC_EXPORT init_readout(
     MVLC &mvlc, const CrateConfig &crateConfig,
     const CommandExecOptions stackExecOptions = {});
+
+struct ListfileBufferWriterState
+{
+    using Clock = std::chrono::steady_clock;
+
+    enum State { Idle, Running };
+
+    State state = Idle;
+    Clock::time_point tStart;
+    Clock::time_point tEnd;
+    size_t writes;
+    size_t bytesWritten;
+    std::exception_ptr exception;
+};
+
+// Usage:
+// auto writerThread = std::thread(listfile_buffer_writer, lfh,
+//                                 std::ref(bufferQueues), std::ref(writerState), std::ref(stateMutex));
+
+void MESYTEC_MVLC_EXPORT listfile_buffer_writer(
+    listfile::WriteHandle *lfh,
+    ReadoutBufferQueues &bufferQueues,
+    ListfileBufferWriterState &state,
+    TicketMutex &stateMutex);
 
 } // end namespace mvlc
 } // end namespace mesytec

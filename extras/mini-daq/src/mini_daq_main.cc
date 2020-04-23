@@ -4,9 +4,6 @@
 #include <thread>
 #include <vector>
 #include <fstream>
-#ifndef __WIN32
-#include <sys/prctl.h>
-#endif
 
 #include <mesytec-mvlc/mesytec_mvlc.h>
 #include <mesytec-mvlc/mvlc_dialog_util.h>
@@ -29,21 +26,6 @@ using namespace mesytec::mvlc;
 using namespace mesytec::mvlc::listfile;
 using namespace nonstd;
 
-#if 0
-template<typename Out>
-Out &log_buffer(Out &out, const std::vector<u32> &buffer, const std::string &header = {})
-{
-    out << "begin buffer '" << header << "' (size=" << buffer.size() << ")" << endl;
-
-    for (const auto &value: buffer)
-        out << fmt::format("  {:#010x}", value) << endl;
-
-    out << "end buffer " << header << "' (size=" << buffer.size() << ")" << endl;
-
-    return out;
-}
-#endif
-
 template<typename Out, typename View>
 Out &log_buffer(Out &out, const View &buffer, const std::string &header = {})
 {
@@ -55,38 +37,6 @@ Out &log_buffer(Out &out, const View &buffer, const std::string &header = {})
     out << "end buffer " << header << "' (size=" << buffer.size() << ")" << endl;
 
     return out;
-}
-
-void listfile_writer(listfile::WriteHandle *lfh, ReadoutBufferQueues &bufferQueues)
-{
-#ifndef __WIN32
-    prctl(PR_SET_NAME,"listfile_writer",0,0,0);
-#endif
-
-    auto &filled = bufferQueues.filledBufferQueue();
-    auto &empty = bufferQueues.emptyBufferQueue();
-
-    cout << "listfile_writer entering loop" << endl;
-    size_t bytesWritten = 0u;
-    size_t writes = 0u;
-
-    while (true)
-    {
-        auto buffer = filled.dequeue_blocking();
-
-        if (buffer->empty()) // sentinel
-        {
-            empty.enqueue(buffer);
-            break;
-        }
-
-        auto bufferView = buffer->viewU8();
-        bytesWritten += lfh->write(bufferView.data(), bufferView.size());
-        ++writes;
-        empty.enqueue(buffer);
-    }
-
-    cout << "listfile_writer left loop, writes=" << writes << ", bytesWritten=" << bytesWritten << endl;
 }
 
 int main(int argc, char *argv[])
@@ -226,8 +176,12 @@ int main(int argc, char *argv[])
     ReadoutBufferQueues bufferQueues(BufferSize, BufferCount);
     auto &filled = bufferQueues.filledBufferQueue();
     auto &empty = bufferQueues.emptyBufferQueue();
+    ListfileBufferWriterState writerState = {};
+    TicketMutex writerStateMutex;
 
-    auto writerThread = std::thread(listfile_writer, lfh, std::ref(bufferQueues));
+    auto writerThread = std::thread(
+        listfile_buffer_writer, lfh, std::ref(bufferQueues),
+        std::ref(writerState), std::ref(writerStateMutex));
 
     size_t totalBytesTransferred = 0u;
     size_t totalPacketsReceived = 0u;
@@ -271,6 +225,8 @@ int main(int argc, char *argv[])
                 totalBytesTransferred += result.bytesTransferred;
                 ec = result.ec;
 
+                //log_buffer(cout, readBuffer->viewU32(), "readout buffer");
+
                 if (result.bytesTransferred > 0)
                     ++totalPacketsReceived;
 
@@ -283,8 +239,10 @@ int main(int argc, char *argv[])
                 // least keep the structure somewhat intact assuming that the
                 // dataWordCount in header0 is correct. Note that this case does not
                 // happen, the MVLC never generates packets with residual bytes.
+#if 0
                 if (unlikely(result.leftoverBytes()))
                     readBuffer->setUsed(readBuffer->used() - result.leftoverBytes());
+#endif
             }
 
             dataGuard.unlock();
