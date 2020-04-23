@@ -29,7 +29,7 @@ using namespace nonstd;
 struct Result
 {
     StackCommand cmd;
-    std::error_code ec;
+    std::error_code ec; // FIXME: error_code is not properly set by the parser right now
     std::vector<u32> response;
     bool isValid = false;
 
@@ -225,7 +225,7 @@ std::error_code execute_stack(
 std::vector<Result> MESYTEC_MVLC_EXPORT parse_response_list(
     const std::vector<StackCommand> &commands, const std::vector<u32> &responseBuffer);
 
-struct MESYTEC_MVLC_EXPORT StackGroupResults
+struct MESYTEC_MVLC_EXPORT GroupedStackResults
 {
     struct Group
     {
@@ -236,7 +236,7 @@ struct MESYTEC_MVLC_EXPORT StackGroupResults
     std::vector<Group> groups;
 };
 
-StackGroupResults MESYTEC_MVLC_EXPORT parse_stack_exec_response(
+GroupedStackResults MESYTEC_MVLC_EXPORT parse_stack_exec_response(
     const StackCommandBuilder &stack, const std::vector<u32> &responseBuffer);
 
 template<typename Out>
@@ -250,7 +250,7 @@ Out &output_hex_value(Out &out, u32 value)
 }
 
 template<typename Out>
-Out &operator<<(Out &out, const StackGroupResults &groupedResults)
+Out &operator<<(Out &out, const GroupedStackResults &groupedResults)
 {
     for (const auto &group: groupedResults.groups)
     {

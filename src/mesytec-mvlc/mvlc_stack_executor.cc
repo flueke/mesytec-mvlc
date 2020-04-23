@@ -266,12 +266,12 @@ std::vector<Result> parse_response_list(
     return results;
 }
 
-StackGroupResults MESYTEC_MVLC_EXPORT parse_stack_exec_response(
+GroupedStackResults MESYTEC_MVLC_EXPORT parse_stack_exec_response(
     const StackCommandBuilder &stack, const std::vector<u32> &responseBuffer)
 {
     auto results = parse_response_list(stack.getCommands(), responseBuffer);
 
-    StackGroupResults ret;
+    GroupedStackResults ret;
 
     auto stackGroups  = stack.getGroups();
     auto itResults = std::begin(results);
@@ -279,7 +279,7 @@ StackGroupResults MESYTEC_MVLC_EXPORT parse_stack_exec_response(
 
     for (const auto &stackGroup: stackGroups)
     {
-        StackGroupResults::Group resultsGroup;
+        GroupedStackResults::Group resultsGroup;
         resultsGroup.name = stackGroup.name;
 
         for (size_t i = 0; i < stackGroup.commands.size(); ++i)

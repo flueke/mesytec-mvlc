@@ -14,6 +14,7 @@
 #include "vme_constants.h"
 
 using std::cout;
+using std::cerr;
 using std::endl;
 
 using namespace mesytec::mvlc;
@@ -682,8 +683,13 @@ TEST(mvlc_stack_executor, MVLCTestParseStackGroups)
 
             std::vector<u32> response;
 
-            if (auto ec = execute_stack(mvlc, stack, stacks::StackMemoryWords, options, response))
+            auto ec = execute_stack(mvlc, stack, stacks::StackMemoryWords, options, response);
+
+            if (ec && ec != ErrorType::VMEError)
+            {
+                cout << "Error from execute_stack: " << ec.message() << endl;
                 throw ec;
+            }
 
             auto groupedResults = parse_stack_exec_response(stack, response);
 
