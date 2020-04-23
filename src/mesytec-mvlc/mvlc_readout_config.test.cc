@@ -1,8 +1,7 @@
 #include <iostream>
 
 #include "gtest/gtest.h"
-#include "mvlc_constants.h"
-#include "mvlc_readout.h"
+#include "mvlc_readout_config.h"
 #include "vme_constants.h"
 
 using std::cout;

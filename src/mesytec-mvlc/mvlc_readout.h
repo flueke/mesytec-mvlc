@@ -1,14 +1,11 @@
 #ifndef __MESYTEC_MVLC_MVLC_READOUT_H__
 #define __MESYTEC_MVLC_MVLC_READOUT_H__
 
-#include <chrono>
-#include <system_error>
-
 #include "mesytec-mvlc_export.h"
 
 #include "mvlc.h"
-#include "mvlc_constants.h"
-#include "mvlc_dialog_util.h"
+#include "mvlc_readout_config.h"
+#include "mvlc_stack_executor.h"
 #include "util/readout_buffer.h"
 
 namespace mesytec
@@ -59,28 +56,18 @@ class MESYTEC_MVLC_EXPORT ReadoutWorker
 };
 #endif
 
-struct MESYTEC_MVLC_EXPORT CrateConfig
+MVLC MESYTEC_MVLC_EXPORT make_mvlc(const CrateConfig &crateConfig);
+
+struct ReadoutInitResults
 {
-    ConnectionType connectionType;
-    int usbIndex = -1;
-    std::string usbSerial;
-    std::string ethHost;
-
-    std::vector<StackCommandBuilder> stacks;
-    std::vector<u32> triggers;
-    StackCommandBuilder initCommands;
-    StackCommandBuilder stopCommands;
-    StackCommandBuilder initTriggerIO;
-
-    bool operator==(const CrateConfig &o) const;
-    bool operator!=(const CrateConfig &o) const { return !(*this == o); }
+    std::error_code ec;
+    GroupedStackResults init;
+    GroupedStackResults triggerIO;
 };
 
-std::string MESYTEC_MVLC_EXPORT to_yaml(const CrateConfig &crateConfig);
-CrateConfig MESYTEC_MVLC_EXPORT crate_config_from_yaml(const std::string &yaml);
-CrateConfig MESYTEC_MVLC_EXPORT crate_config_from_yaml(std::istream &input);
-
-MVLC MESYTEC_MVLC_EXPORT make_mvlc(const CrateConfig &crateConfig);
+ReadoutInitResults MESYTEC_MVLC_EXPORT init_readout(
+    MVLC &mvlc, const CrateConfig &crateConfig,
+    const CommandExecOptions stackExecOptions = {});
 
 } // end namespace mvlc
 } // end namespace mesytec
