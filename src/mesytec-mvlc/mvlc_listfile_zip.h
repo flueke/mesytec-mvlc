@@ -14,21 +14,21 @@ namespace mvlc
 namespace listfile
 {
 
+struct ZipEntryInfo
+{
+    enum Type { ZIP, LZ4 };
+    Type type = ZIP;
+    std::string name;
+    bool isOpen = false;
+    size_t bytesWritten = 0u;
+    size_t lz4CompressedBytesWritten = 0u;
+};
+
 class ZipEntryWriteHandle;
 
 class MESYTEC_MVLC_EXPORT ZipCreator
 {
     public:
-        struct EntryInfo
-        {
-            enum Type { ZIP, LZ4 };
-            Type type = ZIP;
-            std::string name;
-            bool isOpen = false;
-            size_t bytesWritten = 0u;
-            size_t lz4CompressedBytesWritten = 0u;
-        };
-
         ZipCreator();
         ~ZipCreator();
 
@@ -47,7 +47,7 @@ class MESYTEC_MVLC_EXPORT ZipCreator
         { return createLZ4Entry(entryName, 0); };
 
         bool hasOpenEntry() const;
-        const EntryInfo &entryInfo() const;
+        const ZipEntryInfo &entryInfo() const;
 
         size_t writeToCurrentEntry(const u8 *data, size_t size);
 
@@ -101,13 +101,11 @@ class MESYTEC_MVLC_EXPORT ZipReader
         void closeCurrentEntry();
         size_t readCurrentEntry(u8 *dest, size_t maxSize);
         std::string currentEntryName() const;
+        const ZipEntryInfo &entryInfo() const;
 
     private:
-        void *m_reader = nullptr;
-        void *m_osStream = nullptr;
-        std::vector<std::string> m_entryListCache;
-        ZipReadHandle m_readHandle;
-        std::string m_currentEntryName;
+        struct Private;
+        std::unique_ptr<Private> d;
 };
 
 } // end namespace listfile
