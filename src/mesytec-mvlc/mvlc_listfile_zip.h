@@ -33,6 +33,9 @@ struct ZipEntryInfo
 
     // bytes of compressed LZ4 data read
     size_t lz4CompressedBytesRead = 0u;
+
+    size_t compressedSize = 0u;
+    size_t uncompressedSize = 0u;
 };
 
 class ZipEntryWriteHandle;
@@ -105,7 +108,7 @@ class MESYTEC_MVLC_EXPORT ZipReader
 
         void openArchive(const std::string &archiveName);
         void closeArchive();
-        std::vector<std::string> entryList();
+        std::vector<std::string> entryNameList();
 
         ZipReadHandle *openEntry(const std::string &name);
         ZipReadHandle *currentEntry();

@@ -60,3 +60,22 @@
 
 FIXME: open issues
 - how to detect and handle single vs multicrate setups?
+
+
+archive                        type     level writeRate[MB/s] readRate[MB/s]  bytesWritten         bytesRead            zipCompressed        zipUncompressed      ratio     
+compression-test-zip_0.zip     zip      0     611.00          1327.43         314572800            314572800            314572800            314572800            1.00
+compression-test-zip_1.zip     zip      1     51.26           204.50          314572800            314572800            215027670            314572800            0.68
+compression-test-zip_2.zip     zip      2     42.63           208.48          314572800            314572800            214638505            314572800            0.68
+compression-test-lz4_0.zip     lz4      0     332.96          1136.36         314572800            314572800            299653656            299653656            0.95
+compression-test-lz4_1.zip     lz4      1     327.51          1140.68         314572800            314572800            299653656            299653656            0.95
+compression-test-lz4_2.zip     lz4      2     333.70          1136.36         314572800            314572800            299653656            299653656            0.95
+compression-test-lz4_3.zip     lz4      3     50.19           983.61          314572800            314572800            276179544            276179544            0.88
+compression-test-lz4_4.zip     lz4      4     49.49           983.61          314572800            314572800            275666349            275666349            0.88
+compression-test-lz4_5.zip     lz4      5     49.79           993.38          314572800            314572800            275554515            275554515            0.88
+compression-test-lz4_6.zip     lz4      6     48.43           996.68          314572800            314572800            275359030            275359030            0.88
+compression-test-lz4_7.zip     lz4      7     45.83           1000.00         314572800            314572800            275038072            275038072            0.87
+compression-test-lz4_8.zip     lz4      8     44.03           1000.00         314572800            314572800            274623461            274623461            0.87
+compression-test-lz4_9.zip     lz4      9     41.03           993.38          314572800            314572800            274370853            274370853            0.87
+compression-test-lz4_-1.zip    lz4      -1    408.72          1140.68         314572800            314572800            299264770            299264770            0.95
+compression-test-lz4_-2.zip    lz4      -2    590.55          1140.68         314572800            314572800            299764860            299764860            0.95
+compression-test-lz4_-3.zip    lz4      -3    597.61          1115.24         314572800            314572800            297414453            297414453            0.95

@@ -7,10 +7,12 @@
 #include <mz_strm_os.h>
 #include <mz_zip.h>
 #include <mz_zip_rw.h>
+#include <fmt/format.h>
 
 #include "gtest/gtest.h"
 
 #include "mvlc_listfile_zip.h"
+#include "util/io_util.h"
 #include "util/storage_sizes.h"
 
 using std::cout;
@@ -152,10 +154,10 @@ TEST(mvlc_listfile_zip, CreateWriteRead)
         ZipReader reader;
         reader.openArchive(archiveName);
 
-        auto entryList = reader.entryList();
+        auto entryNameList = reader.entryNameList();
         std::vector<std::string> expectedEntries = { "outfile0.data", "outfile1.data.lz4" };
 
-        ASSERT_EQ(entryList, expectedEntries);
+        ASSERT_EQ(entryNameList, expectedEntries);
 
         {
             auto readHandle = reader.openEntry("outfile0.data");
@@ -248,10 +250,10 @@ TEST(mvlc_listfile_zip, LZ4Data)
         ZipReader reader;
         reader.openArchive(archiveName);
 
-        auto entryList = reader.entryList();
+        auto entryNameList = reader.entryNameList();
         std::vector<std::string> expectedEntries = { "outfile0.data.lz4" };
 
-        ASSERT_EQ(entryList, expectedEntries);
+        ASSERT_EQ(entryNameList, expectedEntries);
 
         auto ReadChunkSizes =
         {
@@ -287,6 +289,25 @@ TEST(mvlc_listfile_zip, LZ4Data)
     }
 }
 
+namespace
+{
+
+std::string to_string(const ZipEntryInfo::Type t)
+{
+    switch (t)
+    {
+        case ZipEntryInfo::ZIP:
+            return "zip";
+
+        case ZipEntryInfo::LZ4:
+            return "lz4";
+    }
+
+    return {};
+}
+
+}
+
 #if 1
 TEST(mvlc_listfile_zip, ListfileCreateLarge)
 {
@@ -320,48 +341,54 @@ TEST(mvlc_listfile_zip, ListfileCreateLarge)
     outData0[4] = 0xfff4; // XXX
     outData0[5] = 0xfff5; // XXX
 #elif 1
-    std::vector<u32> outData0(Gigabytes(1) / sizeof(u32));
+    std::vector<u32> outData0(Megabytes(100) / sizeof(u32));
 
-    auto out = std::begin(outData0);
-    auto end = std::end(outData0);
-
-    struct end_of_buffer {};
-
-    auto put = [&out, &end] (u32 value)
+    // generate events
     {
-        if (out >= end)
-            throw end_of_buffer();
-        *out++ = value;
-    };
+        auto out = std::begin(outData0);
+        auto end = std::end(outData0);
 
-    cout << "generating simulated data" << endl;
+        struct end_of_buffer {};
 
-    try
-    {
-        u32 eventNumber = 0;
-        const unsigned ChannelCount = 32;
-        const unsigned ChannelDataBits = 13;
-        const unsigned ChannelNumberShift = 24;
-        const u32 Header = 0xA000012; // some thought up header value
-
-        std::random_device rd;
-        std::default_random_engine engine(rd());
-        std::uniform_int_distribution<u16> dist(0u, (1u << ChannelDataBits) - 1 );
-
-        while (true)
+        auto put = [&out, &end] (u32 value)
         {
-            put(Header);
+            if (out >= end)
+                throw end_of_buffer();
+            *out++ = value;
+        };
 
-            for (unsigned chan=0; chan<ChannelCount; chan++)
-                put((chan << ChannelNumberShift) | dist(engine));
+        cout << "generating simulated data" << endl;
 
-            put(eventNumber++);
+        u32 eventNumber = 0;
+
+        try
+        {
+            const unsigned ChannelCount = 32;
+            const unsigned ChannelDataBits = 13;
+            const unsigned ChannelNumberShift = 24;
+            const u32 Header = 0xA0000012u; // some thought up header value
+            const u32 Footer = 0xC0000000u;
+
+            //std::random_device rd;
+            //std::default_random_engine engine(rd());
+            std::default_random_engine engine(1337);
+            std::uniform_int_distribution<u16> dist(0u, (1u << ChannelDataBits) - 1 );
+
+            while (true)
+            {
+                put(Header);
+
+                for (unsigned chan=0; chan<ChannelCount; chan++)
+                    put((chan << ChannelNumberShift) | dist(engine));
+
+                put(Footer | (eventNumber++ & 0xFFFFFF));
+            }
         }
-    }
-    catch (const end_of_buffer &)
-    { }
+        catch (const end_of_buffer &)
+        { }
 
-    cout << "done generating data" << endl;
+        cout << "done generating data for " << eventNumber << " events" << endl;
+    }
 #endif
 
     const std::string archiveName = "mvlc_listfile_zip.test.ListfileCreateLarge.zip";
@@ -383,7 +410,7 @@ TEST(mvlc_listfile_zip, ListfileCreateLarge)
             creator.createArchive(archiveName);
             auto &writeHandle = (useLZ4
                                  ? *creator.createLZ4Entry("outfile0.data", 0)
-                                 : *creator.createZIPEntry("outfile0.data", 0));
+                                 : *creator.createZIPEntry("outfile0.data", 1));
 
             do
             {
@@ -427,15 +454,17 @@ TEST(mvlc_listfile_zip, ListfileCreateLarge)
             ZipReader reader;
             reader.openArchive(archiveName);
 
-            auto entryList = reader.entryList();
+            auto entryNameList = reader.entryNameList();
 
-            ASSERT_EQ(entryList.size(), 1u);
+            ASSERT_EQ(entryNameList.size(), 1u);
 
             const std::string entryName = (useLZ4
                                            ? "outfile0.data.lz4"
                                            : "outfile0.data");
 
-            ASSERT_EQ(entryList[0], entryName);
+            cout << "reading from entryName=" << entryName << endl;
+
+            ASSERT_EQ(entryNameList[0], entryName);
 
             auto &readHandle = *reader.openEntry(entryName);
 
@@ -464,6 +493,393 @@ TEST(mvlc_listfile_zip, ListfileCreateLarge)
         ASSERT_EQ(outData0.size(), readBuffer.size());
         ASSERT_EQ(outData0, readBuffer);
     }
-
 }
 #endif
+
+TEST(mvlc_listfile_zip, CompressionTests)
+{
+    struct CompressionConfig
+    {
+        ZipEntryInfo::Type type = ZipEntryInfo::ZIP;
+        int level = 0;
+    };
+
+    struct CompressResult
+    {
+        CompressionConfig cfg;
+        std::string archiveName;
+        size_t totalBytesWritten = 0u;
+        size_t writeCount = 0u;
+        size_t lz4CompressedBytes = 0u;
+        std::chrono::steady_clock::time_point tStart;
+        std::chrono::steady_clock::time_point tEnd;
+    };
+
+    struct DecompressResult
+    {
+        CompressionConfig cfg;
+        std::string archiveName;
+        size_t totalBytesRead = 0u;
+        size_t readCount = 0u;
+        size_t zipCompressedBytes = 0u;
+        size_t zipUncompressedBytes = 0u;
+        size_t lz4CompressedBytes = 0u;
+        std::chrono::steady_clock::time_point tStart;
+        std::chrono::steady_clock::time_point tEnd;
+    };
+
+    // Compression configs to test
+    const std::vector<CompressionConfig> configs =
+    {
+        { ZipEntryInfo::ZIP, 0 }, // store
+        { ZipEntryInfo::ZIP, 1 }, // superfast
+        { ZipEntryInfo::ZIP, 2 },
+
+        { ZipEntryInfo::LZ4, 0 }, // lz4 default
+        { ZipEntryInfo::LZ4, 1 },
+        { ZipEntryInfo::LZ4, 2 },
+        { ZipEntryInfo::LZ4, 3 },
+        { ZipEntryInfo::LZ4, 4 },
+        { ZipEntryInfo::LZ4, 5 },
+        { ZipEntryInfo::LZ4, 6 },
+        { ZipEntryInfo::LZ4, 7 },
+        { ZipEntryInfo::LZ4, 8 },
+        { ZipEntryInfo::LZ4, 9 },
+
+        { ZipEntryInfo::LZ4, -1 }, // accelerated
+        { ZipEntryInfo::LZ4, -2 }, // accelerated
+        { ZipEntryInfo::LZ4, -3 }, // accelerated
+    };
+
+    // Space available to fill with randomized events.
+    static const size_t EventBufferSize = Megabytes(100);
+    // Total bytes that should be written to the output listfile
+    static const size_t ListfileDataSize = Megabytes(256);
+
+    std::vector<u32> eventData(Megabytes(100) / sizeof(u32));
+    std::vector<u32> readBuffer(eventData.size());
+
+    // generate events
+    {
+        auto out = std::begin(eventData);
+        auto end = std::end(eventData);
+
+        struct end_of_buffer {};
+
+        auto put = [&out, &end] (u32 value)
+        {
+            if (out >= end)
+                throw end_of_buffer();
+            *out++ = value;
+        };
+
+        cout << "generating simulated data" << endl;
+
+        u32 eventNumber = 0;
+
+        try
+        {
+            const unsigned ChannelCount = 16;
+            const unsigned ChannelDataBits = 13;
+            const unsigned ChannelNumberShift = 24;
+            const u32 Header = 0xA0000012u; // some thought up header value
+            const u32 Footer = 0xC0000000u;
+
+            //std::random_device rd;
+            //std::default_random_engine engine(rd());
+            std::default_random_engine engine(1337);
+            std::uniform_int_distribution<u16> dist(0u, (1u << ChannelDataBits) - 1 );
+
+            while (true)
+            {
+                put(Header);
+
+                for (unsigned chan=0; chan<ChannelCount; chan++)
+                    put((chan << ChannelNumberShift) | dist(engine));
+
+                put(Footer | (eventNumber++ & 0xFFFFFF));
+            }
+        }
+        catch (const end_of_buffer &)
+        { }
+
+        cout << "done generating data for " << eventNumber << " events. first 50 words:" << endl;
+        util::log_buffer(cout, basic_string_view<const u32>(
+                eventData.data(), std::min(eventData.size(), (size_t)50u)));
+    }
+
+    // ----- write -----
+    std::vector<CompressResult> compressResults;
+
+    for (const auto &cfg: configs)
+    {
+        const std::string archiveName = fmt::format(
+            "compression-test-{}_{}.zip", to_string(cfg.type), cfg.level);
+
+        cout << "writing archiveName=" << archiveName << endl;
+
+        // write listfile
+        size_t totalBytesWritten = 0u;
+        size_t writeCount = 0u;
+        ZipEntryInfo entryInfo = {};
+
+        auto tStart = std::chrono::steady_clock::now();
+        {
+            ZipCreator creator;
+            creator.createArchive(archiveName);
+            auto &writeHandle = *(cfg.type == ZipEntryInfo::LZ4
+                                 ? creator.createLZ4Entry("testdata.data", cfg.level)
+                                 : creator.createZIPEntry("testdata.data", cfg.level));
+
+            while (totalBytesWritten < ListfileDataSize)
+            {
+                auto raw = reinterpret_cast<const u8 *>(eventData.data());
+                auto bytes = eventData.size() * sizeof(eventData.at(0));
+                size_t bytesWritten = writeHandle.write(raw, bytes);
+                totalBytesWritten += bytesWritten;
+                ++writeCount;
+            }
+
+            entryInfo = creator.entryInfo();
+        }
+        auto tEnd = std::chrono::steady_clock::now();
+
+#if 0
+        auto elapsed = tEnd - tStart;
+        auto seconds = std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count() / 1000.0;
+        auto megaBytesPerSecond = (totalBytesWritten / (1024 * 1024)) / seconds;
+
+        cout << "Wrote " << archiveName << " in " << writeCount << " iterations, totalBytesWritten=" << totalBytesWritten << endl;
+        cout << "Writing took " << std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count() <<  " ms" << endl;
+        cout << "rate: " << megaBytesPerSecond << " MB/s" << endl;
+        cout << "EntryInfo: bytesWritten=" << entryInfo.bytesWritten
+            << ", lz4CompressedBytesWritten=" << entryInfo.lz4CompressedBytesWritten
+            << ", ratio=" << (entryInfo.bytesWritten / static_cast<double>(entryInfo.lz4CompressedBytesWritten))
+            << endl;
+#endif
+
+        CompressResult result;
+        result.cfg = cfg;
+        result.archiveName = archiveName;
+        result.totalBytesWritten = totalBytesWritten;
+        result.writeCount = writeCount;
+        // TODO: zipCompressedBytes FIXME can't currently get the zip uncompressed_bytes and compressed_bytes fields from the creator
+        result.lz4CompressedBytes = entryInfo.lz4CompressedBytesWritten;
+        result.tStart = tStart;
+        result.tEnd = tEnd;
+
+        compressResults.emplace_back(result);
+    }
+
+    cout << endl;
+
+    std::vector<DecompressResult> decompressResults;
+
+    // ----- read -----
+    for (const auto &cr: compressResults)
+    {
+        DecompressResult dcr;
+        dcr.archiveName = cr.archiveName;
+        dcr.cfg = cr.cfg;
+
+        cout << "reading archiveName=" << dcr.archiveName << endl;
+
+        size_t totalBytesRead = 0u;
+        size_t readCount = 0u;
+        ZipEntryInfo zipEntryInfo = {};
+
+        auto tStart = std::chrono::steady_clock::now();
+        {
+            ZipReader reader;
+            reader.openArchive(dcr.archiveName);
+
+            auto entryNameList = reader.entryNameList();
+            ASSERT_EQ(entryNameList.size(), 1u);
+
+            const std::string entryName = (dcr.cfg.type == ZipEntryInfo::LZ4
+                                           ? "testdata.data.lz4"
+                                           : "testdata.data");
+
+            ASSERT_EQ(entryNameList[0], entryName);
+
+            auto &readHandle = *reader.openEntry(entryName);
+            zipEntryInfo = reader.entryInfo();
+            size_t bytesRead = 0u;
+
+            do
+            {
+                bytesRead = readHandle.read(
+                    reinterpret_cast<u8 *>(readBuffer.data()), readBuffer.size() * sizeof(u32));
+                totalBytesRead += bytesRead;
+                ++readCount;
+            } while (bytesRead > 0);
+        }
+        auto tEnd = std::chrono::steady_clock::now();
+
+        dcr.totalBytesRead = totalBytesRead;
+        dcr.readCount = readCount;
+        dcr.zipCompressedBytes = zipEntryInfo.compressedSize;
+        dcr.zipUncompressedBytes = zipEntryInfo.uncompressedSize;
+        dcr.tStart = tStart;
+        dcr.tEnd = tEnd;
+
+        decompressResults.emplace_back(dcr);
+    }
+
+    // ----- output -----
+    auto rate_MBps = [] (const auto &tStart, const auto &tEnd, size_t totalBytes) -> double
+    {
+        auto elapsed = tEnd - tStart;
+        auto seconds = std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count() / 1000.0;
+        return (totalBytes / (1024 * 1024)) / seconds;
+    };
+
+    const char *const headerFormat = "{:30} {:8} {:<5} {:15} {:15} {:20} {:20} {:20} {:20} {:10} {:10} {:10}";
+    const char *const format       = "{:30} {:8} {:<5} {:<15.2f} {:<15.2f} {:<20} {:<20} {:<20} {:<20} {:<10.2f} {:<10} {:<10}";
+    cout << fmt::format(headerFormat,
+                        "archive", "type", "level", "writeRate[MB/s]", "readRate[MB/s]",
+                        "bytesWritten", "bytesRead", "zipCompressed", "zipUncompressed", "ratio", "writeCount", "readCount") << endl;
+
+    auto itcr = std::begin(compressResults);
+    auto itdcr = std::begin(decompressResults);
+
+    auto endcr = std::end(compressResults);
+    auto enddcr = std::end(decompressResults);
+
+    while (itcr != endcr && itdcr != enddcr)
+    {
+        const CompressResult &cr = *itcr;
+        const DecompressResult &dcr = *itdcr;
+
+        auto writeRate = rate_MBps(cr.tStart, cr.tEnd, cr.totalBytesWritten);
+        auto readRate = rate_MBps(dcr.tStart, dcr.tEnd, dcr.totalBytesRead);
+
+        cout << fmt::format(format,
+                            cr.archiveName,
+                            to_string(cr.cfg.type),
+                            cr.cfg.level,
+                            writeRate,
+                            readRate,
+                            cr.totalBytesWritten,
+                            dcr.totalBytesRead,
+                            dcr.zipCompressedBytes,
+                            dcr.zipUncompressedBytes,
+                            // Ratio of input size to what's actually stored in the archive. This
+                            // includes LZ4 framing overhead.
+                            static_cast<double>(dcr.zipCompressedBytes) / cr.totalBytesWritten,
+                            cr.writeCount,
+                            dcr.readCount
+                            )
+            << endl;
+
+        itcr++;
+        itdcr++;
+    }
+
+    return;
+
+#if 0
+    const std::string archiveName = "mvlc_listfile_zip.test.ListfileCreateLarge.zip";
+
+    const size_t totalBytesToWrite = eventData.size() * sizeof(u32);
+    const size_t totalBytesToRead = eventData.size() * sizeof(u32);
+    const bool useLZ4 = true;
+
+    // write
+    {
+        size_t totalBytes = 0u;
+        size_t writeCount = 0;
+        ZipEntryInfo entryInfo = {};
+
+        auto tStart = std::chrono::steady_clock::now();
+
+        {
+            ZipCreator creator;
+            creator.createArchive(archiveName);
+            auto &writeHandle = (useLZ4
+                                 ? *creator.createLZ4Entry("outfile0.data", 0)
+                                 : *creator.createZIPEntry("outfile0.data", 1));
+
+            do
+            {
+                auto raw = reinterpret_cast<const u8 *>(eventData.data());
+                auto bytes = eventData.size() * sizeof(eventData.at(0));
+                size_t bytesWritten = writeHandle.write(raw, bytes);
+                totalBytes += bytesWritten;
+                ++writeCount;
+            } while (totalBytes < totalBytesToWrite);
+
+            creator.closeCurrentEntry();
+
+            entryInfo = creator.entryInfo();
+        }
+
+        ASSERT_EQ(totalBytes, totalBytesToWrite);
+
+        auto tEnd = std::chrono::steady_clock::now();
+        auto elapsed = tEnd - tStart;
+        auto seconds = std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count() / 1000.0;
+        auto megaBytesPerSecond = (totalBytes / (1024 * 1024)) / seconds;
+
+        cout << "Wrote the listfile in " << writeCount << " iterations, totalBytes=" << totalBytes << endl;
+        cout << "Writing took " << std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count() <<  " ms" << endl;
+        cout << "rate: " << megaBytesPerSecond << " MB/s" << endl;
+        cout << "EntryInfo: bytesWritten=" << entryInfo.bytesWritten
+            << ", lz4CompressedBytesWritten=" << entryInfo.lz4CompressedBytesWritten
+            << ", ratio=" << (entryInfo.bytesWritten / static_cast<double>(entryInfo.lz4CompressedBytesWritten))
+            << endl;
+    }
+
+    // read
+    {
+        std::vector<u32> readBuffer(eventData.size());
+        size_t bytesRead = 0u;
+        ZipEntryInfo entryInfo = {};
+
+        auto tStart = std::chrono::steady_clock::now();
+
+        {
+            ZipReader reader;
+            reader.openArchive(archiveName);
+
+            auto entryNameList = reader.entryNameList();
+
+            ASSERT_EQ(entryNameList.size(), 1u);
+
+            const std::string entryName = (useLZ4
+                                           ? "outfile0.data.lz4"
+                                           : "outfile0.data");
+
+            cout << "reading from entryName=" << entryName << endl;
+
+            ASSERT_EQ(entryNameList[0], entryName);
+
+            auto &readHandle = *reader.openEntry(entryName);
+
+            bytesRead = readHandle.read(
+                reinterpret_cast<u8 *>(readBuffer.data()), readBuffer.size() * sizeof(u32));
+
+            entryInfo = reader.entryInfo();
+
+            ASSERT_EQ(bytesRead, totalBytesToRead);
+        }
+
+        auto tEnd = std::chrono::steady_clock::now();
+        auto elapsed = tEnd - tStart;
+        auto seconds = std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count() / 1000.0;
+        auto megaBytesPerSecond = (bytesRead / (1024 * 1024)) / seconds;
+
+
+        cout << "Read " << bytesRead << " bytes in "
+            << std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count() << " ms" << endl;
+        cout << "rate: " << megaBytesPerSecond << " MB/s" << endl;
+        cout << "EntryInfo: bytesRead=" << entryInfo.bytesRead
+            << ", lz4CompressedBytesRead=" << entryInfo.lz4CompressedBytesRead
+            << ", ratio=" << (entryInfo.bytesRead / static_cast<double>(entryInfo.lz4CompressedBytesRead))
+            << endl;
+
+        ASSERT_EQ(eventData.size(), readBuffer.size());
+        ASSERT_EQ(eventData, readBuffer);
+    }
+#endif
+}
