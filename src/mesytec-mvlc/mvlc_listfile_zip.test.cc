@@ -121,7 +121,7 @@ TEST(mvlc_listfile_zip, MinizipCreate)
 
 }
 
-TEST(mvlc_listfile_zip, CreateWriteRead3)
+TEST(mvlc_listfile_zip, CreateWriteRead)
 {
     const std::vector<u8> outData0 = { 0x12, 0x34, 0x56, 0x78 };
     const std::vector<u8> outData1 = { 0xff, 0xfe, 0xfd, 0xdc };
@@ -140,60 +140,158 @@ TEST(mvlc_listfile_zip, CreateWriteRead3)
             creator.closeCurrentEntry();
         }
 
-#if 1
         {
+            // Write outData1 one time
             auto &writeHandle = *creator.createLZ4Entry("outfile1.data", 1);
             writeHandle.write(outData1.data(), outData1.size());
             creator.closeCurrentEntry();
         }
-#endif
     }
 
-#if 0
     {
         ZipReader reader;
         reader.openArchive(archiveName);
 
         auto entryList = reader.entryList();
-        std::vector<std::string> expectedEntries = { "outfile0.data", "outfile1.data" };
+        std::vector<std::string> expectedEntries = { "outfile0.data", "outfile1.data.lz4" };
 
         ASSERT_EQ(entryList, expectedEntries);
 
-        auto readHandle = reader.openEntry("outfile0.data");
-
         {
-            // Read outData0 two times
-            std::vector<u8> inData0(outData0.size());
-            size_t bytesRead = readHandle->read(inData0.data(), inData0.size());
+            auto readHandle = reader.openEntry("outfile0.data");
 
-            ASSERT_EQ(bytesRead, outData0.size());
-            ASSERT_EQ(inData0, outData0);
+            {
+                // Read outData0 two times
+                std::vector<u8> inData0(outData0.size());
+                size_t bytesRead = readHandle->read(inData0.data(), inData0.size());
 
-            bytesRead = readHandle->read(inData0.data(), inData0.size());
-            ASSERT_EQ(bytesRead, outData0.size());
-            ASSERT_EQ(inData0, outData0);
+                ASSERT_EQ(bytesRead, outData0.size());
+                ASSERT_EQ(inData0, outData0);
 
-            // Third read should yield 0 bytes as we're at the end of the entry.
-            bytesRead = readHandle->read(inData0.data(), inData0.size());
-            ASSERT_EQ(bytesRead, 0);
+                bytesRead = readHandle->read(inData0.data(), inData0.size());
+                ASSERT_EQ(bytesRead, outData0.size());
+                ASSERT_EQ(inData0, outData0);
+
+                // Third read should yield 0 bytes as we're at the end of the entry.
+                bytesRead = readHandle->read(inData0.data(), inData0.size());
+                ASSERT_EQ(bytesRead, 0);
+            }
+
+            {
+                // Restart reading from the beginning of the entry.
+                readHandle->seek(0);
+                std::vector<u8> inData0(outData0.size() * 2);
+                size_t bytesRead = readHandle->read(inData0.data(), inData0.size());
+
+                const std::vector<u8> outData0_2 = {
+                    0x12, 0x34, 0x56, 0x78,
+                    0x12, 0x34, 0x56, 0x78
+                };
+
+                ASSERT_EQ(bytesRead, outData0.size() * 2);
+                ASSERT_EQ(inData0, outData0_2);
+            }
         }
 
         {
-            // Restart reading from the beginning of the entry.
-            readHandle->seek(0);
-            std::vector<u8> inData0(outData0.size() * 2);
-            size_t bytesRead = readHandle->read(inData0.data(), inData0.size());
+            auto readHandle = reader.openEntry("outfile1.data.lz4");
 
-            const std::vector<u8> outData0_2 = {
-                0x12, 0x34, 0x56, 0x78,
-                0x12, 0x34, 0x56, 0x78
-            };
+            {
+                // Read outData1 one time
+                std::vector<u8> inData1(outData1.size());
+                size_t bytesRead = readHandle->read(inData1.data(), inData1.size());
 
-            ASSERT_EQ(bytesRead, outData0.size() * 2);
-            ASSERT_EQ(inData0, outData0_2);
+                ASSERT_EQ(bytesRead, outData1.size());
+                ASSERT_EQ(inData1, outData1);
+
+                // Next read should yield 0 bytes as we're at the end of the entry.
+                bytesRead = readHandle->read(inData1.data(), inData1.size());
+                ASSERT_EQ(bytesRead, 0);
+            }
+
+#if 0
+            {
+                // Restart reading from the beginning of the entry.
+                readHandle->seek(0);
+                std::vector<u8> inData1(outData0.size() * 2);
+                size_t bytesRead = readHandle->read(inData1.data(), inData1.size());
+
+                const std::vector<u8> outData1_2 = {
+                    0x12, 0x34, 0x56, 0x78,
+                    0x12, 0x34, 0x56, 0x78
+                };
+
+                ASSERT_EQ(bytesRead, outData1.size() * 2);
+                ASSERT_EQ(inData1, outData1_2);
+            }
+#endif
         }
     }
-#endif
+}
+
+TEST(mvlc_listfile_zip, LZ4Data)
+{
+    std::vector<u8> outData0(Megabytes(3));
+
+    for (size_t i=0; i<outData0.size(); i++)
+    {
+        outData0[i] = i % 255u;
+    }
+
+    std::string archiveName = "mvlc_listfile_zip.test.LZ4Data.zip";
+
+    {
+        ZipCreator creator;
+        creator.createArchive(archiveName);
+
+        auto &writeHandle = *creator.createLZ4Entry("outfile0.data", 0);
+
+        size_t bytesWritten = writeHandle.write(outData0.data(), outData0.size());
+
+        ASSERT_EQ(bytesWritten, outData0.size());
+    }
+
+    {
+        ZipReader reader;
+        reader.openArchive(archiveName);
+
+        auto entryList = reader.entryList();
+        std::vector<std::string> expectedEntries = { "outfile0.data.lz4" };
+
+        ASSERT_EQ(entryList, expectedEntries);
+
+        auto ReadChunkSizes =
+        {
+            static_cast<size_t>(500), Kilobytes(1), Kilobytes(10), Kilobytes(100),
+            static_cast<size_t>(10000u), Megabytes(1), Megabytes(10)
+        };
+
+        // Read the data in small chunks to test the decompression + buffering code
+        for (const auto ReadChunkSize: ReadChunkSizes)
+        {
+            std::vector<u8> readBuffer(outData0.size());
+            auto readHandle = reader.openEntry("outfile0.data.lz4");
+            size_t bytesRead = 0u, totalBytesRead = 0u, readCount = 0u;
+
+            do
+            {
+                bytesRead = readHandle->read(
+                    readBuffer.data() + totalBytesRead,
+                    ReadChunkSize);
+
+                totalBytesRead += bytesRead;
+                ++readCount;
+            } while (bytesRead > 0);
+
+            ASSERT_EQ(outData0.size(), totalBytesRead);
+            ASSERT_EQ(outData0, readBuffer);
+
+            cout << __PRETTY_FUNCTION__ << " ReadChunkSize=" << ReadChunkSize
+                << ", totalBytesRead=" << totalBytesRead
+                << ", readCount=" << readCount
+                << endl;
+        }
+    }
 }
 
 #if 0

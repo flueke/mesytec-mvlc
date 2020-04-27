@@ -1,6 +1,8 @@
 #include "mvlc_listfile_zip.h"
 
+#include <iostream>
 #include <cassert>
+#include <cstring>
 #include <lz4frame.h>
 #include <mz.h>
 #include <mz_compat.h>
@@ -16,6 +18,8 @@
 #include "util/string_view.hpp"
 
 using namespace nonstd;
+using std::cout;
+using std::endl;
 
 namespace mesytec
 {
@@ -23,6 +27,10 @@ namespace mvlc
 {
 namespace listfile
 {
+
+//
+// ZipCreator
+//
 
 ZipEntryWriteHandle::ZipEntryWriteHandle(ZipCreator *creator)
     : m_zipCreator(creator)
@@ -328,7 +336,9 @@ void ZipCreator::closeCurrentEntry()
     d->entryInfo.isOpen = false;
 }
 
-// ZipReadHandle
+//
+// ZipReader
+//
 
 size_t ZipReadHandle::read(u8 *dest, size_t maxSize)
 {
@@ -349,7 +359,6 @@ void ZipReadHandle::seek(size_t pos)
     }
 }
 
-// ZipReader
 
 struct ZipReader::Private
 {
@@ -358,21 +367,30 @@ struct ZipReader::Private
         static constexpr size_t ChunkSize = Megabytes(1);
 
         LZ4F_decompressionContext_t ctx = {};
-        std::vector<u8> buffer;
-        basic_string_view<u8> bufferView;
+        std::vector<u8> compressedBuffer;
+        std::vector<u8> decompressedBuffer;
+        basic_string_view<u8> compressedView;
+        basic_string_view<u8> decompressedView;
 
-        void begin()
+        LZ4ReadContext()
+            : compressedBuffer(ChunkSize)
         {
             if (auto err = LZ4F_createDecompressionContext(&ctx, LZ4F_VERSION))
                 throw std::runtime_error("LZ4F_createDecompressionContext: " + std::to_string(err));
-
-            buffer = std::vector<u8>(ChunkSize);
-            bufferView = {};
         }
 
-        void end()
+        ~LZ4ReadContext()
         {
             LZ4F_freeDecompressionContext(ctx);
+        }
+
+        void clear()
+        {
+            compressedBuffer.clear();
+            compressedBuffer.resize(ChunkSize);
+            decompressedBuffer.clear();
+            compressedView = {};
+            decompressedView = {};
         }
     };
 
@@ -385,11 +403,25 @@ struct ZipReader::Private
     {
     }
 
+    size_t readFromCurrentZipEntry(u8 *dest, size_t maxSize)
+    {
+        s32 res = mz_zip_reader_entry_read(this->reader, dest, maxSize);
+
+        //cout << __PRETTY_FUNCTION__ << " maxSize=" << maxSize
+        //    << ", res=" << res << endl;
+
+        if (res < 0)
+            throw std::runtime_error("mz_zip_reader_entry_read: " + std::to_string(res));
+
+        return static_cast<size_t>(res);
+    }
+
     void *reader = nullptr;
     void *osStream = nullptr;
     std::vector<std::string> entryListCache;
     ZipReadHandle entryReadHandle = nullptr;
     ZipEntryInfo entryInfo;
+    LZ4ReadContext lz4Ctx;
 };
 
 ZipReader::ZipReader()
@@ -401,8 +433,8 @@ ZipReader::ZipReader()
 
 ZipReader::~ZipReader()
 {
-    mz_stream_os_delete(&d->osStream);
     mz_zip_reader_delete(&d->reader);
+    mz_stream_os_delete(&d->osStream);
 }
 
 void ZipReader::openArchive(const std::string &archiveName)
@@ -451,6 +483,26 @@ std::vector<std::string> ZipReader::entryList()
     return d->entryListCache;
 }
 
+namespace
+{
+
+inline size_t get_block_size(const LZ4F_frameInfo_t* info)
+{
+    switch (info->blockSizeID)
+    {
+        case LZ4F_default:
+        case LZ4F_max64KB:  return 1 << 16;
+        case LZ4F_max256KB: return 1 << 18;
+        case LZ4F_max1MB:   return 1 << 20;
+        case LZ4F_max4MB:   return 1 << 22;
+        default:
+                            throw std::runtime_error(
+                                "impossible LZ4 block size with current frame specification (<=v1.6.1)");
+    }
+}
+
+} // end anon namespace
+
 ZipReadHandle *ZipReader::openEntry(const std::string &name)
 {
     if (auto err = mz_zip_reader_locate_entry(d->reader, name.c_str(), false))
@@ -459,8 +511,9 @@ ZipReadHandle *ZipReader::openEntry(const std::string &name)
     if (auto err = mz_zip_reader_entry_open(d->reader))
         throw std::runtime_error("mz_zip_reader_entry_open: " + std::to_string(err));
 
+    d->lz4Ctx.clear();
+    d->entryInfo = {};
     d->entryInfo.name = name;
-    d->entryInfo.isOpen = true;
 
     if (name.size() >= 4)
     {
@@ -474,10 +527,41 @@ ZipReadHandle *ZipReader::openEntry(const std::string &name)
 
     if (d->entryInfo.type == ZipEntryInfo::LZ4)
     {
+
+        size_t bytesRead = d->readFromCurrentZipEntry(
+            d->lz4Ctx.compressedBuffer.data(),
+            d->lz4Ctx.compressedBuffer.size());
+
+        if (bytesRead == 0)
+            throw std::runtime_error("ZipReader::openEntry: not enough data to initialise LZ4 decompression");
+
+        d->lz4Ctx.compressedView = { d->lz4Ctx.compressedBuffer.data(), bytesRead };
+
+        assert(d->lz4Ctx.compressedView.size() == bytesRead);
+
+        LZ4F_frameInfo_t info = {};
+
+        size_t bytesConsumed = bytesRead;
+
+        size_t res = LZ4F_getFrameInfo(
+            d->lz4Ctx.ctx, &info, d->lz4Ctx.compressedView.data(), &bytesConsumed);
+
+        if (LZ4F_isError(res))
+            throw std::runtime_error("LZ4F_getFrameInfo: " + std::to_string(res));
+
+        assert(d->lz4Ctx.compressedView.size() >= bytesConsumed);
+
+        d->lz4Ctx.compressedView.remove_prefix(bytesConsumed);
+
+        size_t dstCapacity = get_block_size(&info);
+
+        //cout << __PRETTY_FUNCTION__ << " dstCapacity from LZ4 frameInfo: " << dstCapacity << endl;
+        //cout << __PRETTY_FUNCTION__ << " compressedView.size() for first read is " << d->lz4Ctx.compressedView.size() << endl;
+
+        d->lz4Ctx.decompressedBuffer.resize(dstCapacity);
     }
 
-    // TODO: fill out the rest (lz4 detection based on name)
-    // TODO: initialize lz4 frame decompression
+    d->entryInfo.isOpen = true;
 
     return &d->entryReadHandle;
 }
@@ -495,18 +579,79 @@ void ZipReader::closeCurrentEntry()
 
 size_t ZipReader::readCurrentEntry(u8 *dest, size_t maxSize)
 {
-    // TODO: not sure how this will look with lz4. Probably a the local buffer
-    // must be filled by reading from the zip file. Then this buffer can be
-    // decompressed into the destination pointer.
-    // On the next read yield remaining decompressed data and/or read and
-    // decompress more data.
-   
-    s32 res = mz_zip_reader_entry_read(d->reader, dest, maxSize);
+    if (d->entryInfo.type == ZipEntryInfo::ZIP)
+    {
+        s32 res = mz_zip_reader_entry_read(d->reader, dest, maxSize);
 
-    if (res < 0)
-        throw std::runtime_error("mz_zip_reader_entry_read: " + std::to_string(res));
+        if (res < 0)
+            throw std::runtime_error("mz_zip_reader_entry_read: " + std::to_string(res));
 
-    return static_cast<size_t>(res);
+        return static_cast<size_t>(res);
+    }
+
+    assert(d->entryInfo.type == ZipEntryInfo::LZ4);
+
+    size_t retval = 0u;
+    size_t loop = 0u;
+
+    while (maxSize - retval > 0)
+    {
+        if (d->lz4Ctx.decompressedView.empty())
+        {
+            //cout << __PRETTY_FUNCTION__ << " decompressedView is empty, decompressing more data" << endl;
+
+            //cout << __PRETTY_FUNCTION__ << " compressedView.size()=" << d->lz4Ctx.compressedView.size() << endl;
+
+            if (d->lz4Ctx.compressedView.empty())
+            {
+                //cout << __PRETTY_FUNCTION__ << "compressedView is empty, reading more data from zip" << endl;
+
+                size_t bytesRead = d->readFromCurrentZipEntry(
+                    d->lz4Ctx.compressedBuffer.data(), d->lz4Ctx.compressedBuffer.size());
+                d->lz4Ctx.compressedView = { d->lz4Ctx.compressedBuffer.data(), bytesRead };
+
+                //cout << __PRETTY_FUNCTION__ << "read " << bytesRead << " bytes of uncompressed data" << endl;
+
+                if (bytesRead == 0)
+                    break;
+            }
+
+            assert(!d->lz4Ctx.compressedView.empty());
+
+            // decompress from compressedBuffer into decompressedBuffer
+
+            size_t decompressedSize = d->lz4Ctx.decompressedBuffer.size();
+            size_t compressedSize = d->lz4Ctx.compressedView.size();
+
+            s32 res = LZ4F_decompress(
+                d->lz4Ctx.ctx,
+                d->lz4Ctx.decompressedBuffer.data(), &decompressedSize, // dest
+                d->lz4Ctx.compressedView.data(), &compressedSize,  // source
+                nullptr); // options
+
+            //cout << __PRETTY_FUNCTION__ << " LZ4F_decompress: "
+            //    << ", compressedSize=" << compressedSize
+            //    << ", decompressedSize=" << decompressedSize
+            //    << endl;
+
+            if (LZ4F_isError(res))
+                throw std::runtime_error("LZ4F_decompress: " + std::to_string(res));
+
+            d->lz4Ctx.decompressedView = { d->lz4Ctx.decompressedBuffer.data(), decompressedSize };
+            d->lz4Ctx.compressedView.remove_prefix(compressedSize);
+        }
+
+        size_t toCopy = std::min(d->lz4Ctx.decompressedView.size(), maxSize);
+        std::memcpy(dest, d->lz4Ctx.decompressedView.data(), toCopy);
+        d->lz4Ctx.decompressedView.remove_prefix(toCopy);
+        retval += toCopy;
+        ++loop;
+    }
+
+    //cout << __PRETTY_FUNCTION__ << "read of maxSize=" << maxSize
+    //    << " satisfied after " << loop << " loops" << endl;
+
+    return retval;
 }
 
 std::string ZipReader::currentEntryName() const
