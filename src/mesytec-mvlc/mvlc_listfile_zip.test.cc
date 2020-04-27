@@ -224,7 +224,7 @@ TEST(mvlc_listfile_zip, CreateWriteRead)
 
 TEST(mvlc_listfile_zip, LZ4Data)
 {
-    std::vector<u8> outData0(Megabytes(3));
+    std::vector<u8> outData0(Megabytes(50));
 
     for (size_t i=0; i<outData0.size(); i++)
     {
@@ -287,25 +287,38 @@ TEST(mvlc_listfile_zip, LZ4Data)
     }
 }
 
-#if 0
-TEST(mvlc_listfile_zip, ListfileCreateLarge3)
+#if 1
+TEST(mvlc_listfile_zip, ListfileCreateLarge)
 {
 
 #if 0
-    std::vector<u8> outData0(Megabytes(1));
+    cout << "generating unfiformly distributed data" << endl;
+    std::vector<u32> outData0(Megabytes(500) / sizeof(u32));
+
     {
         std::random_device rd;
         std::default_random_engine engine(rd());
         std::uniform_int_distribution<unsigned> dist(0u, 255u);
         for (auto &c: outData0)
-            c = static_cast<u8>(dist(engine));
+            c = static_cast<u32>(dist(engine));
     }
+    outData0[0] = 0xaffe;
 #elif 0
-    std::vector<u8> outData0(Megabytes(1));
+    cout << "generating sequential data" << endl;
+    std::vector<u32> outData0(Megabytes(1) / sizeof(u32));
     {
         for (size_t i=0; i<outData0.size(); i++)
             outData0[i] = i;
     }
+    assert(outData0[0] == 0);
+    assert(outData0[1] == 1);
+    assert(outData0[2] == 2);
+    outData0[0] = 0xfff0; // XXX
+    outData0[1] = 0xfff1; // XXX
+    outData0[2] = 0xfff2; // XXX
+    outData0[3] = 0xfff3; // XXX
+    outData0[4] = 0xfff4; // XXX
+    outData0[5] = 0xfff5; // XXX
 #elif 1
     std::vector<u32> outData0(Gigabytes(1) / sizeof(u32));
 
@@ -321,7 +334,7 @@ TEST(mvlc_listfile_zip, ListfileCreateLarge3)
         *out++ = value;
     };
 
-    cout << "generating data" << endl;
+    cout << "generating simulated data" << endl;
 
     try
     {
@@ -349,50 +362,108 @@ TEST(mvlc_listfile_zip, ListfileCreateLarge3)
     { }
 
     cout << "done generating data" << endl;
-
-
 #endif
 
-    std::string archiveName = "mvlc_listfile_zip.test.ListfileCreateLarge3.zip";
+    const std::string archiveName = "mvlc_listfile_zip.test.ListfileCreateLarge.zip";
 
-    const size_t totalBytesToWrite = Gigabytes(5);
-    size_t totalBytes = 0u;
-    size_t writeCount = 0;
-    ZipCreator::EntryInfo entryInfo = {};
+    const size_t totalBytesToWrite = outData0.size() * sizeof(u32);
+    const size_t totalBytesToRead = outData0.size() * sizeof(u32);
+    const bool useLZ4 = true;
 
-    auto tStart = std::chrono::steady_clock::now();
-
+    // write
     {
-        ZipCreator creator;
-        creator.createArchive(archiveName);
-        auto &writeHandle = *creator.createLZ4Entry("outfile0.data", 0);
-        //auto &writeHandle = *creator.createZIPEntry("outfile0.data", 1);
+        size_t totalBytes = 0u;
+        size_t writeCount = 0;
+        ZipEntryInfo entryInfo = {};
 
-        do
+        auto tStart = std::chrono::steady_clock::now();
+
         {
-            auto raw = reinterpret_cast<const u8 *>(outData0.data());
-            auto bytes = outData0.size() * sizeof(outData0.at(0));
-            size_t bytesWritten = writeHandle.write(raw, bytes);
-            totalBytes += bytesWritten;
-            ++writeCount;
-        } while (totalBytes < totalBytesToWrite);
+            ZipCreator creator;
+            creator.createArchive(archiveName);
+            auto &writeHandle = (useLZ4
+                                 ? *creator.createLZ4Entry("outfile0.data", 0)
+                                 : *creator.createZIPEntry("outfile0.data", 0));
 
-        creator.closeCurrentEntry();
+            do
+            {
+                auto raw = reinterpret_cast<const u8 *>(outData0.data());
+                auto bytes = outData0.size() * sizeof(outData0.at(0));
+                size_t bytesWritten = writeHandle.write(raw, bytes);
+                totalBytes += bytesWritten;
+                ++writeCount;
+            } while (totalBytes < totalBytesToWrite);
 
-        entryInfo = creator.entryInfo();
+            creator.closeCurrentEntry();
+
+            entryInfo = creator.entryInfo();
+        }
+
+        ASSERT_EQ(totalBytes, totalBytesToWrite);
+
+        auto tEnd = std::chrono::steady_clock::now();
+        auto elapsed = tEnd - tStart;
+        auto seconds = std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count() / 1000.0;
+        auto megaBytesPerSecond = (totalBytes / (1024 * 1024)) / seconds;
+
+        cout << "Wrote the listfile in " << writeCount << " iterations, totalBytes=" << totalBytes << endl;
+        cout << "Writing took " << std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count() <<  " ms" << endl;
+        cout << "rate: " << megaBytesPerSecond << " MB/s" << endl;
+        cout << "EntryInfo: bytesWritten=" << entryInfo.bytesWritten
+            << ", lz4CompressedBytesWritten=" << entryInfo.lz4CompressedBytesWritten
+            << ", ratio=" << (entryInfo.bytesWritten / static_cast<double>(entryInfo.lz4CompressedBytesWritten))
+            << endl;
     }
 
-    auto tEnd = std::chrono::steady_clock::now();
-    auto elapsed = tEnd - tStart;
-    auto seconds = std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count() / 1000.0;
-    auto megaBytesPerSecond = (totalBytes / (1024 * 1024)) / seconds;
+    // read
+    {
+        std::vector<u32> readBuffer(outData0.size());
+        size_t bytesRead = 0u;
+        ZipEntryInfo entryInfo = {};
 
-    cout << "Wrote the listfile in " << writeCount << " iterations, totalBytes=" << totalBytes << endl;
-    cout << "Writing took " << std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count() <<  " ms" << endl;
-    cout << "rate: " << megaBytesPerSecond << " MB/s" << endl;
-    cout << "EntryInfo: bytesWritten=" << entryInfo.bytesWritten
-        << ", lz4CompressedBytesWritten=" << entryInfo.lz4CompressedBytesWritten
-        << ", ratio=" << (entryInfo.bytesWritten / static_cast<double>(entryInfo.lz4CompressedBytesWritten))
-        << endl;
+        auto tStart = std::chrono::steady_clock::now();
+
+        {
+            ZipReader reader;
+            reader.openArchive(archiveName);
+
+            auto entryList = reader.entryList();
+
+            ASSERT_EQ(entryList.size(), 1u);
+
+            const std::string entryName = (useLZ4
+                                           ? "outfile0.data.lz4"
+                                           : "outfile0.data");
+
+            ASSERT_EQ(entryList[0], entryName);
+
+            auto &readHandle = *reader.openEntry(entryName);
+
+            bytesRead = readHandle.read(
+                reinterpret_cast<u8 *>(readBuffer.data()), readBuffer.size() * sizeof(u32));
+
+            entryInfo = reader.entryInfo();
+
+            ASSERT_EQ(bytesRead, totalBytesToRead);
+        }
+
+        auto tEnd = std::chrono::steady_clock::now();
+        auto elapsed = tEnd - tStart;
+        auto seconds = std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count() / 1000.0;
+        auto megaBytesPerSecond = (bytesRead / (1024 * 1024)) / seconds;
+
+
+        cout << "Read " << bytesRead << " bytes in "
+            << std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count() << " ms" << endl;
+        cout << "rate: " << megaBytesPerSecond << " MB/s" << endl;
+        cout << "EntryInfo: bytesRead=" << entryInfo.bytesRead
+            << ", lz4CompressedBytesRead=" << entryInfo.lz4CompressedBytesRead
+            << ", ratio=" << (entryInfo.bytesRead / static_cast<double>(entryInfo.lz4CompressedBytesRead))
+            << endl;
+
+        ASSERT_EQ(outData0.size(), readBuffer.size());
+        ASSERT_EQ(outData0, readBuffer);
+    }
+
 }
 #endif

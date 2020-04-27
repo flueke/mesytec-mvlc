@@ -386,6 +386,7 @@ struct ZipReader::Private
 
         void clear()
         {
+            LZ4F_resetDecompressionContext(ctx);
             compressedBuffer.clear();
             compressedBuffer.resize(ChunkSize);
             decompressedBuffer.clear();
@@ -527,10 +528,13 @@ ZipReadHandle *ZipReader::openEntry(const std::string &name)
 
     if (d->entryInfo.type == ZipEntryInfo::LZ4)
     {
-
         size_t bytesRead = d->readFromCurrentZipEntry(
             d->lz4Ctx.compressedBuffer.data(),
             d->lz4Ctx.compressedBuffer.size());
+
+        //cout << __PRETTY_FUNCTION__ << ": initial read from zip yielded " << bytesRead << " bytes" << endl;
+
+        d->entryInfo.lz4CompressedBytesRead += bytesRead;
 
         if (bytesRead == 0)
             throw std::runtime_error("ZipReader::openEntry: not enough data to initialise LZ4 decompression");
@@ -550,6 +554,11 @@ ZipReadHandle *ZipReader::openEntry(const std::string &name)
             throw std::runtime_error("LZ4F_getFrameInfo: " + std::to_string(res));
 
         assert(d->lz4Ctx.compressedView.size() >= bytesConsumed);
+
+        //cout << __PRETTY_FUNCTION__ << " LZ4F_getFrameInfo consumed " << bytesConsumed << " bytes" << endl;
+        //for (size_t i=0; i<bytesConsumed; ++i)
+        //    cout << __PRETTY_FUNCTION__ << "   " << i << ": "
+        //      << std::hex << static_cast<unsigned>(d->lz4Ctx.compressedView[i]) << std::dec << endl;
 
         d->lz4Ctx.compressedView.remove_prefix(bytesConsumed);
 
@@ -580,14 +589,7 @@ void ZipReader::closeCurrentEntry()
 size_t ZipReader::readCurrentEntry(u8 *dest, size_t maxSize)
 {
     if (d->entryInfo.type == ZipEntryInfo::ZIP)
-    {
-        s32 res = mz_zip_reader_entry_read(d->reader, dest, maxSize);
-
-        if (res < 0)
-            throw std::runtime_error("mz_zip_reader_entry_read: " + std::to_string(res));
-
-        return static_cast<size_t>(res);
-    }
+        return d->readFromCurrentZipEntry(dest, maxSize);
 
     assert(d->entryInfo.type == ZipEntryInfo::LZ4);
 
@@ -598,16 +600,16 @@ size_t ZipReader::readCurrentEntry(u8 *dest, size_t maxSize)
     {
         if (d->lz4Ctx.decompressedView.empty())
         {
-            //cout << __PRETTY_FUNCTION__ << " decompressedView is empty, decompressing more data" << endl;
-
-            //cout << __PRETTY_FUNCTION__ << " compressedView.size()=" << d->lz4Ctx.compressedView.size() << endl;
+            //cout << __PRETTY_FUNCTION__ << " loop #" << loop << ": decompressedView is empty, decompressing more data" << endl;
+            //cout << __PRETTY_FUNCTION__ << " loop #" << loop << ": compressedView.size()=" << d->lz4Ctx.compressedView.size() << endl;
 
             if (d->lz4Ctx.compressedView.empty())
             {
-                //cout << __PRETTY_FUNCTION__ << "compressedView is empty, reading more data from zip" << endl;
+                //cout << __PRETTY_FUNCTION__ << " loop #" << loop << ": compressedView is empty, reading more data from zip" << endl;
 
                 size_t bytesRead = d->readFromCurrentZipEntry(
                     d->lz4Ctx.compressedBuffer.data(), d->lz4Ctx.compressedBuffer.size());
+
                 d->lz4Ctx.compressedView = { d->lz4Ctx.compressedBuffer.data(), bytesRead };
 
                 //cout << __PRETTY_FUNCTION__ << "read " << bytesRead << " bytes of uncompressed data" << endl;
@@ -629,9 +631,13 @@ size_t ZipReader::readCurrentEntry(u8 *dest, size_t maxSize)
                 d->lz4Ctx.compressedView.data(), &compressedSize,  // source
                 nullptr); // options
 
+            if (res == 0)
+                cout << __PRETTY_FUNCTION__ << " loop #" << loop << ": LZ4F_decompress returned " << res << endl;
+
             //cout << __PRETTY_FUNCTION__ << " LZ4F_decompress: "
             //    << ", compressedSize=" << compressedSize
             //    << ", decompressedSize=" << decompressedSize
+            //    << ", res=" << res
             //    << endl;
 
             if (LZ4F_isError(res))
@@ -642,9 +648,25 @@ size_t ZipReader::readCurrentEntry(u8 *dest, size_t maxSize)
         }
 
         size_t toCopy = std::min(d->lz4Ctx.decompressedView.size(), maxSize);
-        std::memcpy(dest, d->lz4Ctx.decompressedView.data(), toCopy);
+        std::memcpy(dest+retval, d->lz4Ctx.decompressedView.data(), toCopy);
         d->lz4Ctx.decompressedView.remove_prefix(toCopy);
         retval += toCopy;
+
+        /*
+        if (toCopy)
+        {
+            std::cout << __PRETTY_FUNCTION__ << " loop #" << loop
+                << ": copied " << toCopy << " bytes from decompressed view into dest buffer"
+                << ", dest[0]=" << std::hex << static_cast<unsigned>(dest[0])
+                << ", dest[1]=" << std::hex << static_cast<unsigned>(dest[1])
+                << ", dest[2]=" << std::hex << static_cast<unsigned>(dest[2])
+                << ", dest[3]=" << std::hex << static_cast<unsigned>(dest[3])
+                << ", dest[4]=" << std::hex << static_cast<unsigned>(dest[4])
+                << std::dec
+                << endl;
+        }
+        */
+
         ++loop;
     }
 

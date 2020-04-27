@@ -17,11 +17,22 @@ namespace listfile
 struct ZipEntryInfo
 {
     enum Type { ZIP, LZ4 };
+
     Type type = ZIP;
     std::string name;
     bool isOpen = false;
+
+    // raw number of bytes written
     size_t bytesWritten = 0u;
+
+    // bytes written after lz4 compression
     size_t lz4CompressedBytesWritten = 0u;
+
+    // total number of bytes read
+    size_t bytesRead = 0u;
+
+    // bytes of compressed LZ4 data read
+    size_t lz4CompressedBytesRead = 0u;
 };
 
 class ZipEntryWriteHandle;
