@@ -209,22 +209,15 @@ TEST(mvlc_listfile_zip, CreateWriteRead)
                 ASSERT_EQ(bytesRead, 0);
             }
 
-#if 0
             {
                 // Restart reading from the beginning of the entry.
                 readHandle->seek(0);
-                std::vector<u8> inData1(outData0.size() * 2);
+                std::vector<u8> inData1(outData0.size());
                 size_t bytesRead = readHandle->read(inData1.data(), inData1.size());
 
-                const std::vector<u8> outData1_2 = {
-                    0x12, 0x34, 0x56, 0x78,
-                    0x12, 0x34, 0x56, 0x78
-                };
-
-                ASSERT_EQ(bytesRead, outData1.size() * 2);
-                ASSERT_EQ(inData1, outData1_2);
+                ASSERT_EQ(bytesRead, outData0.size());
+                ASSERT_EQ(inData1, outData1);
             }
-#endif
         }
     }
 }
@@ -286,10 +279,10 @@ TEST(mvlc_listfile_zip, LZ4Data)
             ASSERT_EQ(outData0.size(), totalBytesRead);
             ASSERT_EQ(outData0, readBuffer);
 
-            cout << __PRETTY_FUNCTION__ << " ReadChunkSize=" << ReadChunkSize
-                << ", totalBytesRead=" << totalBytesRead
-                << ", readCount=" << readCount
-                << endl;
+            //cout << __PRETTY_FUNCTION__ << " ReadChunkSize=" << ReadChunkSize
+            //    << ", totalBytesRead=" << totalBytesRead
+            //    << ", readCount=" << readCount
+            //    << endl;
         }
     }
 }
