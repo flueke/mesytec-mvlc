@@ -18,6 +18,7 @@ class Access
         const T & ref() const { return m_obj; }
 
         T *operator->() { return &m_obj; }
+        T copy() const { return m_obj; }
 
         Access(Access &&) = default;
         Access &operator=(Access &&) = default;
@@ -60,6 +61,5 @@ class Protected
 
 }
 }
-
 
 #endif /* __PROTECTED_H__ */

@@ -166,28 +166,68 @@ int main(int argc, char *argv[])
     // readout
     //
 
+#if 1
+    const size_t BufferSize = Megabytes(1);
+    const size_t BufferCount = 10;
+    ReadoutBufferQueues snoopQueues(BufferSize, BufferCount);
+
     ZipCreator zipWriter;
     zipWriter.createArchive("mini-daq.zip");
-    auto lfh = zipWriter.createLZ4Entry("listfile.mvlclst", 0);
-    //auto lfh = zipWriter.createZIPEntry("listfile.mvlclst", 0);
+    auto lfh = zipWriter.createZIPEntry("listfile.mvlclst", 0);
+    ReadoutWorker readoutWorker(mvlc, crateConfig.triggers, snoopQueues, lfh);
+
+    auto f = readoutWorker.start(std::chrono::seconds(30));
+    cout << "f.get(): " << f.get() << endl;
+
+    while (readoutWorker.state() != ReadoutWorker::State::Idle)
+    {
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+    }
+
+    auto counters = readoutWorker.counters();
+
+    auto tStart = counters.tStart;
+    auto tEnd = (counters.state != ReadoutWorker::State::Idle
+                 ?  std::chrono::steady_clock::now()
+                 : counters.tEnd);
+    auto runDuration = std::chrono::duration_cast<std::chrono::milliseconds>(tEnd - tStart);
+    double runSeconds = runDuration.count() / 1000.0;
+    double megaBytes = counters.bytesRead * 1.0 / Megabytes(1);
+    double mbs = megaBytes / runSeconds;
+
+    cout << "totalBytesTransferred=" << counters.bytesRead << endl;
+    cout << "duration=" << runDuration.count() << " ms" << endl;
+    cout << "Ran for " << runSeconds << " seconds, transferred a total of " << megaBytes
+        << " MB, resulting data rate: " << mbs << "MB/s"
+        << endl;
+
+    //cout << "totalPacketsReceived=" << totalPacketsReceived << endl;
+#else
+    ZipCreator zipWriter;
+    zipWriter.createArchive("mini-daq.zip");
+    //auto lfh = zipWriter.createLZ4Entry("listfile.mvlclst", 0);
+    auto lfh = zipWriter.createZIPEntry("listfile.mvlclst", 0);
+
+    // TODO: missing listfile preamble
+    // TODO: readout config must be written to the listfile
 
     const size_t BufferSize = Megabytes(1);
     const size_t BufferCount = 10;
     ReadoutBufferQueues bufferQueues(BufferSize, BufferCount);
     auto &filled = bufferQueues.filledBufferQueue();
     auto &empty = bufferQueues.emptyBufferQueue();
-    ListfileBufferWriterState writerState = {};
-    TicketMutex writerStateMutex;
+    Protected<ListfileBufferWriterState> writerState({});
 
     auto writerThread = std::thread(
         listfile_buffer_writer, lfh, std::ref(bufferQueues),
-        std::ref(writerState), std::ref(writerStateMutex));
+        std::ref(writerState));
 
     size_t totalBytesTransferred = 0u;
     size_t totalPacketsReceived = 0u;
     auto tStart = std::chrono::steady_clock::now();
 
     // TODO: FlushBufferTimeout, consumer buffer queue
+    // TODO: notification polling
 
     if (crateConfig.connectionType == ConnectionType::ETH)
     {
@@ -318,6 +358,7 @@ int main(int argc, char *argv[])
         << endl;
 
     cout << "totalPacketsReceived=" << totalPacketsReceived << endl;
+#endif
 
     if (auto ec = disable_all_triggers(mvlc))
     {
