@@ -1,6 +1,7 @@
 #ifndef __MESYTEC_MVLC_IO_UTIL_H__
 #define __MESYTEC_MVLC_IO_UTIL_H__
 
+// FIXME: this requires fmt-header-only to be publicly available
 #include <fmt/format.h>
 #include <iostream>
 #include <string>
