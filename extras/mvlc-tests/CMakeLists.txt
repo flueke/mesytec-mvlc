@@ -11,4 +11,6 @@ function(add_mvlc_test exe_name exe_source)
     add_test(NAME ${exe_name} COMMAND $<TARGET_FILE:${exe_name}>)
 endfunction(add_mvlc_test)
 
-add_mvlc_test(mvlc_test_vme_bus mvlc_test_vme_bus.cc)
+if (MVLC_BUILD_CONTROLLER_TESTS)
+    add_mvlc_test(mvlc_test_vme_bus mvlc_test_vme_bus.cc)
+endif (MVLC_BUILD_CONTROLLER_TESTS)
