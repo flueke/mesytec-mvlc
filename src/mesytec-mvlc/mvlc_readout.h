@@ -9,6 +9,7 @@
 #include "mvlc_impl_eth.h"
 #include "mvlc_listfile.h"
 #include "mvlc_readout_config.h"
+#include "mvlc_stack_errors.h"
 #include "mvlc_stack_executor.h"
 #include "util/readout_buffer_queues.h"
 #include "util/protected.h"
@@ -50,6 +51,9 @@ struct ListfileBufferWriterState
 // auto writerThread = std::thread(
 //   listfile_buffer_writer, lfh, std::ref(bufferQueues),
 //   std::ref(writerState));
+// Note: the WriteHandle *lfh may be nullptr in. In this case the writer will
+// still dequeue filled buffers from the queue and immediately re-enqueue them
+// on the empty queue.
 
 void MESYTEC_MVLC_EXPORT listfile_buffer_writer(
     listfile::WriteHandle *lfh,
@@ -88,6 +92,7 @@ class MESYTEC_MVLC_EXPORT ReadoutWorker
             std::array<size_t, stacks::StackCount> stackHits; // TODO: count these
             std::array<eth::PipeStats, PipeCount> ethStats; // TODO: pull them from the eth impl
             std::error_code ec; // TODO: assign on error
+            StackErrorCounters stackErrors;
         };
 
         ReadoutWorker(
@@ -107,18 +112,10 @@ class MESYTEC_MVLC_EXPORT ReadoutWorker
         std::error_code pause();
         std::error_code resume();
 
-#if 0
-        std::error_code start(const std::chrono::seconds &timeToRun = {});
-        std::error_code stop();
-        std::error_code pause();
-        std::error_code resume();
-#endif
-
     private:
         struct Private;
         std::unique_ptr<Private> d;
 };
-
 
 } // end namespace mvlc
 } // end namespace mesytec

@@ -1,6 +1,6 @@
 #include "mvlc_readout.h"
-#include "mvlc_eth_interface.h"
-#include "mvlc_usb_interface.h"
+#include "mvlc_constants.h"
+#include "mvlc_listfile.h"
 
 #include <atomic>
 #include <chrono>
@@ -12,11 +12,14 @@
 #include <sys/prctl.h>
 #endif
 
-#include "mvlc_factory.h"
 #include "mvlc_dialog_util.h"
-#include "util/storage_sizes.h"
-#include "util/perf.h"
+#include "mvlc_eth_interface.h"
+#include "mvlc_factory.h"
+#include "mvlc_listfile_util.h"
+#include "mvlc_usb_interface.h"
 #include "util/io_util.h"
+#include "util/perf.h"
+#include "util/storage_sizes.h"
 
 using std::cerr;
 using std::endl;
@@ -209,6 +212,51 @@ void MESYTEC_MVLC_EXPORT listfile_buffer_writer(
     cerr << "listfile_writer left write loop, writes=" << writes << ", bytesWritten=" << bytesWritten << endl;
 }
 
+
+void stack_error_notification_poller(
+    MVLC mvlc,
+    Protected<ReadoutWorker::Counters> &counters,
+    std::atomic<bool> &quit)
+{
+    static constexpr auto Default_PollInterval = std::chrono::milliseconds(1000);
+
+#ifndef __WIN32
+    prctl(PR_SET_NAME,"error_poller",0,0,0);
+#endif
+
+    std::vector<u32> buffer;
+    buffer.reserve(Megabytes(1));
+
+    std::cout << "stack_error_notification_poller entering loop" << std::endl;
+
+    // FIXME: this cannot handle high-rate error notifications as it will only
+    // yield one error buffer per read, then sleep for Default_PollInterval.
+    while (!quit)
+    {
+        //std::cout << "stack_error_notification_poller begin read" << std::endl;
+        auto ec = mvlc.readKnownBuffer(buffer);
+        //std::cout << "stack_error_notification_poller read done" << std::endl;
+
+        if (!buffer.empty())
+        {
+            std::cout << "stack_error_notification_poller updating counters" << std::endl;
+            update_stack_error_counters(counters.access()->stackErrors, buffer);
+        }
+
+        if (ec == ErrorType::ConnectionError)
+            break;
+
+        if (buffer.empty())
+        {
+            //std::cout << "stack_error_notification_poller sleeping" << std::endl;
+            std::this_thread::sleep_for(Default_PollInterval);
+            //std::cout << "stack_error_notification_poller waking" << std::endl;
+        }
+    }
+
+    std::cout << "stack_error_notification_poller exiting" << std::endl;
+}
+
 namespace
 {
 
@@ -247,7 +295,6 @@ struct ReadoutWorker::Private
     static constexpr std::chrono::seconds ShutdownReadoutMaxWait = std::chrono::seconds(10);
 
     WaitableProtected<ReadoutWorker::State> state;
-    //std::atomic<ReadoutWorker::State> state;
     std::atomic<ReadoutWorker::State> desiredState;
 
     MVLC mvlc;
@@ -258,7 +305,6 @@ struct ReadoutWorker::Private
     std::chrono::seconds timeToRun;
     Protected<Counters> counters;
     std::thread readoutThread;
-    std::thread listfileThread;
     ReadoutBufferQueues listfileQueues;
     listfile::WriteHandle *lfh;
     ReadoutBuffer localBuffer;
@@ -306,7 +352,7 @@ struct ReadoutWorker::Private
         return outputBuffer_;
     }
 
-    void maybePutBackBuffer()
+    void maybePutBackSnoopBuffer()
     {
         if (outputBuffer_ && outputBuffer_ != &localBuffer)
             snoopQueues.emptyBufferQueue().enqueue(outputBuffer_);
@@ -365,13 +411,26 @@ void ReadoutWorker::Private::loop(std::promise<std::error_code> promise)
 
     std::cout << "readout_worker thread starting" << std::endl;
 
-    counters.access().ref() = {};
+    counters.access().ref() = {}; // reset the counters
 
+    // listfile writer thread
     Protected<ListfileBufferWriterState> writerState({});
 
     auto writerThread = std::thread(
-        listfile_buffer_writer, lfh, std::ref(listfileQueues),
+        listfile_buffer_writer,
+        lfh,
+        std::ref(listfileQueues),
         std::ref(writerState));
+
+    // stack error polling thread
+    std::atomic<bool> quitErrorPoller(false);
+
+    std::thread pollerThread;
+    pollerThread = std::thread(
+        stack_error_notification_poller,
+        mvlc,
+        std::ref(counters),
+        std::ref(quitErrorPoller));
 
     switch (mvlc.connectionType())
     {
@@ -394,24 +453,45 @@ void ReadoutWorker::Private::loop(std::promise<std::error_code> promise)
     auto tStart = std::chrono::steady_clock::now();
     counters.access()->tStart = tStart;
     setState(State::Running);
-    // No error, we're about to enter the readout loop -> set the value of the
-    // start() promise.
+
+    // Grab an output buffer and write an initial timestamp into it.
+    {
+        listfile::BufferWriteHandle wh(*getOutputBuffer());
+        listfile_write_timestamp(wh);
+    }
+    auto tTimestamp = std::chrono::steady_clock::now();
+
+    // No errors and we're about to enter the readout loop -> set the value of
+    // the start() promise.
     promise.set_value({});
 
     while (ec != ErrorType::ConnectionError)
     {
-        // timetick TODO
+        const auto now = std::chrono::steady_clock::now();
 
         // check if timeToRun has elapsed
-        auto elapsed = std::chrono::steady_clock::now() - tStart;
-
-        if (timeToRun.count() != 0 && elapsed >= timeToRun)
         {
-            std::cout << "MVLC readout timeToRun reached" << std::endl;
-            break;
+            auto totalElapsed = now - tStart;
+
+            if (timeToRun.count() != 0 && totalElapsed >= timeToRun)
+            {
+                std::cout << "MVLC readout timeToRun reached" << std::endl;
+                break;
+            }
         }
 
-        using State = ReadoutWorker::State;
+        // check if we need to write a timestamp
+        {
+            auto elapsed = now - tTimestamp;
+
+            if (elapsed >= TimestampInterval)
+            {
+                listfile::BufferWriteHandle wh(*getOutputBuffer());
+                listfile_write_timestamp(wh);
+                tTimestamp = now;
+            }
+        }
+
         auto state_ = state.access().copy();
 
         // stay in running state
@@ -430,16 +510,22 @@ void ReadoutWorker::Private::loop(std::promise<std::error_code> promise)
         // pause
         else if (state_ == State::Running && desiredState == State::Paused)
         {
-            // TODO: disable triggers
-            // TODO: listfile_write_system_event(d->listfileOut, system_event::subtype::Pause);
+            terminateReadout();
+            listfile::BufferWriteHandle wh(*getOutputBuffer());
+            listfile_write_system_event(wh, system_event::subtype::Pause);
             setState(State::Paused);
             std::cout << "MVLC readout paused" << std::endl;
         }
         // resume
         else if (state_ == State::Paused && desiredState == State::Running)
         {
-            // TODO: enable triggers
-            // TODO: listfile_write_system_event(d->listfileOut, system_event::subtype::Resume);
+            if (auto ec = setup_readout_triggers(mvlc, stackTriggers))
+            {
+                std::cout << "Error resuming MVLC readout: " << ec.message() << endl;
+                break;
+            }
+            listfile::BufferWriteHandle wh(*getOutputBuffer());
+            listfile_write_system_event(wh, system_event::subtype::Resume);
             setState(State::Running);
             std::cout << "MVLC readout paused" << std::endl;
         }
@@ -472,7 +558,15 @@ void ReadoutWorker::Private::loop(std::promise<std::error_code> promise)
 
     std::cout << "terminateReadout() took " << terminateDuration.count() << " ms to complete" << std::endl;
 
-    maybePutBackBuffer();
+    // Write an EndOfFile system event section into a ReadoutBuffer and
+    // immediately flush the buffer.
+    {
+        listfile::BufferWriteHandle wh(*getOutputBuffer());
+        listfile_write_system_event(wh, system_event::subtype::EndOfFile);
+        flushCurrentOutputBuffer();
+    }
+
+    maybePutBackSnoopBuffer();
 
     // stop the listfile writer
     {
@@ -484,14 +578,28 @@ void ReadoutWorker::Private::loop(std::promise<std::error_code> promise)
     if (writerThread.joinable())
         writerThread.join();
 
-    assert(listfileQueues.emptyBufferQueue().size() == BufferCount);
-
-    auto tEnd = std::chrono::steady_clock::now();
+    // Record the tEnd before waiting for the error poller to stop. This way
+    // the final stats more closely reflects the actual data rate while the DAQ
+    // was active. Note that the time taken in terminateReadout() is still
+    // counted into the duration which means there's at least one read timeout
+    // at the end. For long runs this doesn't really have an effect on the rate
+    // but for short runs the final rate is noticably lower due to that last
+    // read timeout.
     {
+        auto tEnd = std::chrono::steady_clock::now();
         auto c = counters.access();
         c->tEnd = tEnd;
         c->ec = ec;
     }
+
+    // stop the stack error poller
+    quitErrorPoller = true;
+
+    if (pollerThread.joinable())
+        pollerThread.join();
+
+    // Check that all buffers from the listfile writer queue have been returned.
+    assert(listfileQueues.emptyBufferQueue().size() == BufferCount);
 
     setState(State::Idle);
 }
@@ -547,10 +655,13 @@ void ReadoutWorker::Private::terminateReadout()
     }
 }
 
+// Note: in addition to stack frames this includes SystemEvent frames. These
+// are written into the readout buffers by the listfile_write_* functions.
 inline bool is_valid_readout_frame(const FrameInfo &frameInfo)
 {
     return (frameInfo.type == frame_headers::StackFrame
-            || frameInfo.type == frame_headers::StackContinuation);
+            || frameInfo.type == frame_headers::StackContinuation
+            || frameInfo.type == frame_headers::SystemEvent);
 }
 
 inline void fixup_usb_buffer(
@@ -666,11 +777,10 @@ std::error_code ReadoutWorker::Private::readout_usb(
 
     if (previousData.used())
     {
-        assert(destBuffer->used() == 0);
-        //std::cout << "moving " << previousData.used() << " previous bytes to start of buffer #" << destBuffer->bufferNumber() << std::endl;
         // move bytes from previousData into destBuffer
         destBuffer->ensureFreeSpace(previousData.used());
-        std::memcpy(destBuffer->data(), previousData.data(), previousData.used());
+        std::memcpy(destBuffer->data() + destBuffer->used(),
+                    previousData.data(), previousData.used());
         destBuffer->use(previousData.used());
         previousData.clear();
     }
@@ -716,9 +826,6 @@ std::error_code ReadoutWorker::Private::readout_usb(
     //util::log_buffer(std::cout, destBuffer->viewU32(),
     //                 fmt::format("usb buffer#{} post fixup", destBuffer->bufferNumber()),
     //                 3*60, 3*60);
-
-    //if (preSize != postSize)
-    //    throw 42;
 
     return ec;
 }
@@ -796,7 +903,6 @@ ReadoutWorker::Counters ReadoutWorker::counters()
 
 std::future<std::error_code> ReadoutWorker::start(const std::chrono::seconds &timeToRun)
 {
-
     std::promise<std::error_code> promise;
     auto f = promise.get_future();
 
