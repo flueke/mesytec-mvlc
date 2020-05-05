@@ -44,8 +44,8 @@ class MVLCBasicInterface
         virtual std::error_code connect() = 0;
         virtual std::error_code disconnect() = 0;
         virtual bool isConnected() const = 0;
-        virtual ConnectionType connectionType() const = 0;
-        virtual std::string connectionInfo() const = 0;
+        virtual ConnectionType connectionType() const = 0; // Note: must be thread-safe
+        virtual std::string connectionInfo() const = 0; // Note: must be thread-safe
 
         virtual std::error_code write(Pipe pipe, const u8 *buffer, size_t size,
                                       size_t &bytesTransferred) = 0;

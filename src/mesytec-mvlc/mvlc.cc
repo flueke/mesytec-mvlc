@@ -86,13 +86,13 @@ bool MVLC::isConnected() const
 
 ConnectionType MVLC::connectionType() const
 {
-    auto guards = d->locks.lockBoth();
+    // No need to lock. Impl must guarantee that this access is thread-safe.
     return d->impl->connectionType();
 }
 
 std::string MVLC::connectionInfo() const
 {
-    auto guards = d->locks.lockBoth();
+    // No need to lock. Impl must guarantee that this access is thread-safe.
     return d->impl->connectionInfo();
 }
 
