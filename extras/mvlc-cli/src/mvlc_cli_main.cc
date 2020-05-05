@@ -22,6 +22,9 @@ static struct option long_options[] =
     { "usb", no_argument, 0, 0 },
     { "usb-index", required_argument, 0, 0 },
     { "usb-serial", required_argument, 0, 0 },
+
+    { "reset", no_argument, 0, 0 },
+
     { "help", no_argument, 0, 'h' },
     { 0, 0, 0, 0 },
 };
@@ -29,6 +32,7 @@ static struct option long_options[] =
 int main(int argc, char *argv[])
 {
     std::function<MVLC ()> factory;
+    bool doReset = false;
 
     while (true)
     {
@@ -41,6 +45,7 @@ int main(int argc, char *argv[])
         if (c == 'h')
         {
             cout << "Usage: " << argv[0] << " --eth <hostname> | --usb | --usb-index <index> | --usb-serial <serial>" << endl;
+            cout << "        [--reset]" << endl;
             return 0;
         }
 
@@ -85,12 +90,17 @@ int main(int argc, char *argv[])
                 return make_mvlc_usb(usbSerial);
             };
         }
+        else if (opt_name == "reset")
+            doReset = true;
     }
 
     if (!factory)
         return 1;
 
     auto mvlc = factory();
+
+    if (doReset)
+        mvlc.setDisableTriggersOnConnect(true);
 
     if (auto ec = mvlc.connect())
     {
