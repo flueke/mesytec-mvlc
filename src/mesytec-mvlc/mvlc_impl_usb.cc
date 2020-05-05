@@ -309,7 +309,7 @@ std::error_code post_connect_cleanup(mesytec::mvlc::usb::Impl &impl)
 
     // Try setting the trigger registers in a separate thread. This uses the
     // command pipe for communication.
-    auto f = std::async([&dlg] () -> std::error_code
+    auto f = std::async(std::launch::async, [&dlg] () -> std::error_code
     {
         for (int try_ = 0; try_ < DisableTriggerRetryCount; try_++)
         {
@@ -335,7 +335,8 @@ std::error_code post_connect_cleanup(mesytec::mvlc::usb::Impl &impl)
 
         do
         {
-            ec = impl.read(Pipe::Data, buffer.data(), buffer.size(), bytesTransferred);
+            bytesTransferred = 0u;
+            ec = impl.read_unbuffered(Pipe::Data, buffer.data(), buffer.size(), bytesTransferred);
             totalBytesTransferred += bytesTransferred;
 
             auto elapsed = Clock::now() - tStart;
