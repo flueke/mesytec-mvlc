@@ -1,3 +1,4 @@
+#include "mesytec-mvlc/mvlc_listfile.h"
 #include <chrono>
 #include <iostream>
 #include <limits>
@@ -176,6 +177,8 @@ int main(int argc, char *argv[])
     zipWriter.createArchive("mini-daq.zip");
     listfile::WriteHandle *lfh = nullptr;
     lfh = zipWriter.createZIPEntry("listfile.mvlclst", 0);
+    listfile::listfile_write_preamble(*lfh, crateConfig);
+
     ReadoutWorker readoutWorker(mvlc, crateConfig.triggers, snoopQueues, lfh);
 
     auto f = readoutWorker.start(timeToRun);
