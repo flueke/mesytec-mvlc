@@ -26,24 +26,24 @@
   If mvme would also store the library generated config the other way would
   also work. Do this!
 
-* single create readout config:
+* single create readout config: DONE
   - list of stack triggers          <- required to setup the mvlc
   - list of readout stacks          <- required for parsing the data stream
   - additional: VME init sequence   <- for reference only to know what's going on
 
-* single create readout instance:
+* single create readout instance: DONE
   - readout config
   - readout buffer structure with crateId, number, type, capacity, used and view/read/write access
   - readout buffer queue plus operations (blocking, non-blocking)
   - listfile output (the readout config is serialized into the listfile at the start)
 
-* listfile writer
+* listfile writer MOSTLY DONE
   - should be able to take buffers from multiple readout workers for multicrate setup
   - takes copies of readout buffers and internally queues them up for writing
   - listfile output
   - write serialized verison of the readout setup (single or multicrate variants)
 
-* listfile reader
+* listfile reader MOSTLY DONE
   - open archive file
   - open listfile in archive
   - open and read other files from the archive, list files
@@ -51,7 +51,7 @@
     configs (and possibly custom sections) out
   - deserialize config. this can then be used to construct a readout parser
 
-* stack batch execution
+* stack batch execution DONE
   - Used to execute large command lists by splitting them into max sized stack
     chunks and running those. Max size means that the command stack does not
     overflow.
@@ -61,6 +61,10 @@
 FIXME: open issues
 - how to detect and handle single vs multicrate setups?
 
+## TODO
+* disabling triggers when stopping a DAQ does not work reliably right now.
+
+## Misc
 
 archive                        type     level writeRate[MB/s] readRate[MB/s]  bytesWritten         bytesRead            zipCompressed        zipUncompressed      ratio     
 compression-test-zip_0.zip     zip      0     611.00          1327.43         314572800            314572800            314572800            314572800            1.00
