@@ -80,12 +80,14 @@ class MESYTEC_MVLC_EXPORT ReadoutWorker
             std::chrono::time_point<std::chrono::steady_clock> tEnd;
             size_t buffersRead;
             size_t bytesRead;
-            size_t framingErrors;
-            size_t unusedBytes;
+            size_t snoopMissedBuffers;
+            size_t usbFramingErrors;
+            size_t usbTempMovedBytes;
+            size_t ethShortReads;
             size_t readTimeouts;
-            std::array<size_t, stacks::StackCount> stackHits;
-            std::array<eth::PipeStats, PipeCount> ethStats;
-            std::error_code ec;
+            std::array<size_t, stacks::StackCount> stackHits; // TODO: count these
+            std::array<eth::PipeStats, PipeCount> ethStats; // TODO: pull them from the eth impl
+            std::error_code ec; // TODO: assign on error
         };
 
         ReadoutWorker(
@@ -98,6 +100,7 @@ class MESYTEC_MVLC_EXPORT ReadoutWorker
         ~ReadoutWorker();
 
         State state() const;
+        WaitableProtected<State> &waitableState();
         Counters counters();
         std::future<std::error_code> start(const std::chrono::seconds &timeToRun = {});
         std::error_code stop();

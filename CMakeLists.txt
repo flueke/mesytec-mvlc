@@ -97,6 +97,8 @@ if (MVLC_BUILD_TESTS)
     enable_testing()
 endif(MVLC_BUILD_TESTS)
 
+option(MVLC_BUILD_CONTROLLER_TESTS "Build online MVLC controller tests" OFF)
+
 add_subdirectory(external)
 
 ## Create our binaries in the root of the build directory. It's just more convenient.

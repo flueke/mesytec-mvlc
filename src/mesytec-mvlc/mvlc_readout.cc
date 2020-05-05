@@ -6,6 +6,7 @@
 #include <chrono>
 #include <cstring>
 #include <iostream>
+#include <fmt/format.h>
 
 #ifndef __WIN32
 #include <sys/prctl.h>
@@ -15,6 +16,7 @@
 #include "mvlc_dialog_util.h"
 #include "util/storage_sizes.h"
 #include "util/perf.h"
+#include "util/io_util.h"
 
 using std::cerr;
 using std::endl;
@@ -146,11 +148,12 @@ void MESYTEC_MVLC_EXPORT listfile_buffer_writer(
 
             assert(buffer);
 
-            // sentinel checks
-            if (!buffer)
+            // should not happen
+            if (unlikely(!buffer))
                 break;
 
-            if (buffer->empty())
+            // sentinel check
+            if (unlikely(buffer->empty()))
             {
                 empty.enqueue(buffer);
                 break;
@@ -160,15 +163,17 @@ void MESYTEC_MVLC_EXPORT listfile_buffer_writer(
             {
                 auto bufferView = buffer->viewU8();
 
-                bytesWritten += lfh->write(bufferView.data(), bufferView.size());
-                ++writes;
+                if (lfh)
+                {
+                    bytesWritten += lfh->write(bufferView.data(), bufferView.size());
+                    ++writes;
+
+                    auto state = protectedState.access();
+                    state->bytesWritten = bytesWritten;
+                    state->writes = writes;
+                }
 
                 empty.enqueue(buffer);
-
-                auto state = protectedState.access();
-                state->bytesWritten = bytesWritten;
-                state->writes = writes;
-
             } catch (...)
             {
                 empty.enqueue(buffer);
@@ -239,11 +244,15 @@ struct ReadoutWorker::Private
 {
     static constexpr size_t BufferSize = Megabytes(1);
     static constexpr size_t BufferCount = 10;
+    static constexpr std::chrono::seconds ShutdownReadoutMaxWait = std::chrono::seconds(10);
 
-    std::atomic<ReadoutWorker::State> state;
+    WaitableProtected<ReadoutWorker::State> state;
+    //std::atomic<ReadoutWorker::State> state;
     std::atomic<ReadoutWorker::State> desiredState;
 
     MVLC mvlc;
+    eth::MVLC_ETH_Interface *mvlcETH = nullptr;
+    usb::MVLC_USB_Interface *mvlcUSB = nullptr;
     ReadoutBufferQueues &snoopQueues;
     std::vector<u32> stackTriggers;
     std::chrono::seconds timeToRun;
@@ -258,7 +267,8 @@ struct ReadoutWorker::Private
     u32 nextOutputBufferNumber = 0u;
 
     Private(MVLC &mvlc_, ReadoutBufferQueues &snoopQueues_)
-        : mvlc(mvlc_)
+        : state({})
+        , mvlc(mvlc_)
         , snoopQueues(snoopQueues_)
         , counters({})
         , listfileQueues(BufferSize, BufferCount)
@@ -274,7 +284,7 @@ struct ReadoutWorker::Private
 
     void setState(const ReadoutWorker::State &state_)
     {
-        state = state_;
+        state.access().ref() = state_;
         desiredState = state_;
         counters.access()->state = state_;
     }
@@ -308,7 +318,6 @@ struct ReadoutWorker::Private
     {
         if (outputBuffer_ && outputBuffer_->used() > 0)
         {
-            // TODO: count flushed buffers
             auto listfileBuffer = listfileQueues.emptyBufferQueue().dequeue_blocking();
             // copy the data and queue it up for the writer thread
             *listfileBuffer = *outputBuffer_;
@@ -317,18 +326,21 @@ struct ReadoutWorker::Private
             if (outputBuffer_ != &localBuffer)
                 snoopQueues.filledBufferQueue().enqueue(outputBuffer_);
             else
-            {
-                // TODO: count dropped buffer
-            }
+                counters.access()->snoopMissedBuffers++;
 
             outputBuffer_ = nullptr;
         }
     }
 
     void loop(std::promise<std::error_code> promise);
+    void terminateReadout();
+
+    std::error_code readout(size_t &bytesTransferred);
     std::error_code readout_usb(usb::MVLC_USB_Interface *mvlcUSB, size_t &bytesTransferred);
     std::error_code readout_eth(eth::MVLC_ETH_Interface *mvlcETH, size_t &bytesTransferred);
 };
+
+constexpr std::chrono::seconds ReadoutWorker::Private::ShutdownReadoutMaxWait;
 
 ReadoutWorker::ReadoutWorker(
     MVLC &mvlc,
@@ -338,7 +350,7 @@ ReadoutWorker::ReadoutWorker(
     )
     : d(std::make_unique<Private>(mvlc, snoopQueues))
 {
-    d->state = State::Idle;
+    d->state.access().ref() = State::Idle;
     d->desiredState = State::Idle;
     d->stackTriggers = stackTriggers;
     d->lfh = lfh;
@@ -350,6 +362,7 @@ void ReadoutWorker::Private::loop(std::promise<std::error_code> promise)
 #ifndef __WIN32
     prctl(PR_SET_NAME,"readout_worker",0,0,0);
 #endif
+
     std::cout << "readout_worker thread starting" << std::endl;
 
     counters.access().ref() = {};
@@ -360,30 +373,29 @@ void ReadoutWorker::Private::loop(std::promise<std::error_code> promise)
         listfile_buffer_writer, lfh, std::ref(listfileQueues),
         std::ref(writerState));
 
-    const auto TimestampInterval = std::chrono::seconds(1);
-    const auto connectionType = mvlc.connectionType();
-    eth::MVLC_ETH_Interface *mvlcETH = nullptr;
-    usb::MVLC_USB_Interface *mvlcUSB = nullptr;
-
-    switch (connectionType)
+    switch (mvlc.connectionType())
     {
         case ConnectionType::ETH:
-            mvlcETH = dynamic_cast<eth::MVLC_ETH_Interface *>(mvlc.getImpl());
+            this->mvlcETH = dynamic_cast<eth::MVLC_ETH_Interface *>(mvlc.getImpl());
             assert(mvlcETH);
             break;
 
         case ConnectionType::USB:
-            mvlcUSB = dynamic_cast<usb::MVLC_USB_Interface *>(mvlc.getImpl());
+            this->mvlcUSB = dynamic_cast<usb::MVLC_USB_Interface *>(mvlc.getImpl());
             assert(mvlcUSB);
             break;
     }
 
     assert(mvlcETH || mvlcUSB);
 
+    const auto TimestampInterval = std::chrono::seconds(1);
+
     std::error_code ec;
     auto tStart = std::chrono::steady_clock::now();
     counters.access()->tStart = tStart;
     setState(State::Running);
+    // No error, we're about to enter the readout loop -> set the value of the
+    // start() promise.
     promise.set_value({});
 
     while (ec != ErrorType::ConnectionError)
@@ -400,22 +412,23 @@ void ReadoutWorker::Private::loop(std::promise<std::error_code> promise)
         }
 
         using State = ReadoutWorker::State;
+        auto state_ = state.access().copy();
 
         // stay in running state
-        if (likely(state == State::Running && desiredState == State::Running))
+        if (likely(state_ == State::Running && desiredState == State::Running))
         {
             size_t bytesTransferred = 0u;
+            auto ec = this->readout(bytesTransferred);
 
-            if (mvlcUSB)
-                ec = readout_usb(mvlcUSB, bytesTransferred);
-            else
-                ec = readout_eth(mvlcETH, bytesTransferred);
-
-            counters.access()->bytesRead += bytesTransferred;
-            flushCurrentOutputBuffer();
+            if (ec == ErrorType::ConnectionError)
+            {
+                std::cout << "Lost connection to MVLC, leaving readout loop. Error=" << ec.message() << std::endl;
+                this->mvlc.disconnect();
+                break;
+            }
         }
         // pause
-        else if (state == State::Running && desiredState == State::Paused)
+        else if (state_ == State::Running && desiredState == State::Paused)
         {
             // TODO: disable triggers
             // TODO: listfile_write_system_event(d->listfileOut, system_event::subtype::Pause);
@@ -423,7 +436,7 @@ void ReadoutWorker::Private::loop(std::promise<std::error_code> promise)
             std::cout << "MVLC readout paused" << std::endl;
         }
         // resume
-        else if (state == State::Paused && desiredState == State::Running)
+        else if (state_ == State::Paused && desiredState == State::Running)
         {
             // TODO: enable triggers
             // TODO: listfile_write_system_event(d->listfileOut, system_event::subtype::Resume);
@@ -437,7 +450,7 @@ void ReadoutWorker::Private::loop(std::promise<std::error_code> promise)
             break;
         }
         // paused
-        else if (state == State::Paused)
+        else if (state_ == State::Paused)
         {
             std::cout << "MVLC readout paused" << std::endl;
             constexpr auto PauseSleepDuration = std::chrono::milliseconds(100);
@@ -451,6 +464,15 @@ void ReadoutWorker::Private::loop(std::promise<std::error_code> promise)
 
     std::cout << "MVLC readout stopping" << std::endl;
     setState(State::Stopping);
+
+    auto tTerminateStart = std::chrono::steady_clock::now();
+    terminateReadout();
+    auto tTerminateEnd = std::chrono::steady_clock::now();
+    auto terminateDuration = std::chrono::duration_cast<std::chrono::milliseconds>(tTerminateEnd - tTerminateStart);
+
+    std::cout << "terminateReadout() took " << terminateDuration.count() << " ms to complete" << std::endl;
+
+    maybePutBackBuffer();
 
     // stop the listfile writer
     {
@@ -474,6 +496,57 @@ void ReadoutWorker::Private::loop(std::promise<std::error_code> promise)
     setState(State::Idle);
 }
 
+// Cleanly end a running readout session. The code disables all triggers by
+// writing to the trigger registers via the command pipe while in parallel
+// reading and processing data from the data pipe until no more data
+// arrives. These things have to be done in parallel as otherwise in the
+// case of USB the data from the data pipe could clog the bus and no
+// replies could be received on the command pipe.
+void ReadoutWorker::Private::terminateReadout()
+{
+    auto f = std::async(
+        std::launch::async,
+        [this] ()
+        {
+            static const int DisableTriggerRetryCount = 5;
+
+            for (int try_ = 0; try_ < DisableTriggerRetryCount; try_++)
+            {
+                if (auto ec = disable_all_triggers(this->mvlc))
+                {
+                    if (ec == ErrorType::ConnectionError)
+                        return ec;
+                }
+                else break;
+            }
+
+            return std::error_code{};
+        });
+
+    using Clock = std::chrono::high_resolution_clock;
+    auto tStart = Clock::now();
+    size_t bytesTransferred = 0u;
+    // The loop could hang forever if disabling the readout triggers does
+    // not work for some reason. To circumvent this the total time spent in
+    // the loop is limited to ShutdownReadoutMaxWait.
+    do
+    {
+        bytesTransferred = 0u;
+        this->readout(bytesTransferred);
+
+        auto elapsed = Clock::now() - tStart;
+
+        if (elapsed > ShutdownReadoutMaxWait)
+            break;
+
+    } while (bytesTransferred > 0);
+
+    if (auto ec = f.get())
+    {
+        cerr << "terminateReadout: error disabling triggers: " << ec.message() << endl;
+    }
+}
+
 inline bool is_valid_readout_frame(const FrameInfo &frameInfo)
 {
     return (frameInfo.type == frame_headers::StackFrame
@@ -482,7 +555,8 @@ inline bool is_valid_readout_frame(const FrameInfo &frameInfo)
 
 inline void fixup_usb_buffer(
     ReadoutBuffer &readBuffer,
-    ReadoutBuffer &tempBuffer)
+    ReadoutBuffer &tempBuffer,
+    Protected<ReadoutWorker::Counters> &counters)
 {
     auto view = readBuffer.viewU8();
 
@@ -494,13 +568,24 @@ inline void fixup_usb_buffer(
 
             while (view.size() >= sizeof(u32))
             {
+                u32 frameHeader = *reinterpret_cast<const u32 *>(&view[0]);
                 // Can peek and check the next frame header
-                frameInfo = extract_frame_info(*reinterpret_cast<const u32 *>(&view[0]));
+                frameInfo = extract_frame_info(frameHeader);
 
                 if (is_valid_readout_frame(frameInfo))
                     break;
 
-                // TODO: ++counters.frameTypeErrors;
+#if 0
+                auto offset = &view[0] - readBuffer.data();
+                auto wordOffset = offset / sizeof(u32);
+
+                std::cout << fmt::format(
+                    "!is_valid_readout_frame: buffer #{},  byteOffset={}, "
+                    "wordOffset={}, frameHeader=0x{:008x}",
+                    readBuffer.bufferNumber(),
+                    offset, wordOffset, frameHeader) << std::endl;
+#endif
+                counters.access()->usbFramingErrors++;
 
                 // Unexpected or invalid frame type. This should not happen
                 // if the incoming MVLC data and the readout code are
@@ -520,14 +605,15 @@ inline void fixup_usb_buffer(
 
             // Check if the full frame including the header is in the
             // readBuffer. If not move the trailing data to the tempBuffer.
-            if (frameInfo.len + 1u > view.size() / sizeof(u32))
+            if ((frameInfo.len + 1u) * sizeof(u32) > view.size())
             {
                 std::memcpy(
                     tempBuffer.data(),
                     view.data(),
                     view.size());
                 tempBuffer.setUsed(view.size());
-                // TODO: counters.partialFrameTotalBytes += trailingBytes;
+                readBuffer.setUsed(readBuffer.used() - view.size());
+                counters.access()->usbTempMovedBytes += view.size();
                 return;
             }
 
@@ -540,21 +626,53 @@ inline void fixup_usb_buffer(
 static const std::chrono::milliseconds FlushBufferTimeout(500);
 static const size_t USBReadMinBytes = mesytec::mvlc::usb::USBSingleTransferMaxBytes;
 
+std::error_code ReadoutWorker::Private::readout(size_t &bytesTransferred)
+{
+    assert(this->mvlcETH || this->mvlcUSB);
+
+    std::error_code ec = {};
+
+    if (mvlcUSB)
+        ec = readout_usb(mvlcUSB, bytesTransferred);
+    else
+        ec = readout_eth(mvlcETH, bytesTransferred);
+
+    {
+        auto c = counters.access();
+
+        if (bytesTransferred)
+        {
+            c->buffersRead++;
+            c->bytesRead += bytesTransferred;
+        }
+
+        if (ec == ErrorType::Timeout)
+            c->readTimeouts++;
+    }
+
+    flushCurrentOutputBuffer();
+
+    return ec;
+}
+
 std::error_code ReadoutWorker::Private::readout_usb(
     usb::MVLC_USB_Interface *mvlcUSB,
     size_t &totalBytesTransferred)
 {
     auto tStart = std::chrono::steady_clock::now();
+    totalBytesTransferred = 0u;
     auto destBuffer = getOutputBuffer();
     std::error_code ec;
 
     if (previousData.used())
     {
+        assert(destBuffer->used() == 0);
+        //std::cout << "moving " << previousData.used() << " previous bytes to start of buffer #" << destBuffer->bufferNumber() << std::endl;
         // move bytes from previousData into destBuffer
         destBuffer->ensureFreeSpace(previousData.used());
-        std::memcpy(destBuffer->data() + destBuffer->used(),
-                    previousData.data(), previousData.used());
-        previousData.setUsed(0);
+        std::memcpy(destBuffer->data(), previousData.data(), previousData.used());
+        destBuffer->use(previousData.used());
+        previousData.clear();
     }
 
     destBuffer->ensureFreeSpace(USBReadMinBytes);
@@ -585,7 +703,22 @@ std::error_code ReadoutWorker::Private::readout_usb(
         }
     } // with dataGuard
 
-    fixup_usb_buffer(*destBuffer, previousData);
+    //util::log_buffer(std::cout, destBuffer->viewU32(),
+    //                 fmt::format("usb buffer#{} pre fixup", destBuffer->bufferNumber()),
+    //                 3*60, 3*60);
+
+    //auto preSize = destBuffer->used();
+
+    fixup_usb_buffer(*destBuffer, previousData, counters);
+
+    //auto postSize = destBuffer->used();
+
+    //util::log_buffer(std::cout, destBuffer->viewU32(),
+    //                 fmt::format("usb buffer#{} post fixup", destBuffer->bufferNumber()),
+    //                 3*60, 3*60);
+
+    //if (preSize != postSize)
+    //    throw 42;
 
     return ec;
 }
@@ -595,6 +728,7 @@ std::error_code ReadoutWorker::Private::readout_eth(
     size_t &totalBytesTransferred)
 {
     auto tStart = std::chrono::steady_clock::now();
+    totalBytesTransferred = 0u;
     auto destBuffer = getOutputBuffer();
     std::error_code ec;
 
@@ -617,7 +751,7 @@ std::error_code ReadoutWorker::Private::readout_eth(
 
             if (result.ec == MVLCErrorCode::ShortRead)
             {
-                // TODO: daqStats.buffersWithErrors++;
+                counters.access()->ethShortReads++;
                 continue;
             }
 
@@ -646,6 +780,11 @@ ReadoutWorker::~ReadoutWorker()
 
 ReadoutWorker::State ReadoutWorker::state() const
 {
+    return d->state.access().copy();
+}
+
+WaitableProtected<ReadoutWorker::State> &ReadoutWorker::waitableState()
+{
     return d->state;
 }
 
@@ -661,7 +800,7 @@ std::future<std::error_code> ReadoutWorker::start(const std::chrono::seconds &ti
     std::promise<std::error_code> promise;
     auto f = promise.get_future();
 
-    if (d->state != State::Idle)
+    if (d->state.access().ref() != State::Idle)
     {
         promise.set_value(make_error_code(ReadoutWorkerError::ReadoutNotIdle));
         return f;
@@ -677,7 +816,9 @@ std::future<std::error_code> ReadoutWorker::start(const std::chrono::seconds &ti
 
 std::error_code ReadoutWorker::stop()
 {
-    if (d->state == State::Idle || d->state == State::Stopping)
+    auto state_ = d->state.access().copy();
+
+    if (state_ == State::Idle || state_ == State::Stopping)
         return make_error_code(ReadoutWorkerError::ReadoutNotRunning);
 
     d->desiredState = State::Stopping;
@@ -686,7 +827,9 @@ std::error_code ReadoutWorker::stop()
 
 std::error_code ReadoutWorker::pause()
 {
-    if (d->state != State::Running)
+    auto state_ = d->state.access().copy();
+
+    if (state_ != State::Running)
         return make_error_code(ReadoutWorkerError::ReadoutNotRunning);
 
     d->desiredState = State::Paused;
@@ -695,7 +838,9 @@ std::error_code ReadoutWorker::pause()
 
 std::error_code ReadoutWorker::resume()
 {
-    if (d->state != State::Paused)
+    auto state_ = d->state.access().copy();
+
+    if (state_ != State::Paused)
         return make_error_code(ReadoutWorkerError::ReadoutNotPaused);
 
     d->desiredState = State::Running;

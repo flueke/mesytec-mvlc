@@ -9,14 +9,18 @@
 #include <mesytec-mvlc/mvlc_dialog_util.h>
 #include <mesytec-mvlc/mvlc_eth_interface.h>
 #include <mesytec-mvlc/mvlc_readout.h>
+#include <mesytec-mvlc/mvlc_readout_parser.h>
 #include <mesytec-mvlc/mvlc_stack_executor.h>
 #include <mesytec-mvlc/mvlc_usb_interface.h>
+#include <mesytec-mvlc/util/io_util.h>
 #include <mesytec-mvlc/util/perf.h>
 #include <mesytec-mvlc/util/readout_buffer_queues.h>
 #include <mesytec-mvlc/util/storage_sizes.h>
 #include <mesytec-mvlc/util/string_view.hpp>
 
-#include <fmt/format.h>
+#ifndef __WIN32
+#include <sys/prctl.h>
+#endif
 
 using std::cout;
 using std::cerr;
@@ -26,17 +30,87 @@ using namespace mesytec::mvlc;
 using namespace mesytec::mvlc::listfile;
 using namespace nonstd;
 
-template<typename Out, typename View>
-Out &log_buffer(Out &out, const View &buffer, const std::string &header = {})
+void run_readout_parser(
+    readout_parser::ReadoutParserState &state,
+    ReadoutBufferQueues &snoopQueues)
 {
-    out << "begin buffer '" << header << "' (size=" << buffer.size() << ")" << endl;
+#ifndef __WIN32
+    prctl(PR_SET_NAME,"readout_parser",0,0,0);
+#endif
 
-    for (const auto &value: buffer)
-        out << fmt::format("  {:#010x}", value) << endl;
+    readout_parser::ReadoutParserCallbacks callbacks;
 
-    out << "end buffer " << header << "' (size=" << buffer.size() << ")" << endl;
+    callbacks.beginEvent = [] (int eventIndex)
+    {
+        //cout << "beginEvent " + std::to_string(eventIndex) << endl;
+    };
 
-    return out;
+    callbacks.moduleDynamic = [] (int ei, int mi,  const u32 *data, u32 size)
+    {
+        //cout << "ei=" << ei << ", mi=" << mi << ", data=" << data << ", size=" << size << endl;
+    };
+
+    try
+    {
+        cerr << "run_readout_parser entering loop" << endl;
+
+        auto &filled = snoopQueues.filledBufferQueue();
+        auto &empty = snoopQueues.emptyBufferQueue();
+
+        while (true)
+        {
+            auto buffer = filled.dequeue(std::chrono::milliseconds(100));
+
+            if (buffer && buffer->empty()) // sentinel
+                break;
+
+            //if (!buffer)
+            //    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            if (!buffer) continue;
+
+            try
+            {
+                //cout << "buffer #" << buffer->bufferNumber() << endl;
+
+                auto bufferView = buffer->viewU32();
+
+                readout_parser::parse_readout_buffer(
+                    buffer->type(),
+                    state,
+                    callbacks,
+                    buffer->bufferNumber(),
+                    bufferView.data(),
+                    bufferView.size());
+
+                empty.enqueue(buffer);
+            }
+            catch (...)
+            {
+                empty.enqueue(buffer);
+                throw;
+            }
+        }
+    }
+    catch (const std::runtime_error &e)
+    {
+        {
+            //auto state = protectedState.access();
+            //state->exception = std::current_exception();
+        }
+
+        cerr << "readout_parser caught a std::runtime_error: " << e.what() << endl;
+    }
+    catch (...)
+    {
+        {
+            //auto state = protectedState.access();
+            //state->exception = std::current_exception();
+        }
+
+        cerr << "readout_parser caught an unknown exception." << endl;
+    }
+
+    cerr << "run_readout_parser left loop" << endl;
 }
 
 int main(int argc, char *argv[])
@@ -48,6 +122,13 @@ int main(int argc, char *argv[])
     }
 
     std::ifstream inConfig(argv[1]);
+
+    if (!inConfig.is_open())
+    {
+        cerr << "Error opening crate config " << argv[1] << " for reading." << endl;
+        return 1;
+    }
+
     auto timeToRun = std::chrono::seconds(10);
 
     if (argc > 2)
@@ -70,86 +151,8 @@ int main(int argc, char *argv[])
     //
     // init
     //
-
-#if 0
-    if (auto ec = disable_all_triggers(mvlc))
     {
-        cerr << "Error disabling MVLC triggers: " << ec.message() << endl;
-        return 1;
-    }
-#endif
-
-#if 0
-    // exec init_commands using all of the stack memory
-    {
-        CommandExecOptions options;
-
-        std::vector<u32> response;
-
-        auto ec = execute_stack(
-            mvlc, crateConfig.initCommands,
-            stacks::StackMemoryWords, options, response);
-
-        //log_buffer(cout, response, "init_commands response");
-
-        if (ec)
-        {
-            cerr << "Error running init_commands: " << ec.message() << endl;
-            return 1;
-        }
-
-        auto parsedResults = parse_stack_exec_response(crateConfig.initCommands, response);
-
-        cout << parsedResults << endl;
-
-
-        //for (const auto &resultGroup: parsedResults.groups)
-        //{
-        //    cout << "Stack Group " << resultGroup.name << ":" << endl;
-
-        //    for (const auto &pr: resultGroup.results)
-        //        cout << "  " << to_string(pr.cmd) << endl;
-        //}
-    }
-
-    // stack uploads
-    if (auto ec = setup_readout_stacks(mvlc, crateConfig.stacks))
-    {
-        cerr << "Error uploading readout stacks: " << ec.message() << endl;
-        return 1;
-    }
-
-    // trigger io here (after stacks are in place)
-    // uses only the immediate stack reserved stack memory to not overwrite the
-    // readout stacks.
-    {
-        CommandExecOptions options;
-
-        std::vector<u32> response;
-
-        auto ec = execute_stack(
-            mvlc, crateConfig.initTriggerIO,
-            stacks::ImmediateStackReservedWords, options, response);
-
-        log_buffer(cout, response, "init_trigger_io response");
-
-        if (ec)
-        {
-            cerr << "Error running init_trigger_io: " << ec.message() << endl;
-            return 1;
-        }
-    }
-
-    // Both readout stacks and the trigger io system are setup. Now activate the triggers.
-    if (auto ec = setup_readout_triggers(mvlc, crateConfig.triggers))
-    {
-        cerr << "Error setting up readout triggers: " << ec.message() << endl;
-        return 1;
-    }
-#else
-    {
-        auto initResults = init_readout(
-            mvlc, crateConfig);
+        auto initResults = init_readout(mvlc, crateConfig);
 
         cout << "Results from init_commands:" << endl << initResults.init << endl;
         // cout << "Result from init_trigger_io:" << endl << initResults.triggerIO << endl;
@@ -160,30 +163,65 @@ int main(int argc, char *argv[])
             return 1;
         }
     }
-#endif
 
     //
     // readout
     //
 
-#if 1
     const size_t BufferSize = Megabytes(1);
     const size_t BufferCount = 10;
     ReadoutBufferQueues snoopQueues(BufferSize, BufferCount);
 
     ZipCreator zipWriter;
     zipWriter.createArchive("mini-daq.zip");
-    auto lfh = zipWriter.createZIPEntry("listfile.mvlclst", 0);
+    listfile::WriteHandle *lfh = nullptr;
+    lfh = zipWriter.createZIPEntry("listfile.mvlclst", 0);
     ReadoutWorker readoutWorker(mvlc, crateConfig.triggers, snoopQueues, lfh);
 
-    auto f = readoutWorker.start(std::chrono::seconds(30));
+    auto f = readoutWorker.start(timeToRun);
     cout << "f.get(): " << f.get() << endl;
 
-    while (readoutWorker.state() != ReadoutWorker::State::Idle)
+    //
+    // readout parser
+    //
+    auto parserState = readout_parser::make_readout_parser(crateConfig.stacks);
+    std::thread parserThread;
+    parserThread = std::thread(run_readout_parser, std::ref(parserState), std::ref(snoopQueues));
+
+    //
+    // wait until readout done
+    readoutWorker.waitableState().wait(
+        [] (const ReadoutWorker::State &state)
+        {
+            return state == ReadoutWorker::State::Idle;
+        });
+
+    cout << "stopping readout_parser" << endl;
+
+    // stop the readout parser
+    if (parserThread.joinable())
     {
-        std::this_thread::sleep_for(std::chrono::seconds(1));
+        cout << "waiting for empty snoopQueue buffer" << endl;
+        auto sentinel = snoopQueues.emptyBufferQueue().dequeue(std::chrono::seconds(1));
+
+        if (sentinel)
+        {
+            cout << "got a sentinel buffer for the readout parser" << endl;
+            sentinel->clear();
+            snoopQueues.filledBufferQueue().enqueue(sentinel);
+            cout << "enqueued the sentinel buffer for the readout parser" << endl;
+        }
+        else
+        {
+            cout << "did not get an empty buffer from the snoopQueues" << endl;
+        }
+
+        parserThread.join();
     }
 
+    //
+    // stats
+    //
     auto counters = readoutWorker.counters();
 
     auto tStart = counters.tStart;
@@ -195,6 +233,13 @@ int main(int argc, char *argv[])
     double megaBytes = counters.bytesRead * 1.0 / Megabytes(1);
     double mbs = megaBytes / runSeconds;
 
+    cout << endl;
+    cout << "buffersRead=" << counters.buffersRead << endl;
+    cout << "snoopMissedBuffers=" << counters.snoopMissedBuffers << endl;
+    cout << "usbFramingErrors=" << counters.usbFramingErrors << endl;
+    cout << "usbTempMovedBytes=" << counters.usbTempMovedBytes << endl;
+    cout << "ethShortReads=" << counters.ethShortReads << endl;
+    cout << "readTimeouts=" << counters.readTimeouts << endl;
     cout << "totalBytesTransferred=" << counters.bytesRead << endl;
     cout << "duration=" << runDuration.count() << " ms" << endl;
     cout << "Ran for " << runSeconds << " seconds, transferred a total of " << megaBytes
@@ -202,163 +247,6 @@ int main(int argc, char *argv[])
         << endl;
 
     //cout << "totalPacketsReceived=" << totalPacketsReceived << endl;
-#else
-    ZipCreator zipWriter;
-    zipWriter.createArchive("mini-daq.zip");
-    //auto lfh = zipWriter.createLZ4Entry("listfile.mvlclst", 0);
-    auto lfh = zipWriter.createZIPEntry("listfile.mvlclst", 0);
-
-    // TODO: missing listfile preamble
-    // TODO: readout config must be written to the listfile
-
-    const size_t BufferSize = Megabytes(1);
-    const size_t BufferCount = 10;
-    ReadoutBufferQueues bufferQueues(BufferSize, BufferCount);
-    auto &filled = bufferQueues.filledBufferQueue();
-    auto &empty = bufferQueues.emptyBufferQueue();
-    Protected<ListfileBufferWriterState> writerState({});
-
-    auto writerThread = std::thread(
-        listfile_buffer_writer, lfh, std::ref(bufferQueues),
-        std::ref(writerState));
-
-    size_t totalBytesTransferred = 0u;
-    size_t totalPacketsReceived = 0u;
-    auto tStart = std::chrono::steady_clock::now();
-
-    // TODO: FlushBufferTimeout, consumer buffer queue
-    // TODO: notification polling
-
-    if (crateConfig.connectionType == ConnectionType::ETH)
-    {
-        auto mvlcETH = dynamic_cast<eth::MVLC_ETH_Interface *>(mvlc.getImpl());
-        assert(mvlcETH);
-
-        std::error_code ec;
-
-        while (ec != ErrorType::ConnectionError)
-        {
-            auto elapsed = std::chrono::steady_clock::now() - tStart;
-
-            if (elapsed >= timeToRun)
-                break;
-
-            auto readBuffer = empty.dequeue_blocking();
-            readBuffer->clear();
-            assert(readBuffer->free() == BufferSize);
-            assert(readBuffer->used() == 0);
-            assert(readBuffer->capacity() == BufferSize);
-
-            // hold the lock for multiple packet reads
-            auto dataGuard = mvlc.getLocks().lockData();
-
-            while (readBuffer->free() >= eth::JumboFrameMaxSize)
-            {
-                auto result = mvlcETH->read_packet(
-                    Pipe::Data, readBuffer->data() + readBuffer->used(), readBuffer->free());
-
-                //cout << "bytesTransferred=" << result.bytesTransferred;
-                //cout << "pre  free: " << readBuffer->free() << endl;
-                readBuffer->use(result.bytesTransferred);
-                //cout << "post free: " << readBuffer->free() << endl;
-
-                totalBytesTransferred += result.bytesTransferred;
-                ec = result.ec;
-
-                //log_buffer(cout, readBuffer->viewU32(), "readout buffer");
-
-                if (result.bytesTransferred > 0)
-                    ++totalPacketsReceived;
-
-                if (ec == ErrorType::ConnectionError)
-                    break;
-
-                // A crude way of handling packets with residual bytes at the end. Just
-                // subtract the residue from buffer->used which means the residual
-                // bytes will be overwritten by the next packets data. This will at
-                // least keep the structure somewhat intact assuming that the
-                // dataWordCount in header0 is correct. Note that this case does not
-                // happen, the MVLC never generates packets with residual bytes.
-#if 0
-                if (unlikely(result.leftoverBytes()))
-                    readBuffer->setUsed(readBuffer->used() - result.leftoverBytes());
-#endif
-            }
-
-            dataGuard.unlock();
-
-            filled.enqueue(readBuffer);
-        }
-
-        assert(mvlcETH);
-    }
-    else if (crateConfig.connectionType == ConnectionType::USB)
-    {
-        auto mvlcUSB = dynamic_cast<usb::MVLC_USB_Interface *>(mvlc.getImpl());
-        assert(mvlcUSB);
-
-        std::error_code ec;
-
-        while (ec != ErrorType::ConnectionError)
-        {
-            auto elapsed = std::chrono::steady_clock::now() - tStart;
-
-            if (elapsed >= timeToRun)
-                break;
-
-            auto readBuffer = empty.dequeue_blocking();
-            readBuffer->clear();
-
-            size_t bytesTransferred = 0u;
-            auto dataGuard = mvlc.getLocks().lockData();
-            ec = mvlcUSB->read_unbuffered(
-                Pipe::Data, readBuffer->data(), readBuffer->capacity(), bytesTransferred);
-            dataGuard.unlock();
-            readBuffer->use(bytesTransferred);
-            totalBytesTransferred += bytesTransferred;
-
-            //log_buffer(cout, readBuffer->viewU32(), "readout buffer");
-
-            // FIXME: if the buffer is empty this will cause the listfile_writer to quit
-            filled.enqueue(readBuffer);
-
-            if (ec == ErrorType::ConnectionError)
-            {
-                cerr << "Lost connection to MVLC, leaving readout loop: " << ec.message() << endl;
-                break;
-            }
-
-            // TODO: follow usb buffer framing, fixup_usb_buffer, store leftover data in tempBuffer,
-            // pass buffers to consumers, track buffer numbers
-        }
-
-    }
-    else
-        throw std::runtime_error("invalid connectionType");
-
-    // stop the listfile writer
-    {
-        auto sentinel = empty.dequeue_blocking();
-        sentinel->clear();
-        filled.enqueue(sentinel);
-    }
-
-    writerThread.join();
-
-    auto tEnd = std::chrono::steady_clock::now();
-    auto runDuration = std::chrono::duration_cast<std::chrono::milliseconds>(tEnd - tStart);
-    double runSeconds = runDuration.count() / 1000.0;
-    double megaBytes = totalBytesTransferred * 1.0 / Megabytes(1);
-    double mbs = megaBytes / runSeconds;
-
-    cout << "totalBytesTransferred=" << totalBytesTransferred << endl;
-    cout << "duration=" << runDuration.count() << endl;
-    cout << "Ran for " << runSeconds << " seconds, transferred a total of " << megaBytes
-        << " MB, resulting data rate: " << mbs << "MB/s"
-        << endl;
-
-    cout << "totalPacketsReceived=" << totalPacketsReceived << endl;
-#endif
 
     if (auto ec = disable_all_triggers(mvlc))
     {
