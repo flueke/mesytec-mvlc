@@ -21,6 +21,7 @@ using std::endl;
 using namespace mesytec::mvlc;
 using namespace mesytec::mvlc::listfile;
 
+#if 0
 TEST(mvlc_listfile_zip, MinizipCreate)
 {
     const std::vector<u8> outData0 = { 0x12, 0x34, 0x56, 0x78 };
@@ -122,6 +123,7 @@ TEST(mvlc_listfile_zip, MinizipCreate)
     mz_stream_os_delete(&osStream);
 
 }
+#endif
 
 TEST(mvlc_listfile_zip, CreateWriteRead)
 {
@@ -289,6 +291,7 @@ TEST(mvlc_listfile_zip, LZ4Data)
     }
 }
 
+#if 0
 namespace
 {
 
@@ -308,7 +311,6 @@ std::string to_string(const ZipEntryInfo::Type t)
 
 }
 
-#if 1
 TEST(mvlc_listfile_zip, ListfileCreateLarge)
 {
 
@@ -496,6 +498,7 @@ TEST(mvlc_listfile_zip, ListfileCreateLarge)
 }
 #endif
 
+#if 0
 TEST(mvlc_listfile_zip, CompressionTests)
 {
     struct CompressionConfig
@@ -883,3 +886,4 @@ TEST(mvlc_listfile_zip, CompressionTests)
     }
 #endif
 }
+#endif
