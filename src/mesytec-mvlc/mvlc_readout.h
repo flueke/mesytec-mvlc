@@ -79,13 +79,51 @@ class MESYTEC_MVLC_EXPORT ReadoutWorker
 
         struct Counters
         {
+            // Current state of the readout at the time the counters are observed.
             State state;
+
+            // A note about the time points: to get the best measure of the
+            // actual readout rate of the DAQ it's best to use the duration of
+            // (tTerminateStart - tStart) as that will not include the overhead
+            // of the termination procedure.
+            // The (tEnd - tStart) time will more closely reflect the real-time
+            // spent in the readout loop but it will yield lower data rates
+            // because it includes at least one read timeout at the very end of
+            // the DAQ run.
+            // For long DAQ runs the calculated rates should be almost the
+            // same.
+
+            // tStart is recorded right before entering the readout loop
             std::chrono::time_point<std::chrono::steady_clock> tStart;
+
+            // tEnd is recorded at the end of the readout loop but before
+            // stopping the error polling thread. This reflects the DAQ time
+            // including the termination sequence.
             std::chrono::time_point<std::chrono::steady_clock> tEnd;
+
+            // tTerminateStart is recorded right before the termination sequence is run.
+            std::chrono::time_point<std::chrono::steady_clock> tTerminateStart;
+
+            // tTerminateEnd is recorded when the termination sequence finishes.
+            std::chrono::time_point<std::chrono::steady_clock> tTerminateEnd;
+
+            // Number of buffers filled with readout data from the controller.
             size_t buffersRead;
+
+            // Number of buffers flushed to the listfile writer. This can be
+            // more than buffersRead as periodic software timeticks and the
+            // EndOfFile system event are also written into buffers and handed
+            // to the listfile writer.
             size_t buffersFlushed;
+
+            // Total number of bytes read from the controller.
             size_t bytesRead;
+
+            // Number of buffers that could not be added to the snoop queue
+            // because no free buffer was available. This is the number of
+            // buffers the analysis side did not see.
             size_t snoopMissedBuffers;
+
             size_t usbFramingErrors;
             size_t usbTempMovedBytes;
             size_t ethShortReads;

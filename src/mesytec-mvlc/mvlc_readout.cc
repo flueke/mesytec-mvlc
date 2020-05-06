@@ -437,6 +437,7 @@ void ReadoutWorker::Private::loop(std::promise<std::error_code> promise)
     {
         case ConnectionType::ETH:
             this->mvlcETH = dynamic_cast<eth::MVLC_ETH_Interface *>(mvlc.getImpl());
+            mvlcETH->resetPipeAndChannelStats();
             assert(mvlcETH);
             break;
 
@@ -460,7 +461,7 @@ void ReadoutWorker::Private::loop(std::promise<std::error_code> promise)
         listfile::BufferWriteHandle wh(*getOutputBuffer());
         listfile_write_timestamp(wh);
     }
-    auto tTimestamp = std::chrono::steady_clock::now();
+    auto tTimestamp = tStart;
 
     // No errors and we're about to enter the readout loop -> set the value of
     // the start() promise.
@@ -556,6 +557,12 @@ void ReadoutWorker::Private::loop(std::promise<std::error_code> promise)
     terminateReadout();
     auto tTerminateEnd = std::chrono::steady_clock::now();
     auto terminateDuration = std::chrono::duration_cast<std::chrono::milliseconds>(tTerminateEnd - tTerminateStart);
+
+    {
+        auto c = counters.access();
+        c->tTerminateStart = tTerminateStart;
+        c->tTerminateEnd = tTerminateEnd;
+    }
 
     std::cout << "terminateReadout() took " << terminateDuration.count() << " ms to complete" << std::endl;
 
@@ -881,6 +888,8 @@ std::error_code ReadoutWorker::Private::readout_eth(
                 break;
         }
     } // with dataGuard
+
+    counters.access()->ethStats = mvlcETH->getPipeStats();
 
     return ec;
 }
