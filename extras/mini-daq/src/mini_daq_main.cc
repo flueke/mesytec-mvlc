@@ -242,9 +242,16 @@ int main(int argc, char *argv[])
         auto counters = readoutWorker.counters();
 
         auto tStart = counters.tStart;
+        // Note: if idle this used the tTerminateStart time point. This means
+        // the duration from counters.tStart to counters.tTerminateStart is
+        // used as the whole duration of the DAQ. This still does not correctly
+        // reflect the actual data rate because it does contains the
+        // bytes/packets/etc that where read during the terminate phase. It
+        // should be closer than using tEnd though as that will include at
+        // least one read timeout from the terminate procedure.
         auto tEnd = (counters.state != ReadoutWorker::State::Idle
                      ?  std::chrono::steady_clock::now()
-                     : counters.tEnd);
+                     : counters.tTerminateStart);
         auto runDuration = std::chrono::duration_cast<std::chrono::milliseconds>(tEnd - tStart);
         double runSeconds = runDuration.count() / 1000.0;
         double megaBytes = counters.bytesRead * 1.0 / Megabytes(1);
