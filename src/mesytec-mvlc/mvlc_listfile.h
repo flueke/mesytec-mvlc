@@ -46,6 +46,13 @@ inline size_t listfile_write_raw(WriteHandle &lf_out, const u8 *buffer, size_t s
     return lf_out.write(buffer, size);
 }
 
+// Reading:
+// Info from the start of the listfile:
+// - FileMagic
+// - EndianMarker
+// - MVMEConfig
+// - MVLCCOnfig
+
 } // end namespace listfile
 } // end namespace mvlc
 } // end namespace mesytec
