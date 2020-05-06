@@ -18,6 +18,7 @@
 #include <mesytec-mvlc/util/readout_buffer_queues.h>
 #include <mesytec-mvlc/util/storage_sizes.h>
 #include <mesytec-mvlc/util/string_view.hpp>
+#include <fmt/format.h>
 
 #ifndef __WIN32
 #include <sys/prctl.h>
@@ -222,42 +223,87 @@ int main(int argc, char *argv[])
         parserThread.join();
     }
 
-    //
-    // stats
-    //
-    auto counters = readoutWorker.counters();
-
-    auto tStart = counters.tStart;
-    auto tEnd = (counters.state != ReadoutWorker::State::Idle
-                 ?  std::chrono::steady_clock::now()
-                 : counters.tEnd);
-    auto runDuration = std::chrono::duration_cast<std::chrono::milliseconds>(tEnd - tStart);
-    double runSeconds = runDuration.count() / 1000.0;
-    double megaBytes = counters.bytesRead * 1.0 / Megabytes(1);
-    double mbs = megaBytes / runSeconds;
-
-    cout << endl;
-    cout << "buffersRead=" << counters.buffersRead << endl;
-    cout << "snoopMissedBuffers=" << counters.snoopMissedBuffers << endl;
-    cout << "usbFramingErrors=" << counters.usbFramingErrors << endl;
-    cout << "usbTempMovedBytes=" << counters.usbTempMovedBytes << endl;
-    cout << "ethShortReads=" << counters.ethShortReads << endl;
-    cout << "readTimeouts=" << counters.readTimeouts << endl;
-    cout << "totalBytesTransferred=" << counters.bytesRead << endl;
-    cout << "duration=" << runDuration.count() << " ms" << endl;
-    cout << "Ran for " << runSeconds << " seconds, transferred a total of " << megaBytes
-        << " MB, resulting data rate: " << mbs << "MB/s"
-        << endl;
-
-    //cout << "totalPacketsReceived=" << totalPacketsReceived << endl;
+    int retval = 0;
 
     if (auto ec = disable_all_triggers(mvlc))
     {
         cerr << "Error disabling MVLC triggers: " << ec.message() << endl;
-        return 1;
+        retval = 1;
     }
 
     mvlc.disconnect();
 
-    return 0;
+    //
+    // readout stats
+    //
+    {
+        // TODO: stack errors
+        // TODO: eth packets received
+        auto counters = readoutWorker.counters();
+
+        auto tStart = counters.tStart;
+        auto tEnd = (counters.state != ReadoutWorker::State::Idle
+                     ?  std::chrono::steady_clock::now()
+                     : counters.tEnd);
+        auto runDuration = std::chrono::duration_cast<std::chrono::milliseconds>(tEnd - tStart);
+        double runSeconds = runDuration.count() / 1000.0;
+        double megaBytes = counters.bytesRead * 1.0 / Megabytes(1);
+        double mbs = megaBytes / runSeconds;
+
+        cout << endl;
+        cout << "---- readout stats ----" << endl;
+        cout << "buffersRead=" << counters.buffersRead << endl;
+        cout << "buffersFlushed=" << counters.buffersFlushed << endl;
+        cout << "snoopMissedBuffers=" << counters.snoopMissedBuffers << endl;
+        cout << "usbFramingErrors=" << counters.usbFramingErrors << endl;
+        cout << "usbTempMovedBytes=" << counters.usbTempMovedBytes << endl;
+        cout << "ethShortReads=" << counters.ethShortReads << endl;
+        cout << "readTimeouts=" << counters.readTimeouts << endl;
+        cout << "totalBytesTransferred=" << counters.bytesRead << endl;
+        cout << "duration=" << runDuration.count() << " ms" << endl;
+        cout << "Ran for " << runSeconds << " seconds, transferred a total of " << megaBytes
+            << " MB, resulting data rate: " << mbs << "MB/s"
+            << endl;
+    }
+
+    //
+    // parser stats
+    //
+    {
+        auto counters = parserState.counters;
+
+        cout << endl;
+        cout << "---- parser stats ----" << endl;
+        cout << "internalBufferLoss=" << counters.internalBufferLoss << endl;
+        cout << "buffersProcessed=" << counters.buffersProcessed << endl;
+        cout << "unusedBytes=" << counters.unusedBytes << endl;
+        cout << "ethPacketLoss=" << counters.ethPacketLoss << endl;
+        cout << "ethPacketsProcessed=" << counters.ethPacketsProcessed << endl;
+
+        for (size_t sysEvent = 0; sysEvent < counters.systemEventTypes.size(); ++sysEvent)
+        {
+            if (counters.systemEventTypes[sysEvent])
+            {
+                cout << fmt::format("systemEventType 0x{:002x}, count={}",
+                                    sysEvent, counters.systemEventTypes[sysEvent])
+                    << endl;
+            }
+        }
+
+        for (size_t pr=0; pr < counters.parseResults.size(); ++pr)
+        {
+            if (counters.parseResults[pr])
+            {
+                auto name = get_parse_result_name(static_cast<const readout_parser::ParseResult>(pr));
+
+                cout << fmt::format("parseResult={}, count={}",
+                                    name, counters.parseResults[pr])
+                    << endl;
+            }
+        }
+
+        cout << "parserExceptions=" << counters.parserExceptions << endl;
+    }
+
+    return retval;
 }
