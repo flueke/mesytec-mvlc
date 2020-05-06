@@ -261,6 +261,23 @@ int main(int argc, char *argv[])
         cout << "readTimeouts=" << counters.readTimeouts << endl;
         cout << "totalBytesTransferred=" << counters.bytesRead << endl;
         cout << "duration=" << runDuration.count() << " ms" << endl;
+
+        if (mvlc.connectionType() == ConnectionType::ETH)
+        {
+            auto pipeCounters = counters.ethStats[DataPipe];
+            cout << endl;
+            cout << "  -- eth data pipe receive stats --" << endl;
+            cout << "  receiveAttempts=" << pipeCounters.receiveAttempts << endl;
+            cout << "  receivedPackets=" << pipeCounters.receivedPackets << endl;
+            cout << "  receivedBytes=" << pipeCounters.receivedBytes << endl;
+            cout << "  shortPackets=" << pipeCounters.shortPackets << endl;
+            cout << "  packetsWithResidue=" << pipeCounters.packetsWithResidue << endl;
+            cout << "  noHeader=" << pipeCounters.noHeader << endl;
+            cout << "  headerOutOfRange=" << pipeCounters.headerOutOfRange << endl;
+            cout << "  lostPackets=" << pipeCounters.lostPackets << endl;
+        }
+
+        cout << endl;
         cout << "Ran for " << runSeconds << " seconds, transferred a total of " << megaBytes
             << " MB, resulting data rate: " << mbs << "MB/s"
             << endl;
