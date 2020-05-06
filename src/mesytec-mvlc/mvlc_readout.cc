@@ -310,7 +310,7 @@ struct ReadoutWorker::Private
     ReadoutBuffer localBuffer;
     ReadoutBuffer previousData;
     ReadoutBuffer *outputBuffer_ = nullptr;
-    u32 nextOutputBufferNumber = 0u;
+    u32 nextOutputBufferNumber = 1u;
 
     Private(MVLC &mvlc_, ReadoutBufferQueues &snoopQueues_)
         : state({})
@@ -870,7 +870,10 @@ std::error_code ReadoutWorker::Private::readout_eth(
             // dataWordCount in header0 is correct. Note that this case does not
             // happen, the MVLC never generates packets with residual bytes.
             if (unlikely(result.leftoverBytes()))
+            {
+                std::cout << "Oi! There's residue here!" << std::endl;
                 destBuffer->setUsed(destBuffer->used() - result.leftoverBytes());
+            }
 
             auto elapsed = std::chrono::steady_clock::now() - tStart;
 
