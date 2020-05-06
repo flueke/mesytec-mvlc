@@ -32,6 +32,7 @@
 
 #include "mesytec-mvlc_export.h"
 #include "mvlc_constants.h"
+#include "mvlc_counters.h"
 
 namespace mesytec
 {
@@ -150,6 +151,9 @@ class MVLC_ETH_Interface
         virtual ~MVLC_ETH_Interface() {}
 
         virtual PacketReadResult read_packet(Pipe pipe, u8 *buffer, size_t size) = 0;
+        virtual std::array<eth::PipeStats, PipeCount> getPipeStats() const = 0;
+        virtual std::array<PacketChannelStats, NumPacketChannels> getPacketChannelStats() const = 0;
+        virtual void resetPipeAndChannelStats() = 0;
 };
 
 } // end namespace eth

@@ -78,9 +78,9 @@ class MESYTEC_MVLC_EXPORT Impl: public MVLCBasicInterface, public MVLC_ETH_Inter
         ConnectionType connectionType() const override { return ConnectionType::ETH; }
         std::string connectionInfo() const override;
 
-        std::array<PipeStats, PipeCount> getPipeStats() const;
-        std::array<PacketChannelStats, NumPacketChannels> getPacketChannelStats() const;
-        void resetPipeAndChannelStats();
+        std::array<PipeStats, PipeCount> getPipeStats() const override;
+        std::array<PacketChannelStats, NumPacketChannels> getPacketChannelStats() const override;
+        void resetPipeAndChannelStats() override;
 
         // These methods return the remote IPv4 address used for the command
         // and data sockets respectively. This is the address resolved from the
