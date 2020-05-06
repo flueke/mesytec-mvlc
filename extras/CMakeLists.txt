@@ -12,4 +12,4 @@ endif(MVLC_ENABLE_PYTHON)
 
 add_subdirectory(zip-tests)
 add_subdirectory(mini-daq)
-add_subdirectory(mvlc-tests)
+add_subdirectory(mvlc-ctrl-tests)
