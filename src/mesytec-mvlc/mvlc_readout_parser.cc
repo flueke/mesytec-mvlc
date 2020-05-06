@@ -1032,7 +1032,7 @@ ParseResult parse_readout_buffer_usb(
         while (!input.empty())
         {
             auto pr = parse_readout_contents(state, callbacks, input, false, bufferNumber);
-            // XXX: leftoff here: count_parse_result(state.counters, pr);
+            count_parse_result(state.counters, pr);
 
             if (pr != ParseResult::Ok)
             {
