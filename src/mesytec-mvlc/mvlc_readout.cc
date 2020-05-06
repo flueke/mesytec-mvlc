@@ -374,6 +374,7 @@ struct ReadoutWorker::Private
             else
                 counters.access()->snoopMissedBuffers++;
 
+            counters.access()->buffersFlushed++;
             outputBuffer_ = nullptr;
         }
     }

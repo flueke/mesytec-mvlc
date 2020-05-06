@@ -83,6 +83,7 @@ class MESYTEC_MVLC_EXPORT ReadoutWorker
             std::chrono::time_point<std::chrono::steady_clock> tStart;
             std::chrono::time_point<std::chrono::steady_clock> tEnd;
             size_t buffersRead;
+            size_t buffersFlushed;
             size_t bytesRead;
             size_t snoopMissedBuffers;
             size_t usbFramingErrors;
