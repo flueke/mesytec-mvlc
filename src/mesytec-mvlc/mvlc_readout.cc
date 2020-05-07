@@ -451,7 +451,6 @@ void ReadoutWorker::Private::loop(std::promise<std::error_code> promise)
 
     const auto TimestampInterval = std::chrono::seconds(1);
 
-    std::error_code ec;
     auto tStart = std::chrono::steady_clock::now();
     counters.access()->tStart = tStart;
     setState(State::Running);
@@ -466,6 +465,8 @@ void ReadoutWorker::Private::loop(std::promise<std::error_code> promise)
     // No errors and we're about to enter the readout loop -> set the value of
     // the start() promise.
     promise.set_value({});
+
+    std::error_code ec;
 
     while (ec != ErrorType::ConnectionError)
     {

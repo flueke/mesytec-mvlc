@@ -101,7 +101,7 @@ void listfile_write_preamble(WriteHandle &lf_out, const CrateConfig &config)
 {
     listfile_write_magic(lf_out, config.connectionType);
     listfile_write_endian_marker(lf_out);
-    listfile_write_vme_config(lf_out, config);
+    listfile_write_crate_config(lf_out, config);
 }
 
 void listfile_write_magic(WriteHandle &lf_out, ConnectionType ct)
@@ -129,7 +129,7 @@ void listfile_write_endian_marker(WriteHandle &lf_out)
         &system_event::EndianMarkerValue, 1);
 }
 
-void listfile_write_vme_config(WriteHandle &lf_out, const CrateConfig &config)
+void listfile_write_crate_config(WriteHandle &lf_out, const CrateConfig &config)
 {
     auto yaml = to_yaml(config);
 

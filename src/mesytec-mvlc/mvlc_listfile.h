@@ -31,7 +31,7 @@ class MESYTEC_MVLC_EXPORT ReadHandle
 void MESYTEC_MVLC_EXPORT listfile_write_preamble(WriteHandle &lf_out, const CrateConfig &config);
 void MESYTEC_MVLC_EXPORT listfile_write_magic(WriteHandle &lf_out, ConnectionType ct);
 void MESYTEC_MVLC_EXPORT listfile_write_endian_marker(WriteHandle &lf_out);
-void MESYTEC_MVLC_EXPORT listfile_write_vme_config(WriteHandle &lf_out, const CrateConfig &config);
+void MESYTEC_MVLC_EXPORT listfile_write_crate_config(WriteHandle &lf_out, const CrateConfig &config);
 void MESYTEC_MVLC_EXPORT listfile_write_system_event(
     WriteHandle &lf_out, u8 subtype,
     const u32 *buffp, size_t totalWords);
