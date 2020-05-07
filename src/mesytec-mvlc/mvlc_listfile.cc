@@ -138,7 +138,7 @@ void listfile_write_crate_config(WriteHandle &lf_out, const CrateConfig &config)
         yaml += ' ';
 
     listfile_write_system_event(
-            lf_out, system_event::subtype::MVLCConfig,
+            lf_out, system_event::subtype::MVLCCrateConfig,
             reinterpret_cast<const u32 *>(yaml.c_str()),
             yaml.size() / sizeof(u32));
 }

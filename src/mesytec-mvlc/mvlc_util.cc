@@ -146,8 +146,8 @@ const char *get_system_event_subtype_name(u8 subtype_)
         case MVMEConfig:
             return "MVMEConfig";
 
-        case MVLCConfig:
-            return "MVLCConfig";
+        case MVLCCrateConfig:
+            return "MVLCCrateConfig";
 
         case UnixTimestamp:
             return "UnixTimestamp";
