@@ -102,7 +102,6 @@ void listfile_write_preamble(WriteHandle &lf_out, const CrateConfig &config)
     listfile_write_magic(lf_out, config.connectionType);
     listfile_write_endian_marker(lf_out);
     listfile_write_vme_config(lf_out, config);
-    listfile_write_timestamp(lf_out);
 }
 
 void listfile_write_magic(WriteHandle &lf_out, ConnectionType ct)
