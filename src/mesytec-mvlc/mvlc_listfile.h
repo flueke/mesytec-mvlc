@@ -5,6 +5,7 @@
 
 #include "mvlc_readout_config.h"
 #include "util/int_types.h"
+#include "util/storage_sizes.h"
 
 namespace mesytec
 {
@@ -46,12 +47,42 @@ inline size_t listfile_write_raw(WriteHandle &lf_out, const u8 *buffer, size_t s
     return lf_out.write(buffer, size);
 }
 
+inline std::vector<u8> read_magic(ReadHandle &rh)
+{
+    rh.seek(0);
+    std::vector<u8> result(get_filemagic_len());
+    rh.read(result.data(), result.size());
+    return result;
+}
+
+struct MESYTEC_MVLC_EXPORT SystemEvent
+{
+    u8 type;
+    std::vector<u8> contents;
+
+    inline std::string toString() const
+    {
+        return std::string(
+            reinterpret_cast<const char *>(contents.data()),
+            contents.size());
+    }
+};
+
+constexpr size_t PreambleMaxSize = Megabytes(100);
+
+// Reads up to and including the first system_event::type::BeginRun section.
+std::vector<SystemEvent> MESYTEC_MVLC_EXPORT read_preamble(ReadHandle &rh);
+
 // Reading:
 // Info from the start of the listfile:
 // - FileMagic
+//
 // - EndianMarker
 // - MVMEConfig
 // - MVLCCOnfig
+//
+// read complete section into buffer (including continuations)
+// 
 
 } // end namespace listfile
 } // end namespace mvlc

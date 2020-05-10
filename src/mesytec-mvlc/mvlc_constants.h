@@ -192,9 +192,11 @@ namespace system_event
     {
         static const u8 EndianMarker    = 0x01;
 
-        // Left in here for compatibility with existing mvme-generated
-        // listfiles. This section contains a JSON encoded version of the mvme
-        // VME setup.
+        static const u8 BeginRun        = 0x02;
+        static const u8 EndRun          = 0x03;
+
+        // For compatibility with existing mvme-generated listfiles. This
+        // section contains a JSON encoded version of the mvme VME setup.
         static const u8 MVMEConfig      = 0x10;
 
         // Software generated low-accuracy timestamp.

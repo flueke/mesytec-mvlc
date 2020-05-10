@@ -215,6 +215,15 @@ void listfile_write_timestamp(WriteHandle &lf_out)
                                 sizeof(timestamp) / sizeof(u32));
 }
 
+std::vector<SystemEvent> read_preamble(ReadHandle &rh)
+{
+    std::vector<SystemEvent> result;
+
+
+
+    return result;
+}
+
 } // end namespace listfile
 } // end namespace mvlc
 } // end namespace mesytec
