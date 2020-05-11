@@ -116,6 +116,9 @@ struct MESYTEC_MVLC_EXPORT PacketReadResult
 
     inline u16 availablePayloadWords() const
     {
+        if (bytesTransferred < HeaderBytes)
+            return 0u;
+
         return (bytesTransferred - HeaderBytes) / sizeof(u32);
     }
 
@@ -134,14 +137,21 @@ struct MESYTEC_MVLC_EXPORT PacketReadResult
         return payloadBegin() + availablePayloadWords();
     }
 
+    inline bool hasNextHeaderPointer() const
+    {
+        const u16 nhp = nextHeaderPointer();
+
+        return nhp != header1::NoHeaderPointerPresent;
+    }
+
     inline bool isNextHeaderPointerValid() const
     {
         const u16 nhp = nextHeaderPointer();
 
-        if (nhp != header1::NoHeaderPointerPresent)
+        if (hasNextHeaderPointer())
             return payloadBegin() + nhp < payloadEnd();
 
-        return true;
+        return false;
     }
 };
 
