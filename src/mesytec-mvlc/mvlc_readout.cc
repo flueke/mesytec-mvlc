@@ -5,6 +5,7 @@
 #include <atomic>
 #include <chrono>
 #include <cstring>
+#include <exception>
 #include <iostream>
 #include <fmt/format.h>
 
@@ -124,7 +125,7 @@ ReadoutInitResults MESYTEC_MVLC_EXPORT init_readout(
 void MESYTEC_MVLC_EXPORT listfile_buffer_writer(
     listfile::WriteHandle *lfh,
     ReadoutBufferQueues &bufferQueues,
-    Protected<ListfileBufferWriterState> &protectedState)
+    Protected<ListfileWriterCounters> &protectedState)
 {
 #ifndef __WIN32
     prctl(PR_SET_NAME,"listfile_writer",0,0,0);
@@ -140,8 +141,8 @@ void MESYTEC_MVLC_EXPORT listfile_buffer_writer(
 
     {
         auto state = protectedState.access();
-        state->tStart = ListfileBufferWriterState::Clock::now();
-        state->state = ListfileBufferWriterState::Running;
+        state->tStart = ListfileWriterCounters::Clock::now();
+        state->state = ListfileWriterCounters::Running;
     }
 
     try
@@ -189,7 +190,7 @@ void MESYTEC_MVLC_EXPORT listfile_buffer_writer(
     {
         {
             auto state = protectedState.access();
-            state->exception = std::current_exception();
+            state->eptr = std::current_exception();
         }
 
         cerr << "listfile_writer caught a std::runtime_error: " << e.what() << endl;
@@ -198,7 +199,7 @@ void MESYTEC_MVLC_EXPORT listfile_buffer_writer(
     {
         {
             auto state = protectedState.access();
-            state->exception = std::current_exception();
+            state->eptr = std::current_exception();
         }
 
         cerr << "listfile_writer caught an unknown exception." << endl;
@@ -206,8 +207,8 @@ void MESYTEC_MVLC_EXPORT listfile_buffer_writer(
 
     {
         auto state = protectedState.access();
-        state->state = ListfileBufferWriterState::Idle;
-        state->tEnd = ListfileBufferWriterState::Clock::now();
+        state->state = ListfileWriterCounters::Idle;
+        state->tEnd = ListfileWriterCounters::Clock::now();
     }
 
     cerr << "listfile_writer left write loop, writes=" << writes << ", bytesWritten=" << bytesWritten << endl;
@@ -416,13 +417,13 @@ void ReadoutWorker::Private::loop(std::promise<std::error_code> promise)
     counters.access().ref() = {}; // reset the counters
 
     // listfile writer thread
-    Protected<ListfileBufferWriterState> writerState({});
+    Protected<ListfileWriterCounters> writerCounters({});
 
     auto writerThread = std::thread(
         listfile_buffer_writer,
         lfh,
         std::ref(listfileQueues),
-        std::ref(writerState));
+        std::ref(writerCounters));
 
     // stack error polling thread
     std::atomic<bool> quitErrorPoller(false);
@@ -469,96 +470,110 @@ void ReadoutWorker::Private::loop(std::promise<std::error_code> promise)
 
     std::error_code ec;
 
-    while (ec != ErrorType::ConnectionError)
+    try
     {
-        const auto now = std::chrono::steady_clock::now();
-
-        // check if timeToRun has elapsed
+        while (ec != ErrorType::ConnectionError)
         {
-            auto totalElapsed = now - tStart;
+            const auto now = std::chrono::steady_clock::now();
 
-            if (timeToRun.count() != 0 && totalElapsed >= timeToRun)
+            // check if timeToRun has elapsed
             {
-                std::cout << "MVLC readout timeToRun reached" << std::endl;
-                break;
+                auto totalElapsed = now - tStart;
+
+                if (timeToRun.count() != 0 && totalElapsed >= timeToRun)
+                {
+                    std::cout << "MVLC readout timeToRun reached" << std::endl;
+                    break;
+                }
             }
-        }
 
-        // check if we need to write a timestamp
-        {
-            auto elapsed = now - tTimestamp;
-
-            if (elapsed >= TimestampInterval)
+            // check if we need to write a timestamp
             {
+                auto elapsed = now - tTimestamp;
+
+                if (elapsed >= TimestampInterval)
+                {
+                    listfile::BufferWriteHandle wh(*getOutputBuffer());
+                    listfile_write_timestamp_section(wh, system_event::subtype::UnixTimetick);
+                    tTimestamp = now;
+
+                    // Also copy the ListfileWriterCounters into our
+                    // ReadoutWorker::Counters structure.
+                    counters.access()->listfileWriterCounters = writerCounters.access().ref();
+                }
+            }
+
+            auto state_ = state.access().copy();
+
+            // stay in running state
+            if (likely(state_ == State::Running && desiredState == State::Running))
+            {
+                size_t bytesTransferred = 0u;
+                ec = this->readout(bytesTransferred);
+
+                if (ec == ErrorType::ConnectionError)
+                {
+                    std::cout << "Lost connection to MVLC, leaving readout loop. Error=" << ec.message() << std::endl;
+                    this->mvlc.disconnect();
+                    break;
+                }
+            }
+            // pause
+            else if (state_ == State::Running && desiredState == State::Paused)
+            {
+                terminateReadout();
                 listfile::BufferWriteHandle wh(*getOutputBuffer());
-                listfile_write_timestamp_section(wh, system_event::subtype::UnixTimetick);
-                tTimestamp = now;
+                listfile_write_timestamp_section(wh, system_event::subtype::Pause);
+                setState(State::Paused);
+                std::cout << "MVLC readout paused" << std::endl;
             }
-        }
-
-        auto state_ = state.access().copy();
-
-        // stay in running state
-        if (likely(state_ == State::Running && desiredState == State::Running))
-        {
-            size_t bytesTransferred = 0u;
-            auto ec = this->readout(bytesTransferred);
-
-            if (ec == ErrorType::ConnectionError)
+            // resume
+            else if (state_ == State::Paused && desiredState == State::Running)
             {
-                std::cout << "Lost connection to MVLC, leaving readout loop. Error=" << ec.message() << std::endl;
-                this->mvlc.disconnect();
+                if ((ec = setup_readout_triggers(mvlc, stackTriggers)))
+                {
+                    std::cout << "Error resuming MVLC readout: " << ec.message() << endl;
+                    break;
+                }
+                listfile::BufferWriteHandle wh(*getOutputBuffer());
+                listfile_write_timestamp_section(wh, system_event::subtype::Resume);
+                setState(State::Running);
+                std::cout << "MVLC readout paused" << std::endl;
+            }
+            // stop
+            else if (desiredState == State::Stopping)
+            {
+                std::cout << "MVLC readout requested to stop" << std::endl;
                 break;
             }
-        }
-        // pause
-        else if (state_ == State::Running && desiredState == State::Paused)
-        {
-            terminateReadout();
-            listfile::BufferWriteHandle wh(*getOutputBuffer());
-            listfile_write_timestamp_section(wh, system_event::subtype::Pause);
-            setState(State::Paused);
-            std::cout << "MVLC readout paused" << std::endl;
-        }
-        // resume
-        else if (state_ == State::Paused && desiredState == State::Running)
-        {
-            if (auto ec = setup_readout_triggers(mvlc, stackTriggers))
+            // paused
+            else if (state_ == State::Paused)
             {
-                std::cout << "Error resuming MVLC readout: " << ec.message() << endl;
-                break;
+                std::cout << "MVLC readout paused" << std::endl;
+                constexpr auto PauseSleepDuration = std::chrono::milliseconds(100);
+                std::this_thread::sleep_for(PauseSleepDuration);
             }
-            listfile::BufferWriteHandle wh(*getOutputBuffer());
-            listfile_write_timestamp_section(wh, system_event::subtype::Resume);
-            setState(State::Running);
-            std::cout << "MVLC readout paused" << std::endl;
-        }
-        // stop
-        else if (desiredState == State::Stopping)
-        {
-            std::cout << "MVLC readout requested to stop" << std::endl;
-            break;
-        }
-        // paused
-        else if (state_ == State::Paused)
-        {
-            std::cout << "MVLC readout paused" << std::endl;
-            constexpr auto PauseSleepDuration = std::chrono::milliseconds(100);
-            std::this_thread::sleep_for(PauseSleepDuration);
-        }
-        else
-        {
-            assert(!"invalid code path");
+            else
+            {
+                assert(!"invalid code path");
+            }
         }
     }
+    catch (...)
+    {
+        counters.access()->eptr = std::current_exception();
+    }
 
+    // DAQ stop/termination sequence
     std::cout << "MVLC readout stopping" << std::endl;
     setState(State::Stopping);
 
     auto tTerminateStart = std::chrono::steady_clock::now();
     terminateReadout();
     auto tTerminateEnd = std::chrono::steady_clock::now();
-    auto terminateDuration = std::chrono::duration_cast<std::chrono::milliseconds>(tTerminateEnd - tTerminateStart);
+
+    auto terminateDuration = std::chrono::duration_cast<std::chrono::milliseconds>(
+        tTerminateEnd - tTerminateStart);
 
     {
         auto c = counters.access();
@@ -588,6 +603,8 @@ void ReadoutWorker::Private::loop(std::promise<std::error_code> promise)
 
     if (writerThread.joinable())
         writerThread.join();
+
+    counters.access()->listfileWriterCounters = writerCounters.access().ref();
 
     // Record the tEnd before waiting for the error poller to stop. This way
     // the final stats more closely reflects the actual data rate while the DAQ
@@ -739,6 +756,8 @@ inline void fixup_usb_buffer(
                 return;
             }
 
+            ++counters.access()->stackHits[frameInfo.stack];
+
             // Skip over the frameHeader and the frame contents.
             view.remove_prefix((frameInfo.len + 1) * sizeof(u32));
         }
@@ -849,6 +868,7 @@ std::error_code ReadoutWorker::Private::readout_eth(
     totalBytesTransferred = 0u;
     auto destBuffer = getOutputBuffer();
     std::error_code ec;
+    std::array<size_t, stacks::StackCount> stackHits = {};
 
     {
         auto dataGuard = mvlc.getLocks().lockData();
@@ -887,6 +907,23 @@ std::error_code ReadoutWorker::Private::readout_eth(
                 continue;
             }
 
+            // Record stack hits in the local counters array.
+            if (result.isNextHeaderPointerValid())
+            {
+                u32 frameHeader = *(result.payloadBegin() + result.nextHeaderPointer());
+                auto ft = get_frame_type(frameHeader);
+
+                if (ft == frame_headers::StackFrame || ft == frame_headers::StackContinuation)
+                    ++stackHits[extract_frame_info(frameHeader).stack];
+                else
+                {
+                    cout << fmt::format("frameHeader=0x{:08x}", frameHeader) << endl;
+                    cout << "availablePayloadWords=" << result.availablePayloadWords() << endl;
+                    //log_buffer(cout, result.payloadBegin(), result.availablePayloadWords(), "packet");
+                    throw 44;
+                }
+            }
+
             // A crude way of handling packets with residual bytes at the end. Just
             // subtract the residue from buffer->used which means the residual
             // bytes will be overwritten by the next packets data. This will at
@@ -895,7 +932,7 @@ std::error_code ReadoutWorker::Private::readout_eth(
             // happen, the MVLC never generates packets with residual bytes.
             if (unlikely(result.leftoverBytes()))
             {
-                std::cout << "Oi! There's residue here!" << std::endl;
+                std::cout << "Oi! There's residue here!" << std::endl; // TODO: log a warning instead of using cout
                 destBuffer->setUsed(destBuffer->used() - result.leftoverBytes());
             }
 
@@ -906,7 +943,28 @@ std::error_code ReadoutWorker::Private::readout_eth(
         }
     } // with dataGuard
 
-    counters.access()->ethStats = mvlcETH->getPipeStats();
+    // Copy the ethernet pipe stats and the stack hits into the Counters
+    // structure. This is thread-safe in the eth implementation and will happen
+    // at most every FlushBufferTimeout milliseconds.
+    {
+        auto c = counters.access();
+
+        c->ethStats = mvlcETH->getPipeStats();
+
+        // Add the local stackHits to the stackHits array stored in the Counters structure.
+#if 0
+        std::transform(
+            std::begin(stackHits), std::end(stackHits), // range1
+            std::begin(c->stackHits), // beginning of range2
+            std::begin(c->stackHits), // beginning of destination
+            [] (size_t a, size_t b) { return a + b; });
+#else
+        for (size_t stack=0; stack<stackHits.size(); ++stack)
+        {
+            c->stackHits[stack] += stackHits[stack];
+        }
+#endif
+    }
 
     return ec;
 }

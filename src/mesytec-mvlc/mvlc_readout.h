@@ -32,7 +32,7 @@ ReadoutInitResults MESYTEC_MVLC_EXPORT init_readout(
     MVLC &mvlc, const CrateConfig &crateConfig,
     const CommandExecOptions stackExecOptions = {});
 
-struct ListfileBufferWriterState
+struct ListfileWriterCounters
 {
     using Clock = std::chrono::steady_clock;
 
@@ -43,11 +43,11 @@ struct ListfileBufferWriterState
     Clock::time_point tEnd;
     size_t writes;
     size_t bytesWritten;
-    std::exception_ptr exception;
+    std::exception_ptr eptr;
 };
 
 // Usage:
-// Protected<ListfileBufferWriterState> writerState({});
+// Protected<ListfileWriterCounters> writerState({});
 // auto writerThread = std::thread(
 //   listfile_buffer_writer, lfh, std::ref(bufferQueues),
 //   std::ref(writerState));
@@ -58,7 +58,7 @@ struct ListfileBufferWriterState
 void MESYTEC_MVLC_EXPORT listfile_buffer_writer(
     listfile::WriteHandle *lfh,
     ReadoutBufferQueues &bufferQueues,
-    Protected<ListfileBufferWriterState> &state);
+    Protected<ListfileWriterCounters> &state);
 
 enum class MESYTEC_MVLC_EXPORT ReadoutWorkerError
 {
@@ -111,9 +111,9 @@ class MESYTEC_MVLC_EXPORT ReadoutWorker
             size_t buffersRead;
 
             // Number of buffers flushed to the listfile writer. This can be
-            // more than buffersRead as periodic software timeticks and the
-            // EndOfFile system event are also written into buffers and handed
-            // to the listfile writer.
+            // more than buffersRead as periodic software timeticks,
+            // pause/resume events and the EndOfFile system event are also
+            // written into buffers and handed to the listfile writer.
             size_t buffersFlushed;
 
             // Total number of bytes read from the controller.
@@ -128,10 +128,13 @@ class MESYTEC_MVLC_EXPORT ReadoutWorker
             size_t usbTempMovedBytes;
             size_t ethShortReads;
             size_t readTimeouts;
-            std::array<size_t, stacks::StackCount> stackHits; // TODO: count these
-            std::array<eth::PipeStats, PipeCount> ethStats; // TODO: pull them from the eth impl
-            std::error_code ec; // TODO: assign on error
+
+            std::array<size_t, stacks::StackCount> stackHits = {};
+            std::array<eth::PipeStats, PipeCount> ethStats;
+            std::error_code ec;
+            std::exception_ptr eptr;
             StackErrorCounters stackErrors;
+            ListfileWriterCounters listfileWriterCounters = {};
         };
 
         ReadoutWorker(
