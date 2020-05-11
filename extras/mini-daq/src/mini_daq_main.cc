@@ -167,13 +167,19 @@ int main(int argc, char *argv[])
     }
 
     //
-    // readout
+    // readout parser
     //
-
     const size_t BufferSize = util::Megabytes(1);
     const size_t BufferCount = 10;
     ReadoutBufferQueues snoopQueues(BufferSize, BufferCount);
 
+    auto parserState = readout_parser::make_readout_parser(crateConfig.stacks);
+    std::thread parserThread;
+    parserThread = std::thread(run_readout_parser, std::ref(parserState), std::ref(snoopQueues));
+
+    //
+    // readout
+    //
     ZipCreator zipWriter;
     zipWriter.createArchive("mini-daq.zip");
     listfile::WriteHandle *lfh = nullptr;
@@ -185,14 +191,6 @@ int main(int argc, char *argv[])
     auto f = readoutWorker.start(timeToRun);
     cout << "f.get(): " << f.get() << endl;
 
-    //
-    // readout parser
-    //
-    auto parserState = readout_parser::make_readout_parser(crateConfig.stacks);
-    std::thread parserThread;
-    parserThread = std::thread(run_readout_parser, std::ref(parserState), std::ref(snoopQueues));
-
-    //
     // wait until readout done
     readoutWorker.waitableState().wait(
         [] (const ReadoutWorker::State &state)
