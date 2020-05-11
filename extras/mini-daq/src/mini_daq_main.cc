@@ -1,5 +1,6 @@
 #include "mesytec-mvlc/mvlc_listfile.h"
 #include <chrono>
+#include <exception>
 #include <iostream>
 #include <limits>
 #include <thread>
@@ -97,7 +98,7 @@ void run_readout_parser(
     {
         {
             //auto state = protectedState.access();
-            //state->exception = std::current_exception();
+            //state->eptr = std::current_exception();
         }
 
         cerr << "readout_parser caught a std::runtime_error: " << e.what() << endl;
@@ -106,7 +107,7 @@ void run_readout_parser(
     {
         {
             //auto state = protectedState.access();
-            //state->exception = std::current_exception();
+            //state->eptr = std::current_exception();
         }
 
         cerr << "readout_parser caught an unknown exception." << endl;
@@ -235,8 +236,6 @@ int main(int argc, char *argv[])
     // readout stats
     //
     {
-        // TODO: stack errors
-        // TODO: eth packets received
         auto counters = readoutWorker.counters();
 
         auto tStart = counters.tStart;
@@ -267,6 +266,32 @@ int main(int argc, char *argv[])
         cout << "totalBytesTransferred=" << counters.bytesRead << endl;
         cout << "duration=" << runDuration.count() << " ms" << endl;
 
+        cout << "stackHits: ";
+        for (size_t stack=0; stack<counters.stackHits.size(); ++stack)
+        {
+            size_t hits = counters.stackHits[stack];
+
+            if (hits)
+                cout << stack << ": " << hits << " ";
+        }
+        cout << endl;
+
+        cout << "stackErrors:";
+        for (size_t stack=0; stack<counters.stackErrors.stackErrors.size(); ++stack)
+        {
+            const auto &errorCounts = counters.stackErrors.stackErrors[stack];
+
+            for (auto it=errorCounts.begin(); it!=errorCounts.end(); ++it)
+            {
+                cout << fmt::format("stack={}, line={}, flags={}, count={}",
+                                    stack, it->first.line, it->first.flags,
+                                    it->second)
+                    << endl;
+            }
+        }
+
+        cout << endl;
+
         if (mvlc.connectionType() == ConnectionType::ETH)
         {
             auto pipeCounters = counters.ethStats[DataPipe];
@@ -283,6 +308,36 @@ int main(int argc, char *argv[])
         }
 
         cout << endl;
+
+        // listfile writer counters
+        {
+            auto writerCounters = counters.listfileWriterCounters;
+            auto writerElapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
+                writerCounters.tEnd - writerCounters.tStart);
+            auto writerSeconds = writerElapsed.count() / 1000.0;
+            double megaBytes = writerCounters.bytesWritten * 1.0 / util::Megabytes(1);
+            double mbs = megaBytes / writerSeconds;
+
+            cout << "  -- listfile writer counters --" << endl;
+            cout << "  writes=" << writerCounters.writes << endl;
+            cout << "  bytesWritten=" << writerCounters.bytesWritten << endl;
+            cout << "  exception=";
+            try
+            {
+                if (counters.eptr)
+                    std::rethrow_exception(counters.eptr);
+                cout << "none" << endl;
+            }
+            catch (const std::runtime_error &e)
+            {
+                cout << e.what() << endl;
+            }
+            cout << "  duration=" << writerSeconds << " s" << endl;
+            cout << "  rate=" << mbs << " MB/s" << endl;
+        }
+
+        cout << endl;
+
         cout << "Ran for " << runSeconds << " seconds, transferred a total of " << megaBytes
             << " MB, resulting data rate: " << mbs << "MB/s"
             << endl;
@@ -295,7 +350,7 @@ int main(int argc, char *argv[])
         auto counters = parserState.counters;
 
         cout << endl;
-        cout << "---- parser stats ----" << endl;
+        cout << "---- readout parser stats ----" << endl;
         cout << "internalBufferLoss=" << counters.internalBufferLoss << endl;
         cout << "buffersProcessed=" << counters.buffersProcessed << endl;
         cout << "unusedBytes=" << counters.unusedBytes << endl;
