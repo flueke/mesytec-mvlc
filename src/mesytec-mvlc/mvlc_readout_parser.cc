@@ -65,6 +65,8 @@ do\
 #define LOG_TRACE(fmt, ...) DO_LOG(LOG_LEVEL_TRACE, "TRACE - mvlc_rdo_parser ", fmt, ##__VA_ARGS__)
 
 using namespace nonstd;
+using std::cout;
+using std::endl;
 
 namespace mesytec
 {
@@ -338,7 +340,12 @@ inline bool try_handle_system_event(
     {
         u32 frameHeader = input[0];
 
-        if (system_event::is_known_system_event(frameHeader))
+        //cout << __PRETTY_FUNCTION__ << "checking if header is a known system_event: "
+        //    << fmt::format("0x{:08x}", frameHeader)
+        //    << ", result=" << system_event::is_known_system_event(frameHeader)
+        //    << endl;
+
+        if (get_frame_type(frameHeader) == frame_headers::SystemEvent)
         {
             auto frameInfo = extract_frame_info(frameHeader);
 
@@ -904,6 +911,20 @@ ParseResult parse_readout_buffer_eth(
             // At this point the buffer iterator is positioned on the first of the
             // two ETH payload header words.
             eth::PayloadHeaderInfo ethHdrs{ input[0], input[1] };
+
+#if 0
+            if (state.firstPacketDebugDump)
+            {
+                cout << "first parsed readout eth packet:" << endl;
+                cout << fmt::format("header0=0x{:08x}", input[0]) << endl;
+                cout << fmt::format("header1=0x{:08x}", input[1]) << endl;
+                cout << "  packetNumber=" << ethHdrs.packetNumber() << endl;
+                cout << "  dataWordCount=" << ethHdrs.dataWordCount() << endl;
+                cout << "  nextHeaderPointer=" << ethHdrs.nextHeaderPointer() << endl;
+
+                state.firstPacketDebugDump = false;
+            }
+#endif
 
             // Ensure that the packet is fully contained in the input buffer.
             // This is a requirement for the buffer producer.
