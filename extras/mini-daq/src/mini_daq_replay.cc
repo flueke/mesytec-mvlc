@@ -198,13 +198,13 @@ int main(int argc, char *argv[])
 
     callbacks.beginEvent = [] (int eventIndex)
     {
-        cout << "beginEvent " + std::to_string(eventIndex) << endl;
+        //cout << "beginEvent " + std::to_string(eventIndex) << endl;
     };
 
     callbacks.moduleDynamic = [] (int ei, int mi,  const u32 *data, u32 size)
     {
         cout << "ei=" << ei << ", mi=" << mi << ", data=" << data << ", size=" << size << endl;
-        util::log_buffer(cout, basic_string_view<u32>(data, size));
+        //util::log_buffer(cout, basic_string_view<u32>(data, size));
     };
 
     // Read and fixup a buffer

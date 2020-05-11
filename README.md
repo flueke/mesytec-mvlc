@@ -13,13 +13,13 @@
   - Counters
 
 * Dialog layer DONE
-  - (UDP) retries
-* Error polling
+  - (UDP) retries DONE
+* Error polling DONE
 * Listfile format, Writer and Reader code
-* Readout loop, Readout Worker
+* Readout loop, Readout Worker DONE
 * Stack Building DONE
 * Stack Management
-* Readout/Response Parser using readout stack to parse incoming data
+* Readout/Response Parser using readout stack to parse incoming data DONE
 * listfile format, writer and reader, tools to get the readout config back to
   construct a readout parser for the file.
   mvme will thus be able to replay files record by the library.
@@ -37,7 +37,7 @@
   - readout buffer queue plus operations (blocking, non-blocking)
   - listfile output (the readout config is serialized into the listfile at the start)
 
-* listfile writer MOSTLY DONE
+* listfile writer DONE
   - should be able to take buffers from multiple readout workers for multicrate setup
   - takes copies of readout buffers and internally queues them up for writing
   - listfile output
@@ -62,7 +62,7 @@ FIXME: open issues
 - how to detect and handle single vs multicrate setups?
 
 ## TODO
-* disabling triggers when stopping a DAQ does not work reliably right now.
+* Should be fixed now:  disabling triggers when stopping a DAQ does not work reliably right now.
 
 ## Misc
 
