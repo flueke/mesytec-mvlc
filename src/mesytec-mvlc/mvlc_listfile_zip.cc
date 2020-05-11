@@ -55,7 +55,7 @@ struct ZipCreator::Private
             unsigned long long size_out;
         };
 
-        static constexpr size_t ChunkSize = Megabytes(1);
+        static constexpr size_t ChunkSize = util::Megabytes(1);
 
         LZ4F_preferences_t lz4Prefs =
         {
@@ -351,7 +351,7 @@ void ZipReadHandle::seek(size_t pos)
     m_zipReader->closeCurrentEntry();
     m_zipReader->openEntry(currentName);
 
-    std::vector<u8> buffer(Megabytes(1));
+    std::vector<u8> buffer(util::Megabytes(1));
 
     while (pos > 0)
     {
@@ -364,7 +364,7 @@ struct ZipReader::Private
 {
     struct LZ4ReadContext
     {
-        static constexpr size_t ChunkSize = Megabytes(1);
+        static constexpr size_t ChunkSize = util::Megabytes(1);
 
         LZ4F_decompressionContext_t ctx = {};
         std::vector<u8> compressedBuffer;
@@ -599,7 +599,9 @@ ZipReadHandle *ZipReader::currentEntry()
 
 void ZipReader::closeCurrentEntry()
 {
-    if (auto err = mz_zip_reader_entry_close(d->reader))
+    auto err = mz_zip_reader_entry_close(d->reader);
+
+    if (err != MZ_OK && err != MZ_CRC_ERROR)
         throw std::runtime_error("mz_zip_reader_entry_close: " + std::to_string(err));
 }
 

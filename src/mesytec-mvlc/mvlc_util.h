@@ -91,9 +91,7 @@ void log_buffer(Out &out, const u32 *buffer, size_t size, const char *info)
     out << "end " << info << endl;
 }
 
-MESYTEC_MVLC_EXPORT const char *get_system_event_subtype_name(u8 subtype);
 MESYTEC_MVLC_EXPORT const char *get_frame_flag_shift_name(u8 flag);
-
 
 stacks::TimerBaseUnit MESYTEC_MVLC_EXPORT timer_base_unit_from_string(const std::string &str);
 

@@ -238,7 +238,7 @@ inline void copy_to_workbuffer(ReadoutParserState &state, basic_string_view<u32>
 
 } // end anon namespace
 
-static const size_t InitialWorkerBufferSize = Megabytes(1) / sizeof(u32);
+static const size_t InitialWorkerBufferSize = util::Megabytes(1) / sizeof(u32);
 
 MESYTEC_MVLC_EXPORT ReadoutParserState make_readout_parser(
     const std::vector<StackCommandBuilder> &readoutStacks)

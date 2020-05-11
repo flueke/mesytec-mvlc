@@ -170,7 +170,7 @@ int main(int argc, char *argv[])
     // readout
     //
 
-    const size_t BufferSize = Megabytes(1);
+    const size_t BufferSize = util::Megabytes(1);
     const size_t BufferCount = 10;
     ReadoutBufferQueues snoopQueues(BufferSize, BufferCount);
 
@@ -254,7 +254,7 @@ int main(int argc, char *argv[])
                      : counters.tTerminateStart);
         auto runDuration = std::chrono::duration_cast<std::chrono::milliseconds>(tEnd - tStart);
         double runSeconds = runDuration.count() / 1000.0;
-        double megaBytes = counters.bytesRead * 1.0 / Megabytes(1);
+        double megaBytes = counters.bytesRead * 1.0 / util::Megabytes(1);
         double mbs = megaBytes / runSeconds;
 
         cout << endl;

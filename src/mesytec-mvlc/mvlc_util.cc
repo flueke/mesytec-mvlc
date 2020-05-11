@@ -134,37 +134,6 @@ void log_buffer(const std::vector<u32> &buffer, const std::string &info)
     log_buffer(buffer.data(), buffer.size(), info);
 }
 
-const char *get_system_event_subtype_name(u8 subtype_)
-{
-    switch (subtype_)
-    {
-        using namespace system_event::subtype;
-
-        case EndianMarker:
-            return "EndianMarker";
-
-        case MVMEConfig:
-            return "MVMEConfig";
-
-        case MVLCCrateConfig:
-            return "MVLCCrateConfig";
-
-        case UnixTimestamp:
-            return "UnixTimestamp";
-
-        case Pause:
-            return "Pause";
-
-        case Resume:
-            return "Resume";
-
-        case EndOfFile:
-            return "EndOfFile";
-    }
-
-    return "unknown system event subtype";
-}
-
 const char *get_frame_flag_shift_name(u8 flag_shift)
 {
     if (flag_shift == frame_flags::shifts::Timeout)

@@ -14,6 +14,37 @@ namespace mvlc
 namespace listfile
 {
 
+std::string system_event_type_to_string(u8 eventType)
+{
+    namespace T = system_event::subtype;
+
+    switch (eventType)
+    {
+        case T::EndianMarker:
+            return "EndianMarker";
+        case T::BeginRun:
+            return "BeginRun";
+        case T::EndRun:
+            return "EndRun";
+        case T::MVMEConfig:
+            return "MVMEConfig";
+        case T::UnixTimetick:
+            return "UnixTimetick";
+        case T::Pause:
+            return "Pause";
+        case T::Resume:
+            return "Resume";
+        case T::MVLCCrateConfig:
+            return "MVLCCrateConfig";
+        case T::EndOfFile:
+            return "EndOfFile";
+        default:
+            break;
+    }
+
+    return "unknown/custom";
+}
+
 #if 0
 ListfileHandle::~ListfileHandle()
 { }
@@ -201,25 +232,84 @@ void listfile_write_system_event(WriteHandle &lf_out, u8 subtype)
                        sizeof(sectionHeader));
 }
 
-void listfile_write_timestamp(WriteHandle &lf_out)
+void MESYTEC_MVLC_EXPORT listfile_write_timestamp_section(
+    WriteHandle &lf_out, u8 subtype)
 {
-    //if (!lf_out.isOpen())
-    //    return;
-
     auto now = std::chrono::system_clock::now();
     auto epoch = now.time_since_epoch();
     u64 timestamp = std::chrono::duration_cast<std::chrono::seconds>(epoch).count();
 
-    listfile_write_system_event(lf_out, system_event::subtype::UnixTimestamp,
-                                reinterpret_cast<u32 *>(&timestamp),
-                                sizeof(timestamp) / sizeof(u32));
+    listfile_write_system_event(
+        lf_out, subtype,
+        reinterpret_cast<u32 *>(&timestamp),
+        sizeof(timestamp) / sizeof(u32));
 }
 
-std::vector<SystemEvent> read_preamble(ReadHandle &rh)
+//
+// reading
+//
+template<typename T> T typed_read(ReadHandle &rh)
 {
-    std::vector<SystemEvent> result;
+    T dest{};
+    rh.read(reinterpret_cast<u8 *>(&dest), sizeof(T));
+    return dest;
+}
 
+template<typename T> size_t typed_read(ReadHandle &rh, T &dest)
+{
+    return rh.read(reinterpret_cast<u8 *>(&dest), sizeof(T));
+}
 
+Preamble read_preamble(ReadHandle &rh, const size_t preambleMaxSize)
+{
+    Preamble result;
+
+    // does a seek(0)
+    auto magic = read_magic(rh);
+
+    // convert magic bytes to std::string
+    std::transform(
+        std::begin(magic), std::end(magic), std::back_inserter(result.magic),
+        [] (const u8 c) { return static_cast<char>(c); });
+
+    size_t totalContentsSize = 0u;
+
+    while (true)
+    {
+        auto frameHeader = typed_read<u32>(rh);
+        auto frameInfo = extract_frame_info(frameHeader);
+
+        if (frameInfo.type != frame_headers::SystemEvent)
+            break; // should not happen for correctly written listfiles
+
+        SystemEvent sysEvent = {};
+        sysEvent.type = system_event::extract_subtype(frameHeader);
+        auto &buffer = sysEvent.contents;
+
+        while (frameInfo.type == frame_headers::SystemEvent)
+        {
+            size_t frameBytes = frameInfo.len * sizeof(u32);
+
+            if (totalContentsSize + frameBytes > preambleMaxSize)
+                throw std::runtime_error("preambleMaxSize exceeded");
+
+            auto offset = buffer.size();
+            buffer.resize(buffer.size() + frameBytes);
+            rh.read(buffer.data() + offset, frameBytes);
+            totalContentsSize += frameBytes;
+
+            if (!(frameInfo.flags & (1u << system_event::ContinueShift)))
+                break;
+
+            frameHeader = typed_read<u32>(rh);
+            frameInfo = extract_frame_info(frameHeader);
+        }
+
+        result.systemEvents.emplace_back(sysEvent);
+
+        if (system_event::extract_subtype(frameHeader) == system_event::subtype::BeginRun)
+            break;
+    }
 
     return result;
 }

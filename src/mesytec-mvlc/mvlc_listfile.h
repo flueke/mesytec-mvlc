@@ -14,6 +14,10 @@ namespace mvlc
 namespace listfile
 {
 
+// String representation for the known system_event::subtype flags.
+// Returns "unknown/custom" for user defined flags.
+std::string MESYTEC_MVLC_EXPORT system_event_type_to_string(u8 eventType);
+
 class MESYTEC_MVLC_EXPORT WriteHandle
 {
     public:
@@ -27,25 +31,43 @@ class MESYTEC_MVLC_EXPORT ReadHandle
         virtual ~ReadHandle();
         virtual size_t read(u8 *dest, size_t maxSize) = 0;
         virtual void seek(size_t pos) = 0;
+        // TODO: need atEnd()?
 };
 
-void MESYTEC_MVLC_EXPORT listfile_write_preamble(WriteHandle &lf_out, const CrateConfig &config);
-void MESYTEC_MVLC_EXPORT listfile_write_magic(WriteHandle &lf_out, ConnectionType ct);
-void MESYTEC_MVLC_EXPORT listfile_write_endian_marker(WriteHandle &lf_out);
-void MESYTEC_MVLC_EXPORT listfile_write_crate_config(WriteHandle &lf_out, const CrateConfig &config);
-void MESYTEC_MVLC_EXPORT listfile_write_system_event(
-    WriteHandle &lf_out, u8 subtype,
-    const u32 *buffp, size_t totalWords);
-
-// Writes an empty system section
-void MESYTEC_MVLC_EXPORT listfile_write_system_event(WriteHandle &lf_out, u8 subtype);
-
-void MESYTEC_MVLC_EXPORT listfile_write_timestamp(WriteHandle &lf_out);
+//
+// writing
+//
 
 inline size_t listfile_write_raw(WriteHandle &lf_out, const u8 *buffer, size_t size)
 {
     return lf_out.write(buffer, size);
 }
+
+void MESYTEC_MVLC_EXPORT listfile_write_preamble(WriteHandle &lf_out, const CrateConfig &config);
+void MESYTEC_MVLC_EXPORT listfile_write_magic(WriteHandle &lf_out, ConnectionType ct);
+void MESYTEC_MVLC_EXPORT listfile_write_endian_marker(WriteHandle &lf_out);
+void MESYTEC_MVLC_EXPORT listfile_write_crate_config(WriteHandle &lf_out, const CrateConfig &config);
+
+// Writes a system_event with the given subtype and contents.
+//
+// This function handles splitting system_events that exceed the maximum
+// listfile section size into multiple sections with each section headers
+// continue bit set for all but the last section.
+void MESYTEC_MVLC_EXPORT listfile_write_system_event(
+    WriteHandle &lf_out, u8 subtype,
+    const u32 *buffp, size_t totalWords);
+
+// Writes an empty system_event section
+void MESYTEC_MVLC_EXPORT listfile_write_system_event(
+    WriteHandle &lf_out, u8 subtype);
+
+// Writes a system_event section with the given subtype containing a unix timestamp.
+void MESYTEC_MVLC_EXPORT listfile_write_timestamp_section(
+    WriteHandle &lf_out, u8 subtype);
+
+//
+// reading
+//
 
 inline std::vector<u8> read_magic(ReadHandle &rh)
 {
@@ -60,7 +82,7 @@ struct MESYTEC_MVLC_EXPORT SystemEvent
     u8 type;
     std::vector<u8> contents;
 
-    inline std::string toString() const
+    inline std::string contentsToString() const
     {
         return std::string(
             reinterpret_cast<const char *>(contents.data()),
@@ -68,10 +90,17 @@ struct MESYTEC_MVLC_EXPORT SystemEvent
     }
 };
 
-constexpr size_t PreambleMaxSize = Megabytes(100);
+struct Preamble
+{
+    std::string magic;
+    std::vector<SystemEvent> systemEvents;
+};
+
+// An upper limit of the sum of section content sizes for read_preamble().
+constexpr size_t PreambleReadMaxSize = util::Megabytes(100);
 
 // Reads up to and including the first system_event::type::BeginRun section.
-std::vector<SystemEvent> MESYTEC_MVLC_EXPORT read_preamble(ReadHandle &rh);
+Preamble MESYTEC_MVLC_EXPORT read_preamble(ReadHandle &rh, size_t preambleMaxSize = PreambleReadMaxSize);
 
 // Reading:
 // Info from the start of the listfile:
@@ -82,7 +111,8 @@ std::vector<SystemEvent> MESYTEC_MVLC_EXPORT read_preamble(ReadHandle &rh);
 // - MVLCCOnfig
 //
 // read complete section into buffer (including continuations)
-// 
+
+
 
 } // end namespace listfile
 } // end namespace mvlc

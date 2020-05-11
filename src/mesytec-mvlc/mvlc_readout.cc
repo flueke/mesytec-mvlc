@@ -225,7 +225,7 @@ void stack_error_notification_poller(
 #endif
 
     std::vector<u32> buffer;
-    buffer.reserve(Megabytes(1));
+    buffer.reserve(util::Megabytes(1));
 
     std::cout << "stack_error_notification_poller entering loop" << std::endl;
 
@@ -290,7 +290,7 @@ std::error_code make_error_code(ReadoutWorkerError error)
 
 struct ReadoutWorker::Private
 {
-    static constexpr size_t BufferSize = Megabytes(1);
+    static constexpr size_t BufferSize = util::Megabytes(1);
     static constexpr size_t BufferCount = 10;
     static constexpr std::chrono::seconds ShutdownReadoutMaxWait = std::chrono::seconds(10);
 
@@ -458,7 +458,7 @@ void ReadoutWorker::Private::loop(std::promise<std::error_code> promise)
     // Grab an output buffer and write an initial timestamp into it.
     {
         listfile::BufferWriteHandle wh(*getOutputBuffer());
-        listfile_write_timestamp(wh);
+        listfile_write_timestamp_section(wh, system_event::subtype::BeginRun);
     }
     auto tTimestamp = tStart;
 
@@ -490,7 +490,7 @@ void ReadoutWorker::Private::loop(std::promise<std::error_code> promise)
             if (elapsed >= TimestampInterval)
             {
                 listfile::BufferWriteHandle wh(*getOutputBuffer());
-                listfile_write_timestamp(wh);
+                listfile_write_timestamp_section(wh, system_event::subtype::UnixTimetick);
                 tTimestamp = now;
             }
         }
@@ -515,7 +515,7 @@ void ReadoutWorker::Private::loop(std::promise<std::error_code> promise)
         {
             terminateReadout();
             listfile::BufferWriteHandle wh(*getOutputBuffer());
-            listfile_write_system_event(wh, system_event::subtype::Pause);
+            listfile_write_timestamp_section(wh, system_event::subtype::Pause);
             setState(State::Paused);
             std::cout << "MVLC readout paused" << std::endl;
         }
@@ -528,7 +528,7 @@ void ReadoutWorker::Private::loop(std::promise<std::error_code> promise)
                 break;
             }
             listfile::BufferWriteHandle wh(*getOutputBuffer());
-            listfile_write_system_event(wh, system_event::subtype::Resume);
+            listfile_write_timestamp_section(wh, system_event::subtype::Resume);
             setState(State::Running);
             std::cout << "MVLC readout paused" << std::endl;
         }
@@ -567,10 +567,11 @@ void ReadoutWorker::Private::loop(std::promise<std::error_code> promise)
 
     std::cout << "terminateReadout() took " << terminateDuration.count() << " ms to complete" << std::endl;
 
-    // Write an EndOfFile system event section into a ReadoutBuffer and
-    // immediately flush the buffer.
+    // Write EndRun and EndOfFile system event sections into a ReadoutBuffer
+    // and immediately flush the buffer.
     {
         listfile::BufferWriteHandle wh(*getOutputBuffer());
+        listfile_write_timestamp_section(wh, system_event::subtype::EndRun);
         listfile_write_system_event(wh, system_event::subtype::EndOfFile);
         flushCurrentOutputBuffer();
     }
