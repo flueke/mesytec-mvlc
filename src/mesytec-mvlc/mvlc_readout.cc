@@ -22,6 +22,7 @@
 #include "util/storage_sizes.h"
 
 using std::cerr;
+using std::cout;
 using std::endl;
 
 namespace mesytec
@@ -862,6 +863,20 @@ std::error_code ReadoutWorker::Private::readout_eth(
             ec = result.ec;
             destBuffer->use(result.bytesTransferred);
             totalBytesTransferred += result.bytesTransferred;
+
+#if 0
+            if (this->firstPacketDebugDump)
+            {
+                cout << "first received readout eth packet:" << endl;
+                cout << fmt::format("header0=0x{:08x}", result.header0()) << endl;
+                cout << fmt::format("header1=0x{:08x}", result.header1()) << endl;
+                cout << "  packetNumber=" << result.packetNumber() << endl;
+                cout << "  dataWordCount=" << result.dataWordCount() << endl;
+                cout << "  lostPackets=" << result.lostPackets << endl;
+                cout << "  nextHeaderPointer=" << result.nextHeaderPointer() << endl;
+                this->firstPacketDebugDump = false;
+            }
+#endif
 
             if (result.ec == ErrorType::ConnectionError)
                 return result.ec;

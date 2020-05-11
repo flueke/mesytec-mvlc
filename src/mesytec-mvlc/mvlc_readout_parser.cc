@@ -340,18 +340,13 @@ inline bool try_handle_system_event(
     {
         u32 frameHeader = input[0];
 
-        //cout << __PRETTY_FUNCTION__ << "checking if header is a known system_event: "
-        //    << fmt::format("0x{:08x}", frameHeader)
-        //    << ", result=" << system_event::is_known_system_event(frameHeader)
-        //    << endl;
-
         if (get_frame_type(frameHeader) == frame_headers::SystemEvent)
         {
             auto frameInfo = extract_frame_info(frameHeader);
 
             // It should be guaranteed that the whole frame fits into the buffer.
             if (input.size() <= frameInfo.len)
-                throw end_of_buffer("SystemEvent frame exceeds input buffer size.");
+                throw end_of_buffer("SystemEvent frame size exceeds input buffer size.");
 
             u8 subtype = system_event::extract_subtype(frameHeader);
             ++state.counters.systemEventTypes[subtype];
