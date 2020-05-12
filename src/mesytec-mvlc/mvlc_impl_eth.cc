@@ -256,7 +256,6 @@ std::error_code Impl::connect()
     m_cmdSock = -1;
     m_dataSock = -1;
     resetPipeAndChannelStats();
-    std::fill(m_lastPacketNumbers.begin(), m_lastPacketNumbers.end(), -1);
 
     LOG_TRACE("looking up host %s...", m_host.c_str());
 
@@ -796,7 +795,7 @@ PacketReadResult Impl::read_packet(Pipe pipe_, u8 *buffer, size_t size)
 
             if (loss > 0)
             {
-                LOG_DEBUG("  pipe=%u, packetChannel=%u, lastPacketNumber=%u,"
+                LOG_WARN("  pipe=%u, packetChannel=%u, lastPacketNumber=%u,"
                           " packetNumber=%u, loss=%d",
                           pipe, res.packetChannel(), lastPacketNumber, res.packetNumber(), loss);
             }
@@ -995,6 +994,7 @@ void Impl::resetPipeAndChannelStats()
     UniqueLock guard(m_statsMutex);
     m_pipeStats = {};
     m_packetChannelStats = {};
+    std::fill(m_lastPacketNumbers.begin(), m_lastPacketNumbers.end(), -1);
 }
 
 u32 Impl::getCmdAddress() const
