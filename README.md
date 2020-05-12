@@ -83,3 +83,19 @@ compression-test-lz4_9.zip     lz4      9     41.03           993.38          31
 compression-test-lz4_-1.zip    lz4      -1    408.72          1140.68         314572800            314572800            299264770            299264770            0.95
 compression-test-lz4_-2.zip    lz4      -2    590.55          1140.68         314572800            314572800            299764860            299764860            0.95
 compression-test-lz4_-3.zip    lz4      -3    597.61          1115.24         314572800            314572800            297414453            297414453            0.95
+
+MTDC-32 with new (fast blt) firmware and jumper set:
+  writeabs a32 d32 0xfaaeaaaa 0x1337abcd
+  setbase 0x01000000
+  read a32 d16 0x6000 # addr low      
+  read a32 d16 0x6002 # addr high
+  read a32 d16 0x6004 # value low
+  read a32 d16 0x6006 # value high
+  read a32 d16 0x6008 # amod
+
+  13:56:01:   setbase 0x01000000
+  13:56:01:   read a32 d16 0x01006000 -> 0x0000aaa8 (43688 dec)
+  13:56:01:   read a32 d16 0x01006002 -> 0x0000faae (64174 dec)
+  13:56:01:   read a32 d16 0x01006004 -> 0x0000abcd (43981 dec)
+  13:56:01:   read a32 d16 0x01006006 -> 0x00001337 (4919 dec)
+  13:56:01:   read a32 d16 0x01006008 -> 0x0000000d (13 dec)

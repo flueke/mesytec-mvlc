@@ -13,6 +13,7 @@
 #include <mesytec-mvlc/util/storage_sizes.h>
 #include <mesytec-mvlc/util/string_view.hpp>
 #include <fmt/format.h>
+#include <unordered_set>
 
 using std::cout;
 using std::cerr;
@@ -116,6 +117,15 @@ inline void fixup_buffer_usb(ReadoutBuffer &readBuffer, ReadoutBuffer &tempBuffe
     fixup_buffer(readBuffer, tempBuffer, skip_func);
 }
 
+struct PairHash
+{
+    template <typename T1, typename T2>
+        std::size_t operator() (const std::pair<T1, T2> &pair) const
+        {
+            return std::hash<T1>()(pair.first) ^ std::hash<T2>()(pair.second);
+        }
+};
+
 int main(int argc, char *argv[])
 {
     if (argc < 2)
@@ -171,8 +181,8 @@ int main(int argc, char *argv[])
         crateConfig = crate_config_from_yaml(it->contentsToString());
     }
 
-    cout << "Read a CrateConfig from the listfile: " << endl;
-    cout << to_yaml(crateConfig) << endl;
+    //cout << "Read a CrateConfig from the listfile: " << endl;
+    //cout << to_yaml(crateConfig) << endl;
 
     cout << "Preamble SystemEvent types:" << endl;
     for (const auto &systemEvent: preamble.systemEvents)
@@ -180,8 +190,8 @@ int main(int argc, char *argv[])
         cout << "  " << system_event_type_to_string(systemEvent.type) << endl;
     }
 
-    cout << "Press the AnyKey to start the replay" << endl;
-    std::getc(stdin);
+    //cout << "Press the AnyKey to start the replay" << endl;
+    //std::getc(stdin);
 
     //const size_t BufferSize = util::Megabytes(1);
     //const size_t BufferCount = 10;
@@ -196,15 +206,20 @@ int main(int argc, char *argv[])
     auto parserState = readout_parser::make_readout_parser(crateConfig.stacks);
     readout_parser::ReadoutParserCallbacks callbacks;
 
-    callbacks.beginEvent = [] (int eventIndex)
+    std::unordered_map<int, size_t> eventHits;
+    std::unordered_map<std::pair<int, int>, size_t, PairHash> moduleDynamicHits;
+
+    callbacks.beginEvent = [&eventHits] (int eventIndex)
     {
         //cout << "beginEvent " + std::to_string(eventIndex) << endl;
+        eventHits[eventIndex]++;
     };
 
-    callbacks.moduleDynamic = [] (int ei, int mi,  const u32 *data, u32 size)
+    callbacks.moduleDynamic = [&moduleDynamicHits] (int ei, int mi,  const u32 *data, u32 size)
     {
-        cout << "ei=" << ei << ", mi=" << mi << ", data=" << data << ", size=" << size << endl;
+        //cout << "ei=" << ei << ", mi=" << mi << ", data=" << data << ", size=" << size << endl;
         //util::log_buffer(cout, basic_string_view<u32>(data, size));
+        moduleDynamicHits[std::make_pair(ei, mi)]++;
     };
 
     // Read and fixup a buffer
@@ -251,6 +266,57 @@ int main(int argc, char *argv[])
         destBuffer.setBufferNumber(nextOutputBufferNumber++);
     }
 
+    //
+    // parser stats
+    //
+    {
+        auto counters = parserState.counters;
+
+        cout << endl;
+        cout << "---- readout parser stats ----" << endl;
+        cout << "internalBufferLoss=" << counters.internalBufferLoss << endl;
+        cout << "buffersProcessed=" << counters.buffersProcessed << endl;
+        cout << "unusedBytes=" << counters.unusedBytes << endl;
+        cout << "ethPacketLoss=" << counters.ethPacketLoss << endl;
+        cout << "ethPacketsProcessed=" << counters.ethPacketsProcessed << endl;
+
+        for (size_t sysEvent = 0; sysEvent < counters.systemEventTypes.size(); ++sysEvent)
+        {
+            if (counters.systemEventTypes[sysEvent])
+            {
+                cout << fmt::format("systemEventType 0x{:002x}, count={}",
+                                    sysEvent, counters.systemEventTypes[sysEvent])
+                    << endl;
+            }
+        }
+
+        for (size_t pr=0; pr < counters.parseResults.size(); ++pr)
+        {
+            if (counters.parseResults[pr])
+            {
+                auto name = get_parse_result_name(static_cast<const readout_parser::ParseResult>(pr));
+
+                cout << fmt::format("parseResult={}, count={}",
+                                    name, counters.parseResults[pr])
+                    << endl;
+            }
+        }
+
+        cout << "parserExceptions=" << counters.parserExceptions << endl;
+
+        cout << endl << "eventHits: ";
+        for (const auto &kv: eventHits)
+            cout << fmt::format("ei={}, hits={}, ", kv.first, kv.second);
+        cout << endl;
+
+        cout << "moduleDynamicHits: ";
+        for (const auto &kv: moduleDynamicHits)
+        {
+            cout << fmt::format("ei={}, mi={}, hits={}, ",
+                                kv.first.first, kv.first.second, kv.second);
+        }
+        cout << endl;
+    }
 
     return 0;
 }

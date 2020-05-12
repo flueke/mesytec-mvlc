@@ -455,8 +455,6 @@ ParseResult parse_readout_contents(
                 if (!is_eth && try_handle_system_event(state, callbacks, input))
                     continue;
 
-                // XXX: leftoff
-
                 if (is_event_in_progress(state))
                 {
                     // Leave the frame header in the buffer for now. In case of an
@@ -608,11 +606,20 @@ ParseResult parse_readout_contents(
 
                             if (!state.curBlockFrame)
                             {
+                                bool aboutToThrow = false;
                                 if (input.empty())
+                                {
+                                    aboutToThrow = true;
+                                    return ParseResult::Ok;
                                     throw end_of_buffer("next module dynamic block frame header");
+                                }
+
+                                (void) aboutToThrow;
 
                                 // Peek the potential block frame header
                                 state.curBlockFrame = { input[0] };
+
+                                LOG_TRACE("state.curBlockFrame.header=0x%x", state.curBlockFrame.header);
 
                                 if (state.curBlockFrame.info().type != frame_headers::BlockRead)
                                 {
@@ -887,6 +894,8 @@ ParseResult parse_readout_buffer_eth(
     }
 
     basic_string_view<u32> input(buffer, bufferWords);
+    auto originalInputView = input;
+    std::vector<basic_string_view<u32>> packetViews;
 
     try
     {
@@ -948,6 +957,7 @@ ParseResult parse_readout_buffer_eth(
             state.lastPacketNumber = ethHdrs.packetNumber();
 
             basic_string_view<u32> packetInput(input.data(), packetWords);
+            packetViews.push_back(packetInput);
 
             ParseResult pr = {};
             bool exceptionSeen = false;
@@ -958,7 +968,56 @@ ParseResult parse_readout_buffer_eth(
             }
             catch (...)
             {
+                // skip over the current packet (it has already been added to packetViews)
+                input.remove_prefix(packetWords);
                 exceptionSeen = true;
+
+                auto errorPacketNumber = ethHdrs.packetNumber();
+
+                cout << fmt::format("begin parsed packet view for buffer#{} until exception:", bufferNumber) << endl;
+                for (const auto &pv: packetViews)
+                {
+                    eth::PayloadHeaderInfo ethHdrs{ pv[0], pv[1] };
+
+                    auto logHeader = fmt::format("  packet {}, dataWords={}, packetView.size()={}",
+                                                 ethHdrs.packetNumber(), ethHdrs.dataWordCount(), pv.size());
+
+                    if (ethHdrs.packetNumber() == errorPacketNumber)
+                        logHeader = "!!! " + logHeader;
+
+                    util::log_buffer(cout, pv, logHeader);
+                }
+                cout << fmt::format("end parsed packet view for buffer#{}", bufferNumber) << endl;
+
+                cout << fmt::format("begin unparsed contents of buffer#{}", bufferNumber) << endl;
+                while (!input.empty())
+                {
+                    u32 header0 = input[0];
+
+                    if (get_frame_type(header0) == frame_headers::SystemEvent)
+                    {
+                        auto len = extract_frame_info(header0).len;
+                        cout << fmt::format("skipping over system event of size {}", len) << endl;
+                        input.remove_prefix(len + 1);
+                    }
+                    else if (input.size() >= eth::HeaderWords)
+                    {
+                        eth::PayloadHeaderInfo ethHdrs{ input[0], input[1] };
+                        size_t packetWords = eth::HeaderWords + ethHdrs.dataWordCount();
+
+                        if (input.size() < packetWords)
+                            std::terminate();
+
+                        auto logHeader = fmt::format("  unparsed packet {}, dataWords={}",
+                                                     ethHdrs.packetNumber(), ethHdrs.dataWordCount());
+                        basic_string_view<u32> pv(input.data(), packetWords);
+                        util::log_buffer(cout, pv, logHeader);
+                        input.remove_prefix(packetWords);
+                    }
+                }
+                cout << fmt::format("end unparsed contents of buffer#{}", bufferNumber) << endl;
+
+                std::terminate();
             }
 
             // Either an error or an exception from parse_eth_packet. Clear the
