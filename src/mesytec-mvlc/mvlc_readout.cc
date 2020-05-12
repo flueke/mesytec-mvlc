@@ -108,17 +108,6 @@ ReadoutInitResults MESYTEC_MVLC_EXPORT init_readout(
         }
     }
 
-    // Both readout stacks and the trigger io system are setup. Now activate the triggers.
-    {
-        ret.ec = setup_readout_triggers(mvlc, crateConfig.triggers);
-
-        if (ret.ec)
-        {
-            cerr << "Error setting up readout triggers: " << ret.ec.message() << endl;
-            return ret;
-        }
-    }
-
     return ret;
 }
 
@@ -213,7 +202,6 @@ void MESYTEC_MVLC_EXPORT listfile_buffer_writer(
 
     cerr << "listfile_writer left write loop, writes=" << writes << ", bytesWritten=" << bytesWritten << endl;
 }
-
 
 void stack_error_notification_poller(
     MVLC mvlc,
@@ -464,104 +452,108 @@ void ReadoutWorker::Private::loop(std::promise<std::error_code> promise)
     }
     auto tTimestamp = tStart;
 
-    // No errors and we're about to enter the readout loop -> set the value of
-    // the start() promise.
-    promise.set_value({});
+    // Enable MVLC trigger processing.
+    std::error_code ec = setup_readout_triggers(mvlc, stackTriggers);
 
-    std::error_code ec;
+    // Set the promises value thus unblocking anyone waiting for the startup to complete.
+    promise.set_value(ec);
 
-    try
+    if (!ec)
     {
-        while (ec != ErrorType::ConnectionError)
+        try
         {
-            const auto now = std::chrono::steady_clock::now();
-
-            // check if timeToRun has elapsed
+            while (ec != ErrorType::ConnectionError)
             {
-                auto totalElapsed = now - tStart;
+                const auto now = std::chrono::steady_clock::now();
 
-                if (timeToRun.count() != 0 && totalElapsed >= timeToRun)
+                // check if timeToRun has elapsed
                 {
-                    std::cout << "MVLC readout timeToRun reached" << std::endl;
-                    break;
+                    auto totalElapsed = now - tStart;
+
+                    if (timeToRun.count() != 0 && totalElapsed >= timeToRun)
+                    {
+                        std::cout << "MVLC readout timeToRun reached" << std::endl;
+                        break;
+                    }
                 }
-            }
 
-            // check if we need to write a timestamp
-            {
-                auto elapsed = now - tTimestamp;
-
-                if (elapsed >= TimestampInterval)
+                // check if we need to write a timestamp
                 {
+                    auto elapsed = now - tTimestamp;
+
+                    if (elapsed >= TimestampInterval)
+                    {
+                        listfile::BufferWriteHandle wh(*getOutputBuffer());
+                        listfile_write_timestamp_section(wh, system_event::subtype::UnixTimetick);
+                        tTimestamp = now;
+
+                        // Also copy the ListfileWriterCounters into our
+                        // ReadoutWorker::Counters structure.
+                        counters.access()->listfileWriterCounters = writerCounters.access().ref();
+                    }
+                }
+
+                auto state_ = state.access().copy();
+
+                // stay in running state
+                if (likely(state_ == State::Running && desiredState == State::Running))
+                {
+                    size_t bytesTransferred = 0u;
+                    ec = this->readout(bytesTransferred);
+
+                    if (ec == ErrorType::ConnectionError)
+                    {
+                        std::cout << "Lost connection to MVLC, leaving readout loop. Error="
+                            << ec.message() << std::endl;
+                        this->mvlc.disconnect();
+                        break;
+                    }
+                }
+                // pause
+                else if (state_ == State::Running && desiredState == State::Paused)
+                {
+                    terminateReadout();
                     listfile::BufferWriteHandle wh(*getOutputBuffer());
-                    listfile_write_timestamp_section(wh, system_event::subtype::UnixTimetick);
-                    tTimestamp = now;
-
-                    // Also copy the ListfileWriterCounters into our
-                    // ReadoutWorker::Counters structure.
-                    counters.access()->listfileWriterCounters = writerCounters.access().ref();
+                    listfile_write_timestamp_section(wh, system_event::subtype::Pause);
+                    setState(State::Paused);
+                    std::cout << "MVLC readout paused" << std::endl;
                 }
-            }
-
-            auto state_ = state.access().copy();
-
-            // stay in running state
-            if (likely(state_ == State::Running && desiredState == State::Running))
-            {
-                size_t bytesTransferred = 0u;
-                ec = this->readout(bytesTransferred);
-
-                if (ec == ErrorType::ConnectionError)
+                // resume
+                else if (state_ == State::Paused && desiredState == State::Running)
                 {
-                    std::cout << "Lost connection to MVLC, leaving readout loop. Error=" << ec.message() << std::endl;
-                    this->mvlc.disconnect();
+                    if ((ec = setup_readout_triggers(mvlc, stackTriggers)))
+                    {
+                        std::cout << "Error resuming MVLC readout: " << ec.message() << endl;
+                        break;
+                    }
+                    listfile::BufferWriteHandle wh(*getOutputBuffer());
+                    listfile_write_timestamp_section(wh, system_event::subtype::Resume);
+                    setState(State::Running);
+                    std::cout << "MVLC readout paused" << std::endl;
+                }
+                // stop
+                else if (desiredState == State::Stopping)
+                {
+                    std::cout << "MVLC readout requested to stop" << std::endl;
                     break;
                 }
-            }
-            // pause
-            else if (state_ == State::Running && desiredState == State::Paused)
-            {
-                terminateReadout();
-                listfile::BufferWriteHandle wh(*getOutputBuffer());
-                listfile_write_timestamp_section(wh, system_event::subtype::Pause);
-                setState(State::Paused);
-                std::cout << "MVLC readout paused" << std::endl;
-            }
-            // resume
-            else if (state_ == State::Paused && desiredState == State::Running)
-            {
-                if ((ec = setup_readout_triggers(mvlc, stackTriggers)))
+                // paused
+                else if (state_ == State::Paused)
                 {
-                    std::cout << "Error resuming MVLC readout: " << ec.message() << endl;
-                    break;
+                    std::cout << "MVLC readout paused" << std::endl;
+                    constexpr auto PauseSleepDuration = std::chrono::milliseconds(100);
+                    std::this_thread::sleep_for(PauseSleepDuration);
                 }
-                listfile::BufferWriteHandle wh(*getOutputBuffer());
-                listfile_write_timestamp_section(wh, system_event::subtype::Resume);
-                setState(State::Running);
-                std::cout << "MVLC readout paused" << std::endl;
-            }
-            // stop
-            else if (desiredState == State::Stopping)
-            {
-                std::cout << "MVLC readout requested to stop" << std::endl;
-                break;
-            }
-            // paused
-            else if (state_ == State::Paused)
-            {
-                std::cout << "MVLC readout paused" << std::endl;
-                constexpr auto PauseSleepDuration = std::chrono::milliseconds(100);
-                std::this_thread::sleep_for(PauseSleepDuration);
-            }
-            else
-            {
-                assert(!"invalid code path");
+                else
+                {
+                    assert(!"invalid code path");
+                }
             }
         }
-    }
-    catch (...)
-    {
-        counters.access()->eptr = std::current_exception();
+        catch (...)
+        {
+            counters.access()->eptr = std::current_exception();
+        }
     }
 
     // DAQ stop/termination sequence
@@ -704,10 +696,11 @@ inline void fixup_usb_buffer(
         if (view.size() >= sizeof(u32))
         {
             FrameInfo frameInfo = {};
+            u32 frameHeader = 0u;
 
             while (view.size() >= sizeof(u32))
             {
-                u32 frameHeader = *reinterpret_cast<const u32 *>(&view[0]);
+                frameHeader = *reinterpret_cast<const u32 *>(&view[0]);
                 // Can peek and check the next frame header
                 frameInfo = extract_frame_info(frameHeader);
 
@@ -736,6 +729,8 @@ inline void fixup_usb_buffer(
 
             if (!is_valid_readout_frame(frameInfo))
             {
+                cout << fmt::format("non valid readout frame: frameHeader=0x{:08x}", frameHeader) << endl;
+
                 // The above loop was not able to find a valid readout frame.
                 // Go to the top of the outer loop and let that handle any
                 // possible leftover bytes on the next iteration.
@@ -756,7 +751,11 @@ inline void fixup_usb_buffer(
                 return;
             }
 
-            ++counters.access()->stackHits[frameInfo.stack];
+            if (frameInfo.type == frame_headers::StackFrame
+                || frameInfo.type == frame_headers::StackContinuation)
+            {
+                ++counters.access()->stackHits[frameInfo.stack];
+            }
 
             // Skip over the frameHeader and the frame contents.
             view.remove_prefix((frameInfo.len + 1) * sizeof(u32));
@@ -920,7 +919,7 @@ std::error_code ReadoutWorker::Private::readout_eth(
                     cout << fmt::format("frameHeader=0x{:08x}", frameHeader) << endl;
                     cout << "availablePayloadWords=" << result.availablePayloadWords() << endl;
                     //log_buffer(cout, result.payloadBegin(), result.availablePayloadWords(), "packet");
-                    throw 44;
+                    throw 44; // FIXME: remove this before release
                 }
             }
 
@@ -932,7 +931,7 @@ std::error_code ReadoutWorker::Private::readout_eth(
             // happen, the MVLC never generates packets with residual bytes.
             if (unlikely(result.leftoverBytes()))
             {
-                std::cout << "Oi! There's residue here!" << std::endl; // TODO: log a warning instead of using cout
+                //std::cout << "Oi! There's residue here!" << std::endl; // TODO: log a warning instead of using cout
                 destBuffer->setUsed(destBuffer->used() - result.leftoverBytes());
             }
 
@@ -950,6 +949,14 @@ std::error_code ReadoutWorker::Private::readout_eth(
         auto c = counters.access();
 
         c->ethStats = mvlcETH->getPipeStats();
+
+        if (c->ethStats[DataPipe].lostPackets > 0)
+        {
+            cout << fmt::format(
+                "buffer#{}, lostPackets={}",
+                destBuffer->bufferNumber(),
+                c->ethStats[DataPipe].lostPackets) << endl;
+        }
 
         // Add the local stackHits to the stackHits array stored in the Counters structure.
 #if 0
