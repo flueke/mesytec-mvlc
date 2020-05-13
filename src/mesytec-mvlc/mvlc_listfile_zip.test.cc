@@ -228,7 +228,7 @@ TEST(mvlc_listfile_zip, CreateWriteRead)
 
 TEST(mvlc_listfile_zip, LZ4Data)
 {
-    std::vector<u8> outData0(Megabytes(50));
+    std::vector<u8> outData0(util::Megabytes(50));
 
     for (size_t i=0; i<outData0.size(); i++)
     {
@@ -259,8 +259,8 @@ TEST(mvlc_listfile_zip, LZ4Data)
 
         auto ReadChunkSizes =
         {
-            static_cast<size_t>(500), Kilobytes(1), Kilobytes(10), Kilobytes(100),
-            static_cast<size_t>(10000u), Megabytes(1), Megabytes(10)
+            static_cast<size_t>(500), util::Kilobytes(1), util::Kilobytes(10), util::Kilobytes(100),
+            static_cast<size_t>(10000u), util::Megabytes(1), util::Megabytes(10)
         };
 
         // Read the data in small chunks to test the decompression + buffering code
