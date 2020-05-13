@@ -206,8 +206,16 @@ int main(int argc, char *argv[])
     auto parserState = readout_parser::make_readout_parser(crateConfig.stacks);
     readout_parser::ReadoutParserCallbacks callbacks;
 
+    struct EventSizeInfo
+    {
+        size_t min = std::numeric_limits<size_t>::max();
+        size_t max = 0u;
+        size_t sum = 0u;
+    };
+
     std::unordered_map<int, size_t> eventHits;
     std::unordered_map<std::pair<int, int>, size_t, PairHash> moduleDynamicHits;
+    std::unordered_map<std::pair<int, int>, EventSizeInfo, PairHash> moduleEventSizes;
 
     callbacks.beginEvent = [&eventHits] (int eventIndex)
     {
@@ -215,11 +223,18 @@ int main(int argc, char *argv[])
         eventHits[eventIndex]++;
     };
 
-    callbacks.moduleDynamic = [&moduleDynamicHits] (int ei, int mi,  const u32 *data, u32 size)
+    callbacks.moduleDynamic = [&moduleDynamicHits, &moduleEventSizes] (int ei, int mi,  const u32 *data, u32 size)
     {
         //cout << "ei=" << ei << ", mi=" << mi << ", data=" << data << ", size=" << size << endl;
         //util::log_buffer(cout, basic_string_view<u32>(data, size));
-        moduleDynamicHits[std::make_pair(ei, mi)]++;
+        auto index = std::make_pair(ei, mi);
+
+        ++moduleDynamicHits[index];
+
+        auto &sizeInfo = moduleEventSizes[index];
+        sizeInfo.min = std::min(sizeInfo.min, static_cast<size_t>(size));
+        sizeInfo.max = std::max(sizeInfo.max, static_cast<size_t>(size));
+        sizeInfo.sum += size;
     };
 
     // Read and fixup a buffer
@@ -316,6 +331,16 @@ int main(int argc, char *argv[])
                                 kv.first.first, kv.first.second, kv.second);
         }
         cout << endl;
+        cout << "module dynamic event sizes: ";
+        for (const auto &kv: moduleEventSizes)
+        {
+            cout << fmt::format("ei={}, mi={}, min={}, max={}, avg={}",
+                                kv.first.first, kv.first.second,
+                                kv.second.min,
+                                kv.second.max,
+                                kv.second.sum / static_cast<double>(moduleDynamicHits[kv.first]))
+                << endl;
+        }
     }
 
     return 0;
