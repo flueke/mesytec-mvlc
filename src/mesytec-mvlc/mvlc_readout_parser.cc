@@ -370,13 +370,6 @@ inline bool try_handle_system_event(
 //
 // The precondition is that the iterator is placed on a frame header. The
 // search is started from there.
-//
-// Postcondition if a result is found is: result == iter.buffp, meaning the
-// iterator is moved forward to the found frame header.
-// Note that the iterator might not advance at all if the very first frame
-// matches wantedFrameType.
-// Also the input sequence may be advanced forward even if an error occurs while searching.
-// TODO: fix this (make a copy of the string_view and only update the input on success)
 inline const u32 *find_stack_frame_header(
     basic_string_view<u32> &input, u8 wantedFrameType)
 {
@@ -894,7 +887,6 @@ ParseResult parse_readout_buffer_eth(
     }
 
     basic_string_view<u32> input(buffer, bufferWords);
-    auto originalInputView = input;
     std::vector<basic_string_view<u32>> packetViews;
 
     try
