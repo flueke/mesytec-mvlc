@@ -468,7 +468,24 @@ ParseResult parse_readout_contents(
                     // The stack frame is ok and can now be extracted from the
                     // buffer.
                     state.curStackFrame = { input[0] };
+                    LOG_TRACE("new curStackFrame: 0x%08x", state.curStackFrame.header);
                     input.remove_prefix(1);
+
+                    if (state.curStackFrame.wordsLeft == 0)
+                    {
+                        // This is case with a StackContinuation header of
+                        // length 0 (e.g. 0xF9010000 for stack 1).
+                        // This implicitly ends the current block frame if any.
+                        // This means even that although the current block
+                        // frame has the continue bit set there's no follow up
+                        // frame present.
+                        // The code below (switch case over the module parts)
+                        // checks the current block frame for the continue bit
+                        // and tries to read the next part if it's set. To
+                        // avoid this the block frame is cleared here.
+                        //cout << "Hello empty stackFrame!" << endl;
+                        state.curBlockFrame = {};
+                    }
                 }
                 else
                 {
@@ -485,7 +502,9 @@ ParseResult parse_readout_contents(
                     if (!nextStackFrame)
                         return ParseResult::NoStackFrameFound;
 
-                    LOG_TRACE("found next StackFrame: @%p 0x%08x", nextStackFrame, *nextStackFrame);
+                    auto stackFrameOffset = nextStackFrame - prevIterPtr;
+                    LOG_TRACE("found next StackFrame: @%p 0x%08x (searchOffset=%lu)",
+                              nextStackFrame, *nextStackFrame, stackFrameOffset);
 
                     state.counters.unusedBytes += (input.data() - prevIterPtr);
 
@@ -597,17 +616,14 @@ ParseResult parse_readout_contents(
                         {
                             assert(moduleParts.hasDynamic);
 
-                            if (!state.curBlockFrame)
+                            if (state.curStackFrame.wordsLeft > 0 && !state.curBlockFrame)
                             {
-                                bool aboutToThrow = false;
                                 if (input.empty())
                                 {
-                                    aboutToThrow = true;
+                                    // Need more data to read in the next block frame header.
                                     return ParseResult::Ok;
-                                    throw end_of_buffer("next module dynamic block frame header");
+                                    //throw end_of_buffer("next module dynamic block frame header");
                                 }
-
-                                (void) aboutToThrow;
 
                                 // Peek the potential block frame header
                                 state.curBlockFrame = { input[0] };
@@ -616,8 +632,23 @@ ParseResult parse_readout_contents(
 
                                 if (state.curBlockFrame.info().type != frame_headers::BlockRead)
                                 {
+#if 0
+                                    auto currentOffset = input.data() - originalInputView.data();
+                                    auto logStartOffset = std::max(currentOffset - 400u, 0l);
+                                    auto logWordCount = std::min(input.size(), 400u + 100lu);
 
-                                    LOG_DEBUG("NotABlockFrame: type=0x%x, frameHeader=0x%08x",
+                                    basic_string_view<u32> logView(
+                                        originalInputView.data() + logStartOffset,
+                                        logWordCount);
+
+                                    util::log_buffer(std::cout, logView, "input around the non block frame header");
+
+                                    //util::log_buffer(std::cout, input, "input (the part that's left to parse)");
+                                    //cout << "offset=" << (input.data() - originalInputView.data()) << endl;
+                                    std::terminate();
+#endif
+
+                                    LOG_WARN("NotABlockFrame: type=0x%x, frameHeader=0x%08x",
                                               state.curBlockFrame.info().type,
                                               state.curBlockFrame.header);
 
@@ -964,6 +995,7 @@ ParseResult parse_readout_buffer_eth(
                 input.remove_prefix(packetWords);
                 exceptionSeen = true;
 
+#if 0
                 auto errorPacketNumber = ethHdrs.packetNumber();
 
                 cout << fmt::format("begin parsed packet view for buffer#{} until exception:", bufferNumber) << endl;
@@ -1010,6 +1042,7 @@ ParseResult parse_readout_buffer_eth(
                 cout << fmt::format("end unparsed contents of buffer#{}", bufferNumber) << endl;
 
                 std::terminate();
+#endif
             }
 
             // Either an error or an exception from parse_eth_packet. Clear the
