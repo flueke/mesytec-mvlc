@@ -6,6 +6,7 @@
 #include <future>
 
 #include "mvlc.h"
+#include "mvlc_eth_interface.h"
 #include "mvlc_impl_eth.h"
 #include "mvlc_listfile.h"
 #include "mvlc_readout_config.h"
@@ -64,9 +65,7 @@ enum class MESYTEC_MVLC_EXPORT ReadoutWorkerError
 {
     NoError,
     ReadoutNotIdle,
-    //ReadoutRunning,
     ReadoutNotRunning,
-    //ReadoutPaused,
     ReadoutNotPaused,
 };
 
@@ -124,9 +123,22 @@ class MESYTEC_MVLC_EXPORT ReadoutWorker
             // buffers the analysis side did not see.
             size_t snoopMissedBuffers;
 
+            // Number of times we did not land on an expected frame header
+            // while following the framing structure. To recover from this case
+            // the readotu data is searched for a new frame header.
             size_t usbFramingErrors;
+
+            // Number of bytes that where moved into temporary storage so that
+            // the current USB readout buffer only contains full frames.
             size_t usbTempMovedBytes;
+
+            // Number of packets received that where shorter than
+            // eth::HeaderBytes.
             size_t ethShortReads;
+
+            // Number of usb/socket reads that timed out. Note that the DAQ
+            // shutdown procedure will always run into at least one timeout
+            // while reading buffered datat from the MVLC.
             size_t readTimeouts;
 
             std::array<size_t, stacks::StackCount> stackHits = {};
@@ -158,6 +170,16 @@ class MESYTEC_MVLC_EXPORT ReadoutWorker
         struct Private;
         std::unique_ptr<Private> d;
 };
+
+using StackHits = std::array<size_t, stacks::StackCount>;
+
+// Follows the outer stack framing starting at
+// PacketReadResult::nextHeaderPointer(). For each header extracts the stack id
+// and increments the corresponding entry in the stackHits array.
+//
+// Returns true if the framing structure is intact and the packet could thus be
+// parsed to the end.
+bool count_stack_hits(const eth::PacketReadResult &prr, StackHits &stackHits);
 
 } // end namespace mvlc
 } // end namespace mesytec

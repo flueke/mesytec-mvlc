@@ -219,8 +219,6 @@ void stack_error_notification_poller(
 
     std::cout << "stack_error_notification_poller entering loop" << std::endl;
 
-    // FIXME: this cannot handle high-rate error notifications as it will only
-    // yield one error buffer per read, then sleep for Default_PollInterval.
     while (!quit)
     {
         //std::cout << "stack_error_notification_poller begin read" << std::endl;
@@ -907,21 +905,7 @@ std::error_code ReadoutWorker::Private::readout_eth(
             }
 
             // Record stack hits in the local counters array.
-            if (result.isNextHeaderPointerValid())
-            {
-                u32 frameHeader = *(result.payloadBegin() + result.nextHeaderPointer());
-                auto ft = get_frame_type(frameHeader);
-
-                if (ft == frame_headers::StackFrame || ft == frame_headers::StackContinuation)
-                    ++stackHits[extract_frame_info(frameHeader).stack];
-                else
-                {
-                    cout << fmt::format("frameHeader=0x{:08x}", frameHeader) << endl;
-                    cout << "availablePayloadWords=" << result.availablePayloadWords() << endl;
-                    //log_buffer(cout, result.payloadBegin(), result.availablePayloadWords(), "packet");
-                    throw 44; // FIXME: remove this before release
-                }
-            }
+            count_stack_hits(result, stackHits);
 
             // A crude way of handling packets with residual bytes at the end. Just
             // subtract the residue from buffer->used which means the residual
@@ -943,34 +927,15 @@ std::error_code ReadoutWorker::Private::readout_eth(
     } // with dataGuard
 
     // Copy the ethernet pipe stats and the stack hits into the Counters
-    // structure. This is thread-safe in the eth implementation and will happen
-    // at most every FlushBufferTimeout milliseconds.
+    // structure. The getPipeStats() access is thread-safe in the eth
+    // implementation.
     {
         auto c = counters.access();
 
         c->ethStats = mvlcETH->getPipeStats();
 
-#if 0
-        if (c->ethStats[DataPipe].lostPackets > 0)
-        {
-            cout << fmt::format(
-                "buffer#{}, lostPackets={}",
-                destBuffer->bufferNumber(),
-                c->ethStats[DataPipe].lostPackets) << endl;
-        }
-#endif
-
-#if 0
-        std::transform(
-            std::begin(stackHits), std::end(stackHits), // range1
-            std::begin(c->stackHits), // beginning of range2
-            std::begin(c->stackHits), // beginning of destination
-            [] (size_t a, size_t b) { return a + b; });
-#else
-        // Add the local stackHits to the stackHits array stored in the Counters structure.
         for (size_t stack=0; stack<stackHits.size(); ++stack)
             c->stackHits[stack] += stackHits[stack];
-#endif
     }
 
     return ec;
@@ -1046,6 +1011,28 @@ std::error_code ReadoutWorker::resume()
 
     d->desiredState = State::Running;
     return {};
+}
+
+bool count_stack_hits(const eth::PacketReadResult &prr, StackHits &stackHits)
+{
+    if (prr.isNextHeaderPointerValid())
+    {
+        const u32 *frameHeaderPointer = prr.payloadBegin() + prr.nextHeaderPointer();
+
+        while (frameHeaderPointer < prr.payloadEnd())
+        {
+            auto fi = extract_frame_info(*frameHeaderPointer);
+
+            if (fi.type == frame_headers::StackFrame || fi.type == frame_headers::StackContinuation)
+                ++stackHits[fi.stack];
+            else
+                return false;
+
+            frameHeaderPointer += fi.len + 1;
+        }
+    }
+
+    return true;
 }
 
 } // end namespace mvlc
