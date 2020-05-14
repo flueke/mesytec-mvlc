@@ -484,6 +484,8 @@ ParseResult parse_readout_contents(
                         // and tries to read the next part if it's set. To
                         // avoid this the block frame is cleared here.
                         //cout << "Hello empty stackFrame!" << endl;
+                        LOG_WARN("got an empty stack frame: 0x%08x",
+                                 state.curStackFrame.header);
                         state.curBlockFrame = {};
                     }
                 }
@@ -497,7 +499,8 @@ ParseResult parse_readout_contents(
                     // parser_begin_event().
                     const u32 *prevIterPtr = input.data();
 
-                    const u32 *nextStackFrame = find_stack_frame_header(input, frame_headers::StackFrame);
+                    const u32 *nextStackFrame = find_stack_frame_header(
+                        input, frame_headers::StackFrame);
 
                     if (!nextStackFrame)
                         return ParseResult::NoStackFrameFound;
@@ -506,7 +509,13 @@ ParseResult parse_readout_contents(
                     LOG_TRACE("found next StackFrame: @%p 0x%08x (searchOffset=%lu)",
                               nextStackFrame, *nextStackFrame, stackFrameOffset);
 
-                    state.counters.unusedBytes += (input.data() - prevIterPtr);
+                    auto unusedBytes = input.data() - prevIterPtr;
+
+                    state.counters.unusedBytes += unusedBytes;
+
+                    if (unusedBytes)
+                        LOG_WARN("skipped  over %lu bytes while searching for the next"
+                                 " stack frame header", unusedBytes);
 
                     if (input.empty())
                         throw end_of_buffer("stack frame header of new event");
@@ -836,6 +845,11 @@ ParseResult parse_eth_packet(
 
         input.remove_prefix(ethHdrs.nextHeaderPointer());
         state.counters.unusedBytes += ethHdrs.nextHeaderPointer() * sizeof(u32);
+
+        if (ethHdrs.nextHeaderPointer() > 0)
+            LOG_WARN("skipped %u words (%lu bytes) of eth packet data to jump to the next header",
+                     ethHdrs.nextHeaderPointer(),
+                     ethHdrs.nextHeaderPointer() * sizeof(u32));
     }
 
     try
@@ -1052,7 +1066,7 @@ ParseResult parse_readout_buffer_eth(
             {
                 parser_clear_event_state(state);
                 ++state.counters.ethPacketsProcessed;
-                state.counters.unusedBytes += packetInput.size() * sizeof(u32);
+                state.counters.unusedBytes += packetWords * sizeof(u32);
 
                 if (exceptionSeen)
                     ++state.counters.parserExceptions;
@@ -1060,6 +1074,9 @@ ParseResult parse_readout_buffer_eth(
                     count_parse_result(state.counters, pr);
 
                 input.remove_prefix(packetWords);
+
+                LOG_WARN("skipping %lu words of eth packet data due to an error result from the parser",
+                         packetWords);
 
                 continue;
             }
@@ -1098,9 +1115,11 @@ ParseResult parse_readout_buffer_eth(
     }
 
     ++state.counters.buffersProcessed;
-    state.counters.unusedBytes += input.size() * sizeof(u32);
+    auto unusedBytes = input.size() * sizeof(u32);
+    state.counters.unusedBytes += unusedBytes;
 
-    LOG_TRACE("end parsing ETH buffer %u, size=%lu bytes", bufferNumber, bufferBytes);
+    LOG_TRACE("end parsing ETH buffer %u, size=%lu bytes, unused bytes=%lu",
+              bufferNumber, bufferBytes, unusedBytes);
 
     return {};
 }

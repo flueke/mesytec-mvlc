@@ -950,6 +950,7 @@ std::error_code ReadoutWorker::Private::readout_eth(
 
         c->ethStats = mvlcETH->getPipeStats();
 
+#if 0
         if (c->ethStats[DataPipe].lostPackets > 0)
         {
             cout << fmt::format(
@@ -957,8 +958,8 @@ std::error_code ReadoutWorker::Private::readout_eth(
                 destBuffer->bufferNumber(),
                 c->ethStats[DataPipe].lostPackets) << endl;
         }
+#endif
 
-        // Add the local stackHits to the stackHits array stored in the Counters structure.
 #if 0
         std::transform(
             std::begin(stackHits), std::end(stackHits), // range1
@@ -966,10 +967,9 @@ std::error_code ReadoutWorker::Private::readout_eth(
             std::begin(c->stackHits), // beginning of destination
             [] (size_t a, size_t b) { return a + b; });
 #else
+        // Add the local stackHits to the stackHits array stored in the Counters structure.
         for (size_t stack=0; stack<stackHits.size(); ++stack)
-        {
             c->stackHits[stack] += stackHits[stack];
-        }
 #endif
     }
 
