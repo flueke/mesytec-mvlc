@@ -666,7 +666,7 @@ size_t ZipReader::readCurrentEntry(u8 *dest, size_t maxSize)
             d->lz4Ctx.compressedView.remove_prefix(compressedSize);
         }
 
-        size_t toCopy = std::min(d->lz4Ctx.decompressedView.size(), maxSize);
+        size_t toCopy = std::min(d->lz4Ctx.decompressedView.size(), maxSize - retval);
         std::memcpy(dest+retval, d->lz4Ctx.decompressedView.data(), toCopy);
         d->lz4Ctx.decompressedView.remove_prefix(toCopy);
         retval += toCopy;
