@@ -509,13 +509,13 @@ ParseResult parse_readout_contents(
                     LOG_TRACE("found next StackFrame: @%p 0x%08x (searchOffset=%lu)",
                               nextStackFrame, *nextStackFrame, stackFrameOffset);
 
-                    auto unusedBytes = input.data() - prevIterPtr;
+                    auto unusedWords = input.data() - prevIterPtr;
 
-                    state.counters.unusedBytes += unusedBytes;
+                    state.counters.unusedBytes += unusedWords * sizeof(u32);
 
-                    if (unusedBytes)
-                        LOG_WARN("skipped  over %lu bytes while searching for the next"
-                                 " stack frame header", unusedBytes);
+                    if (unusedWords)
+                        LOG_WARN("skipped over %lu words while searching for the next"
+                                 " stack frame header", unusedWords);
 
                     if (input.empty())
                         throw end_of_buffer("stack frame header of new event");
