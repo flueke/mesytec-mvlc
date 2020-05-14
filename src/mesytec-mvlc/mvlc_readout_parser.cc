@@ -45,7 +45,7 @@
 #define LOG_LEVEL_TRACE 400
 
 #ifndef MVLC_READOUT_PARSER_LOG_LEVEL
-#define MVLC_READOUT_PARSER_LOG_LEVEL LOG_LEVEL_WARN
+#define MVLC_READOUT_PARSER_LOG_LEVEL LOG_LEVEL_TRACE
 #endif
 
 #define LOG_LEVEL_SETTING MVLC_READOUT_PARSER_LOG_LEVEL
@@ -641,7 +641,7 @@ ParseResult parse_readout_contents(
 
                                 if (state.curBlockFrame.info().type != frame_headers::BlockRead)
                                 {
-#if 0
+#if 1
                                     auto currentOffset = input.data() - originalInputView.data();
                                     auto logStartOffset = std::max(currentOffset - 400u, 0l);
                                     auto logWordCount = std::min(input.size(), 400u + 100lu);
