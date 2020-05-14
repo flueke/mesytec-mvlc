@@ -14,6 +14,7 @@
 #include <mesytec-mvlc/util/string_view.hpp>
 #include <fmt/format.h>
 #include <unordered_set>
+#include "mini_daq_callbacks.h"
 
 using std::cout;
 using std::cerr;
@@ -21,6 +22,7 @@ using std::endl;
 
 using namespace mesytec::mvlc;
 using namespace mesytec::mvlc::listfile;
+using namespace mesytec::mvlc::mini_daq;
 using namespace nonstd;
 
 // Follows the framing structure inside the buffer until a partial frame at the
@@ -203,8 +205,10 @@ int main(int argc, char *argv[])
     u32 nextOutputBufferNumber = 1u;
     destBuffer.setBufferNumber(nextOutputBufferNumber++);
 
+    MiniDAQStats stats = {};
+    auto parserCallbacks = make_mini_daq_callbacks(stats);
+
     auto parserState = readout_parser::make_readout_parser(crateConfig.stacks);
-    readout_parser::ReadoutParserCallbacks callbacks;
 
     struct EventSizeInfo
     {
@@ -213,29 +217,6 @@ int main(int argc, char *argv[])
         size_t sum = 0u;
     };
 
-    std::unordered_map<int, size_t> eventHits;
-    std::unordered_map<std::pair<int, int>, size_t, PairHash> moduleDynamicHits;
-    std::unordered_map<std::pair<int, int>, EventSizeInfo, PairHash> moduleEventSizes;
-
-    callbacks.beginEvent = [&eventHits] (int eventIndex)
-    {
-        //cout << "beginEvent " + std::to_string(eventIndex) << endl;
-        eventHits[eventIndex]++;
-    };
-
-    callbacks.moduleDynamic = [&moduleDynamicHits, &moduleEventSizes] (int ei, int mi,  const u32 *data, u32 size)
-    {
-        //cout << "ei=" << ei << ", mi=" << mi << ", data=" << data << ", size=" << size << endl;
-        //util::log_buffer(cout, basic_string_view<u32>(data, size));
-        auto index = std::make_pair(ei, mi);
-
-        ++moduleDynamicHits[index];
-
-        auto &sizeInfo = moduleEventSizes[index];
-        sizeInfo.min = std::min(sizeInfo.min, static_cast<size_t>(size));
-        sizeInfo.max = std::max(sizeInfo.max, static_cast<size_t>(size));
-        sizeInfo.sum += size;
-    };
 
     // Read and fixup a buffer
     while (true)
@@ -272,7 +253,7 @@ int main(int argc, char *argv[])
         readout_parser::parse_readout_buffer(
             destBuffer.type(),
             parserState,
-            callbacks,
+            parserCallbacks,
             destBuffer.bufferNumber(),
             bufferView.data(),
             bufferView.size());
@@ -319,28 +300,8 @@ int main(int argc, char *argv[])
 
         cout << "parserExceptions=" << counters.parserExceptions << endl;
 
-        cout << endl << "eventHits: ";
-        for (const auto &kv: eventHits)
-            cout << fmt::format("ei={}, hits={}, ", kv.first, kv.second);
-        cout << endl;
+        dump_mini_daq_stats(cout, stats);
 
-        cout << "moduleDynamicHits: ";
-        for (const auto &kv: moduleDynamicHits)
-        {
-            cout << fmt::format("ei={}, mi={}, hits={}, ",
-                                kv.first.first, kv.first.second, kv.second);
-        }
-        cout << endl;
-        cout << "module dynamic event sizes: ";
-        for (const auto &kv: moduleEventSizes)
-        {
-            cout << fmt::format("ei={}, mi={}, min={}, max={}, avg={}",
-                                kv.first.first, kv.first.second,
-                                kv.second.min,
-                                kv.second.max,
-                                kv.second.sum / static_cast<double>(moduleDynamicHits[kv.first]))
-                << endl;
-        }
     }
 
     return 0;

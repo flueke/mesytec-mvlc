@@ -21,6 +21,8 @@
 #include <mesytec-mvlc/util/string_view.hpp>
 #include <fmt/format.h>
 
+#include "mini_daq_callbacks.h"
+
 #ifndef __WIN32
 #include <sys/prctl.h>
 #endif
@@ -31,27 +33,17 @@ using std::endl;
 
 using namespace mesytec::mvlc;
 using namespace mesytec::mvlc::listfile;
+using namespace mesytec::mvlc::mini_daq;
 using namespace nonstd;
 
 void run_readout_parser(
     readout_parser::ReadoutParserState &state,
-    ReadoutBufferQueues &snoopQueues)
+    ReadoutBufferQueues &snoopQueues,
+    readout_parser::ReadoutParserCallbacks &parserCallbacks)
 {
 #ifndef __WIN32
     prctl(PR_SET_NAME,"readout_parser",0,0,0);
 #endif
-
-    readout_parser::ReadoutParserCallbacks callbacks;
-
-    callbacks.beginEvent = [] (int eventIndex)
-    {
-        //cout << "beginEvent " + std::to_string(eventIndex) << endl;
-    };
-
-    callbacks.moduleDynamic = [] (int ei, int mi,  const u32 *data, u32 size)
-    {
-        //cout << "ei=" << ei << ", mi=" << mi << ", data=" << data << ", size=" << size << endl;
-    };
 
     try
     {
@@ -80,7 +72,7 @@ void run_readout_parser(
                 readout_parser::parse_readout_buffer(
                     buffer->type(),
                     state,
-                    callbacks,
+                    parserCallbacks,
                     buffer->bufferNumber(),
                     bufferView.data(),
                     bufferView.size());
@@ -174,9 +166,16 @@ int main(int argc, char *argv[])
     const size_t BufferCount = 10;
     ReadoutBufferQueues snoopQueues(BufferSize, BufferCount);
 
+    MiniDAQStats stats = {};
+    auto parserCallbacks = make_mini_daq_callbacks(stats);
+
     auto parserState = readout_parser::make_readout_parser(crateConfig.stacks);
-    std::thread parserThread;
-    parserThread = std::thread(run_readout_parser, std::ref(parserState), std::ref(snoopQueues));
+
+    auto parserThread = std::thread(
+        run_readout_parser,
+        std::ref(parserState),
+        std::ref(snoopQueues),
+        std::ref(parserCallbacks));
 
     //
     // readout
@@ -184,7 +183,8 @@ int main(int argc, char *argv[])
     ZipCreator zipWriter;
     zipWriter.createArchive("mini-daq.zip");
     listfile::WriteHandle *lfh = nullptr;
-    lfh = zipWriter.createZIPEntry("listfile.mvlclst", 0);
+    //lfh = zipWriter.createZIPEntry("listfile.mvlclst", 1);
+    lfh = zipWriter.createLZ4Entry("listfile.mvlclst", 0);
     listfile::listfile_write_preamble(*lfh, crateConfig);
 
     ReadoutWorker readoutWorker(mvlc, crateConfig.triggers, snoopQueues, lfh);
@@ -380,6 +380,8 @@ int main(int argc, char *argv[])
         }
 
         cout << "parserExceptions=" << counters.parserExceptions << endl;
+
+        dump_mini_daq_stats(cout, stats);
     }
 
     return retval;
