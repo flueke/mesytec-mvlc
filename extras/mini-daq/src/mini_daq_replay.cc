@@ -1,6 +1,5 @@
 #include <regex>
 #include <mesytec-mvlc/mesytec_mvlc.h>
-#include <mesytec-mvlc/mesytec_mvlc.h>
 #include <mesytec-mvlc/mvlc_dialog_util.h>
 #include <mesytec-mvlc/mvlc_eth_interface.h>
 #include <mesytec-mvlc/mvlc_readout.h>

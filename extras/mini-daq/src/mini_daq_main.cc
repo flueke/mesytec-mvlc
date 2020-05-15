@@ -1,4 +1,3 @@
-#include "mesytec-mvlc/mvlc_listfile.h"
 #include <chrono>
 #include <exception>
 #include <iostream>
@@ -10,6 +9,7 @@
 #include <mesytec-mvlc/mesytec_mvlc.h>
 #include <mesytec-mvlc/mvlc_dialog_util.h>
 #include <mesytec-mvlc/mvlc_eth_interface.h>
+#include <mesytec-mvlc/mvlc_listfile.h>
 #include <mesytec-mvlc/mvlc_readout.h>
 #include <mesytec-mvlc/mvlc_readout_parser.h>
 #include <mesytec-mvlc/mvlc_stack_executor.h>

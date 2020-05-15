@@ -36,6 +36,7 @@
 #include "mvlc_listfile.h"
 #include "mvlc_listfile_zip.h"
 #include "mvlc_readout_parser.h"
+#include "mvlc_readout.h"
 #include "vme_constants.h"
 
 #endif /* __MESYTEC_MVLC_H__ */
