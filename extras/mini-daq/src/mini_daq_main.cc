@@ -171,7 +171,9 @@ int main(int argc, char *argv[])
 
     auto parserState = readout_parser::make_readout_parser(crateConfig.stacks);
 
-    auto parserThread = std::thread(
+    std::thread parserThread;
+
+    parserThread = std::thread(
         run_readout_parser,
         std::ref(parserState),
         std::ref(snoopQueues),
@@ -241,7 +243,7 @@ int main(int argc, char *argv[])
         auto counters = readoutWorker.counters();
 
         auto tStart = counters.tStart;
-        // Note: if idle this used the tTerminateStart time point. This means
+        // Note: if idle this uses the tTerminateStart time point. This means
         // the duration from counters.tStart to counters.tTerminateStart is
         // used as the whole duration of the DAQ. This still does not correctly
         // reflect the actual data rate because it does contains the
