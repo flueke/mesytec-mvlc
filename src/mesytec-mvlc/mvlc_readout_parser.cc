@@ -642,9 +642,9 @@ ParseResult parse_readout_contents(
                                 if (state.curBlockFrame.info().type != frame_headers::BlockRead)
                                 {
 #if 1
-                                    auto currentOffset = input.data() - originalInputView.data();
-                                    auto logStartOffset = std::max(currentOffset - 400u, 0l);
-                                    auto logWordCount = std::min(input.size(), 400u + 100lu);
+                                    s64 currentOffset = input.data() - originalInputView.data();
+                                    s64 logStartOffset = std::max(currentOffset - 400, static_cast<s64>(0));
+                                    size_t logWordCount = std::min(input.size(), static_cast<size_t>(400u + 100lu));
 
                                     basic_string_view<u32> logView(
                                         originalInputView.data() + logStartOffset,
