@@ -163,7 +163,7 @@ int main(int argc, char *argv[])
     // readout parser
     //
     const size_t BufferSize = util::Megabytes(1);
-    const size_t BufferCount = 10;
+    const size_t BufferCount = 100;
     ReadoutBufferQueues snoopQueues(BufferSize, BufferCount);
 
     MiniDAQStats stats = {};
@@ -183,9 +183,11 @@ int main(int argc, char *argv[])
     ZipCreator zipWriter;
     zipWriter.createArchive("mini-daq.zip");
     listfile::WriteHandle *lfh = nullptr;
-    //lfh = zipWriter.createZIPEntry("listfile.mvlclst", 1);
+    //lfh = zipWriter.createZIPEntry("listfile.mvlclst", 0);
     lfh = zipWriter.createLZ4Entry("listfile.mvlclst", 0);
-    listfile::listfile_write_preamble(*lfh, crateConfig);
+
+    if (lfh)
+        listfile::listfile_write_preamble(*lfh, crateConfig);
 
     ReadoutWorker readoutWorker(mvlc, crateConfig.triggers, snoopQueues, lfh);
 
