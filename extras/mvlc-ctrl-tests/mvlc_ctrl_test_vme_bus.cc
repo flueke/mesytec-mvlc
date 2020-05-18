@@ -63,8 +63,9 @@ int main(int argc, char *argv[])
 
                 auto address = av.first;
                 auto value = av.second;
+                size_t repetitions = 0u;
 
-                cout << fmt::format("write 0x{:008x} 0x{:008x}", address, value) << endl;
+                cout << fmt::format("write 0x{:008x} 0x{:008x}", address, value) << " ...";
 
                 while (true)
                 {
@@ -73,11 +74,15 @@ int main(int argc, char *argv[])
                     if (ec && ec != ErrorType::VMEError)
                         throw ec;
 
+                    ++repetitions;
+
                     auto elapsed = std::chrono::steady_clock::now() - tStart;
 
-                    if (elapsed >= std::chrono::seconds(1))
+                    if (elapsed >= std::chrono::milliseconds(1000))
                         break;
                 }
+
+                cout << " repeated " << repetitions << " times." << endl;
             }
         }
 #endif
