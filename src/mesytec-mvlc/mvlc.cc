@@ -47,6 +47,11 @@ struct MVLC::Private
     mutable Locks locks;
 };
 
+MVLC::MVLC()
+    : d(nullptr)
+{
+}
+
 MVLC::MVLC(std::unique_ptr<MVLCBasicInterface> &&impl)
     : d(std::make_shared<Private>(std::move(impl)))
 {

@@ -46,6 +46,7 @@ namespace mvlc
 class MESYTEC_MVLC_EXPORT MVLC: public MVLCBasicInterface
 {
     public:
+        explicit MVLC();
         MVLC(std::unique_ptr<MVLCBasicInterface> &&impl);
         ~MVLC() override;
 
