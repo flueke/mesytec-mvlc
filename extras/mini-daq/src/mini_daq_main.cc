@@ -20,6 +20,7 @@
 #include <mesytec-mvlc/util/storage_sizes.h>
 #include <mesytec-mvlc/util/string_view.hpp>
 #include <fmt/format.h>
+#include <lyra/lyra.hpp>
 
 #include "mini_daq_callbacks.h"
 
@@ -58,10 +59,8 @@ void run_readout_parser(
 
             if (buffer && buffer->empty()) // sentinel
                 break;
-
-            //if (!buffer)
-            //    std::this_thread::sleep_for(std::chrono::milliseconds(100));
-            if (!buffer) continue;
+            else if (!buffer)
+                continue;
 
             try
             {
@@ -110,13 +109,73 @@ void run_readout_parser(
 
 int main(int argc, char *argv[])
 {
-    if (argc < 2)
+    // MVLC connection overrides
+    std::string opt_mvlcEthHost;
+    bool opt_mvlcUseFirstUSBDevice = false;
+    int opt_mvlcUSBIndex = -1;
+    std::string opt_mvlcUSBSerial;
+
+    // listfile and run options
+    bool opt_noListfile = false;
+    std::string opt_listfileOut;
+    std::string opt_listfileCompressionType = "zip";
+    int opt_listfileCompressionLevel = 0;
+    std::string opt_crateConfig;
+    unsigned opt_secondsToRun = 10;
+
+    bool opt_showHelp = false;
+
+
+    auto cli
+        = lyra::help(opt_showHelp)
+
+        | lyra::opt(opt_mvlcEthHost, "hostname")
+            ["--mvlc-eth"] ("mvlc ethernet hostname")
+
+        | lyra::opt(opt_mvlcUseFirstUSBDevice)
+            ["--mvlc-usb"] ("connect to the first mvlc usb device")
+
+        | lyra::opt(opt_mvlcUSBIndex, "index")
+            ["--mvlc-usb-index"] ("connect to the mvlc with the given usb device index")
+
+        | lyra::opt(opt_mvlcUSBSerial, "serial")
+            ["--mvlc-usb-serial"] ("connect to the mvlc with the given usb serial number")
+
+        | lyra::opt(opt_noListfile)
+            ["--no-listfile"] ("do not write readout data to a listfile")
+
+        | lyra::opt(opt_listfileOut, "listfileName")
+            ["--listfile"] ("filename of the output listfile")
+
+        | lyra::opt(opt_listfileCompressionType, "type")
+            ["--listfile-compression-type"].choices("zip", "lz4") ("'zip' or 'lz4'")
+
+        | lyra::opt(opt_listfileCompressionLevel, "level")
+            ["--listfile-compression-level"] ("compression level to use (for zip 0 means no compression)")
+
+        | lyra::arg(opt_crateConfig, "crateConfig")
+            ("crate config yaml file").required()
+
+        | lyra::arg(opt_secondsToRun, "secondsToRun")
+            ("duration of the DAQ run in seconds").required()
+
+        ;
+
+    auto cliParseResult = cli.parse({ argc, argv });
+
+    if (!cliParseResult)
     {
-        cerr << "Error: no crate config file specified." << endl;
+        cerr << "Error parsing command line arguments: " << cliParseResult.errorMessage() << endl;
         return 1;
     }
 
-    std::ifstream inConfig(argv[1]);
+    if (opt_showHelp)
+    {
+        cout << cli << endl;
+        return 0;
+    }
+
+    std::ifstream inConfig(opt_crateConfig);
 
     if (!inConfig.is_open())
     {
@@ -124,14 +183,22 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    auto timeToRun = std::chrono::seconds(10);
-
-    if (argc > 2)
-        timeToRun = std::chrono::seconds(std::atol(argv[2]));
+    auto timeToRun = std::chrono::seconds(opt_secondsToRun);
 
     auto crateConfig = crate_config_from_yaml(inConfig);
 
-    auto mvlc = make_mvlc(crateConfig);
+    MVLC mvlc;
+
+    if (!opt_mvlcEthHost.empty())
+        mvlc = make_mvlc_eth(opt_mvlcEthHost);
+    else if (opt_mvlcUseFirstUSBDevice)
+        mvlc = make_mvlc_usb();
+    else if (opt_mvlcUSBIndex >= 0)
+        mvlc = make_mvlc_usb(opt_mvlcUSBIndex);
+    else if (!opt_mvlcUSBSerial.empty())
+        mvlc = make_mvlc_usb(opt_mvlcUSBSerial);
+    else
+        mvlc = make_mvlc(crateConfig);
 
     mvlc.setDisableTriggersOnConnect(true);
 
@@ -183,10 +250,24 @@ int main(int argc, char *argv[])
     // readout
     //
     ZipCreator zipWriter;
-    zipWriter.createArchive("mini-daq.zip");
     listfile::WriteHandle *lfh = nullptr;
-    //lfh = zipWriter.createZIPEntry("listfile.mvlclst", 0);
-    lfh = zipWriter.createLZ4Entry("listfile.mvlclst", 0);
+
+    if (!opt_noListfile)
+    {
+        if (opt_listfileOut.empty())
+            opt_listfileOut = opt_crateConfig + ".zip";
+
+        cout << "Opening listfile " << opt_listfileOut << " for writing." << endl;
+
+        zipWriter.createArchive(opt_listfileOut);
+
+        if (opt_listfileCompressionType == "lz4")
+            lfh = zipWriter.createLZ4Entry("listfile.mvlclst", opt_listfileCompressionLevel);
+        else if (opt_listfileCompressionType == "zip")
+            lfh = zipWriter.createZIPEntry("listfile.mvlclst", opt_listfileCompressionLevel);
+        else
+            return 1;
+    }
 
     if (lfh)
         listfile::listfile_write_preamble(*lfh, crateConfig);
@@ -194,7 +275,6 @@ int main(int argc, char *argv[])
     ReadoutWorker readoutWorker(mvlc, crateConfig.triggers, snoopQueues, lfh);
 
     auto f = readoutWorker.start(timeToRun);
-    cout << "f.get(): " << f.get() << endl;
 
     // wait until readout done
     readoutWorker.waitableState().wait(
@@ -385,7 +465,7 @@ int main(int argc, char *argv[])
 
         cout << "parserExceptions=" << counters.parserExceptions << endl;
 
-        dump_mini_daq_stats(cout, stats);
+        dump_mini_daq_parser_stats(cout, stats);
     }
 
     return retval;
