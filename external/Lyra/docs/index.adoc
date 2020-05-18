@@ -1,0 +1,57 @@
+= Lyra -- CLI C++11 Parsing Library
+:copyright: Copyright 2019-2020 Rene Rivera
+:version-label!:
+:reproducible:
+:nofooter:
+:sectanchors:
+:sectnums:
+:sectnumlevels: 5
+:icons: font
+:source-highlighter: pygments
+:source-language: c++
+:toc: left
+:toclevels: 5
+:caution-caption: ⚑
+:important-caption: ‼
+:note-caption: ℹ
+:tip-caption: ☀
+:warning-caption: ⚠
+:CPP: C++
+:PP: ++
+:P: +
+
+ifdef::backend-html5[]
+++++
+<style>
+include::std.css[]
+#toctitle {
+	padding: 200px 0 0 0;
+	background: url(logo-black-190x.png) no-repeat center;
+	height: 0;
+	overflow: hidden;
+}
+</style>
+++++
+endif::[]
+
+include::../README.adoc[tag=intro]
+
+== License
+
+include::../README.adoc[tag=license]
+
+== Features
+
+include::../README.adoc[tag=features]
+
+== Using
+
+include::../README.adoc[tag=using]
+
+== Documentation
+
+More examples and reference is available in the included xref:lyra.adoc[documentation].
+
+== Origins
+
+This is a fork of the dormant Clara project.
