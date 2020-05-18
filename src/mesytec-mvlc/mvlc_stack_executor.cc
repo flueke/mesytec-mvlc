@@ -134,7 +134,6 @@ Iter parse_stack_frame(
                     assert(state.result.valid());
                     assert(vme_amods::is_block_mode(state.result.cmd.amod));
 
-                    //while (!stackFrame.empty())
                     while (true)
                     {
                         if (state.curBlockFrame.wordsLeft == 0)
@@ -267,7 +266,9 @@ std::vector<Result> parse_response_list(
 }
 
 GroupedStackResults MESYTEC_MVLC_EXPORT parse_stack_exec_response(
-    const StackCommandBuilder &stack, const std::vector<u32> &responseBuffer)
+    const StackCommandBuilder &stack,
+    const std::vector<u32> &responseBuffer,
+    const std::vector<std::error_code> &execErrors)
 {
     auto results = parse_response_list(stack.getCommands(), responseBuffer);
 
@@ -276,6 +277,8 @@ GroupedStackResults MESYTEC_MVLC_EXPORT parse_stack_exec_response(
     auto stackGroups  = stack.getGroups();
     auto itResults = std::begin(results);
     const auto endResults = std::end(results);
+    auto itErrors = execErrors.begin();
+    const auto endErrors = std::end(execErrors);
 
     for (const auto &stackGroup: stackGroups)
     {
@@ -287,133 +290,18 @@ GroupedStackResults MESYTEC_MVLC_EXPORT parse_stack_exec_response(
             if (itResults >= endResults)
                 break;
 
+            if (itErrors < endErrors)
+                itResults->ec = *itErrors;
+
             resultsGroup.results.push_back(*itResults++);
         }
 
         ret.groups.emplace_back(resultsGroup);
+        ++itErrors;
     }
 
     return ret;
 }
-
-#if 0
-std::vector<Result> parse_response(
-    const StackCommandBuilder &stack, const std::vector<u32> &responseBuffer)
-{
-    if (stack.getGroupCount() == 0)
-        return {};
-
-    std::vector<Result> results;
-    auto groups = stack.getGroups();
-    const auto groupsEnd = std::end(groups);
-    auto itGroup = std::begin(groups);
-    auto itCmd = std::begin(itGroup->commands);
-    auto cmdsEnd = std::end(itGroup->commands);
-
-    basic_string_view<const u32> response(responseBuffer.data(), responseBuffer.size());
-
-    if (response.empty())
-        throw std::runtime_error("parse_response: empty response buffer");
-
-
-    // TODO: iterate over 0xF3 StackFrame and 0xF9 StackContinuation frames
-
-    while (!response.empty() && itGroup != groupsEnd)
-    {
-        while (itCmd == cmdsEnd)
-        {
-            if (++itGroup == groupsEnd)
-                break;
-
-            itCmd = std::begin(itGroup->commands);
-            cmdsEnd = std::end(itGroup->commands);
-        }
-
-        if (itCmd == cmdsEnd)
-            break;
-
-        using CT = StackCommand::CommandType;
-
-        Result result(*itCmd);
-
-        switch (itCmd->type)
-        {
-            case CT::StackStart:
-            case CT::StackEnd:
-                break;
-
-            case CT::SoftwareDelay:
-                results.emplace_back(result);
-                break;
-
-            case CT::VMERead:
-                if (!vme_amods::is_block_mode(itCmd->amod))
-                {
-                    u32 value = response[0];
-
-                    if (itCmd->dataWidth == VMEDataWidth::D16)
-                        value &= 0xffffu;
-
-                    result.response = { value };
-                    response.remove_prefix(1);
-                }
-                else
-                {
-                    //u32 header = response[0];
-                    //auto frameInfo = extract_frame_info(header);
-                    auto copy_frame = [] (basic_string_view<const u32> &response, std::vector<u32> &dest, auto header_validator)
-                    {
-                        auto frameInfo = extract_frame_info(response[0]);
-
-                        if (!header_validator(response[0]))
-                            throw std::runtime_error("parse_response: block read response frame header validation failed");
-
-                        if (response.size() < frameInfo.len + 1u)
-                            throw std::runtime_error("parse_response: response too short");
-
-                        response.remove_prefix(1);
-
-                        std::copy(std::begin(response), std::begin(response) + frameInfo.len,
-                                  std::back_inserter(dest));
-
-                        response.remove_prefix(frameInfo.len);
-
-                        return frameInfo;
-                    };
-
-                    // FIXME: is_stack_buffer is one level up. inside here there are 0xF5 BlockRead frames
-                    auto frameInfo = copy_frame(response, result.response, is_stack_buffer);
-
-                    while (frameInfo.flags & frame_flags::Continue)
-                    {
-                        frameInfo = copy_frame(response, result.response, is_stack_buffer_continuation);
-                    }
-                }
-
-                results.emplace_back(result);
-                break;
-
-            case CT::VMEWrite:
-                results.emplace_back(result);
-                break;
-
-            case CT::WriteMarker:
-            case CT::WriteSpecial:
-                result.response = { response[0] };
-                response.remove_prefix(1);
-                results.emplace_back(result);
-                break;
-        }
-
-        ++itCmd;
-    }
-
-    //if (!response.empty())
-    //    throw std::runtime_error("parse_response: unparsed data at end of response buffer");
-
-    return results;
-}
-#endif
 
 } // end namespace mvlc
 } // end namespace mesytec

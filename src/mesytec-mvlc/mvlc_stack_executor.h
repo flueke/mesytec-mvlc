@@ -19,6 +19,12 @@
 #include "util/string_view.hpp"
 #include "vme_constants.h"
 
+/* Utilities for direct command stack execution.
+ *
+ * execute_commands() and execute_stack() can make optimal use of the available
+ * stack memory to execute an unlimited number of VME commands.
+ */
+
 namespace mesytec
 {
 namespace mvlc
@@ -26,10 +32,10 @@ namespace mvlc
 
 using namespace nonstd;
 
-struct Result
+struct MESYTEC_MVLC_EXPORT Result
 {
     StackCommand cmd;
-    std::error_code ec; // FIXME: error_code is not properly set by the parser right now
+    std::error_code ec;
     std::vector<u32> response;
     bool isValid = false;
 
@@ -49,14 +55,47 @@ struct Result
     bool valid() const { return isValid; }
 };
 
-struct CommandExecOptions
+struct MESYTEC_MVLC_EXPORT GroupedStackResults
 {
-    bool ignoreDelays = false;
-    bool noBatching  = false;
-    bool contineOnVMEError = false;
+    struct Group
+    {
+        std::string name;
+        std::vector<Result> results;
+    };
+
+    std::vector<Group> groups;
 };
 
-//using AbortPredicate = std::function<bool (const std::error_code &ec)>;
+inline std::error_code get_first_error(const GroupedStackResults &groupResults)
+{
+    for (const auto &group: groupResults.groups)
+    {
+        for (const auto &result: group.results)
+            if (result.ec)
+                return result.ec;
+    }
+
+    return {};
+}
+
+inline bool has_error(const GroupedStackResults &groupResults)
+{
+    return !get_first_error(groupResults);
+}
+
+struct CommandExecOptions
+{
+    // Set to true to ignore any SoftwareDelay commands.
+    bool ignoreDelays = false;
+
+    // Set to true to disable the command batching logic. Commands will be run
+    // one at a time.
+    bool noBatching  = false;
+
+    // If disabled command execution will be aborted when a VME bus error is
+    // encountered.
+    bool continueOnVMEError = false;
+};
 
 namespace detail
 {
@@ -71,14 +110,6 @@ template<typename DIALOG_API>
 
     return mvlc.execImmediateStack(0, responseDest);
 }
-
-//template<typename DIALOG_API>
-//    std::error_code stack_transaction(
-//        DIALOG_API &mvlc, const StackCommandBuilder &stack,
-//        std::vector<u32> &responseDest)
-//{
-//    return stack_transaction(mvlc, stack.getCommands(), responseDest);
-//}
 
 inline bool is_sw_delay (const StackCommand &cmd)
 {
@@ -104,6 +135,8 @@ std::error_code run_part(
     {
         if (!options.ignoreDelays)
         {
+            assert(part.size() == 1);
+
             std::cout << "run_part: delaying for " << part[0].value << " ms" << std::endl;
             std::chrono::milliseconds delay(part[0].value);
             std::this_thread::sleep_for(delay);
@@ -117,15 +150,26 @@ std::error_code run_part(
     return stack_transaction(mvlc, part, responseDest);
 }
 
+/* Uploads and executes each of the stack command parts.
+ *
+ * This function assumes that each of the parts is small enough to not overflow
+ * the reserved stack memory area (or the whole stack memory if it is
+ * available). Use detail::split_commands() which performs the proper stack command
+ * splitting.
+ *
+ * Returns a list of error codes, one for each part. Note that the return value
+ * can be smaller that the number of parts if options.continueOnVMEError is
+ * false.
+ */
 template<typename DIALOG_API>
-std::error_code run_parts(
+std::vector<std::error_code> run_parts(
     DIALOG_API &mvlc,
     const std::vector<std::vector<StackCommand>> &parts,
     const CommandExecOptions &options,
-    //AbortPredicate abortPredicate,
     std::vector<u32> &combinedResponses)
 {
-    std::error_code ret;
+    std::vector<std::error_code> ret;
+    ret.reserve(parts.size());
     std::vector<u32> responseBuffer;
 
     for (const auto &part: parts)
@@ -135,66 +179,29 @@ std::error_code run_parts(
         std::copy(std::begin(responseBuffer), std::end(responseBuffer),
                   std::back_inserter(combinedResponses));
 
-        if (ec && !ret)
-            ret = ec;
+        ret.push_back(ec);
 
-        //if (abortPredicate && abortPredicate(ec))
-        //    break;
+        if (!options.continueOnVMEError && ec && ec == ErrorType::VMEError)
+            break;
     }
 
     return ret;
 }
 
-#if 0
-struct ParsedResponse
+template<typename Out>
+Out &output_hex_value(Out &out, u32 value)
 {
-    std::error_code ec;
-    std::vector<Result> results;
-};
+    out << "0x" << std::hex << std::setw(8) << std::setfill('0')
+        << value
+        << std::dec << std::setw(0) << std::setfill(' ');
 
-template<typename DIALOG_API>
-    ParsedResponse execute_commands(
-        DIALOG_API &mvlc, const std::vector<StackCommand> &commands)
-{
-    ParsedResponse pr;
-    std::vector<u32> responseBuffer;
-
-    pr.ec = stack_transaction(mvlc, commands, responseBuffer);
-
-    if (pr.ec && pr.ec != ErrorType::VMEError)
-        return pr;
-
-    basic_string_view<u32> response(responseBuffer.data(), responseBuffer.size());
-
-    for (const auto &cmd: commands)
-    {
-        using CT = StackCommand::CommandType;
-
-        Result result(cmd);
-
-        switch (cmd.type)
-        {
-            case CT::StackStart:
-            case CT::StackEnd:
-            case CT::SoftwareDelay:
-                break;
-
-            case CT::VMERead:
-            case CT::VMEWrite:
-            case CT::WriteSpecial:
-            case CT::WriteMarker:
-                break;
-        }
-    }
-
-    return pr;
+    return out;
 }
-#endif
 
 } // end namespace detail
 
 template<typename DIALOG_API>
-std::error_code execute_commands(
+std::vector<std::error_code> execute_commands(
     DIALOG_API &mvlc,
     const std::vector<StackCommand> &commands,
     u16 immediateStackMaxSize,
@@ -212,7 +219,7 @@ std::error_code execute_commands(
 }
 
 template<typename DIALOG_API>
-std::error_code execute_stack(
+std::vector<std::error_code> execute_stack(
     DIALOG_API &mvlc,
     const StackCommandBuilder &stack,
     u16 immediateStackMaxSize,
@@ -225,29 +232,10 @@ std::error_code execute_stack(
 std::vector<Result> MESYTEC_MVLC_EXPORT parse_response_list(
     const std::vector<StackCommand> &commands, const std::vector<u32> &responseBuffer);
 
-struct MESYTEC_MVLC_EXPORT GroupedStackResults
-{
-    struct Group
-    {
-        std::string name;
-        std::vector<Result> results;
-    };
-
-    std::vector<Group> groups;
-};
-
 GroupedStackResults MESYTEC_MVLC_EXPORT parse_stack_exec_response(
-    const StackCommandBuilder &stack, const std::vector<u32> &responseBuffer);
-
-template<typename Out>
-Out &output_hex_value(Out &out, u32 value)
-{
-    out << "0x" << std::hex << std::setw(8) << std::setfill('0')
-        << value
-        << std::dec << std::setw(0) << std::setfill(' ');
-
-    return out;
-}
+    const StackCommandBuilder &stack,
+    const std::vector<u32> &responseBuffer,
+    const std::vector<std::error_code> &execErrors);
 
 template<typename Out>
 Out &operator<<(Out &out, const GroupedStackResults &groupedResults)
@@ -262,14 +250,14 @@ Out &operator<<(Out &out, const GroupedStackResults &groupedResults)
 
             if (result.ec)
             {
-                out << "Error: " << result.ec.message();
+                out << "Error: " << result.ec.message() << std::endl;
             }
             else if (result.cmd.type == StackCommand::CommandType::VMERead)
             {
                 if (!vme_amods::is_block_mode(result.cmd.amod)
                     && !result.response.empty())
                 {
-                    output_hex_value(out, result.response[0]) << std::endl;
+                    detail::output_hex_value(out, result.response[0]) << std::endl;
                 }
                 else
                 {
@@ -278,7 +266,7 @@ Out &operator<<(Out &out, const GroupedStackResults &groupedResults)
                     for (const u32 value: result.response)
                     {
                         out << "    ";
-                        output_hex_value(out, value) << std::endl;
+                        detail::output_hex_value(out, value) << std::endl;
                     }
                 }
             }
