@@ -61,17 +61,16 @@ ReadoutInitResults MESYTEC_MVLC_EXPORT init_readout(
     {
         std::vector<u32> response;
 
-        ret.ec = execute_stack(
+        auto errors = execute_stack(
             mvlc, crateConfig.initCommands,
             stacks::StackMemoryWords, stackExecOptions,
             response);
 
-        ret.init = parse_stack_exec_response(
-            crateConfig.initCommands, response);
+        ret.init = parse_stack_exec_response(crateConfig.initCommands, response, errors);
 
-        if (ret.ec)
+        if (auto ec = get_first_error(ret.init))
         {
-            cerr << "Error running init_commands: " << ret.ec.message() << endl;
+            cerr << "Error running init_commands: " << ec.message() << endl;
             return ret;
         }
     }
@@ -93,15 +92,14 @@ ReadoutInitResults MESYTEC_MVLC_EXPORT init_readout(
     {
         std::vector<u32> response;
 
-        ret.ec = execute_stack(
+        auto errors = execute_stack(
             mvlc, crateConfig.initTriggerIO,
             stacks::ImmediateStackReservedWords, stackExecOptions,
             response);
 
-        ret.triggerIO = parse_stack_exec_response(
-            crateConfig.initTriggerIO, response);
+        ret.triggerIO = parse_stack_exec_response(crateConfig.initTriggerIO, response, errors);
 
-        if (ret.ec)
+        if (auto ec = get_first_error(ret.triggerIO))
         {
             cerr << "Error running init_trigger_io: " << ret.ec.message() << endl;
             return ret;

@@ -1,6 +1,12 @@
 #include "gtest/gtest.h"
-#include <mesytec-mvlc/mvlc_factory.h>
+#include <mesytec-mvlc/mesytec-mvlc.h>
 #include <fmt/format.h>
+#include <iostream>
+
+using namespace mesytec::mvlc;
+using std::cout;
+using std::endl;
+
 
 MVLC make_testing_mvlc()
 {
@@ -10,8 +16,6 @@ MVLC make_testing_mvlc()
 
 TEST(mvlc_stack_executor, MVLCTestTransactions)
 {
-    using namespace detail;
-
     //try
     {
         auto mvlc = make_testing_mvlc();
@@ -56,7 +60,7 @@ TEST(mvlc_stack_executor, MVLCTestTransactions)
             stack.addVMERead(vmeBase + 0x600E, vme_amods::A32, VMEDataWidth::D16);
 
             auto commands = stack.getCommands();
-            auto parts = split_commands(commands, {}, stacks::StackMemoryWords);
+            auto parts = detail::split_commands(commands, {}, stacks::StackMemoryWords);
 
             cout << "split_commands returned " << parts.size() << " parts:" << endl;
 
@@ -70,7 +74,7 @@ TEST(mvlc_stack_executor, MVLCTestTransactions)
 
             for (const auto &part: parts)
             {
-                if (auto ec = stack_transaction(mvlc, part, response))
+                if (auto ec = detail::stack_transaction(mvlc, part, response))
                 {
                     if (ec)
                     {
@@ -105,7 +109,7 @@ TEST(mvlc_stack_executor, MVLCTestTransactions)
                         ASSERT_TRUE(endResponse - itResponse >= frameInfo.len + 1u);
                     }
 
-                    //log_buffer(cout, response);
+                    //util::log_buffer(cout, response);
                 }
             }
         }
@@ -177,11 +181,12 @@ TEST(mvlc_stack_executor, MVLCTestExecParseWrites)
             //std::function<bool (const std::error_code &ec)> abortPredicate = is_connection_error;
 
             std::vector<u32> response;
-            auto ec = execute_stack(mvlc, stack, stacks::StackMemoryWords, options, /* abortPredicate, */ response);
-            //log_buffer(cout, response, "mtdc init response");
+            auto errors = execute_stack(mvlc, stack, stacks::StackMemoryWords, options, response);
+            //util::log_buffer(cout, response, "mtdc init response");
 
-            if (ec)
-                throw ec;
+            for (const auto &ec: errors)
+                if (ec)
+                    throw ec;
 
             const auto commands = stack.getCommands();
 
@@ -198,7 +203,7 @@ TEST(mvlc_stack_executor, MVLCTestExecParseWrites)
             //cout << "parsedResults.size()=" << parsedResults.size() << endl;
             //for (const auto &result: parsedResults)
             //{
-            //    log_buffer(cout, result.response, to_string(result.cmd));
+            //    util::log_buffer(cout, result.response, to_string(result.cmd));
             //}
         }
     }
@@ -262,17 +267,18 @@ TEST(mvlc_stack_executor, MVLCTestExecParseReads)
             for (int i=0; i<1; i++)
             {
                 response.clear();
-                auto ec = execute_stack(mvlc, stack, stacks::StackMemoryWords, options, /* abortPredicate, */ response);
+                auto errors = execute_stack(mvlc, stack, stacks::StackMemoryWords, options, response);
 
-                if (ec)
-                    throw ec;
+                for (const auto &ec: errors)
+                    if (ec)
+                        throw ec;
 
                 size_t size = response.size();
                 szMin = std::min(szMin, size);
                 szMax = std::max(szMax, size);
                 szSum += size;
                 ++iterations;
-                log_buffer(cout, response, "mtdc readout_test response");
+                util::log_buffer(cout, response, "mtdc readout_test response");
                 cout << "response.size() = " << response.size() << std::endl;
 
                 const auto commands = stack.getCommands();
@@ -373,17 +379,18 @@ TEST(mvlc_stack_executor, MVLCTestExecParseBlockRead)
             for (int i=0; i<1; i++)
             {
                 response.clear();
-                auto ec = execute_stack(mvlc, stack, stacks::StackMemoryWords, options, /* abortPredicate, */ response);
+                auto errors = execute_stack(mvlc, stack, stacks::StackMemoryWords, options, response);
 
-                if (ec)
-                    throw ec;
+                for (const auto &ec: errors)
+                    if (ec)
+                        throw ec;
 
                 size_t size = response.size();
                 szMin = std::min(szMin, size);
                 szMax = std::max(szMax, size);
                 szSum += size;
                 ++iterations;
-                //log_buffer(cout, response, "mtdc readout_test response");
+                //util::log_buffer(cout, response, "mtdc readout_test response");
                 cout << "response.size() = " << response.size() << std::endl;
 
                 const auto commands = stack.getCommands();
@@ -400,7 +407,7 @@ TEST(mvlc_stack_executor, MVLCTestExecParseBlockRead)
                     {
                         //ASSERT_TRUE(parsedResults[i].response.size() >= 1);
 
-                        //log_buffer(cout, parsedResults[i].response,
+                        //util::log_buffer(cout, parsedResults[i].response,
                         //           "response of '" + to_string(parsedResults[i].cmd) + "'");
                     }
                     else
@@ -482,21 +489,27 @@ TEST(mvlc_stack_executor, MVLCTestParseStackGroups)
             stack.beginGroup("group3");
             stack.addVMEWrite(mcst + 0x6034, 1, amod, dw); // readout reset
 
+            ASSERT_EQ(stack.getGroupCount(), 4u);
+
             struct CommandExecOptions options;
             options.ignoreDelays = false;
             options.noBatching = false;
+            options.continueOnVMEError = true;
 
             std::vector<u32> response;
 
-            auto ec = execute_stack(mvlc, stack, stacks::StackMemoryWords, options, response);
+            auto errors = execute_stack(mvlc, stack, stacks::StackMemoryWords, options, response);
 
-            if (ec && ec != ErrorType::VMEError)
+            for (const auto &ec: errors)
             {
-                cout << "Error from execute_stack: " << ec.message() << endl;
-                throw ec;
+                if (ec && ec != ErrorType::VMEError)
+                {
+                    cout << "Error from execute_stack: " << ec.message() << endl;
+                    throw ec;
+                }
             }
 
-            auto groupedResults = parse_stack_exec_response(stack, response);
+            auto groupedResults = parse_stack_exec_response(stack, response, errors);
 
             ASSERT_EQ(groupedResults.groups.size(), stack.getGroupCount());
 

@@ -1,18 +1,10 @@
 #include <regex>
-#include <mesytec-mvlc/mesytec_mvlc.h>
-#include <mesytec-mvlc/mvlc_dialog_util.h>
-#include <mesytec-mvlc/mvlc_eth_interface.h>
-#include <mesytec-mvlc/mvlc_readout.h>
-#include <mesytec-mvlc/mvlc_readout_parser.h>
-#include <mesytec-mvlc/mvlc_stack_executor.h>
-#include <mesytec-mvlc/mvlc_usb_interface.h>
-#include <mesytec-mvlc/util/io_util.h>
-#include <mesytec-mvlc/util/perf.h>
-#include <mesytec-mvlc/util/readout_buffer_queues.h>
-#include <mesytec-mvlc/util/storage_sizes.h>
-#include <mesytec-mvlc/util/string_view.hpp>
-#include <fmt/format.h>
 #include <unordered_set>
+
+#include <fmt/format.h>
+#include <mesytec-mvlc/mesytec-mvlc.h>
+#include <mesytec-mvlc/util/string_view.hpp>
+
 #include "mini_daq_callbacks.h"
 
 using std::cout;
@@ -299,7 +291,7 @@ int main(int argc, char *argv[])
 
         cout << "parserExceptions=" << counters.parserExceptions << endl;
 
-        dump_mini_daq_stats(cout, stats);
+        dump_mini_daq_parser_stats(cout, stats);
 
     }
 
