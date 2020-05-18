@@ -60,7 +60,7 @@ readout_parser::ReadoutParserCallbacks make_mini_daq_callbacks(MiniDAQStats &sta
     return callbacks;
 }
 
-std::ostream &dump_mini_daq_stats(std::ostream &out, const MiniDAQStats &stats)
+std::ostream &dump_mini_daq_parser_stats(std::ostream &out, const MiniDAQStats &stats)
 {
     auto dump_hits_and_sizes = [&out] (
         const std::string &partTitle,

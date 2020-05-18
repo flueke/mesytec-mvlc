@@ -47,7 +47,7 @@ struct MiniDAQStats
 
 readout_parser::ReadoutParserCallbacks make_mini_daq_callbacks(MiniDAQStats &stats);
 
-std::ostream &dump_mini_daq_stats(std::ostream &out, const MiniDAQStats &stats);
+std::ostream &dump_mini_daq_parser_stats(std::ostream &out, const MiniDAQStats &stats);
 
 } // end namespace mesytec
 } // end namespace mvlc
