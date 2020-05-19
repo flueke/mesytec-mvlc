@@ -46,7 +46,14 @@ namespace mvlc
 class MESYTEC_MVLC_EXPORT MVLC: public MVLCBasicInterface
 {
     public:
+        // Warning: the default constructor creates a MVLC object which is in
+        // an invalid state. Calling most methods will result in a crash
+        // because the internal Private pointer is set to nullptr.
+        // The constructor was added to allow creating an uninitialized MVLC
+        // object and later on copy/move a properly constructed MVLC object
+        // into it.
         explicit MVLC();
+
         MVLC(std::unique_ptr<MVLCBasicInterface> &&impl);
         ~MVLC() override;
 
@@ -109,26 +116,6 @@ class MESYTEC_MVLC_EXPORT MVLC: public MVLCBasicInterface
         {
             return uploadStack(stackOutputPipe, stackMemoryOffset, stack.getCommands(), responseDest);
         }
-
-#if 0
-        inline std::error_code uploadStack(
-            u8 stackOutputPipe,
-            u16 stackMemoryOffset,
-            const std::vector<StackCommand> &commands)
-        {
-            std::vector<u32> responseDest;
-            return uploadStack(stackOutputPipe, stackMemoryOffset, commands, responseDest);
-        }
-
-        inline std::error_code uploadStack(
-            u8 stackOutputPipe,
-            u16 stackMemoryOffset,
-            const StackCommandBuilder &stack)
-        {
-            std::vector<u32> responseDest;
-            return uploadStack(stackOutputPipe, stackMemoryOffset, stack.getCommands(), responseDest);
-        }
-#endif
 
         std::error_code execImmediateStack(
             u16 stackMemoryOffset, std::vector<u32> &responseDest);
