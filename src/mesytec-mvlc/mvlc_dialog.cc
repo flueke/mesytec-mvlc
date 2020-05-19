@@ -377,6 +377,7 @@ std::error_code MVLCDialog::mirrorTransaction(const std::vector<u32> &cmdBuffer,
 std::error_code MVLCDialog::stackTransaction(const std::vector<u32> &stack,
                                              std::vector<u32> &dest)
 {
+    clearStackErrorNotifications();
     //DebugTimer timer;
 
     // upload, read mirror, verify mirror
