@@ -18,8 +18,8 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  */
-#ifndef __MVLC_DIALOG_H__
-#define __MVLC_DIALOG_H__
+#ifndef __MESYTEC_MVLC_MVLC_DIALOG_H__
+#define __MESYTEC_MVLC_MVLC_DIALOG_H__
 
 #include <chrono>
 #include <functional>
@@ -178,4 +178,4 @@ class MESYTEC_MVLC_EXPORT MVLCDialog
 } // end namespace mvlc
 } // end namespace mesytec
 
-#endif /* __MVLC_DIALOG_H__ */
+#endif /* __MESYTEC_MVLC_MVLC_DIALOG_H__ */

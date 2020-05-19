@@ -1,5 +1,5 @@
-#ifndef __MVLC_UTIL_CORE_H__
-#define __MVLC_UTIL_CORE_H__
+#ifndef __MESYTEC_MVLC_MVLC_UTIL_CORE_H__
+#define __MESYTEC_MVLC_MVLC_UTIL_CORE_H__
 
 #include <functional>
 #include "mvlc_constants.h"
@@ -57,4 +57,4 @@ inline bool is_known_frame_header(u32 header)
 } // end namespace mvlc
 } // end namespace mesytec
 
-#endif /* __MVLC_UTIL_CORE_H__ */
+#endif /* __MESYTEC_MVLC_MVLC_UTIL_CORE_H__ */

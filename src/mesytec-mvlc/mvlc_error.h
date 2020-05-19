@@ -1,5 +1,5 @@
-#ifndef __MVLC_ERROR_H__
-#define __MVLC_ERROR_H__
+#ifndef __MESYTEC_MVLC_MVLC_ERROR_H__
+#define __MESYTEC_MVLC_MVLC_ERROR_H__
 
 #include <system_error>
 #include "mesytec-mvlc_export.h"
@@ -116,4 +116,4 @@ inline bool is_timeout(const std::error_code &ec)
 } // end namespace mvlc
 } // end namespace mesytec
 
-#endif /* __MVLC_ERROR_H__ */
+#endif /* __MESYTEC_MVLC_MVLC_ERROR_H__ */

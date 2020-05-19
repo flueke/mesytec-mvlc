@@ -118,4 +118,4 @@ Preamble MESYTEC_MVLC_EXPORT read_preamble(ReadHandle &rh, size_t preambleMaxSiz
 } // end namespace mvlc
 } // end namespace mesytec
 
-#endif /* __MVLC_LISTFILE_H__ */
+#endif /* __MESYTEC_MVLC_MVLC_LISTFILE_H__ */

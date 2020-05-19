@@ -18,8 +18,8 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  */
-#ifndef __MVLC_USB_IMPL_H__
-#define __MVLC_USB_IMPL_H__
+#ifndef __MESYTEC_MVLC_MVLC_USB_IMPL_H__
+#define __MESYTEC_MVLC_MVLC_USB_IMPL_H__
 
 #include <array>
 #include <thread>
@@ -215,4 +215,4 @@ namespace std
 } // end namespace std
 #endif
 
-#endif /* __MVLC_USB_IMPL_H__ */
+#endif /* __MESYTEC_MVLC_MVLC_USB_IMPL_H__ */
