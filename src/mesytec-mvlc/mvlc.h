@@ -63,6 +63,9 @@ class MESYTEC_MVLC_EXPORT MVLC: public MVLCBasicInterface
         MVLC(MVLC &&) = default;
         MVLC &operator=(MVLC &&) = default;
 
+        explicit operator bool() const { return d != nullptr; }
+        bool isValid() const { return static_cast<bool>(*this); }
+
         //
         // MVLCBasicInterface
         //
