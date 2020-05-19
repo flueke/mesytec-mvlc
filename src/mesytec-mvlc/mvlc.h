@@ -128,21 +128,44 @@ class MESYTEC_MVLC_EXPORT MVLC: public MVLCBasicInterface
             return execImmediateStack(0, responseDest);
         }
 
+        // Read a full response buffer into dest. The buffer header is passed
+        // to the validator before attempting to read the rest of the response.
+        // If validation fails no more data is read.
+        // Note: if stack error notification buffers are received they are made
+        // available via getStackErrorNotifications().
         std::error_code readResponse(BufferHeaderValidator bhv, std::vector<u32> &dest);
 
+        // Send the given cmdBuffer to the MVLC, reads and verifies the mirror
+        // response. The buffer must start with CmdBufferStart and end with
+        // CmdBufferEnd, otherwise the MVLC cannot interpret it.
         std::error_code mirrorTransaction(
             const std::vector<u32> &cmdBuffer, std::vector<u32> &responseDest);
 
+        // Sends the given stack data (which must include upload commands),
+        // reads and verifies the mirror response, and executes the stack.
+        // Note: Stack0 is used and offset 0 into stack memory is assumed.
         std::error_code stackTransaction(const std::vector<u32> &stackUploadData,
                                          std::vector<u32> &responseDest);
 
+        // Low level read accepting any of the known buffer types (see
+        // is_known_buffer_header()). Does not do any special handling for
+        // stack error notification buffers as is done in readResponse().
         std::error_code readKnownBuffer(std::vector<u32> &dest);
 
+        // Returns the response buffer containing the contents of the last read
+        // operation from the MVLC.
+        // After mirrorTransaction() the buffer will contain the mirror
+        // response. After stackTransaction() the buffer will contain the
+        // response from executing the stack.
         std::vector<u32> getResponseBuffer() const;
 
         //
         // Stack Error Notifications (Command Pipe)
         //
+
+        // Get the stack error notifications that may have resulted from the
+        // previous stack operation. Performing another stack operation will
+        // clear the internal buffer.
         std::vector<std::vector<u32>> getStackErrorNotifications() const;
         void clearStackErrorNotifications();
         bool hasStackErrorNotifications() const;
@@ -152,6 +175,8 @@ class MESYTEC_MVLC_EXPORT MVLC: public MVLCBasicInterface
         //
 
         MVLCBasicInterface *getImpl();
+
+        // Direct access to the per-pipe locks.
         Locks &getLocks();
 
     private:

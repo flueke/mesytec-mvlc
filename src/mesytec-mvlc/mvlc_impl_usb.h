@@ -22,8 +22,9 @@
 #define __MESYTEC_MVLC_MVLC_USB_IMPL_H__
 
 #include <array>
-#include <thread>
 #include <memory>
+#include <system_error>
+#include <thread>
 #include <vector>
 
 #include "mesytec-mvlc_export.h"
@@ -201,8 +202,6 @@ class MESYTEC_MVLC_EXPORT Impl: public MVLCBasicInterface, public MVLC_USB_Inter
         DeviceInfo m_deviceInfo;
         bool m_disableTriggersOnConnect = false;
 };
-
-//MESYTEC_MVLC_EXPORT std::error_code make_error_code(FT_STATUS st);
 
 } // end namespace usb
 } // end namespace mvlc

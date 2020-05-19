@@ -38,6 +38,7 @@
 #include "mvlc_readout_parser.h"
 #include "mvlc_readout.h"
 #include "mvlc_stack_executor.h"
+#include "mvlc_threading.h"
 #include "util/io_util.h"
 #include "vme_constants.h"
 
