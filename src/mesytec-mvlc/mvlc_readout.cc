@@ -1,3 +1,64 @@
+// =========================
+//    MVLC readout outline
+// =========================
+//
+// * Two different formats depending on connection type (ETH, USB).
+// * Pass only complete frames around. For readout the detection has to be done
+//   anyways so that system frames can be properly inserted.
+// * Do not try to hit exactly 1s between SoftwareTimeticks. This will
+//   complicate the code a lot and is not really needed if some form of timestamp
+//   and/or duration is stored in the timetick event.
+//
+//
+// ETH
+// -------------------------
+// Small packets of 1500 or 8192 bytes. Two header words for packet loss detection
+// and handling (resume processing after loss).
+//
+// - Strategy
+//
+//   1) start with a fresh buffer
+//
+//   2) while free space in buffer > 8k:
+//     read packet and append to buffer
+//     if (flush timeout elapsed)
+//         flush buffer
+//     if (time for timetick)
+//         insert timetick frame
+//
+//   3) flush buffer
+//
+// => Inserting system frames is allowed at any point.
+//
+// - Replay from file:
+//   Read any amount of data from file into memory. If a word is not a system
+//   frame then it must be header0() of a previously received packet. Follow
+//   the header framing via the header0::NumDataWords value. This way either
+//   end up on the next header0() or at the start of a system frame.
+//   If part of a packet is at the end of the buffer read from disk store the part
+//   temporarily and truncate the buffer. Then when doing the next read add the
+//   partial packet to the front of the new buffer.
+//   -> Packet boundaries can be restored and it can be guaranteed that only full
+//   packets worth of data are passed internally.
+//
+//
+// USB
+// -------------------------
+// Stream of data. Reads do not coincide with buffer framing. The exception is the
+// very first read which starts with an 0xF3 frame.
+// To be able to insert system frames (e.g. timeticks) and to make the analysis
+// easier to write, internal buffers must contain complete frames only. To make
+// this work the readout code has to follow the 0xF3 data framing. Extract the
+// length to be able to jump to the next frame start. Store partial data at the
+// end and truncate the buffer before flushing it.
+//
+// - Replay:
+//   Starts with a system or a readout frame. Follow frame structure doing
+//   truncation and copy of partial frames.
+//
+// Note: max amount to copy is the max length of a frame. That's 2^13 words
+// (32k bytes) for readout frames.
+
 #include "mvlc_readout.h"
 #include "mvlc_constants.h"
 #include "mvlc_listfile.h"

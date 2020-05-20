@@ -57,8 +57,6 @@ struct MESYTEC_MVLC_EXPORT PacketChannelStats
 };
 
 }
-
-
 }
 }
 

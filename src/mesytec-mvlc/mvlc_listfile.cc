@@ -3,6 +3,7 @@
 #include <cassert>
 #include <chrono>
 #include <cstring>
+#include <fmt/format.h>
 
 #include "mvlc_constants.h"
 #include "mvlc_util.h"
@@ -42,7 +43,7 @@ std::string system_event_type_to_string(u8 eventType)
             break;
     }
 
-    return "unknown/custom";
+    return fmt::format("unknown/custom (0x{:02x})", eventType);
 }
 
 #if 0
