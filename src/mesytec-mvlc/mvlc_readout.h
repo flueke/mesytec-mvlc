@@ -33,7 +33,7 @@ ReadoutInitResults MESYTEC_MVLC_EXPORT init_readout(
     MVLC &mvlc, const CrateConfig &crateConfig,
     const CommandExecOptions stackExecOptions = {});
 
-struct ListfileWriterCounters
+struct MESYTEC_MVLC_EXPORT ListfileWriterCounters
 {
     using Clock = std::chrono::steady_clock;
 
@@ -69,7 +69,7 @@ enum class MESYTEC_MVLC_EXPORT ReadoutWorkerError
     ReadoutNotPaused,
 };
 
-MESYTEC_MVLC_EXPORT std::error_code make_error_code(ReadoutWorkerError error);
+std::error_code MESYTEC_MVLC_EXPORT make_error_code(ReadoutWorkerError error);
 
 class MESYTEC_MVLC_EXPORT ReadoutWorker
 {
@@ -150,7 +150,7 @@ class MESYTEC_MVLC_EXPORT ReadoutWorker
         };
 
         ReadoutWorker(
-            MVLC &mvlc,
+            MVLC mvlc,
             const std::vector<u32> &stackTriggers,
             ReadoutBufferQueues &snoopQueues,
             listfile::WriteHandle *lfh
@@ -179,7 +179,9 @@ using StackHits = std::array<size_t, stacks::StackCount>;
 //
 // Returns true if the framing structure is intact and the packet could thus be
 // parsed to the end.
-bool count_stack_hits(const eth::PacketReadResult &prr, StackHits &stackHits);
+MESYTEC_MVLC_EXPORT bool count_stack_hits(const eth::PacketReadResult &prr, StackHits &stackHits);
+
+MESYTEC_MVLC_EXPORT const char *readout_worker_state_to_string(const ReadoutWorker::State &state);
 
 } // end namespace mvlc
 } // end namespace mesytec

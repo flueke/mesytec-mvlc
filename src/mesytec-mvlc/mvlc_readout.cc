@@ -437,7 +437,7 @@ struct ReadoutWorker::Private
 constexpr std::chrono::seconds ReadoutWorker::Private::ShutdownReadoutMaxWait;
 
 ReadoutWorker::ReadoutWorker(
-    MVLC &mvlc,
+    MVLC mvlc,
     const std::vector<u32> &stackTriggers,
     ReadoutBufferQueues &snoopQueues,
     listfile::WriteHandle *lfh
@@ -586,7 +586,7 @@ void ReadoutWorker::Private::loop(std::promise<std::error_code> promise)
                     listfile::BufferWriteHandle wh(*getOutputBuffer());
                     listfile_write_timestamp_section(wh, system_event::subtype::Resume);
                     setState(State::Running);
-                    std::cout << "MVLC readout paused" << std::endl;
+                    std::cout << "MVLC readout resumed" << std::endl;
                 }
                 // stop
                 else if (desiredState == State::Stopping)
@@ -597,7 +597,7 @@ void ReadoutWorker::Private::loop(std::promise<std::error_code> promise)
                 // paused
                 else if (state_ == State::Paused)
                 {
-                    std::cout << "MVLC readout paused" << std::endl;
+                    //std::cout << "MVLC readout paused" << std::endl;
                     constexpr auto PauseSleepDuration = std::chrono::milliseconds(100);
                     std::this_thread::sleep_for(PauseSleepDuration);
                 }
@@ -741,6 +741,17 @@ inline bool is_valid_readout_frame(const FrameInfo &frameInfo)
             || frameInfo.type == frame_headers::SystemEvent);
 }
 
+// Ensure that the readBuffer contains only complete frames. In other words: if
+// a frame starts then it should fully fit into the readBuffer. Trailing data
+// is moved to the tempBuffer.
+//
+// Walk through the readBuffer following the frame structure. If a partial
+// frame is found at the end of the buffer move the trailing bytes to the
+// tempBuffer and shrink the readBuffer accordingly.
+//
+// Note that invalid data words (ones that do not pass
+// is_valid_readout_frame()) are just skipped and left in the buffer without
+// modification. This has to be taken into account on the analysis side.
 inline void fixup_usb_buffer(
     ReadoutBuffer &readBuffer,
     ReadoutBuffer &tempBuffer,
@@ -1092,6 +1103,25 @@ bool count_stack_hits(const eth::PacketReadResult &prr, StackHits &stackHits)
     }
 
     return true;
+}
+
+const char *readout_worker_state_to_string(const ReadoutWorker::State &state)
+{
+    switch (state)
+    {
+        case ReadoutWorker::State::Idle:
+            return "Idle";
+        case ReadoutWorker::State::Starting:
+            return "Starting";
+        case ReadoutWorker::State::Running:
+            return "Running";
+        case ReadoutWorker::State::Paused:
+            return "Paused";
+        case ReadoutWorker::State::Stopping:
+            return "Stopping";
+    }
+
+    return "unknown";
 }
 
 } // end namespace mvlc
