@@ -53,12 +53,12 @@ class MESYTEC_MVLC_EXPORT ZipCreator
         ZipEntryWriteHandle *createZIPEntry(const std::string &entryName, int compressLevel);
 
         ZipEntryWriteHandle *createZIPEntry(const std::string &entryName)
-        { return createZIPEntry(entryName, 1); }
+        { return createZIPEntry(entryName, 1); } // 1: "super fast compression", 0: store/no compression
 
         ZipEntryWriteHandle *createLZ4Entry(const std::string &entryName, int compressLevel);
 
         ZipEntryWriteHandle *createLZ4Entry(const std::string &entryName)
-        { return createLZ4Entry(entryName, 0); };
+        { return createLZ4Entry(entryName, 0); }; // 0: lz4 default compression
 
         bool hasOpenEntry() const;
         const ZipEntryInfo &entryInfo() const;
