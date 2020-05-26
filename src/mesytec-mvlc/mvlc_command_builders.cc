@@ -436,6 +436,46 @@ StackCommandBuilder &StackCommandBuilder::addGroup(
     return *this;
 }
 
+StackCommandBuilder &StackCommandBuilder::addGroup(
+    const StackCommandBuilder::Group &group)
+{
+    m_groups.push_back(group);
+
+    return *this;
+}
+
+bool MESYTEC_MVLC_EXPORT produces_output(const StackCommand &cmd)
+{
+    switch (cmd.type)
+    {
+        case StackCommand::CommandType::VMERead:
+        case StackCommand::CommandType::WriteMarker:
+        case StackCommand::CommandType::WriteSpecial:
+            return true;
+
+        default:
+            break;
+    }
+
+    return false;
+}
+
+bool MESYTEC_MVLC_EXPORT produces_output(const StackCommandBuilder::Group &group)
+{
+    return std::any_of(
+        std::begin(group.commands), std::end(group.commands),
+        [] (const auto &cmd) { return produces_output(cmd); });
+}
+
+bool MESYTEC_MVLC_EXPORT produces_output(const StackCommandBuilder &stack)
+{
+    auto groups = stack.getGroups();
+
+    return std::any_of(
+        std::begin(groups), std::end(groups),
+        [] (const auto &group) { return produces_output(group); });
+}
+
 //
 // Conversion to the mvlc buffer format
 //

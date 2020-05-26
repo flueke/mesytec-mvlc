@@ -188,6 +188,7 @@ class MESYTEC_MVLC_EXPORT StackCommandBuilder
         Group getGroup(const std::string &groupName) const;
 
         StackCommandBuilder &addGroup(const std::string &name, const std::vector<StackCommand> &commands);
+        StackCommandBuilder &addGroup(const Group &group);
 
         // Returns a flattened list of the commands of all groups.
         std::vector<StackCommand> getCommands() const;
@@ -207,6 +208,10 @@ class MESYTEC_MVLC_EXPORT StackCommandBuilder
         std::string m_name;
         std::vector<Group> m_groups;
 };
+
+bool MESYTEC_MVLC_EXPORT produces_output(const StackCommand &cmd);
+bool MESYTEC_MVLC_EXPORT produces_output(const StackCommandBuilder::Group &group);
+bool MESYTEC_MVLC_EXPORT produces_output(const StackCommandBuilder &stack);
 
 //
 // Conversion to the mvlc buffer format
