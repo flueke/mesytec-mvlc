@@ -69,7 +69,7 @@ class Protected
 // the object and the mutex a condition_variable is used which allows waiting
 // for the object to be modified.
 // When an WaitableAccess object is destroyed it first unlocks the mutex and
-// then used notify_all() to wake up any thread waiting for the protected
+// then uses notify_all() to wake up any thread waiting for the protected
 // object to be modified.
 
 template<typename T> class WaitableProtected;
