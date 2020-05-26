@@ -48,7 +48,7 @@ template<typename T>
 class Protected
 {
     public:
-        Protected(T &&obj)
+        explicit Protected(T &&obj)
             : m_obj(obj)
         {
         }
@@ -57,6 +57,8 @@ class Protected
         {
             return Access<T>(std::unique_lock<TicketMutex>(m_mutex), m_obj);
         }
+
+        T copy() { return access().copy(); }
 
     private:
         TicketMutex m_mutex;
