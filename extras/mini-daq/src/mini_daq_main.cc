@@ -39,6 +39,7 @@ using namespace nonstd;
 
 void run_readout_parser(
     readout_parser::ReadoutParserState &state,
+    Protected<readout_parser::ReadoutParserCounters> &counters,
     ReadoutBufferQueues &snoopQueues,
     readout_parser::ReadoutParserCallbacks &parserCallbacks)
 {
@@ -72,6 +73,7 @@ void run_readout_parser(
                     buffer->type(),
                     state,
                     parserCallbacks,
+                    counters,
                     buffer->bufferNumber(),
                     bufferView.data(),
                     bufferView.size());
@@ -237,12 +239,14 @@ int main(int argc, char *argv[])
     auto parserCallbacks = make_mini_daq_callbacks(stats);
 
     auto parserState = readout_parser::make_readout_parser(crateConfig.stacks);
+    Protected<readout_parser::ReadoutParserCounters> parserCounters({});
 
     std::thread parserThread;
 
     parserThread = std::thread(
         run_readout_parser,
         std::ref(parserState),
+        std::ref(parserCounters),
         std::ref(snoopQueues),
         std::ref(parserCallbacks));
 
@@ -431,7 +435,7 @@ int main(int argc, char *argv[])
     // parser stats
     //
     {
-        auto counters = parserState.counters;
+        auto counters = parserCounters.copy();
 
         cout << endl;
         cout << "---- readout parser stats ----" << endl;

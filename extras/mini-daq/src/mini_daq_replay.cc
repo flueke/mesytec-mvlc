@@ -200,6 +200,7 @@ int main(int argc, char *argv[])
     auto parserCallbacks = make_mini_daq_callbacks(stats);
 
     auto parserState = readout_parser::make_readout_parser(crateConfig.stacks);
+    Protected<readout_parser::ReadoutParserCounters> parserCounters({});
 
     struct EventSizeInfo
     {
@@ -245,6 +246,7 @@ int main(int argc, char *argv[])
             destBuffer.type(),
             parserState,
             parserCallbacks,
+            parserCounters,
             destBuffer.bufferNumber(),
             bufferView.data(),
             bufferView.size());
@@ -257,7 +259,7 @@ int main(int argc, char *argv[])
     // parser stats
     //
     {
-        auto counters = parserState.counters;
+        auto counters = parserCounters.copy();
 
         cout << endl;
         cout << "---- readout parser stats ----" << endl;
