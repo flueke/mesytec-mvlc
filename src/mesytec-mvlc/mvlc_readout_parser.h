@@ -33,6 +33,7 @@
 #include "mesytec-mvlc_export.h"
 #include "mvlc_command_builders.h"
 #include "mvlc_util.h"
+#include "util/protected.h"
 
 namespace mesytec
 {
@@ -227,8 +228,6 @@ struct MESYTEC_MVLC_EXPORT ReadoutParserState
     // ETH parsing only. The transmitted packet number type is u16. Using an
     // s32 here to represent the "no previous packet" case by storing a -1.
     s32 lastPacketNumber = -1;
-
-    ReadoutParserCounters counters = {};
 };
 
 // Create a readout parser from a list of readout stack defintions.
@@ -247,16 +246,19 @@ MESYTEC_MVLC_EXPORT ParseResult parse_readout_buffer(
     ConnectionType bufferType,
     ReadoutParserState &state,
     ReadoutParserCallbacks &callbacks,
+    Protected<ReadoutParserCounters> &counters,
     u32 bufferNumber, const u32 *buffer, size_t bufferWords);
 
 MESYTEC_MVLC_EXPORT ParseResult parse_readout_buffer_eth(
     ReadoutParserState &state,
     ReadoutParserCallbacks &callbacks,
+    Protected<ReadoutParserCounters> &counters,
     u32 bufferNumber, const u32 *buffer, size_t bufferWords);
 
 MESYTEC_MVLC_EXPORT ParseResult parse_readout_buffer_usb(
     ReadoutParserState &state,
     ReadoutParserCallbacks &callbacks,
+    Protected<ReadoutParserCounters> &counters,
     u32 bufferNumber, const u32 *buffer, size_t bufferWords);
 
 } // end namespace readout_parser
