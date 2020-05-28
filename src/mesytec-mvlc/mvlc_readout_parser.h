@@ -131,6 +131,8 @@ enum class ParseResult
     ParseReadoutContentsNotAdvancing,
     ParseEthBufferNotAdvancing,
     ParseEthPacketNotAdvancing,
+    UnexpectedEndOfBuffer,
+    UnhandledException,
 
     ParseResultMax
 };

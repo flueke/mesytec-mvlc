@@ -192,6 +192,11 @@ const char *get_parse_result_name(const ParseResult &pr)
         case ParseResult::ParseEthPacketNotAdvancing:
             return "ParseEthPacketNotAdvancing";
 
+        case ParseResult::UnexpectedEndOfBuffer:
+            return "UnexpectedEndOfBuffer";
+
+        case ParseResult::UnhandledException:
+            return "UnhandledException";
 
         case ParseResult::ParseResultMax:
             break;
@@ -893,17 +898,30 @@ ParseResult parse_readout_buffer(
 {
     ParseResult result = {};
 
-    switch (bufferType)
+    try
     {
-        case ConnectionType::ETH:
-            result = parse_readout_buffer_eth(
-                state, callbacks, counters, bufferNumber, buffer, bufferWords);
-            break;
+        switch (bufferType)
+        {
+            case ConnectionType::ETH:
+                result = parse_readout_buffer_eth(
+                    state, callbacks, counters, bufferNumber, buffer, bufferWords);
+                break;
 
-        case ConnectionType::USB:
-            result =  parse_readout_buffer_usb(
-                state, callbacks, counters, bufferNumber, buffer, bufferWords);
-            break;
+            case ConnectionType::USB:
+                result =  parse_readout_buffer_usb(
+                    state, callbacks, counters, bufferNumber, buffer, bufferWords);
+                break;
+        }
+    }
+    catch (const end_of_buffer &e)
+    {
+        ++counters.access()->parserExceptions;
+        return ParseResult::UnexpectedEndOfBuffer;
+    }
+    catch (...)
+    {
+        ++counters.access()->parserExceptions;
+        return ParseResult::UnhandledException;
     }
 
     return result;
