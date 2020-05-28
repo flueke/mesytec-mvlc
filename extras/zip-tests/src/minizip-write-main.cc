@@ -42,10 +42,10 @@ int main(int argc, char *argv[])
     mz_stream_os_create(&file_stream);
 
     if (auto err = mz_stream_os_open(file_stream, outFilename.c_str(), MZ_OPEN_MODE_CREATE | MZ_OPEN_MODE_WRITE))
-        return 3;
+        throw err;
 
     if (auto err = mz_zip_writer_open(writer, file_stream))
-        return 4;
+        throw err;
 
     mz_zip_file file_info = {};
     file_info.filename = "testfile";
@@ -53,7 +53,7 @@ int main(int argc, char *argv[])
     //file_info.zip64 = MZ_ZIP64_FORCE;
 
     if (auto err = mz_zip_writer_entry_open(writer, &file_info))
-        return 5;
+        throw err;
 
     size_t writeCount = 0;
     size_t totalBytes = 0;
