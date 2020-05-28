@@ -23,6 +23,7 @@ set(SKIP_INSTALL_ALL ON)
 #set(ZLIB_TAG "develop" CACHE STRING "")
 
 add_subdirectory(minizip)
+target_compile_options(minizip PRIVATE -Wno-stringop-truncation -Wno-stringop-overflow)
 target_include_directories(minizip
     PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/minizip>)
 
