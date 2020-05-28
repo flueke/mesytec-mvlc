@@ -425,7 +425,6 @@ ParseResult parse_readout_contents(
 
     try
     {
-
         const u32 *inputBegin = input.data();
 
         while (!input.empty())
@@ -520,8 +519,8 @@ ParseResult parse_readout_contents(
                     counters.unusedBytes += unusedWords * sizeof(u32);
 
                     if (unusedWords)
-                        LOG_WARN("skipped over %lu words while searching for the next"
-                                 " stack frame header", unusedWords);
+                        LOG_DEBUG("skipped over %lu words while searching for the next"
+                                  " stack frame header", unusedWords);
 
                     if (input.empty())
                         throw end_of_buffer("stack frame header of new event");
@@ -794,8 +793,9 @@ ParseResult parse_readout_contents(
     }
     catch (const end_of_buffer &e)
     {
-        LOG_WARN("caught end_of_buffer: %s", e.what());
-        util::log_buffer(std::cout, originalInputView, "originalInputView");
+        LOG_DEBUG("caught end_of_buffer: %s", e.what());
+        if (LOG_LEVEL_SETTING >= LOG_LEVEL_TRACE)
+            util::log_buffer(std::cout, originalInputView, "originalInputView");
         throw;
     }
 
@@ -854,9 +854,9 @@ ParseResult parse_eth_packet(
         counters.unusedBytes += ethHdrs.nextHeaderPointer() * sizeof(u32);
 
         if (ethHdrs.nextHeaderPointer() > 0)
-            LOG_WARN("skipped %u words (%lu bytes) of eth packet data to jump to the next header",
-                     ethHdrs.nextHeaderPointer(),
-                     ethHdrs.nextHeaderPointer() * sizeof(u32));
+            LOG_DEBUG("skipped %u words (%lu bytes) of eth packet data to jump to the next header",
+                      ethHdrs.nextHeaderPointer(),
+                      ethHdrs.nextHeaderPointer() * sizeof(u32));
     }
 
     try
@@ -880,7 +880,7 @@ ParseResult parse_eth_packet(
     }
     catch (const std::exception &e)
     {
-        LOG_WARN("end parsing packet %u, dataWords=%u, exception=%s",
+        LOG_DEBUG("end parsing packet %u, dataWords=%u, exception=%s",
                   ethHdrs.packetNumber(), ethHdrs.dataWordCount(),
                   e.what());
         throw;
@@ -1006,7 +1006,7 @@ ParseResult parse_readout_buffer_eth(
                 {
                     parser_clear_event_state(state);
                     counters->ethPacketLoss += loss;
-                    LOG_WARN("packet loss detected: lastPacketNumber=%d, packetNumber=%d, loss=%d",
+                    LOG_DEBUG("packet loss detected: lastPacketNumber=%d, packetNumber=%d, loss=%d",
                              state.lastPacketNumber,
                              ethHdrs.packetNumber(),
                              loss);
@@ -1098,7 +1098,7 @@ ParseResult parse_readout_buffer_eth(
 
                 input.remove_prefix(packetWords);
 
-                LOG_WARN("skipping %lu words of eth packet data due to an error result from the parser",
+                LOG_DEBUG("skipping %lu words of eth packet data due to an error result from the parser",
                          packetWords);
 
                 continue;
