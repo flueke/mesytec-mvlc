@@ -1,5 +1,6 @@
 #include "mvlc_readout_config.h"
 
+#include <cassert>
 #include <yaml-cpp/yaml.h>
 #include <yaml-cpp/emittermanip.h>
 

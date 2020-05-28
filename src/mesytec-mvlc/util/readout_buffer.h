@@ -1,6 +1,7 @@
 #ifndef __MESYTEC_MVLC_UTIL_READOUT_BUFFER_H__
 #define __MESYTEC_MVLC_UTIL_READOUT_BUFFER_H__
 
+#include <cassert>
 #include <vector>
 
 #include "mesytec-mvlc_export.h"
