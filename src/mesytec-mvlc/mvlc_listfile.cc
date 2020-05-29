@@ -4,9 +4,13 @@
 #include <chrono>
 #include <cstring>
 #include <fmt/format.h>
+#include <iostream>
 
 #include "mvlc_constants.h"
 #include "mvlc_util.h"
+
+using std::cout;
+using std::endl;
 
 namespace mesytec
 {
@@ -299,7 +303,7 @@ Preamble read_preamble(ReadHandle &rh, const size_t preambleMaxSize)
             rh.read(buffer.data() + offset, frameBytes);
             totalContentsSize += frameBytes;
 
-            if (!(frameInfo.flags & (1u << system_event::ContinueShift)))
+            if (!(frameHeader & (1u << system_event::ContinueShift)))
                 break;
 
             frameHeader = typed_read<u32>(rh);
