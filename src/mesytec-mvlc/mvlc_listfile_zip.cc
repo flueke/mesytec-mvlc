@@ -589,7 +589,9 @@ ZipReadHandle *ZipReader::openEntry(const std::string &name)
 
     d->entryInfo.isOpen = true;
 
-    return &d->entryReadHandle;
+    auto result = &d->entryReadHandle;
+    assert(result);
+    return result;
 }
 
 ZipReadHandle *ZipReader::currentEntry()
