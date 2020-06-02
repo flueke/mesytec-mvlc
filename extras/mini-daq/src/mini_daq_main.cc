@@ -7,26 +7,10 @@
 #include <fstream>
 
 #include <mesytec-mvlc/mesytec-mvlc.h>
-#include <mesytec-mvlc/mvlc_dialog_util.h>
-#include <mesytec-mvlc/mvlc_eth_interface.h>
-#include <mesytec-mvlc/mvlc_listfile.h>
-#include <mesytec-mvlc/mvlc_readout.h>
-#include <mesytec-mvlc/mvlc_readout_parser.h>
-#include <mesytec-mvlc/mvlc_stack_executor.h>
-#include <mesytec-mvlc/mvlc_usb_interface.h>
-#include <mesytec-mvlc/util/io_util.h>
-#include <mesytec-mvlc/util/perf.h>
-#include <mesytec-mvlc/util/readout_buffer_queues.h>
-#include <mesytec-mvlc/util/storage_sizes.h>
-#include <mesytec-mvlc/util/string_view.hpp>
 #include <fmt/format.h>
 #include <lyra/lyra.hpp>
 
 #include "mini_daq_callbacks.h"
-
-#ifndef __WIN32
-#include <sys/prctl.h>
-#endif
 
 using std::cout;
 using std::cerr;
@@ -36,78 +20,6 @@ using namespace mesytec::mvlc;
 using namespace mesytec::mvlc::listfile;
 using namespace mesytec::mvlc::mini_daq;
 using namespace nonstd;
-
-void run_readout_parser(
-    readout_parser::ReadoutParserState &state,
-    Protected<readout_parser::ReadoutParserCounters> &counters,
-    ReadoutBufferQueues &snoopQueues,
-    readout_parser::ReadoutParserCallbacks &parserCallbacks)
-{
-#ifndef __WIN32
-    prctl(PR_SET_NAME,"readout_parser",0,0,0);
-#endif
-
-    try
-    {
-        cerr << "run_readout_parser entering loop" << endl;
-
-        auto &filled = snoopQueues.filledBufferQueue();
-        auto &empty = snoopQueues.emptyBufferQueue();
-
-        while (true)
-        {
-            auto buffer = filled.dequeue(std::chrono::milliseconds(100));
-
-            if (buffer && buffer->empty()) // sentinel
-                break;
-            else if (!buffer)
-                continue;
-
-            try
-            {
-                //cout << "buffer #" << buffer->bufferNumber() << endl;
-
-                auto bufferView = buffer->viewU32();
-
-                readout_parser::parse_readout_buffer(
-                    buffer->type(),
-                    state,
-                    parserCallbacks,
-                    counters,
-                    buffer->bufferNumber(),
-                    bufferView.data(),
-                    bufferView.size());
-
-                empty.enqueue(buffer);
-            }
-            catch (...)
-            {
-                empty.enqueue(buffer);
-                throw;
-            }
-        }
-    }
-    catch (const std::runtime_error &e)
-    {
-        {
-            //auto state = protectedState.access();
-            //state->eptr = std::current_exception();
-        }
-
-        cerr << "readout_parser caught a std::runtime_error: " << e.what() << endl;
-    }
-    catch (...)
-    {
-        {
-            //auto state = protectedState.access();
-            //state->eptr = std::current_exception();
-        }
-
-        cerr << "readout_parser caught an unknown exception." << endl;
-    }
-
-    cerr << "run_readout_parser left loop" << endl;
-}
 
 int main(int argc, char *argv[])
 {
@@ -244,7 +156,7 @@ int main(int argc, char *argv[])
     std::thread parserThread;
 
     parserThread = std::thread(
-        run_readout_parser,
+        readout_parser::run_readout_parser,
         std::ref(parserState),
         std::ref(parserCounters),
         std::ref(snoopQueues),
@@ -449,8 +361,10 @@ int main(int argc, char *argv[])
         {
             if (counters.systemEventTypes[sysEvent])
             {
-                cout << fmt::format("systemEventType 0x{:002x}, count={}",
-                                    sysEvent, counters.systemEventTypes[sysEvent])
+                auto sysEventName = system_event_type_to_string(sysEvent);
+
+                cout << fmt::format("systemEventType {}, count={}",
+                                    sysEventName, counters.systemEventTypes[sysEvent])
                     << endl;
             }
         }
