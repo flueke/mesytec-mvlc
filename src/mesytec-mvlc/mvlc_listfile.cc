@@ -3,7 +3,6 @@
 #include <cassert>
 #include <chrono>
 #include <cstring>
-#include <fmt/format.h>
 #include <iostream>
 
 #include "mvlc_constants.h"
@@ -18,84 +17,6 @@ namespace mvlc
 {
 namespace listfile
 {
-
-
-#if 0
-ListfileHandle::~ListfileHandle()
-{ }
-
-std::string read_file_magic(ListfileHandle &listfile)
-{
-    listfile.seek(0);
-    std::vector<u8> buffer(get_filemagic_len());
-    listfile.read(buffer.data(), buffer.size());
-    std::string result;
-    std::copy(buffer.begin(), buffer.end(), std::back_inserter(result));
-    return result;
-}
-
-namespace
-{
-
-template<typename T>
-bool checked_read(ListfileHandle &listfile, T &dest)
-{
-    size_t bytesRead = listfile.read(reinterpret_cast<u8 *>(&dest), sizeof(dest));
-    return bytesRead == sizeof(dest);
-}
-
-} // end anon namespace
-
-std::vector<u8> read_vme_config(ListfileHandle &listfile, u8 subType)
-{
-    auto is_wanted_frame = [subType] (u32 frameHeader)
-    {
-        return (extract_frame_info(frameHeader).type == frame_headers::SystemEvent
-                && system_event::extract_subtype(frameHeader) == subType);
-    };
-
-    listfile.seek(get_filemagic_len());
-
-    std::vector<u8> buffer;
-    u32 frameHeader = 0u;
-
-    // Find the first SystemEvent with subtype VMEConfig
-    while (!listfile.atEnd())
-    {
-        if (!checked_read(listfile, frameHeader))
-            return {};
-
-        if (is_wanted_frame(frameHeader))
-            break;
-
-        // Skip to the next frame
-        buffer.resize(extract_frame_info(frameHeader).len * sizeof(u32));
-
-        if (listfile.read(buffer.data(), buffer.size()) != buffer.size())
-            return {};
-    }
-
-    buffer.resize(0);
-
-    // Read all the adjacent matching frames.
-    while (!listfile.atEnd() && is_wanted_frame(frameHeader))
-    {
-        auto frameInfo = extract_frame_info(frameHeader);
-        size_t frameBytes = frameInfo.len * sizeof(u32);
-        auto offset = buffer.size();
-        buffer.resize(buffer.size() + frameBytes);
-
-        if (listfile.read(buffer.data() + offset, frameBytes) != frameBytes)
-            return {};
-
-        // Read in the next frame header
-        if (!checked_read(listfile, frameHeader))
-            break;
-    }
-
-    return buffer;
-}
-#endif
 
 WriteHandle::~WriteHandle()
 { }
