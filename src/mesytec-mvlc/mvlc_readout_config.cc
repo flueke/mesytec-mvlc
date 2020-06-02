@@ -9,49 +9,6 @@ namespace mesytec
 namespace mvlc
 {
 
-#if 0
-struct ReadoutWorker::Private
-{
-    Private(MVLC &mvlc_)
-        : mvlc(mvlc_)
-    {}
-
-    std::atomic<ReadoutWorker::State> state;
-    std::atomic<ReadoutWorker::State> desiredState;
-    MVLC mvlc;
-    std::vector<StackTrigger> stackTriggers;
-};
-
-ReadoutWorker::ReadoutWorker(MVLC &mvlc, const std::vector<StackTrigger> &stackTriggers)
-    : d(std::make_unique<Private>(mvlc))
-{
-    d->state = State::Idle;
-    d->desiredState = State::Idle;
-    d->stackTriggers = stackTriggers;
-}
-
-ReadoutWorker::State ReadoutWorker::state() const
-{
-    return d->state;
-}
-
-std::error_code ReadoutWorker::start(const std::chrono::seconds &duration)
-{
-}
-
-std::error_code ReadoutWorker::stop()
-{
-}
-
-std::error_code ReadoutWorker::pause()
-{
-}
-
-std::error_code ReadoutWorker::resume()
-{
-}
-#endif
-
 namespace
 {
 std::string to_string(ConnectionType ct)
