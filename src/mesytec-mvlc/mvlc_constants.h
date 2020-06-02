@@ -429,13 +429,6 @@ namespace registers
     static const u16 data_mac_1             = 0x4420;
     static const u16 data_mac_2             = 0x4422;
 
-    static const u16 crc_good_ctr           = 0x4424;
-    static const u16 crc_bad_ctr            = 0x4426;
-    static const u16 skip_receive_frame_ctr = 0x4428;
-    static const u16 receive_arp_ctr        = 0x442a;
-    static const u16 receive_ping_ctr       = 0x442c;
-    static const u16 receive_datin_ctr      = 0x442e;
-    static const u16 receive_cmdin_ctr      = 0x4430;
 
     static const u16 arp_sender_mac_rx_0    = 0x4432;
     static const u16 arp_sender_mac_rx_1    = 0x4434;
