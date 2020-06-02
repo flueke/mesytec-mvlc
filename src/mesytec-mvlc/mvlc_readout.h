@@ -1,9 +1,9 @@
 #ifndef __MESYTEC_MVLC_MVLC_READOUT_H__
 #define __MESYTEC_MVLC_MVLC_READOUT_H__
 
-#include "mesytec-mvlc_export.h"
-
 #include <future>
+
+#include "mesytec-mvlc_export.h"
 
 #include "mvlc.h"
 #include "mvlc_eth_interface.h"

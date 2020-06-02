@@ -359,7 +359,7 @@ struct ReadoutWorker::Private
     Protected<Counters> counters;
     std::thread readoutThread;
     ReadoutBufferQueues listfileQueues;
-    listfile::WriteHandle *lfh;
+    listfile::WriteHandle *lfh = nullptr;
     ReadoutBuffer localBuffer;
     ReadoutBuffer previousData;
     ReadoutBuffer *outputBuffer_ = nullptr;
