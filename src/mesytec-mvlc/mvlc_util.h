@@ -95,6 +95,11 @@ MESYTEC_MVLC_EXPORT const char *get_frame_flag_shift_name(u8 flag);
 
 stacks::TimerBaseUnit MESYTEC_MVLC_EXPORT timer_base_unit_from_string(const std::string &str);
 
+// String representation for the known system_event::subtype flags.
+// Returns "unknown/custom" for user defined flags.
+std::string MESYTEC_MVLC_EXPORT system_event_type_to_string(u8 eventType);
+
+
 } // end namespace mvlc
 } // end namespace mesytec
 

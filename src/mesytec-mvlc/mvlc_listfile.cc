@@ -19,36 +19,6 @@ namespace mvlc
 namespace listfile
 {
 
-std::string system_event_type_to_string(u8 eventType)
-{
-    namespace T = system_event::subtype;
-
-    switch (eventType)
-    {
-        case T::EndianMarker:
-            return "EndianMarker";
-        case T::BeginRun:
-            return "BeginRun";
-        case T::EndRun:
-            return "EndRun";
-        case T::MVMEConfig:
-            return "MVMEConfig";
-        case T::UnixTimetick:
-            return "UnixTimetick";
-        case T::Pause:
-            return "Pause";
-        case T::Resume:
-            return "Resume";
-        case T::MVLCCrateConfig:
-            return "MVLCCrateConfig";
-        case T::EndOfFile:
-            return "EndOfFile";
-        default:
-            break;
-    }
-
-    return fmt::format("unknown/custom (0x{:02x})", eventType);
-}
 
 #if 0
 ListfileHandle::~ListfileHandle()

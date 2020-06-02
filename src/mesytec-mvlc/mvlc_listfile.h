@@ -14,10 +14,6 @@ namespace mvlc
 namespace listfile
 {
 
-// String representation for the known system_event::subtype flags.
-// Returns "unknown/custom" for user defined flags.
-std::string MESYTEC_MVLC_EXPORT system_event_type_to_string(u8 eventType);
-
 class MESYTEC_MVLC_EXPORT WriteHandle
 {
     public:
@@ -31,7 +27,6 @@ class MESYTEC_MVLC_EXPORT ReadHandle
         virtual ~ReadHandle();
         virtual size_t read(u8 *dest, size_t maxSize) = 0;
         virtual void seek(size_t pos) = 0;
-        // TODO: need atEnd()?
 };
 
 //
