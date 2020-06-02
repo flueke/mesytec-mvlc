@@ -22,6 +22,8 @@ add_library(mesytec-mvlc SHARED
     mvlc_readout.cc
     mvlc_readout_config.cc
     mvlc_readout_parser.cc
+    mvlc_readout_parser_util.cc
+    mvlc_replay.cc
     mvlc_stack_errors.cc
     mvlc_stack_executor.cc
     mvlc_usb_interface.cc
