@@ -167,6 +167,12 @@ ReadoutInitResults MESYTEC_MVLC_EXPORT init_readout(
         }
     }
 
+    if (mvlc.connectionType() == ConnectionType::ETH)
+    {
+        auto mvlcETH = dynamic_cast<eth::MVLC_ETH_Interface *>(mvlc.getImpl());
+        mvlcETH->enableJumboFrames(crateConfig.ethJumboEnable);
+    }
+
     return ret;
 }
 

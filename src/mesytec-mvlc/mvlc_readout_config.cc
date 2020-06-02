@@ -127,6 +127,7 @@ std::string to_yaml(const CrateConfig &crateConfig)
     out << YAML::Key << "usbIndex" << YAML::Value << std::to_string(crateConfig.usbIndex);
     out << YAML::Key << "usbSerial" << YAML::Value << crateConfig.usbSerial;
     out << YAML::Key << "ethHost" << YAML::Value << crateConfig.ethHost;
+    out << YAML::Key << "ethJumboEnable" << YAML::Value << crateConfig.ethJumboEnable;
     out << YAML::EndMap; // end mvlc_connection
 
     out << YAML::Key << "readout_stacks" << YAML::Value << YAML::BeginSeq;
@@ -171,6 +172,7 @@ CrateConfig crate_config_from_yaml(std::istream &input)
             result.usbIndex = yCon["usbIndex"].as<int>();
             result.usbSerial = yCon["usbSerial"].as<std::string>();
             result.ethHost = yCon["ethHost"].as<std::string>();
+            result.ethJumboEnable = yCon["ethJumboEnable"].as<bool>();
         }
 
         if (const auto &yStacks = yCrate["readout_stacks"])

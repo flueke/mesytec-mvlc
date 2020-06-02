@@ -17,6 +17,7 @@ struct MESYTEC_MVLC_EXPORT CrateConfig
     int usbIndex = -1;
     std::string usbSerial;
     std::string ethHost;
+    bool ethJumboEnable = false;
 
     std::vector<StackCommandBuilder> stacks;
     std::vector<u32> triggers;
