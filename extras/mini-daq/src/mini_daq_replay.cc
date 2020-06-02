@@ -3,7 +3,6 @@
 
 #include <fmt/format.h>
 #include <mesytec-mvlc/mesytec-mvlc.h>
-#include <mesytec-mvlc/util/string_view.hpp>
 
 #include "mini_daq_callbacks.h"
 
@@ -15,109 +14,6 @@ using namespace mesytec::mvlc;
 using namespace mesytec::mvlc::listfile;
 using namespace mesytec::mvlc::mini_daq;
 using namespace nonstd;
-
-// Follows the framing structure inside the buffer until a partial frame at the
-// end is detected. The partial data is moved over to the tempBuffer so that
-// the readBuffer ends with a complete frame.
-//
-// The input buffer must start with a frame header (skip_count will be called
-// with the first word of the input buffer on the first iteration).
-//
-// The SkipCountFunc must return the number of words to skip to get to the next
-// frame header or 0 if there is not enough data left in the input iterator to
-// determine the frames size.
-// Signature of SkipCountFunc:  u32 skip_count(const BufferIterator &iter);
-template<typename SkipCountFunc>
-inline void fixup_buffer(ReadoutBuffer &readBuffer, ReadoutBuffer &tempBuffer, SkipCountFunc skip_count)
-{
-    auto view = readBuffer.viewU8();
-
-    while (!view.empty())
-    {
-        if (view.size() >= sizeof(u32))
-        {
-            u32 wordsToSkip = skip_count(view);
-
-            //cout << "wordsToSkip=" << wordsToSkip << ", view.size()=" << view.size() << ", in words:" << view.size() / sizeof(u32));
-
-            if (wordsToSkip == 0 || wordsToSkip > view.size() / sizeof(u32))
-            {
-                // Move the trailing data into the temporary buffer. This will
-                // truncate the readBuffer to the last complete frame or packet
-                // boundary.
-
-
-                tempBuffer.ensureFreeSpace(view.size());
-
-                std::memcpy(tempBuffer.data() + tempBuffer.used(),
-                            view.data(), view.size());
-                tempBuffer.use(view.size());
-                readBuffer.setUsed(readBuffer.used() - view.size());
-                return;
-            }
-
-            // Skip over the SystemEvent frame or the ETH packet data.
-            view.remove_prefix(wordsToSkip * sizeof(u32));
-        }
-    }
-}
-
-// The listfile contains two types of data:
-// - System event sections identified by a header word with 0xFA in the highest
-//   byte.
-// - ETH packet data starting with the two ETH specific header words followed
-//   by the packets payload
-// The first ETH packet header can never have the value 0xFA because the
-// highest two bits are always 0.
-inline void fixup_buffer_eth(ReadoutBuffer &readBuffer, ReadoutBuffer &tempBuffer)
-{
-    auto skip_func = [](const basic_string_view<const u8> &view) -> u32
-    {
-        if (view.size() < sizeof(u32))
-            return 0u;
-
-        // Either a SystemEvent header or the first of the two ETH packet headers
-        u32 header = *reinterpret_cast<const u32 *>(view.data());
-
-        if (get_frame_type(header) == frame_headers::SystemEvent)
-            return 1u + extract_frame_info(header).len;
-
-        if (view.size() >= 2 * sizeof(u32))
-        {
-            u32 header1 = *reinterpret_cast<const u32 *>(view.data() + sizeof(u32));
-            eth::PayloadHeaderInfo ethHdrs{ header, header1 };
-            return eth::HeaderWords + ethHdrs.dataWordCount();
-        }
-
-        // Not enough data to get the 2nd ETH header word.
-        return 0u;
-    };
-
-    fixup_buffer(readBuffer, tempBuffer, skip_func);
-}
-
-inline void fixup_buffer_usb(ReadoutBuffer &readBuffer, ReadoutBuffer &tempBuffer)
-{
-    auto skip_func = [] (const basic_string_view<const u8> &view) -> u32
-    {
-        if (view.size() < sizeof(u32))
-            return 0u;
-
-        u32 header = *reinterpret_cast<const u32 *>(view.data());
-        return 1u + extract_frame_info(header).len;
-    };
-
-    fixup_buffer(readBuffer, tempBuffer, skip_func);
-}
-
-struct PairHash
-{
-    template <typename T1, typename T2>
-        std::size_t operator() (const std::pair<T1, T2> &pair) const
-        {
-            return std::hash<T1>()(pair.first) ^ std::hash<T2>()(pair.second);
-        }
-};
 
 int main(int argc, char *argv[])
 {
@@ -186,15 +82,12 @@ int main(int argc, char *argv[])
     //cout << "Press the AnyKey to start the replay" << endl;
     //std::getc(stdin);
 
-    //const size_t BufferSize = util::Megabytes(1);
-    //const size_t BufferCount = 10;
-    //ReadoutBufferQueues snoopQueues(BufferSize, BufferCount);
-
-    ReadoutBuffer destBuffer(util::Megabytes(1));
-    ReadoutBuffer previousData(destBuffer.capacity());
-
-    u32 nextOutputBufferNumber = 1u;
-    destBuffer.setBufferNumber(nextOutputBufferNumber++);
+    //
+    // readout parser
+    //
+    const size_t BufferSize = util::Megabytes(1);
+    const size_t BufferCount = 100;
+    ReadoutBufferQueues snoopQueues(BufferSize, BufferCount);
 
     MiniDAQStats stats = {};
     auto parserCallbacks = make_mini_daq_callbacks(stats);
@@ -202,57 +95,71 @@ int main(int argc, char *argv[])
     auto parserState = readout_parser::make_readout_parser(crateConfig.stacks);
     Protected<readout_parser::ReadoutParserCounters> parserCounters({});
 
-    struct EventSizeInfo
-    {
-        size_t min = std::numeric_limits<size_t>::max();
-        size_t max = 0u;
-        size_t sum = 0u;
-    };
+    std::thread parserThread;
 
+    parserThread = std::thread(
+        readout_parser::run_readout_parser,
+        std::ref(parserState),
+        std::ref(parserCounters),
+        std::ref(snoopQueues),
+        std::ref(parserCallbacks));
 
-    // Read and fixup a buffer
-    while (true)
-    {
-        if (previousData.used())
+    ReplayWorker replayWorker(snoopQueues, &rh);
+
+    auto f = replayWorker.start();
+
+    // wait until replay done
+    replayWorker.waitableState().wait(
+        [] (const ReplayWorker::State &state)
         {
-            destBuffer.ensureFreeSpace(previousData.used());
-            std::memcpy(destBuffer.data() + destBuffer.used(),
-                        previousData.data(), previousData.used());
-            destBuffer.use(previousData.used());
-            previousData.clear();
+            return state == ReplayWorker::State::Idle;
+        });
+
+    cout << "stopping readout_parser" << endl;
+
+    // stop the readout parser
+    if (parserThread.joinable())
+    {
+        cout << "waiting for empty snoopQueue buffer" << endl;
+        auto sentinel = snoopQueues.emptyBufferQueue().dequeue(std::chrono::seconds(1));
+
+        if (sentinel)
+        {
+            cout << "got a sentinel buffer for the readout parser" << endl;
+            sentinel->clear();
+            snoopQueues.filledBufferQueue().enqueue(sentinel);
+            cout << "enqueued the sentinel buffer for the readout parser" << endl;
+        }
+        else
+        {
+            cout << "did not get an empty buffer from the snoopQueues" << endl;
         }
 
-        size_t bytesRead = rh.read(destBuffer.data() + destBuffer.used(), destBuffer.free());
-        destBuffer.use(bytesRead);
-        destBuffer.setType(crateConfig.connectionType);
+        parserThread.join();
+    }
 
-        if (bytesRead == 0)
-            break;
+    //
+    // replay stats
+    //
+    {
+        auto counters = replayWorker.counters();
 
-        switch (crateConfig.connectionType)
-        {
-            case ConnectionType::ETH:
-                fixup_buffer_eth(destBuffer, previousData);
-                break;
+        auto tStart = counters.tStart;
+        auto tEnd = (counters.state != ReplayWorker::State::Idle
+                     ?  std::chrono::steady_clock::now()
+                     : counters.tEnd);
+        auto runDuration = std::chrono::duration_cast<std::chrono::milliseconds>(tEnd - tStart);
+        double runSeconds = runDuration.count() / 1000.0;
+        double megaBytes = counters.bytesRead * 1.0 / util::Megabytes(1);
+        double mbs = megaBytes / runSeconds;
 
-            case ConnectionType::USB:
-                fixup_buffer_usb(destBuffer, previousData);
-                break;
-        }
-
-        auto bufferView = destBuffer.viewU32();
-
-        readout_parser::parse_readout_buffer(
-            destBuffer.type(),
-            parserState,
-            parserCallbacks,
-            parserCounters,
-            destBuffer.bufferNumber(),
-            bufferView.data(),
-            bufferView.size());
-
-        destBuffer.clear();
-        destBuffer.setBufferNumber(nextOutputBufferNumber++);
+        cout << endl;
+        cout << "---- replay stats ----" << endl;
+        cout << "buffersRead=" << counters.buffersRead << endl;
+        cout << "buffersFlushed=" << counters.buffersFlushed << endl;
+        cout << "totalBytesTransferred=" << counters.bytesRead << endl;
+        cout << "duration=" << runDuration.count() << " ms" << endl;
+        cout << "rate=" << mbs << " MB/s" << endl;
     }
 
     //
@@ -273,8 +180,10 @@ int main(int argc, char *argv[])
         {
             if (counters.systemEventTypes[sysEvent])
             {
-                cout << fmt::format("systemEventType 0x{:002x}, count={}",
-                                    sysEvent, counters.systemEventTypes[sysEvent])
+                auto sysEventName = system_event_type_to_string(sysEvent);
+
+                cout << fmt::format("systemEventType {}, count={}",
+                                    sysEventName, counters.systemEventTypes[sysEvent])
                     << endl;
             }
         }
