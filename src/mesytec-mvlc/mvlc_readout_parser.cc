@@ -659,7 +659,7 @@ ParseResult parse_readout_contents(
 
                                     //util::log_buffer(std::cout, input, "input (the part that's left to parse)");
                                     //cout << "offset=" << (input.data() - originalInputView.data()) << endl;
-                                    std::terminate();
+                                    //std::terminate();
 #endif
 
                                     LOG_WARN("NotABlockFrame: type=0x%x, frameHeader=0x%08x",
