@@ -164,6 +164,9 @@ class MVLC_ETH_Interface
         virtual std::array<eth::PipeStats, PipeCount> getPipeStats() const = 0;
         virtual std::array<PacketChannelStats, NumPacketChannels> getPacketChannelStats() const = 0;
         virtual void resetPipeAndChannelStats() = 0;
+
+        virtual std::error_code enableJumboFrames(bool b) = 0;
+        virtual std::pair<bool, std::error_code> jumboFramesEnabled() = 0;
 };
 
 } // end namespace eth

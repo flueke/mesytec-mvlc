@@ -1,4 +1,5 @@
 #include "mvlc_impl_eth.h"
+#include "mvlc_constants.h"
 
 #include <cassert>
 #include <cerrno>
@@ -962,6 +963,26 @@ std::error_code Impl::read(Pipe pipe_, u8 *buffer, size_t size,
               pipe, requestedSize, readCount, receiveBuffer.available());
 
     return {};
+}
+
+std::error_code Impl::enableJumboFrames(bool b)
+{
+    if (!isConnected())
+        return make_error_code(MVLCErrorCode::IsDisconnected);
+
+    return MVLCDialog(this).writeRegister(
+        registers::jumbo_frame_enable, static_cast<u32>(b));
+}
+
+std::pair<bool, std::error_code> Impl::jumboFramesEnabled()
+{
+    if (!isConnected())
+        return std::make_pair(false, make_error_code(MVLCErrorCode::IsDisconnected));
+
+    u32 value = 0u;
+    auto ec = MVLCDialog(this).readRegister(registers::jumbo_frame_enable, value);
+
+    return std::make_pair(static_cast<bool>(value), ec);
 }
 
 #if 0

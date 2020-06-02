@@ -104,6 +104,9 @@ class MESYTEC_MVLC_EXPORT Impl: public MVLCBasicInterface, public MVLC_ETH_Inter
             return m_disableTriggersOnConnect;
         }
 
+        std::error_code enableJumboFrames(bool b) override;
+        std::pair<bool, std::error_code> jumboFramesEnabled() override;
+
     private:
         int getSocket(Pipe pipe) { return pipe == Pipe::Command ? m_cmdSock : m_dataSock; }
 

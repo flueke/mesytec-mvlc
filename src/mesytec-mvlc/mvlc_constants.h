@@ -399,6 +399,9 @@ namespace eth
 
 } // end namespace eth
 
+// Note: these registers are available via low-level access
+// (readRegister/writeRegister) and also via the internal VME interface at
+// address 0xffff0000.
 namespace registers
 {
     // Send gap for USB in 0.415us. Defaults to 20000 == 8.3ms
@@ -429,6 +432,8 @@ namespace registers
     static const u16 data_mac_1             = 0x4420;
     static const u16 data_mac_2             = 0x4422;
 
+    // Set to 1 to enable 8k eth jumbo frames on the data pipe.
+    static const u16 jumbo_frame_enable     = 0x4430;
 
     static const u16 arp_sender_mac_rx_0    = 0x4432;
     static const u16 arp_sender_mac_rx_1    = 0x4434;
