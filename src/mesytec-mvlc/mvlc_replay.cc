@@ -421,8 +421,7 @@ WaitableProtected<ReplayWorker::State> &ReplayWorker::waitableState()
 
 ReplayWorker::Counters ReplayWorker::counters()
 {
-    auto counters = d->counters.access();
-    return counters.copy();
+    return d->counters.copy();
 }
 
 }
