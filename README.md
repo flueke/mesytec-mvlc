@@ -15,14 +15,14 @@
 * Dialog layer DONE
   - (UDP) retries DONE
 * Error polling DONE
-* Listfile format, Writer and Reader code
+* Listfile format, Writer and Reader code DONE
 * Readout loop, Readout Worker DONE
 * Stack Building DONE
-* Stack Management
+* Stack Management DONE
 * Readout/Response Parser using readout stack to parse incoming data DONE
 * listfile format, writer and reader, tools to get the readout config back to
-  construct a readout parser for the file.
-  mvme will thus be able to replay files record by the library.
+  construct a readout parser for the file. DONE
+  mvme will thus be able to replay files recorded by the library.
   If mvme would also store the library generated config the other way would
   also work. Do this!
 
@@ -43,7 +43,7 @@
   - listfile output
   - write serialized verison of the readout setup (single or multicrate variants)
 
-* listfile reader MOSTLY DONE
+* listfile reader  DONE
   - open archive file
   - open listfile in archive
   - open and read other files from the archive, list files
@@ -58,13 +58,9 @@
   - Important: delays are needed in init sequences (wait after module reset).
     The MVLC can not handle these natively.
 
-FIXME: open issues
-- how to detect and handle single vs multicrate setups?
-
 ## TODO
-* compression performance. I'm still not happy with this. LZ4 inside the ZIP
-  listfile archive seems to max out at 113.444MB/s on my work machine (i7-8700
-  CPU @ 3.20GHz).
+* how to detect and handle single vs multicrate setups? what additional
+  information is needed for multicrate setups?
 
 ## Misc
 
