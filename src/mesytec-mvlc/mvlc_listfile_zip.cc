@@ -421,7 +421,8 @@ struct ZipReader::Private
     void *osStream = nullptr;
     std::vector<std::string> entryNameCache;
     // IMPORTANT: The variable sized fields filename, extrafield, comment and
-    // linkname are set to nullptr when stored in the vector.
+    // linkname are set to nullptr for the mz_zip_entry structures stored in
+    // the vector.
     std::vector<mz_zip_entry> entryInfoCache;
     ZipReadHandle entryReadHandle = nullptr;
     ZipEntryInfo entryInfo;
@@ -652,8 +653,8 @@ size_t ZipReader::readCurrentEntry(u8 *dest, size_t maxSize)
                 d->lz4Ctx.compressedView.data(), &compressedSize,  // source
                 nullptr); // options
 
-            if (res == 0)
-                cout << __PRETTY_FUNCTION__ << " loop #" << loop << ": LZ4F_decompress returned " << res << endl;
+            //if (res == 0)
+            //    cout << __PRETTY_FUNCTION__ << " loop #" << loop << ": LZ4F_decompress returned " << res << endl;
 
             //cout << __PRETTY_FUNCTION__ << " LZ4F_decompress: "
             //    << ", compressedSize=" << compressedSize
