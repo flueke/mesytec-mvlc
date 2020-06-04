@@ -52,17 +52,19 @@ target_link_libraries(mesytec-mvlc
     PUBLIC Threads::Threads
     )
 
+
 if (UNIX AND NOT APPLE)
     target_link_libraries(mesytec-mvlc PRIVATE ftd3xx-static)
 else()
     target_link_libraries(mesytec-mvlc PRIVATE ftd3xx)
 endif()
 
+target_compile_options(mesytec-mvlc PRIVATE -Wall -Wextra)
+
 if (WIN32)
     target_link_libraries(mesytec-mvlc PRIVATE ws2_32)
+    target_compile_options(mesytec-mvlc PRIVATE -Wno-format)
 endif(WIN32)
-
-target_compile_options(mesytec-mvlc PRIVATE -Wall -Wextra)
 
 # check if IPO/LTO is supported
 include(CheckIPOSupported)
