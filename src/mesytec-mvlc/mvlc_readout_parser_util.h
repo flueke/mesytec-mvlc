@@ -1,6 +1,7 @@
 #ifndef __MESYTEC_MVLC_MVLC_READOUT_PARSER_UTIL_H__
 #define __MESYTEC_MVLC_MVLC_READOUT_PARSER_UTIL_H__
 
+#include "mesytec-mvlc_export.h"
 #include "mvlc_readout_parser.h"
 #include "util/readout_buffer_queues.h"
 
@@ -20,7 +21,7 @@ namespace readout_parser
 //      std::ref(parserCallbacks));
 //
 // To terminate enqueue an empty buffer onto snoopQueues.filledBufferQueue().
-void run_readout_parser(
+void MESYTEC_MVLC_EXPORT run_readout_parser(
     readout_parser::ReadoutParserState &state,
     Protected<readout_parser::ReadoutParserCounters> &counters,
     ReadoutBufferQueues &snoopQueues,

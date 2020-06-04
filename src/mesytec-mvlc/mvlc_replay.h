@@ -50,7 +50,7 @@ class MESYTEC_MVLC_EXPORT ReplayWorker
         std::unique_ptr<Private> d;
 };
 
-enum class MESYTEC_MVLC_EXPORT ReplayWorkerError
+enum class ReplayWorkerError
 {
     NoError,
     ReplayNotIdle,
