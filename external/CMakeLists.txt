@@ -29,7 +29,7 @@ target_include_directories(minizip
 
 # pybind11
 if (MVLC_ENABLE_PYTHON)
-    add_subdirectory(pybind11-2.4.3)
+    add_subdirectory(pybind11-2.5.0)
 endif(MVLC_ENABLE_PYTHON)
 
 # yaml-cpp
