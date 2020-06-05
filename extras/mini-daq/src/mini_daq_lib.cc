@@ -1,4 +1,4 @@
-#include "mini_daq_callbacks.h"
+#include "mini_daq_lib.h"
 #include <fmt/format.h>
 
 using std::endl;
@@ -107,4 +107,4 @@ std::ostream &dump_mini_daq_parser_stats(std::ostream &out, const MiniDAQStats &
 
 } // end namespace mesytec
 } // end namespace mvlc
-} // end jnamespace mini_daq
+} // end namespace mini_daq

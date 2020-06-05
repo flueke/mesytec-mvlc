@@ -4,23 +4,20 @@
 #include <fmt/format.h>
 #include <mesytec-mvlc/mesytec-mvlc.h>
 
-#include "mini_daq_callbacks.h"
+#include "mini_daq_lib.h"
 
 using std::cout;
 using std::cerr;
 using std::endl;
 
 using namespace mesytec::mvlc;
-using namespace mesytec::mvlc::listfile;
-using namespace mesytec::mvlc::mini_daq;
-using namespace nonstd;
 
 int main(int argc, char *argv[])
 {
     if (argc < 2)
         return 1;
 
-    ZipReader zr;
+    listfile::ZipReader zr;
     zr.openArchive(argv[1]);
 
     std::string entryName;
@@ -50,8 +47,8 @@ int main(int argc, char *argv[])
 
     auto preamble = listfile::read_preamble(rh);
 
-    if (!(preamble.magic == get_filemagic_eth()
-          || preamble.magic == get_filemagic_usb()))
+    if (!(preamble.magic == listfile::get_filemagic_eth()
+          || preamble.magic == listfile::get_filemagic_usb()))
         return 3;
 
     CrateConfig crateConfig = {};
@@ -89,7 +86,7 @@ int main(int argc, char *argv[])
     const size_t BufferCount = 100;
     ReadoutBufferQueues snoopQueues(BufferSize, BufferCount);
 
-    MiniDAQStats stats = {};
+    mini_daq::MiniDAQStats stats = {};
     auto parserCallbacks = make_mini_daq_callbacks(stats);
 
     auto parserState = readout_parser::make_readout_parser(crateConfig.stacks);
@@ -203,7 +200,6 @@ int main(int argc, char *argv[])
         cout << "parserExceptions=" << counters.parserExceptions << endl;
 
         dump_mini_daq_parser_stats(cout, stats);
-
     }
 
     return 0;

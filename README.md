@@ -63,3 +63,7 @@
   information is needed for multicrate setups?
 * abstraction for the trigger/io system. This needs to be flexible because the
   system is going to change with future firmware udpates.
+* mini-daq
+  - add real help text (mention mvme_to_mvlc tool)
+  - make getting the CrateConfig from the listfile preamble easier. basically
+    move the code from mini_daq_replay.cc into the lib

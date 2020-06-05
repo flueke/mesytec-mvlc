@@ -10,16 +10,13 @@
 #include <fmt/format.h>
 #include <lyra/lyra.hpp>
 
-#include "mini_daq_callbacks.h"
+#include "mini_daq_lib.h"
 
 using std::cout;
 using std::cerr;
 using std::endl;
 
 using namespace mesytec::mvlc;
-using namespace mesytec::mvlc::listfile;
-using namespace mesytec::mvlc::mini_daq;
-using namespace nonstd;
 
 int main(int argc, char *argv[])
 {
@@ -72,7 +69,6 @@ int main(int argc, char *argv[])
 
         | lyra::arg(opt_secondsToRun, "secondsToRun")
             ("duration of the DAQ run in seconds").required()
-
         ;
 
     auto cliParseResult = cli.parse({ argc, argv });
@@ -147,7 +143,7 @@ int main(int argc, char *argv[])
     const size_t BufferCount = 100;
     ReadoutBufferQueues snoopQueues(BufferSize, BufferCount);
 
-    MiniDAQStats stats = {};
+    mini_daq::MiniDAQStats stats = {};
     auto parserCallbacks = make_mini_daq_callbacks(stats);
 
     auto parserState = readout_parser::make_readout_parser(crateConfig.stacks);
@@ -165,7 +161,7 @@ int main(int argc, char *argv[])
     //
     // readout
     //
-    ZipCreator zipWriter;
+    listfile::ZipCreator zipWriter;
     listfile::WriteHandle *lfh = nullptr;
 
     if (!opt_noListfile)

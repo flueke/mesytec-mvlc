@@ -1,5 +1,5 @@
-#ifndef __MINI_DAQ_CALLBACKS_H__
-#define __MINI_DAQ_CALLBACKS_H__
+#ifndef __MESYTEC_MVLC_EXTRAS_MINI_DAQ_LIB_H__
+#define __MESYTEC_MVLC_EXTRAS_MINI_DAQ_LIB_H__
 
 #include <limits>
 #include <unordered_map>
@@ -13,6 +13,7 @@ namespace mvlc
 namespace mini_daq
 {
 
+// Helper enabling the use of std::pair as the key in std::unordered_map.
 struct PairHash
 {
     template <typename T1, typename T2>
@@ -34,23 +35,29 @@ struct MiniDAQStats
     using ModulePartHits = std::unordered_map<std::pair<int, int>, size_t, PairHash>;
     using ModulePartSizes = std::unordered_map<std::pair<int, int>, EventSizeInfo, PairHash>;
 
+    // Event hit counts by eventIndex
     std::unordered_map<int, size_t> eventHits;
 
+    // Part specific hit counts by (eventIndex, moduleIndex)
     ModulePartHits modulePrefixHits;
     ModulePartHits moduleDynamicHits;
     ModulePartHits moduleSuffixHits;
 
+    // Part specific event size information by (eventIndex, moduleIndex)
     ModulePartSizes modulePrefixSizes;
     ModulePartSizes moduleDynamicSizes;
     ModulePartSizes moduleSuffixSizes;
 };
 
+// Creates a a set of readout parser callbacks which update the given
+// MiniDAQStats when invoked by the parser.
 readout_parser::ReadoutParserCallbacks make_mini_daq_callbacks(MiniDAQStats &stats);
 
+// Formatted output of given stats structure.
 std::ostream &dump_mini_daq_parser_stats(std::ostream &out, const MiniDAQStats &stats);
 
 } // end namespace mesytec
 } // end namespace mvlc
-} // end jnamespace mini_daq
+} // end namespace mini_daq
 
-#endif /* __MINI_DAQ_CALLBACKS_H__ */
+#endif /* __MESYTEC_MVLC_EXTRAS_MINI_DAQ_LIB_H__ */
