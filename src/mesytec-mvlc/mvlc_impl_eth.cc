@@ -449,8 +449,6 @@ std::error_code Impl::connect()
 
     assert(m_cmdSock >= 0 && m_dataSock >= 0);
 
-    // Send some initial request to verify there's an MVLC on the other side.
-    //
     // Attempt to read the trigger registers. If one has a non-zero value
     // assume the MVLC is in use by another client. If the
     // disableTriggersOnConnect flag is set try to disable the triggers,
@@ -498,6 +496,7 @@ std::error_code Impl::connect()
         }
     }
 
+    // Setup the data pipe connection.
     {
         LOG_TRACE("Sending initial empty request to the UDP data port");
 

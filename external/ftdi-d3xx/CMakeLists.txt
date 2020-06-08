@@ -11,8 +11,19 @@ if (WIN32)
     install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/FTD3XXLibrary_v1.3.0.2/x64/FTD3XX.dll
         DESTINATION bin)
 
-    #file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/FTD3XXLibrary_v1.3.0.2/x64/FTD3XX.dll
-    #    DESTINATION ${CMAKE_BINARY_DIR})
+    file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/FTD3XXLibrary_v1.3.0.2/x64/FTD3XX.dll
+        DESTINATION ${CMAKE_BINARY_DIR})
+
+    # Note: I cannot get this to link properly: ftdi_list_devices_main.cc:34: undefined reference to `__imp_FT_CreateDeviceInfoList'
+    #add_library(ftd3xx-static STATIC IMPORTED GLOBAL)
+
+    #set_target_properties(ftd3xx-static PROPERTIES
+    #    IMPORTED_LOCATION ${CMAKE_CURRENT_SOURCE_DIR}/FTD3XXLibrary_v1.3.0.2/x64/Static/FTD3XX.lib
+    #    IMPORTED_IMPLIB ${CMAKE_CURRENT_SOURCE_DIR}/FTD3XXLibrary_v1.3.0.2/x64/Static/FTD3XX.lib)
+
+    #target_include_directories(ftd3xx-static
+    #    INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/FTD3XXLibrary_v1.3.0.2)
+
 elseif(UNIX AND NOT APPLE)
     #set_target_properties(ftd3xx PROPERTIES
     #    IMPORTED_LOCATION ${CMAKE_CURRENT_SOURCE_DIR}/ftdi-d3xx-linux-x86_64/libftd3xx.so

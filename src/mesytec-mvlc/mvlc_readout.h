@@ -61,7 +61,7 @@ void MESYTEC_MVLC_EXPORT listfile_buffer_writer(
     ReadoutBufferQueues &bufferQueues,
     Protected<ListfileWriterCounters> &state);
 
-enum class MESYTEC_MVLC_EXPORT ReadoutWorkerError
+enum class ReadoutWorkerError
 {
     NoError,
     ReadoutNotIdle,
