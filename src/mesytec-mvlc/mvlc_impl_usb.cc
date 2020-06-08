@@ -1002,6 +1002,7 @@ std::error_code Impl::read_unbuffered(Pipe pipe, u8 *buffer, size_t size,
               static_cast<unsigned>(pipe), size);
 
     ULONG transferred = 0; // FT API wants a ULONG* parameter
+    std::error_code ec = {};
 
 #ifdef __WIN32
 #if !USB_WIN_USE_ASYNC
@@ -1028,7 +1029,7 @@ std::error_code Impl::read_unbuffered(Pipe pipe, u8 *buffer, size_t size,
         vOverlapped.hEvent = CreateEvent(nullptr, false, false, nullptr);
         //st = FT_InitializeOverlapped(m_handle, &vOverlapped);
 
-        //if (auto ec = make_error_code(st))
+        //if ((ec = make_error_code(st)))
         //{
         //    LOG_WARN("pipe=%u, FT_InitializeOverlapped failed: ec=%s",
         //             static_cast<unsigned>(pipe), ec.message().c_str());
@@ -1050,7 +1051,7 @@ std::error_code Impl::read_unbuffered(Pipe pipe, u8 *buffer, size_t size,
 
 #endif // USB_WIN_USE_ASYNC
 
-    auto ec = make_error_code(st);
+    ec = make_error_code(st);
 
     LOG_TRACE("result from unbuffered read: pipe=%u, size=%lu bytes, ec=%s",
               static_cast<unsigned>(pipe), size, ec.message().c_str());
