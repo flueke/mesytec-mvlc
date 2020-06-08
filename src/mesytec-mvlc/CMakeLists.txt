@@ -66,14 +66,6 @@ if (WIN32)
     target_compile_options(mesytec-mvlc PRIVATE -Wno-format)
 endif(WIN32)
 
-# check if IPO/LTO is supported
-include(CheckIPOSupported)
-check_ipo_supported(RESULT lto_supported)
-
-if (lto_supported)
-    set_target_properties(mesytec-mvlc PROPERTIES INTERPROCEDURAL_OPTIMIZATION TRUE)
-endif(lto_supported)
-
 include(GenerateExportHeader)
 generate_export_header(mesytec-mvlc)
 
