@@ -62,9 +62,9 @@ do\
 #define LOG_DEBUG(fmt, ...) DO_LOG(LOG_LEVEL_DEBUG, "DEBUG - mvlc_usb ", fmt, ##__VA_ARGS__)
 #define LOG_TRACE(fmt, ...) DO_LOG(LOG_LEVEL_TRACE, "TRACE - mvlc_usb ", fmt, ##__VA_ARGS__)
 
-#define USB_WIN_USE_ASYNC 0
+#define USB_WIN_USE_ASYNC 1
 #define USB_WIN_USE_EX_FUNCTIONS 1 // Currently only implemented for the SYNC case.
-#define USB_WIN_USE_STREAMPIPE 1
+#define USB_WIN_USE_STREAMPIPE 0
 
 namespace std
 {
@@ -691,6 +691,8 @@ std::error_code Impl::write(Pipe pipe, const u8 *buffer, size_t size,
 
     ULONG transferred = 0; // FT API needs a ULONG*
 
+    LOG_TRACE("pipe=%u, size=%u", static_cast<unsigned>(pipe), size);
+
 #if !USB_WIN_USE_ASYNC
 
 #if USB_WIN_USE_EX_FUNCTIONS
@@ -1048,6 +1050,11 @@ std::error_code Impl::read_unbuffered(Pipe pipe, u8 *buffer, size_t size,
 
 #endif // USB_WIN_USE_ASYNC
 
+    auto ec = make_error_code(st);
+
+    LOG_TRACE("result from unbuffered read: pipe=%u, size=%lu bytes, ec=%s",
+              static_cast<unsigned>(pipe), size, ec.message().c_str());
+
     if (st != FT_OK && st != FT_IO_PENDING)
         abortPipe(pipe, EndpointDirection::In);
 
@@ -1059,7 +1066,7 @@ std::error_code Impl::read_unbuffered(Pipe pipe, u8 *buffer, size_t size,
 #endif
 
     bytesTransferred = transferred;
-    auto ec = make_error_code(st);
+    ec = make_error_code(st);
 
     LOG_TRACE("end unbuffered read: pipe=%u, size=%lu bytes, transferred=%lu bytes, ec=%s",
               static_cast<unsigned>(pipe), size, bytesTransferred, ec.message().c_str());
@@ -1070,6 +1077,7 @@ std::error_code Impl::read_unbuffered(Pipe pipe, u8 *buffer, size_t size,
 std::error_code Impl::abortPipe(Pipe pipe, EndpointDirection dir)
 {
 #ifdef __WIN32
+#if 1
     LOG_TRACE("FT_AbortPipe on pipe=%u, dir=%u",
               static_cast<unsigned>(pipe),
               static_cast<unsigned>(dir));
@@ -1085,6 +1093,7 @@ std::error_code Impl::abortPipe(Pipe pipe, EndpointDirection dir)
                   );
         return ec;
     }
+#endif
 #else // !__WIN32
     (void) pipe;
     (void) dir;
