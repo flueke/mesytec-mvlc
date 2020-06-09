@@ -6,6 +6,10 @@
 #include <vector>
 #include <fstream>
 
+#ifdef __WIN32
+#include <stdlib.h> // system()
+#endif
+
 #include <mesytec-mvlc/mesytec-mvlc.h>
 #include <fmt/format.h>
 #include <lyra/lyra.hpp>
@@ -18,221 +22,25 @@ using std::endl;
 
 using namespace mesytec::mvlc;
 
-int main(int argc, char *argv[])
+void dump_counters(
+    std::ostream &out,
+    const ConnectionType &connectionType,
+    const ReadoutWorker::Counters &readoutWorkerCounters,
+    const readout_parser::ReadoutParserCounters &parserCounters,
+    const mini_daq::MiniDAQStats &miniDAQStats)
 {
-    // MVLC connection overrides
-    std::string opt_mvlcEthHost;
-    bool opt_mvlcUseFirstUSBDevice = false;
-    int opt_mvlcUSBIndex = -1;
-    std::string opt_mvlcUSBSerial;
-
-    // listfile and run options
-    bool opt_noListfile = false;
-    std::string opt_listfileOut;
-    std::string opt_listfileCompressionType = "zip";
-    int opt_listfileCompressionLevel = 0;
-    std::string opt_crateConfig;
-    unsigned opt_secondsToRun = 10;
-
-    bool opt_showHelp = false;
-
-
-    auto cli
-        = lyra::help(opt_showHelp)
-
-        | lyra::opt(opt_mvlcEthHost, "hostname")
-            ["--mvlc-eth"] ("mvlc ethernet hostname")
-
-        | lyra::opt(opt_mvlcUseFirstUSBDevice)
-            ["--mvlc-usb"] ("connect to the first mvlc usb device")
-
-        | lyra::opt(opt_mvlcUSBIndex, "index")
-            ["--mvlc-usb-index"] ("connect to the mvlc with the given usb device index")
-
-        | lyra::opt(opt_mvlcUSBSerial, "serial")
-            ["--mvlc-usb-serial"] ("connect to the mvlc with the given usb serial number")
-
-        | lyra::opt(opt_noListfile)
-            ["--no-listfile"] ("do not write readout data to a listfile")
-
-        | lyra::opt(opt_listfileOut, "listfileName")
-            ["--listfile"] ("filename of the output listfile")
-
-        | lyra::opt(opt_listfileCompressionType, "type")
-            ["--listfile-compression-type"].choices("zip", "lz4") ("'zip' or 'lz4'")
-
-        | lyra::opt(opt_listfileCompressionLevel, "level")
-            ["--listfile-compression-level"] ("compression level to use (for zip 0 means no compression)")
-
-        | lyra::arg(opt_crateConfig, "crateConfig")
-            ("crate config yaml file").required()
-
-        | lyra::arg(opt_secondsToRun, "secondsToRun")
-            ("duration of the DAQ run in seconds").required()
-        ;
-
-    auto cliParseResult = cli.parse({ argc, argv });
-
-    if (!cliParseResult)
-    {
-        cerr << "Error parsing command line arguments: " << cliParseResult.errorMessage() << endl;
-        return 1;
-    }
-
-    if (opt_showHelp)
-    {
-        cout << cli << endl;
-        return 0;
-    }
-
-    std::ifstream inConfig(opt_crateConfig);
-
-    if (!inConfig.is_open())
-    {
-        cerr << "Error opening crate config " << argv[1] << " for reading." << endl;
-        return 1;
-    }
-
-    auto timeToRun = std::chrono::seconds(opt_secondsToRun);
-
-    auto crateConfig = crate_config_from_yaml(inConfig);
-
-    MVLC mvlc;
-
-    if (!opt_mvlcEthHost.empty())
-        mvlc = make_mvlc_eth(opt_mvlcEthHost);
-    else if (opt_mvlcUseFirstUSBDevice)
-        mvlc = make_mvlc_usb();
-    else if (opt_mvlcUSBIndex >= 0)
-        mvlc = make_mvlc_usb(opt_mvlcUSBIndex);
-    else if (!opt_mvlcUSBSerial.empty())
-        mvlc = make_mvlc_usb(opt_mvlcUSBSerial);
-    else
-        mvlc = make_mvlc(crateConfig);
-
-    mvlc.setDisableTriggersOnConnect(true);
-
-    if (auto ec = mvlc.connect())
-    {
-        cerr << "Error connecting to MVLC: " << ec.message() << endl;
-        return 1;
-    }
-
-    cout << "Connected to MVLC " << mvlc.connectionInfo() << endl;
-
-    //
-    // init
-    //
-    {
-        auto initResults = init_readout(mvlc, crateConfig);
-
-        cout << "Results from init_commands:" << endl << initResults.init << endl;
-        // cout << "Result from init_trigger_io:" << endl << initResults.triggerIO << endl;
-
-        if (initResults.ec)
-        {
-            cerr << "Error running readout init sequence: " << initResults.ec.message() << endl;
-            return 1;
-        }
-    }
-
-    //
-    // readout parser
-    //
-    const size_t BufferSize = util::Megabytes(1);
-    const size_t BufferCount = 100;
-    ReadoutBufferQueues snoopQueues(BufferSize, BufferCount);
-
-    mini_daq::MiniDAQStats stats = {};
-    auto parserCallbacks = make_mini_daq_callbacks(stats);
-
-    auto parserState = readout_parser::make_readout_parser(crateConfig.stacks);
-    Protected<readout_parser::ReadoutParserCounters> parserCounters({});
-
-    std::thread parserThread;
-
-    parserThread = std::thread(
-        readout_parser::run_readout_parser,
-        std::ref(parserState),
-        std::ref(parserCounters),
-        std::ref(snoopQueues),
-        std::ref(parserCallbacks));
-
-    //
-    // readout
-    //
-    listfile::ZipCreator zipWriter;
-    listfile::WriteHandle *lfh = nullptr;
-
-    if (!opt_noListfile)
-    {
-        if (opt_listfileOut.empty())
-            opt_listfileOut = opt_crateConfig + ".zip";
-
-        cout << "Opening listfile " << opt_listfileOut << " for writing." << endl;
-
-        zipWriter.createArchive(opt_listfileOut);
-
-        if (opt_listfileCompressionType == "lz4")
-            lfh = zipWriter.createLZ4Entry("listfile.mvlclst", opt_listfileCompressionLevel);
-        else if (opt_listfileCompressionType == "zip")
-            lfh = zipWriter.createZIPEntry("listfile.mvlclst", opt_listfileCompressionLevel);
-        else
-            return 1;
-    }
-
-    if (lfh)
-        listfile::listfile_write_preamble(*lfh, crateConfig);
-
-    ReadoutWorker readoutWorker(mvlc, crateConfig.triggers, snoopQueues, lfh);
-
-    auto f = readoutWorker.start(timeToRun);
-
-    // wait until readout done
-    readoutWorker.waitableState().wait(
-        [] (const ReadoutWorker::State &state)
-        {
-            return state == ReadoutWorker::State::Idle;
-        });
-
-    cout << "stopping readout_parser" << endl;
-
-    // stop the readout parser
-    if (parserThread.joinable())
-    {
-        cout << "waiting for empty snoopQueue buffer" << endl;
-        auto sentinel = snoopQueues.emptyBufferQueue().dequeue(std::chrono::seconds(1));
-
-        if (sentinel)
-        {
-            cout << "got a sentinel buffer for the readout parser" << endl;
-            sentinel->clear();
-            snoopQueues.filledBufferQueue().enqueue(sentinel);
-            cout << "enqueued the sentinel buffer for the readout parser" << endl;
-        }
-        else
-        {
-            cout << "did not get an empty buffer from the snoopQueues" << endl;
-        }
-
-        parserThread.join();
-    }
-
-    int retval = 0;
-
-    if (auto ec = disable_all_triggers(mvlc))
-    {
-        cerr << "Error disabling MVLC triggers: " << ec.message() << endl;
-        retval = 1;
-    }
-
-    mvlc.disconnect();
-
+#if 0
+#ifdef __WIN32
+    system("cls");
+#else
+    out << "\e[1;1H\e[2J";
+#endif
+#endif
     //
     // readout stats
     //
     {
-        auto counters = readoutWorker.counters();
+        auto &counters = readoutWorkerCounters;
 
         auto tStart = counters.tStart;
         // Note: if idle this uses the tTerminateStart time point. This means
@@ -288,7 +96,7 @@ int main(int argc, char *argv[])
 
         cout << endl;
 
-        if (mvlc.connectionType() == ConnectionType::ETH)
+        if (connectionType == ConnectionType::ETH)
         {
             auto pipeCounters = counters.ethStats[DataPipe];
             cout << endl;
@@ -308,8 +116,11 @@ int main(int argc, char *argv[])
         // listfile writer counters
         {
             auto writerCounters = counters.listfileWriterCounters;
-            auto writerElapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
-                writerCounters.tEnd - writerCounters.tStart);
+            auto tStart = writerCounters.tStart;
+            auto tEnd = (writerCounters.state != ListfileWriterCounters::Idle
+                         ? std::chrono::steady_clock::now()
+                         : writerCounters.tEnd);
+            auto writerElapsed = std::chrono::duration_cast<std::chrono::milliseconds>(tEnd - tStart);
             auto writerSeconds = writerElapsed.count() / 1000.0;
             double megaBytes = writerCounters.bytesWritten * 1.0 / util::Megabytes(1);
             double mbs = megaBytes / writerSeconds;
@@ -343,7 +154,7 @@ int main(int argc, char *argv[])
     // parser stats
     //
     {
-        auto counters = parserCounters.copy();
+        auto counters = parserCounters;
 
         cout << endl;
         cout << "---- readout parser stats ----" << endl;
@@ -378,9 +189,286 @@ int main(int argc, char *argv[])
         }
 
         cout << "parserExceptions=" << counters.parserExceptions << endl;
-
-        dump_mini_daq_parser_stats(cout, stats);
     }
 
-    return retval;
+    cout << endl << "---- mini-daq stats ----" << endl;
+    mini_daq::dump_mini_daq_parser_stats(out, miniDAQStats);
+}
+
+int main(int argc, char *argv[])
+{
+    // MVLC connection overrides
+    std::string opt_mvlcEthHost;
+    bool opt_mvlcUseFirstUSBDevice = false;
+    int opt_mvlcUSBIndex = -1;
+    std::string opt_mvlcUSBSerial;
+
+    // listfile and run options
+    bool opt_noListfile = false;
+    bool opt_overwriteListfile = false;
+    std::string opt_listfileOut;
+    std::string opt_listfileCompressionType = "lz4";
+    int opt_listfileCompressionLevel = 0;
+    std::string opt_crateConfig;
+    unsigned opt_secondsToRun = 10;
+
+    bool opt_showHelp = false;
+
+    auto cli
+        = lyra::help(opt_showHelp)
+
+        | lyra::opt(opt_mvlcEthHost, "hostname")
+            ["--mvlc-eth"] ("mvlc ethernet hostname (overrides CrateConfig)")
+
+        | lyra::opt(opt_mvlcUseFirstUSBDevice)
+            ["--mvlc-usb"] ("connect to the first mvlc usb device (overrides CrateConfig)")
+
+        | lyra::opt(opt_mvlcUSBIndex, "index")
+            ["--mvlc-usb-index"] ("connect to the mvlc with the given usb device index (overrides CrateConfig)")
+
+        | lyra::opt(opt_mvlcUSBSerial, "serial")
+            ["--mvlc-usb-serial"] ("connect to the mvlc with the given usb serial number (overrides CrateConfig)")
+
+        | lyra::opt(opt_noListfile)
+            ["--no-listfile"] ("do not write readout data to a listfile (data will not be recorded)")
+
+        | lyra::opt(opt_overwriteListfile)
+            ["--overwrite-listfile"] ("overwrite an existing listfile")
+
+        | lyra::opt(opt_listfileOut, "listfileName")
+            ["--listfile"] ("filename of the output listfile (e.g. run001.zip)")
+
+        | lyra::opt(opt_listfileCompressionType, "type")
+            ["--listfile-compression-type"].choices("zip", "lz4") ("'zip' or 'lz4'")
+
+        | lyra::opt(opt_listfileCompressionLevel, "level")
+            ["--listfile-compression-level"] ("compression level to use (for zip 0 means no compression)")
+
+        | lyra::arg(opt_crateConfig, "crateConfig")
+            ("crate config yaml file").required()
+
+        | lyra::arg(opt_secondsToRun, "secondsToRun")
+            ("duration the DAQ should run in seconds").required()
+        ;
+
+    auto cliParseResult = cli.parse({ argc, argv });
+
+    if (!cliParseResult)
+    {
+        cerr << "Error parsing command line arguments: " << cliParseResult.errorMessage() << endl;
+        return 1;
+    }
+
+    if (opt_showHelp)
+    {
+        cout << cli << endl;
+
+        cout
+            << "The mini-daq utility is a command-line program running an MVLC based DAQ." << endl << endl
+            << "Configuration data has to be supplied in a YAML 'CrateConfig' file." << endl
+            << "Such a config file can be generated from an mvme setup using the" << endl
+            << "'File -> Export VME Config' menu entry in mvme." << endl
+            << "Alternatively a CrateConfig object can be generated programmatically and" << endl << endl
+            << "saved using the to_yaml() free function."
+            << endl;
+        return 0;
+    }
+
+    std::ifstream inConfig(opt_crateConfig);
+
+    if (!inConfig.is_open())
+    {
+        cerr << "Error opening crate config " << argv[1] << " for reading." << endl;
+        return 1;
+    }
+
+    try
+    {
+
+        auto timeToRun = std::chrono::seconds(opt_secondsToRun);
+
+        auto crateConfig = crate_config_from_yaml(inConfig);
+
+        MVLC mvlc;
+
+        if (!opt_mvlcEthHost.empty())
+            mvlc = make_mvlc_eth(opt_mvlcEthHost);
+        else if (opt_mvlcUseFirstUSBDevice)
+            mvlc = make_mvlc_usb();
+        else if (opt_mvlcUSBIndex >= 0)
+            mvlc = make_mvlc_usb(opt_mvlcUSBIndex);
+        else if (!opt_mvlcUSBSerial.empty())
+            mvlc = make_mvlc_usb(opt_mvlcUSBSerial);
+        else
+            mvlc = make_mvlc(crateConfig);
+
+        // Cancel any possibly running readout when connecting.
+        mvlc.setDisableTriggersOnConnect(true);
+
+        if (auto ec = mvlc.connect())
+        {
+            cerr << "Error connecting to MVLC: " << ec.message() << endl;
+            return 1;
+        }
+
+        cout << "Connected to MVLC " << mvlc.connectionInfo() << endl;
+
+        //
+        // init
+        //
+        {
+            auto initResults = init_readout(mvlc, crateConfig);
+
+            cout << "Results from init_commands:" << endl << initResults.init << endl;
+            // cout << "Result from init_trigger_io:" << endl << initResults.triggerIO << endl;
+
+            if (initResults.ec)
+            {
+                cerr << "Error running readout init sequence: " << initResults.ec.message() << endl;
+                return 1;
+            }
+        }
+
+        //
+        // listfile
+        //
+        listfile::ZipCreator zipWriter;
+        listfile::WriteHandle *lfh = nullptr;
+
+        if (!opt_noListfile)
+        {
+            if (opt_listfileOut.empty())
+                opt_listfileOut = util::basename(opt_crateConfig) + ".zip";
+
+            if (!opt_overwriteListfile && util::file_exists(opt_listfileOut))
+            {
+                cerr << "Error: output listfile " << opt_listfileOut << " exists."
+                    " Use  --overwrite-listfile to force overwriting the file." << endl;
+                return 1;
+            }
+
+            cout << "Opening output listfile " << opt_listfileOut << " for writing." << endl;
+
+            zipWriter.createArchive(opt_listfileOut);
+
+            if (opt_listfileCompressionType == "lz4")
+                lfh = zipWriter.createLZ4Entry("listfile.mvlclst", opt_listfileCompressionLevel);
+            else if (opt_listfileCompressionType == "zip")
+                lfh = zipWriter.createZIPEntry("listfile.mvlclst", opt_listfileCompressionLevel);
+            else
+                return 1;
+        }
+
+        // Write the CrateConfig and additional meta information to the listfile.
+        if (lfh)
+            listfile::listfile_write_preamble(*lfh, crateConfig);
+
+        //
+        // Setup and start the readout parser.
+        //
+        const size_t BufferSize = util::Megabytes(1);
+        const size_t BufferCount = 100;
+        ReadoutBufferQueues snoopQueues(BufferSize, BufferCount);
+
+        Protected<mini_daq::MiniDAQStats> miniDAQStats({});
+        auto parserCallbacks = make_mini_daq_callbacks(miniDAQStats);
+
+        auto parserState = readout_parser::make_readout_parser(crateConfig.stacks);
+        Protected<readout_parser::ReadoutParserCounters> parserCounters({});
+
+        std::thread parserThread;
+
+        parserThread = std::thread(
+            readout_parser::run_readout_parser,
+            std::ref(parserState),
+            std::ref(parserCounters),
+            std::ref(snoopQueues),
+            std::ref(parserCallbacks));
+
+        //
+        // Create a ReadoutWorker and start the readout.
+        //
+        ReadoutWorker readoutWorker(mvlc, crateConfig.triggers, snoopQueues, lfh);
+
+        cout << "Starting readout worker. Running for " << timeToRun.count() << " seconds." << endl;
+
+        auto f = readoutWorker.start(timeToRun);
+
+        if (auto ec = f.get())
+        {
+            cerr << "Error starting readout worker: " << ec.message() << endl;
+            throw std::runtime_error("ReadoutWorker error");
+        }
+
+        // wait until readout done, dumping counter stats periodically
+        while (readoutWorker.state() != ReadoutWorker::State::Idle)
+        {
+            readoutWorker.waitableState().wait_for(
+                std::chrono::milliseconds(1000),
+                [] (const ReadoutWorker::State &state)
+                {
+                    return state == ReadoutWorker::State::Idle;
+                });
+
+#if 0
+            dump_counters(
+                cout,
+                crateConfig.connectionType,
+                readoutWorker.counters(),
+                parserCounters.copy(),
+                miniDAQStats.copy());
+#endif
+        }
+
+        cout << "stopping readout_parser" << endl;
+
+        // stop the readout parser
+        if (parserThread.joinable())
+        {
+            cout << "waiting for empty snoopQueue buffer" << endl;
+            auto sentinel = snoopQueues.emptyBufferQueue().dequeue(std::chrono::seconds(1));
+
+            if (sentinel)
+            {
+                cout << "got a sentinel buffer for the readout parser" << endl;
+                sentinel->clear();
+                snoopQueues.filledBufferQueue().enqueue(sentinel);
+                cout << "enqueued the sentinel buffer for the readout parser" << endl;
+            }
+            else
+            {
+                cout << "did not get an empty buffer from the snoopQueues" << endl;
+            }
+
+            parserThread.join();
+        }
+
+        int retval = 0;
+
+        if (auto ec = disable_all_triggers(mvlc))
+        {
+            cerr << "Error disabling MVLC triggers: " << ec.message() << endl;
+            retval = 1;
+        }
+
+        mvlc.disconnect();
+
+        cout << endl << "Final stats dump:" << endl;
+
+        dump_counters(
+            cout,
+            crateConfig.connectionType,
+            readoutWorker.counters(),
+            parserCounters.copy(),
+            miniDAQStats.copy());
+
+        return retval;
+    }
+    catch (const std::runtime_error &e)
+    {
+        cerr << "mini-daq caught an exception: " << e.what() << endl;
+        return 1;
+    }
+
+    return 0;
 }

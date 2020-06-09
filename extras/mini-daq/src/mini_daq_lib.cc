@@ -10,48 +10,51 @@ namespace mvlc
 namespace mini_daq
 {
 
-readout_parser::ReadoutParserCallbacks make_mini_daq_callbacks(MiniDAQStats &stats)
+readout_parser::ReadoutParserCallbacks make_mini_daq_callbacks(Protected<MiniDAQStats> &protectedStats)
 {
     readout_parser::ReadoutParserCallbacks callbacks;
 
-    callbacks.beginEvent = [&stats] (int eventIndex)
+    callbacks.beginEvent = [&protectedStats] (int eventIndex)
     {
-        stats.eventHits[eventIndex]++;
+        protectedStats.access()->eventHits[eventIndex]++;
     };
 
-    callbacks.modulePrefix = [&stats] (int ei, int mi,  const u32 *data, u32 size)
+    callbacks.modulePrefix = [&protectedStats] (int ei, int mi,  const u32 *data, u32 size)
     {
         auto index = std::make_pair(ei, mi);
+        auto stats = protectedStats.access();
 
-        ++stats.modulePrefixHits[index];
+        ++stats->modulePrefixHits[index];
 
-        auto &sizeInfo = stats.modulePrefixSizes[index];
+        auto &sizeInfo = stats->modulePrefixSizes[index];
         sizeInfo.min = std::min(sizeInfo.min, static_cast<size_t>(size));
         sizeInfo.max = std::max(sizeInfo.max, static_cast<size_t>(size));
         sizeInfo.sum += size;
     };
 
-    callbacks.moduleDynamic = [&stats] (int ei, int mi,  const u32 *data, u32 size)
+    callbacks.moduleDynamic = [&protectedStats] (int ei, int mi,  const u32 *data, u32 size)
     {
         //cout << "ei=" << ei << ", mi=" << mi << ", data=" << data << ", size=" << size << endl;
         //util::log_buffer(cout, basic_string_view<u32>(data, size));
         auto index = std::make_pair(ei, mi);
+        auto stats = protectedStats.access();
 
-        ++stats.moduleDynamicHits[index];
+        ++stats->moduleDynamicHits[index];
 
-        auto &sizeInfo = stats.moduleDynamicSizes[index];
+        auto &sizeInfo = stats->moduleDynamicSizes[index];
         sizeInfo.min = std::min(sizeInfo.min, static_cast<size_t>(size));
         sizeInfo.max = std::max(sizeInfo.max, static_cast<size_t>(size));
         sizeInfo.sum += size;
     };
 
-    callbacks.moduleSuffix = [&stats] (int ei, int mi,  const u32 *data, u32 size)
+    callbacks.moduleSuffix = [&protectedStats] (int ei, int mi,  const u32 *data, u32 size)
     {
         auto index = std::make_pair(ei, mi);
+        auto stats = protectedStats.access();
 
-        ++stats.moduleSuffixHits[index];
+        ++stats->moduleSuffixHits[index];
 
-        auto &sizeInfo = stats.moduleSuffixSizes[index];
+        auto &sizeInfo = stats->moduleSuffixSizes[index];
         sizeInfo.min = std::min(sizeInfo.min, static_cast<size_t>(size));
         sizeInfo.max = std::max(sizeInfo.max, static_cast<size_t>(size));
         sizeInfo.sum += size;
@@ -67,30 +70,36 @@ std::ostream &dump_mini_daq_parser_stats(std::ostream &out, const MiniDAQStats &
         const MiniDAQStats::ModulePartHits &hits,
         const MiniDAQStats::ModulePartSizes &sizes)
     {
-        out << "module " + partTitle + " hits: ";
-
-        for (const auto &kv: hits)
+        if (!hits.empty())
         {
-            out << fmt::format(
-                "ei={}, mi={}, hits={}; ",
-                kv.first.first, kv.first.second, kv.second);
+            out << "module " + partTitle + " hits: ";
+
+            for (const auto &kv: hits)
+            {
+                out << fmt::format(
+                    "ei={}, mi={}, hits={}; ",
+                    kv.first.first, kv.first.second, kv.second);
+            }
+
+            out << endl;
         }
 
-        out << endl;
-
-        out << "module " + partTitle + " sizes: ";
-
-        for (const auto &kv: sizes)
+        if (!sizes.empty())
         {
-            out << fmt::format(
-                "ei={}, mi={}, min={}, max={}, avg={}; ",
-                kv.first.first, kv.first.second,
-                kv.second.min,
-                kv.second.max,
-                kv.second.sum / static_cast<double>(hits.at(kv.first)));
-        }
+            out << "module " + partTitle + " sizes: ";
 
-        out << endl;
+            for (const auto &kv: sizes)
+            {
+                out << fmt::format(
+                    "ei={}, mi={}, min={}, max={}, avg={}; ",
+                    kv.first.first, kv.first.second,
+                    kv.second.min,
+                    kv.second.max,
+                    kv.second.sum / static_cast<double>(hits.at(kv.first)));
+            }
+
+            out << endl;
+        }
     };
 
     out << "eventHits: ";

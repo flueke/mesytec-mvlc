@@ -86,7 +86,7 @@ int main(int argc, char *argv[])
     const size_t BufferCount = 100;
     ReadoutBufferQueues snoopQueues(BufferSize, BufferCount);
 
-    mini_daq::MiniDAQStats stats = {};
+    Protected<mini_daq::MiniDAQStats> stats({});
     auto parserCallbacks = make_mini_daq_callbacks(stats);
 
     auto parserState = readout_parser::make_readout_parser(crateConfig.stacks);
@@ -199,7 +199,7 @@ int main(int argc, char *argv[])
 
         cout << "parserExceptions=" << counters.parserExceptions << endl;
 
-        dump_mini_daq_parser_stats(cout, stats);
+        dump_mini_daq_parser_stats(cout, stats.copy());
     }
 
     return 0;

@@ -51,7 +51,7 @@ struct MiniDAQStats
 
 // Creates a a set of readout parser callbacks which update the given
 // MiniDAQStats when invoked by the parser.
-readout_parser::ReadoutParserCallbacks make_mini_daq_callbacks(MiniDAQStats &stats);
+readout_parser::ReadoutParserCallbacks make_mini_daq_callbacks(Protected<MiniDAQStats> &stats);
 
 // Formatted output of given stats structure.
 std::ostream &dump_mini_daq_parser_stats(std::ostream &out, const MiniDAQStats &stats);
