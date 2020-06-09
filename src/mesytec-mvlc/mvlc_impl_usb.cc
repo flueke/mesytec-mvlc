@@ -62,9 +62,9 @@ do\
 #define LOG_DEBUG(fmt, ...) DO_LOG(LOG_LEVEL_DEBUG, "DEBUG - mvlc_usb ", fmt, ##__VA_ARGS__)
 #define LOG_TRACE(fmt, ...) DO_LOG(LOG_LEVEL_TRACE, "TRACE - mvlc_usb ", fmt, ##__VA_ARGS__)
 
-#define USB_WIN_USE_ASYNC 1
+#define USB_WIN_USE_ASYNC 0
 #define USB_WIN_USE_EX_FUNCTIONS 1 // Currently only implemented for the SYNC case.
-#define USB_WIN_USE_STREAMPIPE 0
+#define USB_WIN_USE_STREAMPIPE 1
 
 namespace std
 {
