@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.10)
 
 project(mesytec-mvlc
-    DESCRIPTION "User space library for the Mesytec MVLC VME controller")
+    DESCRIPTION "User space driver library for the Mesytec MVLC VME controller")
 
 # Check if mesytec-mvlc is being used directly or via add_subdirectory
 set(MESYTEC_MVLC_MASTER_PROJECT OFF)
@@ -105,5 +105,6 @@ add_subdirectory(external)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 
+add_subdirectory(doc)
 add_subdirectory(extras)
 add_subdirectory(src)

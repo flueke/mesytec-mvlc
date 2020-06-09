@@ -1,6 +1,17 @@
-# mesytec-mvlc
+# mesytec-mvlc  {#mainpage}
 
 *User space driver library for the Mesytec MVLC VME controller.*
+
+*mesytec-mvlc* is a driver and utility library for the [Mesytec MVLC VME
+controller] (https://mesytec.com/products/nuclear-physics/MVLC.html) written in
+C++. The library consists of low-level code for accessing MVLCs over USB and
+Ethernet, higher-level communication logic for reading and writing internal
+MVLC registers and accessing VME modules. Additionally the basic blocks needed
+to build high-performance DAQ readout systems are provided:
+
+
+and the basic blocks for building
+high-performance DAQ systems using the MVLC.
 
 ## Components
 
@@ -33,7 +44,8 @@
 
 * single create readout instance: DONE
   - readout config
-  - readout buffer structure with crateId, number, type, capacity, used and view/read/write access
+  - readout buffer structure with crateId, number, type, capacity, used and
+    view/read/write access
   - readout buffer queue plus operations (blocking, non-blocking)
   - listfile output (the readout config is serialized into the listfile at the start)
 
