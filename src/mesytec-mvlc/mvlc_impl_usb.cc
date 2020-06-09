@@ -716,7 +716,7 @@ std::error_code Impl::write(Pipe pipe, const u8 *buffer, size_t size,
     FT_STATUS st = FT_OK;
     {
         LOG_TRACE("async write");
-        OVERLAPPED vOverlapped = {0};
+        OVERLAPPED vOverlapped = {};
         std::memset(&vOverlapped, 0, sizeof(vOverlapped));
         vOverlapped.hEvent = CreateEvent(nullptr, false, false, nullptr);
         //st = FT_InitializeOverlapped(m_handle, &vOverlapped);
@@ -892,7 +892,7 @@ std::error_code Impl::read(Pipe pipe, u8 *buffer, size_t size,
     FT_STATUS st = FT_OK;
     {
         LOG_TRACE("async read");
-        OVERLAPPED vOverlapped = {0};
+        OVERLAPPED vOverlapped = {};
         std::memset(&vOverlapped, 0, sizeof(vOverlapped));
         vOverlapped.hEvent = CreateEvent(nullptr, false, false, nullptr);
         //st = FT_InitializeOverlapped(m_handle, &vOverlapped);
@@ -1024,7 +1024,7 @@ std::error_code Impl::read_unbuffered(Pipe pipe, u8 *buffer, size_t size,
     FT_STATUS st = FT_OK;
     {
         //LOG_WARN("async read_unbuffered");
-        OVERLAPPED vOverlapped = {0};
+        OVERLAPPED vOverlapped = {};
         std::memset(&vOverlapped, 0, sizeof(vOverlapped));
         vOverlapped.hEvent = CreateEvent(nullptr, false, false, nullptr);
         //st = FT_InitializeOverlapped(m_handle, &vOverlapped);
