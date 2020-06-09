@@ -42,6 +42,7 @@
 #include "mvlc_stack_executor.h"
 #include "mvlc_threading.h"
 #include "mvlc_util.h"
+#include "util/filesystem.h"
 #include "util/io_util.h"
 #include "vme_constants.h"
 
