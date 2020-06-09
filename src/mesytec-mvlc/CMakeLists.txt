@@ -29,6 +29,7 @@ add_library(mesytec-mvlc SHARED
     mvlc_usb_interface.cc
     mvlc_util.cc
 
+    util/filesystem.cc
     util/protected.cc
     util/string_util.cc
     util/threadsafequeue.cc
