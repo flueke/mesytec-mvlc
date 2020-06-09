@@ -533,6 +533,11 @@ void ReadoutWorker::Private::loop(std::promise<std::error_code> promise)
                 {
                     auto totalElapsed = now - tStart;
 
+                    cout << "timeToRun.count()=" << timeToRun.count()
+                        << ", totalElapsed.count()=" << totalElapsed.count()
+                        << ", totalElapsed>=timeToRun=" << (totalElapsed >= timeToRun)
+                        << endl;
+
                     if (timeToRun.count() != 0 && totalElapsed >= timeToRun)
                     {
                         std::cout << "MVLC readout timeToRun reached" << std::endl;
@@ -907,12 +912,18 @@ std::error_code ReadoutWorker::Private::readout_usb(
             totalBytesTransferred += bytesTransferred;
 
             if (ec == ErrorType::ConnectionError)
+            {
+                cerr << "connection error from usb::Impl::read_unbuffered(): " << ec.message() << endl;
                 break;
+            }
 
             auto elapsed = std::chrono::steady_clock::now() - tStart;
 
             if (elapsed >= FlushBufferTimeout)
+            {
+                cerr << "flush buffer timeout reached, leaving reaodut_usb()" << endl;
                 break;
+            }
         }
     } // with dataGuard
 

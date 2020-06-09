@@ -43,7 +43,7 @@
 #define LOG_LEVEL_TRACE 400
 
 #ifndef MVLC_USB_LOG_LEVEL
-#define MVLC_USB_LOG_LEVEL LOG_LEVEL_WARN
+#define MVLC_USB_LOG_LEVEL LOG_LEVEL_TRACE
 #endif
 
 #define LOG_LEVEL_SETTING MVLC_USB_LOG_LEVEL
@@ -1078,7 +1078,7 @@ std::error_code Impl::read_unbuffered(Pipe pipe, u8 *buffer, size_t size,
 std::error_code Impl::abortPipe(Pipe pipe, EndpointDirection dir)
 {
 #ifdef __WIN32
-#if 1
+#if 0
     LOG_TRACE("FT_AbortPipe on pipe=%u, dir=%u",
               static_cast<unsigned>(pipe),
               static_cast<unsigned>(dir));
