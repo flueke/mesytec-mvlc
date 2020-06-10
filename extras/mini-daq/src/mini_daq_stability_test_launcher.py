@@ -20,3 +20,5 @@ if __name__ == "__main__":
         print("Run {} of {}: starting ".format(runNum, RunCount), *daqArgs)
         daqProc = subprocess.Popen(daqArgs)
         daqProc.communicate()
+        if daqProc.returncode != 0:
+            raise Exception("mini-daq returned {}".format(daqProc.returncode))
