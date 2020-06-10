@@ -533,7 +533,11 @@ void ReadoutWorker::Private::loop(std::promise<std::error_code> promise)
                 {
                     auto totalElapsed = now - tStart;
 
+                    auto elapsedSeconds = std::chrono::duration_cast<
+                        std::chrono::seconds>(totalElapsed);
+
                     cout << "timeToRun.count()=" << timeToRun.count()
+                        << ", elapsedSeconds.count()=" << elapsedSeconds.count()
                         << ", totalElapsed.count()=" << totalElapsed.count()
                         << ", totalElapsed>=timeToRun=" << (totalElapsed >= timeToRun)
                         << endl;
