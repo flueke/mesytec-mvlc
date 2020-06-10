@@ -197,7 +197,7 @@ class MESYTEC_MVLC_EXPORT Impl: public MVLCBasicInterface, public MVLC_USB_Inter
         std::error_code closeHandle();
 
 #ifdef __WIN32
-        std::array<ReadBuffer<USBSingleTransferMaxBytes>, PipeCount> m_readBuffers;
+        std::array<ReadBuffer<USBStreamPipeReadSize>, PipeCount> m_readBuffers;
 #endif
         DeviceInfo m_deviceInfo;
         bool m_disableTriggersOnConnect = false;

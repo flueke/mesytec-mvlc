@@ -21,4 +21,5 @@ if __name__ == "__main__":
         daqProc = subprocess.Popen(daqArgs)
         daqProc.communicate()
         if daqProc.returncode != 0:
-            raise Exception("mini-daq returned {}".format(daqProc.returncode))
+            raise Exception("Run {} of {}: mini-daq returned {}".format(
+                runNum, RunCount, daqProc.returncode))

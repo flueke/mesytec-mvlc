@@ -43,7 +43,7 @@
 #define LOG_LEVEL_TRACE 400
 
 #ifndef MVLC_USB_LOG_LEVEL
-#define MVLC_USB_LOG_LEVEL LOG_LEVEL_TRACE
+#define MVLC_USB_LOG_LEVEL LOG_LEVEL_WARN
 #endif
 
 #define LOG_LEVEL_SETTING MVLC_USB_LOG_LEVEL
@@ -592,7 +592,7 @@ std::error_code Impl::connect()
 #ifdef __WIN32
 #if USB_WIN_USE_STREAMPIPE
     // FT_SetStreamPipe(handle, allWritePipes, allReadPipes, pipeID, streamSize)
-    st = FT_SetStreamPipe(m_handle, false, true, 0, USBSingleTransferMaxBytes);
+    st = FT_SetStreamPipe(m_handle, false, true, 0, USBStreamPipeReadSize);
 
     if (auto ec = make_error_code(st))
     {

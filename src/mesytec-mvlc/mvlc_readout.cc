@@ -479,8 +479,7 @@ void ReadoutWorker::Private::loop(std::promise<std::error_code> promise)
     // stack error polling thread
     std::atomic<bool> quitErrorPoller(false);
 
-    std::thread pollerThread;
-    pollerThread = std::thread(
+    auto pollerThread = std::thread(
         stack_error_notification_poller,
         mvlc,
         std::ref(counters),
@@ -535,12 +534,6 @@ void ReadoutWorker::Private::loop(std::promise<std::error_code> promise)
 
                     auto elapsedSeconds = std::chrono::duration_cast<
                         std::chrono::seconds>(totalElapsed);
-
-                    cout << "timeToRun.count()=" << timeToRun.count()
-                        << ", elapsedSeconds.count()=" << elapsedSeconds.count()
-                        << ", totalElapsed.count()=" << totalElapsed.count()
-                        << ", totalElapsed>=timeToRun=" << (totalElapsed >= timeToRun)
-                        << endl;
 
                     if (timeToRun.count() != 0 && totalElapsed >= timeToRun)
                     {
@@ -847,7 +840,6 @@ inline void fixup_usb_buffer(
 }
 
 static const std::chrono::milliseconds FlushBufferTimeout(500);
-static const size_t USBReadMinBytes = mesytec::mvlc::usb::USBSingleTransferMaxBytes;
 
 std::error_code ReadoutWorker::Private::readout(size_t &bytesTransferred)
 {
@@ -897,19 +889,20 @@ std::error_code ReadoutWorker::Private::readout_usb(
         previousData.clear();
     }
 
-    destBuffer->ensureFreeSpace(USBReadMinBytes);
+    destBuffer->ensureFreeSpace(usb::USBStreamPipeReadSize);
 
     {
         auto dataGuard = mvlc.getLocks().lockData();
 
-        while (destBuffer->free() >= USBReadMinBytes)
+        while (destBuffer->free() >= usb::USBStreamPipeReadSize)
         {
+            const size_t bytesToRead = std::min(destBuffer->free(), usb::USBStreamPipeReadSize);
             size_t bytesTransferred = 0u;
 
             ec = mvlcUSB->read_unbuffered(
                 Pipe::Data,
                 destBuffer->data() + destBuffer->used(),
-                destBuffer->free(),
+                bytesToRead,
                 bytesTransferred);
 
             destBuffer->use(bytesTransferred);
