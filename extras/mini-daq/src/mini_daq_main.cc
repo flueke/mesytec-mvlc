@@ -30,6 +30,7 @@ void dump_counters(
     const mini_daq::MiniDAQStats &miniDAQStats)
 {
 #if 0
+// clear screen hacks
 #ifdef __WIN32
     system("cls");
 #else
@@ -410,7 +411,7 @@ int main(int argc, char *argv[])
                     return state == ReadoutWorker::State::Idle;
                 });
 
-#if 0
+#if 1
             dump_counters(
                 cout,
                 crateConfig.connectionType,
