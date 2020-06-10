@@ -1078,7 +1078,7 @@ std::error_code Impl::read_unbuffered(Pipe pipe, u8 *buffer, size_t size,
 std::error_code Impl::abortPipe(Pipe pipe, EndpointDirection dir)
 {
 #ifdef __WIN32
-#if 0
+#if 1
     LOG_TRACE("FT_AbortPipe on pipe=%u, dir=%u",
               static_cast<unsigned>(pipe),
               static_cast<unsigned>(dir));
