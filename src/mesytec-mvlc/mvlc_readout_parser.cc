@@ -1028,8 +1028,6 @@ ParseResult parse_readout_buffer_eth(
             }
             catch (...)
             {
-                // skip over the current packet (it has already been added to packetViews)
-                input.remove_prefix(packetWords);
                 exceptionSeen = true;
 
 #if 0
@@ -1096,10 +1094,13 @@ ParseResult parse_readout_buffer_eth(
                 else
                     count_parse_result(counters.ref(), pr);
 
-                input.remove_prefix(packetWords);
+                if (input.size() >= packetWords)
+                {
+                    input.remove_prefix(packetWords);
 
-                LOG_DEBUG("skipping %lu words of eth packet data due to an error result from the parser",
-                         packetWords);
+                    LOG_DEBUG("skipping %lu words of eth packet data due to an error result from the parser",
+                             packetWords);
+                }
 
                 continue;
             }
