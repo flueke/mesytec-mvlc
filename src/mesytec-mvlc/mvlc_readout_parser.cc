@@ -1030,6 +1030,7 @@ ParseResult parse_readout_buffer_eth(
             {
                 exceptionSeen = true;
 
+// very verbose printf debugging code
 #if 0
                 auto errorPacketNumber = ethHdrs.packetNumber();
 
