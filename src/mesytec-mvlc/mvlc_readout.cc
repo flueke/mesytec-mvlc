@@ -220,10 +220,9 @@ void MESYTEC_MVLC_EXPORT listfile_buffer_writer(
 
             try
             {
-                auto bufferView = buffer->viewU8();
-
                 if (lfh)
                 {
+                    auto bufferView = buffer->viewU8();
                     bytesWritten += lfh->write(bufferView.data(), bufferView.size());
                     ++writes;
 
@@ -632,6 +631,15 @@ void ReadoutWorker::Private::loop(std::promise<std::error_code> promise)
                 {
                     assert(!"invalid code path");
                 }
+
+                // Check if the listfile writer caught an exception. This can
+                // only happen if we actually do write a listfile.
+                // For now just rethrow the exception and let the outer
+                // try/catch handle it.
+                if (auto eptr = writerCounters.access()->eptr)
+                {
+                    std::rethrow_exception(eptr);
+                }
             }
         }
         catch (...)
@@ -657,10 +665,12 @@ void ReadoutWorker::Private::loop(std::promise<std::error_code> promise)
         c->tTerminateEnd = tTerminateEnd;
     }
 
-    std::cout << "terminateReadout() took " << terminateDuration.count() << " ms to complete" << std::endl;
+    std::cout << "terminateReadout() took " << terminateDuration.count()
+        << " ms to complete" << std::endl;
 
     // Write EndRun and EndOfFile system event sections into a ReadoutBuffer
     // and immediately flush the buffer.
+    if (writerCounters.access()->state == ListfileWriterCounters::Running)
     {
         listfile::BufferWriteHandle wh(*getOutputBuffer());
         listfile_write_timestamp_section(wh, system_event::subtype::EndRun);
@@ -671,6 +681,7 @@ void ReadoutWorker::Private::loop(std::promise<std::error_code> promise)
     maybePutBackSnoopBuffer();
 
     // stop the listfile writer
+    if (writerCounters.access()->state == ListfileWriterCounters::Running)
     {
         auto sentinel = listfileQueues.emptyBufferQueue().dequeue_blocking();
         sentinel->clear();
@@ -680,10 +691,12 @@ void ReadoutWorker::Private::loop(std::promise<std::error_code> promise)
     if (writerThread.joinable())
         writerThread.join();
 
+    // Final copy of the listfile writer counters to our
+    // ReadoutWorker::Counters structure.
     counters.access()->listfileWriterCounters = writerCounters.access().ref();
 
     // Record the tEnd before waiting for the error poller to stop. This way
-    // the final stats more closely reflects the actual data rate while the DAQ
+    // the final stats more closely reflect the actual data rate while the DAQ
     // was active. Note that the time taken in terminateReadout() is still
     // counted into the duration which means there's at least one read timeout
     // at the end. For long runs this doesn't really have an effect on the rate
