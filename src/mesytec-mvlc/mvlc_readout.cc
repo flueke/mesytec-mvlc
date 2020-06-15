@@ -467,6 +467,44 @@ void ReadoutWorker::Private::loop(std::promise<std::error_code> promise)
 
     counters.access().ref() = {}; // reset the counters
 
+    // ConnectionType specifics
+    this->mvlcETH = nullptr;
+    this->mvlcUSB = nullptr;
+
+    switch (mvlc.connectionType())
+    {
+        case ConnectionType::ETH:
+            this->mvlcETH = dynamic_cast<eth::MVLC_ETH_Interface *>(mvlc.getImpl());
+            mvlcETH->resetPipeAndChannelStats(); // reset packet loss counters
+            assert(mvlcETH);
+
+            // Send an initial empty frame to the UDP data pipe port so that
+            // the MVLC knows where to send the readout data.
+            {
+                static const std::array<u32, 2> EmptyRequest = { 0xF1000000, 0xF2000000 };
+                size_t bytesTransferred = 0;
+
+                if (auto ec = mvlc.write(
+                        Pipe::Data,
+                        reinterpret_cast<const u8 *>(EmptyRequest.data()),
+                        EmptyRequest.size() * sizeof(u32),
+                        bytesTransferred))
+                {
+                    promise.set_value(ec);
+                    setState(State::Idle);
+                    return;
+                }
+            }
+            break;
+
+        case ConnectionType::USB:
+            this->mvlcUSB = dynamic_cast<usb::MVLC_USB_Interface *>(mvlc.getImpl());
+            assert(mvlcUSB);
+            break;
+    }
+
+    assert(mvlcETH || mvlcUSB);
+
     // listfile writer thread
     Protected<ListfileWriterCounters> writerCounters({});
 
@@ -484,22 +522,6 @@ void ReadoutWorker::Private::loop(std::promise<std::error_code> promise)
         mvlc,
         std::ref(counters),
         std::ref(quitErrorPoller));
-
-    switch (mvlc.connectionType())
-    {
-        case ConnectionType::ETH:
-            this->mvlcETH = dynamic_cast<eth::MVLC_ETH_Interface *>(mvlc.getImpl());
-            mvlcETH->resetPipeAndChannelStats();
-            assert(mvlcETH);
-            break;
-
-        case ConnectionType::USB:
-            this->mvlcUSB = dynamic_cast<usb::MVLC_USB_Interface *>(mvlc.getImpl());
-            assert(mvlcUSB);
-            break;
-    }
-
-    assert(mvlcETH || mvlcUSB);
 
     const auto TimestampInterval = std::chrono::seconds(1);
 
@@ -531,9 +553,6 @@ void ReadoutWorker::Private::loop(std::promise<std::error_code> promise)
                 // check if timeToRun has elapsed
                 {
                     auto totalElapsed = now - tStart;
-
-                    auto elapsedSeconds = std::chrono::duration_cast<
-                        std::chrono::seconds>(totalElapsed);
 
                     if (timeToRun.count() != 0 && totalElapsed >= timeToRun)
                     {

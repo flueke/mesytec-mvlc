@@ -496,7 +496,8 @@ std::error_code Impl::connect()
         }
     }
 
-    // Setup the data pipe connection.
+    // Send an initial empty frame to the UDP data pipe port so that
+    // the MVLC knows where to send the readout data.
     {
         LOG_TRACE("Sending initial empty request to the UDP data port");
 
