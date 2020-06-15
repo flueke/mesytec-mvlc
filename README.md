@@ -7,11 +7,17 @@ controller] (https://mesytec.com/products/nuclear-physics/MVLC.html) written in
 C++. The library consists of low-level code for accessing MVLCs over USB and
 Ethernet, higher-level communication logic for reading and writing internal
 MVLC registers and accessing VME modules. Additionally the basic blocks needed
-to build high-performance DAQ readout systems are provided:
+to build high-performance MVLC based DAQ readout systems are provided:
 
+* MVLC and readout configuration which can be serialized to/from YAML.
+* Multithreaded readout worker and listfile writer (includes fast LZ4 compression).
+* Readout parser which is able to handle potential ethernet packet loss.
+* Live access to readout data on a best effort basis. Snooping the data does
+  not block or slow down the readout.
+* Examples showing how to combine the above parts into a working readout system
+  and how to replay data from a previously recorded listfile.
+* Various counters for monitoring the system.
 
-and the basic blocks for building
-high-performance DAQ systems using the MVLC.
 
 ## Components
 
