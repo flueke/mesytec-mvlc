@@ -1,6 +1,7 @@
 #include "util/filesystem.h"
 
 #include <cstdint>
+#include <cstring>
 #include <memory>
 #include <mz.h>
 #include <mz_os.h>
@@ -19,7 +20,7 @@ std::string basename(const std::string &filepath)
     if (mz_path_get_filename(filepath.c_str(), &filename) == MZ_OK)
         return std::string(filename);
 
-    return {};
+    return filepath;
 }
 
 std::string dirname(const std::string &filepath)
