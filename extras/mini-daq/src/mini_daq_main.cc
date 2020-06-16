@@ -341,6 +341,8 @@ int main(int argc, char *argv[])
             if (opt_listfileOut.empty())
                 opt_listfileOut = util::basename(opt_crateConfig) + ".zip";
 
+            cout << "listfile filename: " << opt_listfileOut << endl;
+
             if (!opt_overwriteListfile && util::file_exists(opt_listfileOut))
             {
                 cerr << "Error: output listfile " << opt_listfileOut << " exists."
@@ -468,6 +470,11 @@ int main(int argc, char *argv[])
     catch (const std::runtime_error &e)
     {
         cerr << "mini-daq caught an exception: " << e.what() << endl;
+        return 1;
+    }
+    catch (...)
+    {
+        cerr << "mini-daq caught an unknown exception" << endl;
         return 1;
     }
 
