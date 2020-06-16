@@ -3,6 +3,7 @@
 .clangd/
 .vscode/
 build/
+build-*/
 CMakeLists.txt.user*
 compile_commands.json
 *.srctrlbm
