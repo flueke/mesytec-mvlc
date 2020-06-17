@@ -924,18 +924,22 @@ std::error_code ReadoutWorker::Private::readout_usb(
     destBuffer->ensureFreeSpace(usb::USBStreamPipeReadSize);
 
     {
-        auto dataGuard = mvlc.getLocks().lockData();
+        // XXX: Attempt to make this as close as possible to the old non-lib
+        // version by moving the dataGuard to the inside.
+        //auto dataGuard = mvlc.getLocks().lockData();
 
         while (destBuffer->free() >= usb::USBStreamPipeReadSize)
         {
-            const size_t bytesToRead = std::min(destBuffer->free(), usb::USBStreamPipeReadSize);
+            const size_t bytesToRead = usb::USBStreamPipeReadSize;
             size_t bytesTransferred = 0u;
 
+            auto dataGuard = mvlc.getLocks().lockData();
             ec = mvlcUSB->read_unbuffered(
                 Pipe::Data,
                 destBuffer->data() + destBuffer->used(),
                 bytesToRead,
                 bytesTransferred);
+            dataGuard.unlock();
 
             destBuffer->use(bytesTransferred);
             totalBytesTransferred += bytesTransferred;
@@ -954,7 +958,7 @@ std::error_code ReadoutWorker::Private::readout_usb(
                 break;
             }
         }
-    } // with dataGuard
+    } // with dataGuard XXX
 
     //util::log_buffer(std::cout, destBuffer->viewU32(),
     //                 fmt::format("usb buffer#{} pre fixup", destBuffer->bufferNumber()),

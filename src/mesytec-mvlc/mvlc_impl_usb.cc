@@ -1051,10 +1051,8 @@ std::error_code Impl::read_unbuffered(Pipe pipe, u8 *buffer, size_t size,
 
 #endif // USB_WIN_USE_ASYNC
 
-    ec = make_error_code(st);
-
     LOG_TRACE("result from unbuffered read: pipe=%u, size=%lu bytes, ec=%s",
-              static_cast<unsigned>(pipe), size, ec.message().c_str());
+              static_cast<unsigned>(pipe), size, make_error_code(st).message().c_str());
 
     if (st != FT_OK && st != FT_IO_PENDING)
         abortPipe(pipe, EndpointDirection::In);
@@ -1079,7 +1077,7 @@ std::error_code Impl::abortPipe(Pipe pipe, EndpointDirection dir)
 {
 #ifdef __WIN32
 #if 1
-    LOG_TRACE("FT_AbortPipe on pipe=%u, dir=%u",
+    LOG_WARN("FT_AbortPipe on pipe=%u, dir=%u",
               static_cast<unsigned>(pipe),
               static_cast<unsigned>(dir));
 

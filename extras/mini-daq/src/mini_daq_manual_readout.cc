@@ -141,6 +141,7 @@ int main(int argc, char *argv[])
 
         // Cancel any possibly running readout when connecting.
         mvlc.setDisableTriggersOnConnect(true);
+        mvlc.setReadTimeout(Pipe::Data, 500);
 
         if (auto ec = mvlc.connect())
         {
@@ -224,6 +225,11 @@ int main(int argc, char *argv[])
         auto tStart = std::chrono::steady_clock::now();
         size_t totalBytesTransferred = 0u;
         size_t totalReads = 0u;
+        auto tReadMin = std::chrono::nanoseconds::max();
+        auto tReadMax = std::chrono::nanoseconds::min();
+        auto tReadTotal = std::chrono::nanoseconds::zero();
+        size_t bytesReadMin = std::numeric_limits<size_t>::max();
+        size_t bytesReadMax = 0u;
 
         while (ec != ErrorType::ConnectionError)
         {
@@ -254,13 +260,26 @@ int main(int argc, char *argv[])
                     const size_t bytesToRead = usb::USBStreamPipeReadSize;
                     size_t bytesTransferred = 0u;
 
-                    auto dataGuard = mvlc.getLocks().lockData();
+                    auto tReadStart = std::chrono::high_resolution_clock::now();
+
+                    //auto dataGuard = mvlc.getLocks().lockData();
                     ec = mvlcUSB->read_unbuffered(
                         Pipe::Data,
                         destBuffer.data() + destBuffer.used(),
                         bytesToRead,
                         bytesTransferred);
-                    dataGuard.unlock();
+                    //dataGuard.unlock();
+
+                    auto tReadEnd = std::chrono::high_resolution_clock::now();
+                    {
+                        auto readElapsed = tReadEnd - tReadStart;
+                        tReadMin = std::min(tReadMin, readElapsed);
+                        tReadMax = std::max(tReadMax, readElapsed);
+                        tReadTotal += readElapsed;
+
+                        bytesReadMin = std::min(bytesReadMin, bytesTransferred);
+                        bytesReadMax = std::max(bytesReadMax, bytesTransferred);
+                    }
 
                     destBuffer.use(bytesTransferred);
                     totalBytesTransferred += bytesTransferred;
@@ -284,11 +303,17 @@ int main(int argc, char *argv[])
 
         cout << "totalReads=" << totalReads << endl;
         cout << "totalBytesTransferred=" << totalBytesTransferred << endl;
-        cout << "avg. read size=" << totalBytesTransferred / (totalReads * 1.0);
+        cout << "avg. read size=" << totalBytesTransferred / (totalReads * 1.0) << endl;
         cout << "duration=" << runDuration.count() << " ms" << endl;
         cout << "Ran for " << runSeconds << " seconds, transferred a total of " << megaBytes
             << " MB, resulting data rate: " << mbs << "MB/s"
             << endl;
+        cout << endl;
+        cout << "tReadMin=" << tReadMin.count() << endl;
+        cout << "tReadMax=" << tReadMax.count() << endl;
+        cout << "tReadTotal=" << tReadTotal.count() << endl;
+        cout << "bytesReadMin=" << bytesReadMin << endl;
+        cout << "bytesReadMax=" << bytesReadMax << endl;
     }
     catch (const std::runtime_error &e)
     {
