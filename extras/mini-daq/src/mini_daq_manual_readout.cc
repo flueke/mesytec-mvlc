@@ -122,7 +122,6 @@ int main(int argc, char *argv[])
 
     try
     {
-
         auto timeToRun = std::chrono::seconds(opt_secondsToRun);
         auto crateConfig = crate_config_from_yaml(inConfig);
 
