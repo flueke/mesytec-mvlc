@@ -336,7 +336,7 @@ namespace usb
     // Limit imposed by FT_WritePipeEx and FT_ReadPipeEx
     static const size_t USBSingleTransferMaxBytes = 1 * 1024 * 1024;
     static const size_t USBSingleTransferMaxWords = USBSingleTransferMaxBytes / sizeof(u32);
-    // Under windows stream pipe mode is enabled for all read pipe and the
+    // Under windows stream pipe mode is enabled for all read pipes and the
     // streaming read size is set to this value. This means all read requests
     // have to be of this exact size.
     static const size_t USBStreamPipeReadSize = USBSingleTransferMaxBytes;

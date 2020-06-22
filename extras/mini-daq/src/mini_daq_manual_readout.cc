@@ -153,6 +153,8 @@ int main(int argc, char *argv[])
         // init
         //
         {
+            CommandExecOptions options = {};
+            options.noBatching = true;
             auto initResults = init_readout(mvlc, crateConfig);
 
             cout << "Results from init_commands:" << endl << initResults.init << endl;
@@ -231,6 +233,11 @@ int main(int argc, char *argv[])
         size_t bytesReadMin = std::numeric_limits<size_t>::max();
         size_t bytesReadMax = 0u;
 
+        std::vector<u32> dataPipeReadSizes;
+        dataPipeReadSizes.reserve(util::Megabytes(1));
+        std::vector<std::chrono::nanoseconds> dataPipeReadDurations;
+        dataPipeReadDurations.reserve(util::Megabytes(1));
+
         while (ec != ErrorType::ConnectionError)
         {
             const auto now = std::chrono::steady_clock::now();
@@ -255,12 +262,13 @@ int main(int argc, char *argv[])
                 // XXX: clears the buffer discarding the readout data
                 destBuffer.clear();
 
-                while (destBuffer.free() >= usb::USBStreamPipeReadSize)
+                //while (destBuffer.free() >= usb::USBStreamPipeReadSize)
+                if (destBuffer.free() >= usb::USBStreamPipeReadSize)
                 {
                     const size_t bytesToRead = usb::USBStreamPipeReadSize;
                     size_t bytesTransferred = 0u;
 
-                    auto tReadStart = std::chrono::high_resolution_clock::now();
+                    auto tReadStart = std::chrono::steady_clock::now();
 
                     //auto dataGuard = mvlc.getLocks().lockData();
                     ec = mvlcUSB->read_unbuffered(
@@ -270,9 +278,10 @@ int main(int argc, char *argv[])
                         bytesTransferred);
                     //dataGuard.unlock();
 
-                    auto tReadEnd = std::chrono::high_resolution_clock::now();
+                    auto tReadEnd = std::chrono::steady_clock::now();
+                    auto readElapsed = tReadEnd - tReadStart;
+
                     {
-                        auto readElapsed = tReadEnd - tReadStart;
                         tReadMin = std::min(tReadMin, readElapsed);
                         tReadMax = std::max(tReadMax, readElapsed);
                         tReadTotal += readElapsed;
@@ -285,11 +294,20 @@ int main(int argc, char *argv[])
                     totalBytesTransferred += bytesTransferred;
                     ++totalReads;
 
+                    dataPipeReadSizes.push_back(bytesTransferred);
+                    dataPipeReadDurations.push_back(
+                        std::chrono::duration_cast<std::chrono::nanoseconds>(readElapsed));
+
                     if (ec == ErrorType::ConnectionError)
                     {
                         cerr << "connection error from usb::Impl::read_unbuffered(): "
                             << ec.message() << endl;
                         break;
+                    }
+                    else if (ec)
+                    {
+                        cerr << "Warning: usb read returned an error: "
+                            << ec.message() << endl;
                     }
                 }
             }
@@ -314,6 +332,18 @@ int main(int argc, char *argv[])
         cout << "tReadTotal=" << tReadTotal.count() << endl;
         cout << "bytesReadMin=" << bytesReadMin << endl;
         cout << "bytesReadMax=" << bytesReadMax << endl;
+
+        assert(dataPipeReadSizes.size() == dataPipeReadDurations.size());
+
+        std::ofstream sizesLogfile("data_pipe_read_sizes_newlib.txt");
+        for (size_t i=0; i<dataPipeReadSizes.size(); i++)
+        {
+            using Millis = std::chrono::duration<double, std::milli>;
+            Millis millisElapsed = std::chrono::duration_cast<Millis>(dataPipeReadDurations[i]);
+
+            sizesLogfile << millisElapsed.count()
+                << " " << dataPipeReadSizes[i] << endl;
+        }
     }
     catch (const std::runtime_error &e)
     {

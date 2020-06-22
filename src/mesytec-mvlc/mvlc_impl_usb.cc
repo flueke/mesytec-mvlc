@@ -43,7 +43,7 @@
 #define LOG_LEVEL_TRACE 400
 
 #ifndef MVLC_USB_LOG_LEVEL
-#define MVLC_USB_LOG_LEVEL LOG_LEVEL_INFO
+#define MVLC_USB_LOG_LEVEL LOG_LEVEL_WARN
 #endif
 
 #define LOG_LEVEL_SETTING MVLC_USB_LOG_LEVEL
@@ -556,7 +556,6 @@ std::error_code Impl::connect()
     m_deviceInfo = devInfo;
 
 #ifdef __WIN32
-#if 1
     // clean up the pipes
     for (auto pipe: { Pipe::Command, Pipe::Data })
     {
@@ -569,7 +568,6 @@ std::error_code Impl::connect()
             }
         }
     }
-#endif
 #endif
 
     if (auto ec = check_chip_configuration(m_handle))
@@ -653,6 +651,8 @@ std::error_code Impl::setWriteTimeout(Pipe pipe, unsigned ms)
     if (p >= PipeCount)
         return make_error_code(MVLCErrorCode::InvalidPipe);
 
+    LOG_WARN("setWriteTimeout(pipe=%u, ms=%u)", p, ms);
+
     m_writeTimeouts[p] = ms;
 
     return {};
@@ -664,6 +664,8 @@ std::error_code Impl::setReadTimeout(Pipe pipe, unsigned ms)
 
     if (p >= PipeCount)
         return make_error_code(MVLCErrorCode::InvalidPipe);
+
+    LOG_WARN("setReadTimeout(pipe=%u, ms=%u)", p, ms);
 
     m_readTimeouts[p] = ms;
 
@@ -877,7 +879,7 @@ std::error_code Impl::read(Pipe pipe, u8 *buffer, size_t size,
 
 #if !USB_WIN_USE_ASYNC
 
-#if USB_WIN_USE_STREAMPIPE // FIXME: change this to an assertion
+#if USB_WIN_USE_STREAMPIPE
     if (readBuffer.capacity() != USBStreamPipeReadSize)
         throw std::runtime_error("Read size does not equal stream pipe size");
 #endif
@@ -893,6 +895,7 @@ std::error_code Impl::read(Pipe pipe, u8 *buffer, size_t size,
         nullptr);
 #else // !USB_WIN_USE_EX_FUNCTIONS
     LOG_TRACE("sync read");
+
     FT_STATUS st = FT_ReadPipe(
         m_handle, get_endpoint(pipe, EndpointDirection::In),
         readBuffer.data.data(),
@@ -1096,7 +1099,6 @@ std::error_code Impl::read_unbuffered(Pipe pipe, u8 *buffer, size_t size,
 std::error_code Impl::abortPipe(Pipe pipe, EndpointDirection dir)
 {
 #ifdef __WIN32
-#if 1
     LOG_WARN("FT_AbortPipe on pipe=%u, dir=%u",
               static_cast<unsigned>(pipe),
               static_cast<unsigned>(dir));
@@ -1112,29 +1114,12 @@ std::error_code Impl::abortPipe(Pipe pipe, EndpointDirection dir)
                   );
         return ec;
     }
-#endif
 #else // !__WIN32
     (void) pipe;
     (void) dir;
 #endif // !__WIN32
     return {};
 }
-
-#if 0
-std::error_code Impl::getReadQueueSize(Pipe pipe, u32 &dest)
-{
-    assert(static_cast<unsigned>(pipe) < PipeCount);
-
-#ifndef __WIN32
-    FT_STATUS st = FT_GetReadQueueStatus(m_handle, get_fifo_id(pipe), &dest);
-#else
-    FT_STATUS st = FT_OK;
-    dest = m_readBuffers[static_cast<unsigned>(pipe)].size();
-#endif
-
-    return make_error_code(st);
-}
-#endif
 
 std::string Impl::connectionInfo() const
 {

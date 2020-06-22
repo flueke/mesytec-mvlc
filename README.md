@@ -85,3 +85,6 @@ to build high-performance MVLC based DAQ readout systems are provided:
   - add real help text (mention `mvme_to_mvlc` tool)
   - make getting the CrateConfig from the listfile preamble easier. basically
     move the code from mini_daq_replay.cc into the lib
+  - error out if the input yaml cannot be parsed. right now when passing a non-yaml file
+    the program continues but of course the mvlc init is wrong and no readout data will
+    be received.
