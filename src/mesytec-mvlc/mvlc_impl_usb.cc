@@ -43,7 +43,7 @@
 #define LOG_LEVEL_TRACE 400
 
 #ifndef MVLC_USB_LOG_LEVEL
-#define MVLC_USB_LOG_LEVEL LOG_LEVEL_WARN
+#define MVLC_USB_LOG_LEVEL LOG_LEVEL_INFO
 #endif
 
 #define LOG_LEVEL_SETTING MVLC_USB_LOG_LEVEL
@@ -292,10 +292,11 @@ mesytec::mvlc::usb::DeviceInfoList make_device_info_list()
 // - Do a register read to check that communication is ok now.
 std::error_code post_connect_cleanup(mesytec::mvlc::usb::Impl &impl)
 {
+    LOG_INFO("begin");
     //qDebug() << __PRETTY_FUNCTION__ << "begin";
 
     static const int DisableTriggerRetryCount = 5;
-    static const int DataBufferSize = 10 * 1024;
+    static const size_t DataBufferSize = usb::USBStreamPipeReadSize;
     static const auto ReadDataPipeMaxWait = std::chrono::seconds(10);
 
     mesytec::mvlc::MVLCDialog dlg(&impl);
@@ -337,6 +338,7 @@ std::error_code post_connect_cleanup(mesytec::mvlc::usb::Impl &impl)
         {
             bytesTransferred = 0u;
             ec = impl.read_unbuffered(Pipe::Data, buffer.data(), buffer.size(), bytesTransferred);
+            //ec = impl.read(Pipe::Data, buffer.data(), buffer.size(), bytesTransferred);
             totalBytesTransferred += bytesTransferred;
 
             auto elapsed = Clock::now() - tStart;
@@ -353,6 +355,7 @@ std::error_code post_connect_cleanup(mesytec::mvlc::usb::Impl &impl)
 
     //qDebug() << __PRETTY_FUNCTION__ << "end, totalBytesTransferred ="
     //    << totalBytesTransferred << ", ec =" << ec.message().c_str();
+    LOG_INFO("end");
 
     return ec;
 }
@@ -470,6 +473,8 @@ std::error_code Impl::closeHandle()
 
 std::error_code Impl::connect()
 {
+    std::cout << __PRETTY_FUNCTION__ << ": MVLC USB new lib implementation" << std::endl;
+
     if (isConnected())
         return make_error_code(MVLCErrorCode::IsConnected);
 
@@ -551,6 +556,7 @@ std::error_code Impl::connect()
     m_deviceInfo = devInfo;
 
 #ifdef __WIN32
+#if 1
     // clean up the pipes
     for (auto pipe: { Pipe::Command, Pipe::Data })
     {
@@ -563,6 +569,7 @@ std::error_code Impl::connect()
             }
         }
     }
+#endif
 #endif
 
     if (auto ec = check_chip_configuration(m_handle))
@@ -591,6 +598,7 @@ std::error_code Impl::connect()
 
 #ifdef __WIN32
 #if USB_WIN_USE_STREAMPIPE
+    LOG_INFO("enabling streaming mode for all read pipes, size=%lu", USBStreamPipeReadSize);
     // FT_SetStreamPipe(handle, allWritePipes, allReadPipes, pipeID, streamSize)
     st = FT_SetStreamPipe(m_handle, false, true, 0, USBStreamPipeReadSize);
 
@@ -869,6 +877,11 @@ std::error_code Impl::read(Pipe pipe, u8 *buffer, size_t size,
 
 #if !USB_WIN_USE_ASYNC
 
+#if USB_WIN_USE_STREAMPIPE // FIXME: change this to an assertion
+    if (readBuffer.capacity() != USBStreamPipeReadSize)
+        throw std::runtime_error("Read size does not equal stream pipe size");
+#endif
+
 #if USB_WIN_USE_EX_FUNCTIONS
     LOG_TRACE("sync read (Ex variant)");
 
@@ -1006,6 +1019,13 @@ std::error_code Impl::read_unbuffered(Pipe pipe, u8 *buffer, size_t size,
 
 #ifdef __WIN32
 #if !USB_WIN_USE_ASYNC
+
+#if USB_WIN_USE_STREAMPIPE
+    //LOG_INFO("streampipe check");
+    if (size != usb::USBSingleTransferMaxBytes)
+        throw std::runtime_error("Read size does not equal stream pipe size");
+#endif
+
 #if USB_WIN_USE_EX_FUNCTIONS
     FT_STATUS st = FT_ReadPipeEx(
         m_handle, get_endpoint(pipe, EndpointDirection::In),
