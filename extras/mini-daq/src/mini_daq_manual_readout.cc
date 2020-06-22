@@ -140,7 +140,6 @@ int main(int argc, char *argv[])
 
         // Cancel any possibly running readout when connecting.
         mvlc.setDisableTriggersOnConnect(true);
-        mvlc.setReadTimeout(Pipe::Data, 500);
 
         if (auto ec = mvlc.connect())
         {
@@ -201,6 +200,8 @@ int main(int argc, char *argv[])
         }
 
         assert(mvlcETH || mvlcUSB);
+
+        cout << "data pipe read timeout: " << mvlc.readTimeout(Pipe::Data) << endl;
 
         // Enable MVLC trigger processing.
         if (auto ec = setup_readout_triggers(mvlc, crateConfig.triggers))
@@ -317,6 +318,11 @@ int main(int argc, char *argv[])
     catch (const std::runtime_error &e)
     {
         cerr << "mini-daq-manual-readout caught an exception: " << e.what() << endl;
+        return 1;
+    }
+    catch (const std::error_code &ec)
+    {
+        cerr << "mini-daq-manual-readout caught a std::error_code: " << ec.message() << endl;
         return 1;
     }
     catch (...)
