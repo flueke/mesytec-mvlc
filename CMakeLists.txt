@@ -101,7 +101,7 @@ option(MVLC_BUILD_CONTROLLER_TESTS "Build online MVLC controller tests" OFF)
 
 add_subdirectory(external)
 
-## Create our binaries in the root of the build directory. It's just more convenient.
+# Create our binaries in the root of the build directory. It's just more convenient.
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 

@@ -28,6 +28,8 @@
 #ifndef __MESYTEC_MVLC_H__
 #define __MESYTEC_MVLC_H__
 
+/** @file */
+
 #include "mvlc_command_builders.h"
 #include "mvlc_dialog.h"
 #include "mvlc_dialog_util.h"

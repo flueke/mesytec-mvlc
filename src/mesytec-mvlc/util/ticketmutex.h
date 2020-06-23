@@ -4,7 +4,7 @@
 #include <mutex>
 #include <condition_variable>
 
-#include "mesytec-mvlc/util/int_types.h"
+#include "util/int_types.h"
 
 namespace mesytec
 {

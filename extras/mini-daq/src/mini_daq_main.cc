@@ -212,12 +212,14 @@ int main(int argc, char *argv[])
     int opt_listfileCompressionLevel = 0;
     std::string opt_crateConfig;
     unsigned opt_secondsToRun = 10;
+    CommandExecOptions initOptions = {};
 
     bool opt_showHelp = false;
 
     auto cli
         = lyra::help(opt_showHelp)
 
+        // mvlc overrides
         | lyra::opt(opt_mvlcEthHost, "hostname")
             ["--mvlc-eth"] ("mvlc ethernet hostname (overrides CrateConfig)")
 
@@ -230,6 +232,7 @@ int main(int argc, char *argv[])
         | lyra::opt(opt_mvlcUSBSerial, "serial")
             ["--mvlc-usb-serial"] ("connect to the mvlc with the given usb serial number (overrides CrateConfig)")
 
+        // listfile
         | lyra::opt(opt_noListfile)
             ["--no-listfile"] ("do not write readout data to a listfile (data will not be recorded)")
 
@@ -245,6 +248,11 @@ int main(int argc, char *argv[])
         | lyra::opt(opt_listfileCompressionLevel, "level")
             ["--listfile-compression-level"] ("compression level to use (for zip 0 means no compression)")
 
+        // init options
+        | lyra::opt(initOptions.noBatching)
+            ["--init-no-batching"] ("disables command batching during the MVLC init phase")
+
+        // positional args
         | lyra::arg(opt_crateConfig, "crateConfig")
             ("crate config yaml file").required()
 
@@ -265,12 +273,13 @@ int main(int argc, char *argv[])
         cout << cli << endl;
 
         cout
-            << "The mini-daq utility is a command-line program running an MVLC based DAQ." << endl << endl
+            << "The mini-daq utility is a command-line program for running an"
+            << " MVLC based DAQ." << endl << endl
             << "Configuration data has to be supplied in a YAML 'CrateConfig' file." << endl
             << "Such a config file can be generated from an mvme setup using the" << endl
             << "'File -> Export VME Config' menu entry in mvme." << endl
             << "Alternatively a CrateConfig object can be generated programmatically and" << endl << endl
-            << "saved using the to_yaml() free function."
+            << " using the to_yaml() free function."
             << endl;
         return 0;
     }
@@ -318,7 +327,7 @@ int main(int argc, char *argv[])
         // init
         //
         {
-            auto initResults = init_readout(mvlc, crateConfig);
+            auto initResults = init_readout(mvlc, crateConfig, initOptions);
 
             cout << "Results from init_commands:" << endl << initResults.init << endl;
             // cout << "Result from init_trigger_io:" << endl << initResults.triggerIO << endl;

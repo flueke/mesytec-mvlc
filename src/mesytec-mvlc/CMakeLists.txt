@@ -46,7 +46,8 @@ target_include_directories(mesytec-mvlc
     )
 
 target_link_libraries(mesytec-mvlc
-    PUBLIC fmt::fmt-header-only # does add -DFMT_HEADER_ONLY=1
+    #PUBLIC fmt::fmt-header-only # does add -DFMT_HEADER_ONLY=1
+    PUBLIC fmt::fmt
     PRIVATE lz4_static
     PRIVATE minizip
     PRIVATE yaml-cpp
@@ -71,16 +72,16 @@ include(GenerateExportHeader)
 generate_export_header(mesytec-mvlc)
 
 install(TARGETS mesytec-mvlc
-    EXPORT mesytec-mvlc
+    EXPORT libmesytec-mvlc
     LIBRARY DESTINATION lib
     RUNTIME DESTINATION bin
     )
 
 #export(EXPORT mesytec-mvlc FILE mesytec-mvlc.cmake)
 
-install(EXPORT mesytec-mvlc
+install(EXPORT libmesytec-mvlc
     DESTINATION lib/cmake/mesytec-mvlc
-    NAMESPACE "mesytec-mvlc::"
+    NAMESPACE mesytec-mvlc::
     )
 
 install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/
@@ -89,6 +90,16 @@ install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/
 
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/mesytec-mvlc_export.h
     DESTINATION include/mesytec-mvlc)
+
+#include(CMakePackageConfigHelpers)
+set(project_config ${PROJECT_BINARY_DIR}/mesytec-mvlc-config.cmake)
+set(targets_export_name libmesytec-mvlc)
+configure_package_config_file(
+    "${PROJECT_SOURCE_DIR}/tools/cmake/mesytec-mvlc-config.cmake.in"
+    ${project_config}
+    INSTALL_DESTINATION lib/cmake/mesytec-mvlc)
+install(FILES ${project_config}
+    DESTINATION lib/cmake/mesytec-mvlc)
 
 if (MVLC_BUILD_TESTS)
     function(add_gtest exe_name exe_source)

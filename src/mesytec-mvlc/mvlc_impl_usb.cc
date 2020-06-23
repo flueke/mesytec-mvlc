@@ -293,15 +293,12 @@ mesytec::mvlc::usb::DeviceInfoList make_device_info_list()
 std::error_code post_connect_cleanup(mesytec::mvlc::usb::Impl &impl)
 {
     LOG_INFO("begin");
-    //qDebug() << __PRETTY_FUNCTION__ << "begin";
 
     static const int DisableTriggerRetryCount = 5;
     static const size_t DataBufferSize = usb::USBStreamPipeReadSize;
     static const auto ReadDataPipeMaxWait = std::chrono::seconds(10);
 
     mesytec::mvlc::MVLCDialog dlg(&impl);
-    std::error_code ec;
-    size_t totalBytesTransferred = 0u;
 
     // Disable the triggers. There may be timeouts due to the data pipe being
     // full and no command responses arriving on the command pipe. Also
@@ -325,37 +322,37 @@ std::error_code post_connect_cleanup(mesytec::mvlc::usb::Impl &impl)
         return {};
     });
 
+
     // Use this thread to read the data pipe. This needs to happen so that
     // readout data doesn't clog up the data pipe bringing communication to a
     // halt.
+    std::error_code ec;
+    size_t totalBytesTransferred = 0u;
+    size_t bytesTransferred = 0u;
+    std::array<u8, DataBufferSize> buffer;
+    using Clock = std::chrono::high_resolution_clock;
+    auto tStart = Clock::now();
+
+    do
     {
-        size_t bytesTransferred = 0u;
-        std::array<u8, DataBufferSize> buffer;
-        using Clock = std::chrono::high_resolution_clock;
-        auto tStart = Clock::now();
+        bytesTransferred = 0u;
+        ec = impl.read_unbuffered(Pipe::Data, buffer.data(), buffer.size(), bytesTransferred);
+        //ec = impl.read(Pipe::Data, buffer.data(), buffer.size(), bytesTransferred);
+        totalBytesTransferred += bytesTransferred;
 
-        do
-        {
-            bytesTransferred = 0u;
-            ec = impl.read_unbuffered(Pipe::Data, buffer.data(), buffer.size(), bytesTransferred);
-            //ec = impl.read(Pipe::Data, buffer.data(), buffer.size(), bytesTransferred);
-            totalBytesTransferred += bytesTransferred;
+        auto elapsed = Clock::now() - tStart;
 
-            auto elapsed = Clock::now() - tStart;
+        if (elapsed > ReadDataPipeMaxWait)
+            break;
 
-            if (elapsed > ReadDataPipeMaxWait)
-                break;
+        if (ec == ErrorType::ConnectionError)
+            break;
+    } while (bytesTransferred > 0);
 
-            if (ec == ErrorType::ConnectionError)
-                break;
-        } while (bytesTransferred > 0);
-    }
+    ec = f.get(); // wait here for disable_all_triggers() to complete
 
-    ec = f.get();
-
-    //qDebug() << __PRETTY_FUNCTION__ << "end, totalBytesTransferred ="
-    //    << totalBytesTransferred << ", ec =" << ec.message().c_str();
-    LOG_INFO("end");
+    LOG_INFO("end, totalBytesTransferred=%lu, ec=%s" ,
+             totalBytesTransferred, ec.message().c_str());
 
     return ec;
 }
@@ -413,14 +410,6 @@ std::error_code check_chip_configuration(void *handle)
 
     if (st != FT_OK)
         return make_error_code(st);
-
-#if 0
-    qDebug("%s: FIFOClock=%x, ChannelConfig=%x, PowerAttributes=%x"
-           ", OptionalFeatureSupport=%x",
-           __PRETTY_FUNCTION__,
-           conf.FIFOClock, conf.ChannelConfig, conf.PowerAttributes,
-           conf.OptionalFeatureSupport);
-#endif
 
     if (conf.FIFOClock != CONFIGURATION_FIFO_CLK_100
         || conf.FIFOMode != CONFIGURATION_FIFO_MODE_600
@@ -555,6 +544,12 @@ std::error_code Impl::connect()
 
     m_deviceInfo = devInfo;
 
+    if (auto ec = check_chip_configuration(m_handle))
+    {
+        closeHandle();
+        return ec;
+    }
+
 #ifdef __WIN32
     // clean up the pipes
     for (auto pipe: { Pipe::Command, Pipe::Data })
@@ -569,12 +564,6 @@ std::error_code Impl::connect()
         }
     }
 #endif
-
-    if (auto ec = check_chip_configuration(m_handle))
-    {
-        closeHandle();
-        return ec;
-    }
 
     // Apply the read and write timeouts.
     for (auto pipe: { Pipe::Command, Pipe::Data })

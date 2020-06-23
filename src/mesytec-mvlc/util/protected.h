@@ -1,8 +1,8 @@
 #ifndef __MESYTEC_MVLC_PROTECTED_H__
 #define __MESYTEC_MVLC_PROTECTED_H__
 
-#include "ticketmutex.h"
 #include <condition_variable>
+#include "ticketmutex.h"
 
 namespace mesytec
 {

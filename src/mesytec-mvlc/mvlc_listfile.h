@@ -38,7 +38,10 @@ inline size_t listfile_write_raw(WriteHandle &lf_out, const u8 *buffer, size_t s
     return lf_out.write(buffer, size);
 }
 
+// Writes the magic bytes, an endian marker and the CrateConfig to the write
+// handle.
 void MESYTEC_MVLC_EXPORT listfile_write_preamble(WriteHandle &lf_out, const CrateConfig &config);
+
 void MESYTEC_MVLC_EXPORT listfile_write_magic(WriteHandle &lf_out, ConnectionType ct);
 void MESYTEC_MVLC_EXPORT listfile_write_endian_marker(WriteHandle &lf_out);
 void MESYTEC_MVLC_EXPORT listfile_write_crate_config(WriteHandle &lf_out, const CrateConfig &config);

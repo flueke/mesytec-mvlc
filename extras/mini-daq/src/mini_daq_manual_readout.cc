@@ -73,12 +73,14 @@ int main(int argc, char *argv[])
     // listfile and run options
     std::string opt_crateConfig;
     unsigned opt_secondsToRun = 10;
+    CommandExecOptions initOptions = {};
 
     bool opt_showHelp = false;
 
     auto cli
         = lyra::help(opt_showHelp)
 
+        // mvlc overrides
         | lyra::opt(opt_mvlcEthHost, "hostname")
             ["--mvlc-eth"] ("mvlc ethernet hostname (overrides CrateConfig)")
 
@@ -91,6 +93,11 @@ int main(int argc, char *argv[])
         | lyra::opt(opt_mvlcUSBSerial, "serial")
             ["--mvlc-usb-serial"] ("connect to the mvlc with the given usb serial number (overrides CrateConfig)")
 
+        // init options
+        | lyra::opt(initOptions.noBatching)
+            ["--init-no-batching"] ("disables command batching during the MVLC init phase")
+
+        // positional args
         | lyra::arg(opt_crateConfig, "crateConfig")
             ("crate config yaml file").required()
 
@@ -153,12 +160,9 @@ int main(int argc, char *argv[])
         // init
         //
         {
-            CommandExecOptions options = {};
-            options.noBatching = true;
-            auto initResults = init_readout(mvlc, crateConfig);
+            auto initResults = init_readout(mvlc, crateConfig, initOptions);
 
             cout << "Results from init_commands:" << endl << initResults.init << endl;
-            // cout << "Result from init_trigger_io:" << endl << initResults.triggerIO << endl;
 
             if (initResults.ec)
             {
