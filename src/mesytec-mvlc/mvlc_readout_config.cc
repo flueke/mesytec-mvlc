@@ -161,8 +161,11 @@ CrateConfig crate_config_from_yaml(std::istream &input)
 
     YAML::Node yRoot = YAML::Load(input);
 
-    if (!yRoot || !yRoot["crate"])
-        return result;
+    if (!yRoot)
+        throw std::runtime_error("CrateConfig YAML is empty");
+
+    if (!yRoot["crate"])
+        throw std::runtime_error("No 'crate' node found in YAML input");
 
     if (const auto &yCrate = yRoot["crate"])
     {
