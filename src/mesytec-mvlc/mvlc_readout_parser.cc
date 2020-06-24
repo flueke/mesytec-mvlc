@@ -896,6 +896,8 @@ ParseResult parse_readout_buffer(
     Protected<ReadoutParserCounters> &counters,
     u32 bufferNumber, const u32 *buffer, size_t bufferWords)
 {
+    LOG_TRACE("begin: bufferNumber=%u, buffer=%p, bufferWords=%lu",
+              bufferNumber, buffer, bufferWords);
     ParseResult result = {};
 
     try
@@ -923,6 +925,9 @@ ParseResult parse_readout_buffer(
         ++counters.access()->parserExceptions;
         return ParseResult::UnhandledException;
     }
+
+    LOG_TRACE("end: bufferNumber=%u, buffer=%p, bufferWords=%lu, result=%s",
+              bufferNumber, buffer, bufferWords, get_parse_result_name(result));
 
     return result;
 }
