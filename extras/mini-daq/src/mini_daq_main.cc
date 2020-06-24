@@ -213,6 +213,7 @@ int main(int argc, char *argv[])
     std::string opt_crateConfig;
     unsigned opt_secondsToRun = 10;
     CommandExecOptions initOptions = {};
+    bool opt_logReadoutData = false;
 
     bool opt_showHelp = false;
 
@@ -251,6 +252,10 @@ int main(int argc, char *argv[])
         // init options
         | lyra::opt(initOptions.noBatching)
             ["--init-no-batching"] ("disables command batching during the MVLC init phase")
+
+        // readout data logging
+        | lyra::opt(opt_logReadoutData)
+            ["--log-readout-data"]("log each word of readout data (very verbose!)")
 
         // positional args
         | lyra::arg(opt_crateConfig, "crateConfig")
@@ -383,7 +388,7 @@ int main(int argc, char *argv[])
         ReadoutBufferQueues snoopQueues(BufferSize, BufferCount);
 
         Protected<mini_daq::MiniDAQStats> miniDAQStats({});
-        auto parserCallbacks = make_mini_daq_callbacks(miniDAQStats);
+        auto parserCallbacks = make_mini_daq_callbacks(miniDAQStats, opt_logReadoutData);
 
         auto parserState = readout_parser::make_readout_parser(crateConfig.stacks);
         Protected<readout_parser::ReadoutParserCounters> parserCounters({});

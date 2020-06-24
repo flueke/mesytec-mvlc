@@ -1,4 +1,5 @@
 #include "mini_daq_lib.h"
+#include <mesytec-mvlc/util/io_util.h>
 #include <fmt/format.h>
 
 using std::endl;
@@ -10,7 +11,7 @@ namespace mvlc
 namespace mini_daq
 {
 
-readout_parser::ReadoutParserCallbacks make_mini_daq_callbacks(Protected<MiniDAQStats> &protectedStats)
+readout_parser::ReadoutParserCallbacks make_mini_daq_callbacks(Protected<MiniDAQStats> &protectedStats, bool logReadoutData)
 {
     readout_parser::ReadoutParserCallbacks callbacks;
 
@@ -19,7 +20,7 @@ readout_parser::ReadoutParserCallbacks make_mini_daq_callbacks(Protected<MiniDAQ
         protectedStats.access()->eventHits[eventIndex]++;
     };
 
-    callbacks.modulePrefix = [&protectedStats] (int ei, int mi, const u32 *data, u32 size)
+    callbacks.modulePrefix = [&protectedStats, logReadoutData] (int ei, int mi, const u32 *data, u32 size)
     {
         auto index = std::make_pair(ei, mi);
         auto stats = protectedStats.access();
@@ -30,9 +31,12 @@ readout_parser::ReadoutParserCallbacks make_mini_daq_callbacks(Protected<MiniDAQ
         sizeInfo.min = std::min(sizeInfo.min, static_cast<size_t>(size));
         sizeInfo.max = std::max(sizeInfo.max, static_cast<size_t>(size));
         sizeInfo.sum += size;
+
+        if (logReadoutData)
+            util::log_buffer(std::cout, basic_string_view<u32>(data, size), "module prefix");
     };
 
-    callbacks.moduleDynamic = [&protectedStats] (int ei, int mi, const u32 *data, u32 size)
+    callbacks.moduleDynamic = [&protectedStats, logReadoutData] (int ei, int mi, const u32 *data, u32 size)
     {
         //cout << "ei=" << ei << ", mi=" << mi << ", data=" << data << ", size=" << size << endl;
         //util::log_buffer(cout, basic_string_view<u32>(data, size));
@@ -45,9 +49,12 @@ readout_parser::ReadoutParserCallbacks make_mini_daq_callbacks(Protected<MiniDAQ
         sizeInfo.min = std::min(sizeInfo.min, static_cast<size_t>(size));
         sizeInfo.max = std::max(sizeInfo.max, static_cast<size_t>(size));
         sizeInfo.sum += size;
+
+        if (logReadoutData)
+            util::log_buffer(std::cout, basic_string_view<u32>(data, size), "module dynamic");
     };
 
-    callbacks.moduleSuffix = [&protectedStats] (int ei, int mi, const u32 *data, u32 size)
+    callbacks.moduleSuffix = [&protectedStats, logReadoutData] (int ei, int mi, const u32 *data, u32 size)
     {
         auto index = std::make_pair(ei, mi);
         auto stats = protectedStats.access();
@@ -58,6 +65,9 @@ readout_parser::ReadoutParserCallbacks make_mini_daq_callbacks(Protected<MiniDAQ
         sizeInfo.min = std::min(sizeInfo.min, static_cast<size_t>(size));
         sizeInfo.max = std::max(sizeInfo.max, static_cast<size_t>(size));
         sizeInfo.sum += size;
+
+        if (logReadoutData)
+            util::log_buffer(std::cout, basic_string_view<u32>(data, size), "module suffix");
     };
 
     return callbacks;
