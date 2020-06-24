@@ -74,7 +74,7 @@ class MESYTEC_MVLC_EXPORT ReadoutBuffer
         }
 
     private:
-        ConnectionType m_type;
+        ConnectionType m_type = ConnectionType::ETH;
         size_t m_number = 0;
         std::vector<u8> m_buffer;
         size_t m_used = 0;
