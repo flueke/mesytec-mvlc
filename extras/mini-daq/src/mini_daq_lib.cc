@@ -19,7 +19,7 @@ readout_parser::ReadoutParserCallbacks make_mini_daq_callbacks(Protected<MiniDAQ
         protectedStats.access()->eventHits[eventIndex]++;
     };
 
-    callbacks.modulePrefix = [&protectedStats] (int ei, int mi,  const u32 *data, u32 size)
+    callbacks.modulePrefix = [&protectedStats] (int ei, int mi, const u32 *data, u32 size)
     {
         auto index = std::make_pair(ei, mi);
         auto stats = protectedStats.access();
@@ -32,7 +32,7 @@ readout_parser::ReadoutParserCallbacks make_mini_daq_callbacks(Protected<MiniDAQ
         sizeInfo.sum += size;
     };
 
-    callbacks.moduleDynamic = [&protectedStats] (int ei, int mi,  const u32 *data, u32 size)
+    callbacks.moduleDynamic = [&protectedStats] (int ei, int mi, const u32 *data, u32 size)
     {
         //cout << "ei=" << ei << ", mi=" << mi << ", data=" << data << ", size=" << size << endl;
         //util::log_buffer(cout, basic_string_view<u32>(data, size));
@@ -47,7 +47,7 @@ readout_parser::ReadoutParserCallbacks make_mini_daq_callbacks(Protected<MiniDAQ
         sizeInfo.sum += size;
     };
 
-    callbacks.moduleSuffix = [&protectedStats] (int ei, int mi,  const u32 *data, u32 size)
+    callbacks.moduleSuffix = [&protectedStats] (int ei, int mi, const u32 *data, u32 size)
     {
         auto index = std::make_pair(ei, mi);
         auto stats = protectedStats.access();
