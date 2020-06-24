@@ -291,7 +291,7 @@ void stack_error_notification_poller(
 
         if (!buffer.empty())
         {
-            std::cout << "stack_error_notification_poller updating counters" << std::endl;
+            //std::cout << "stack_error_notification_poller updating counters" << std::endl;
             update_stack_error_counters(counters.access()->stackErrors, buffer);
         }
 
