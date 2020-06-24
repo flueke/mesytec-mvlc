@@ -21,7 +21,7 @@ set(CMAKE_INSTALL_RPATH "$ORIGIN;$ORIGIN/../lib")
 #set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 
 # Add the local cmake directory module path.
-list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/tools/cmake")
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/tools/cmake")
 
 # Pull information from git:
 # GIT_SHA1 contains the complete git hash
