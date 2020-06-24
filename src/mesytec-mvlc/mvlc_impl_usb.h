@@ -200,7 +200,7 @@ class MESYTEC_MVLC_EXPORT Impl: public MVLCBasicInterface, public MVLC_USB_Inter
         std::array<ReadBuffer<USBStreamPipeReadSize>, PipeCount> m_readBuffers;
 #endif
         DeviceInfo m_deviceInfo;
-        bool m_disableTriggersOnConnect = false;
+        bool m_disableTriggersOnConnect = true;
 };
 
 } // end namespace usb
