@@ -946,7 +946,7 @@ std::error_code ReadoutWorker::Private::readout_usb(
 
             if (ec == ErrorType::ConnectionError)
             {
-                cerr << "connection error from usb::Impl::read_unbuffered(): " << ec.message() << endl;
+                //cerr << "connection error from usb::Impl::read_unbuffered(): " << ec.message() << endl;
                 break;
             }
 
@@ -954,7 +954,7 @@ std::error_code ReadoutWorker::Private::readout_usb(
 
             if (elapsed >= FlushBufferTimeout)
             {
-                cerr << "flush buffer timeout reached, leaving reaodut_usb()" << endl;
+                //cerr << "flush buffer timeout reached, leaving reaodut_usb()" << endl;
                 break;
             }
         }
