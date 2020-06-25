@@ -27,24 +27,117 @@
  */
 
 #include "mvlc.h"
+
+#include <atomic>
+#include <iostream>
+#include <thread>
+
+#ifndef __WIN32
+#include <sys/prctl.h>
+#endif
+
 #include "mvlc_dialog.h"
+#include "mvlc_error.h"
+#include "util/storage_sizes.h"
 
 namespace mesytec
 {
 namespace mvlc
 {
 
+namespace
+{
+
+void stack_error_poller(
+    MVLCDialog &mvlc,
+    Mutex &cmdMutex,
+    Protected<StackErrorCounters> &stackErrorCounters,
+    Mutex &suspendMutex,
+    std::atomic<bool> &quit)
+{
+#ifndef __WIN32
+    prctl(PR_SET_NAME,"error_poller",0,0,0);
+#endif
+
+    static constexpr auto Default_PollInterval = std::chrono::milliseconds(1000);
+
+    std::vector<u32> buffer;
+    buffer.reserve(util::Megabytes(1));
+    std::error_code ec = {};
+
+    auto threadId = std::this_thread::get_id();
+
+    std::cout << "stack_error_notification_poller " << threadId << " entering loop" << std::endl;
+
+    while (!quit)
+    {
+        std::unique_lock<Mutex> suspendGuard(suspendMutex);
+
+        std::cout << "stack_error_notification_poller " << threadId << " begin read" << std::endl;
+        auto tReadStart = std::chrono::steady_clock::now();
+        {
+            std::unique_lock<Mutex> cmdGuard(cmdMutex);
+            ec = mvlc.readKnownBuffer(buffer);
+        }
+        auto tReadEnd = std::chrono::steady_clock::now();
+        std::chrono::duration<double, std::milli> readElapsed = tReadEnd - tReadStart;
+        std::cout << "stack_error_notification_poller " << threadId << " read done "
+            << ", dt=" << readElapsed.count()
+            << ", ec=" << ec.message()
+            << ", buffer.size()=" << buffer.size()
+            << std::endl;
+
+        if (!buffer.empty())
+        {
+            //std::cout << "mvlc_readout::stack_error_notification_poller updating counters" << std::endl;
+            update_stack_error_counters(stackErrorCounters.access().ref(), buffer);
+        }
+
+        if (ec == ErrorType::ConnectionError || buffer.empty())
+        {
+            std::cout << "stack_error_notification_poller " << threadId << " sleeping" << std::endl;
+            std::this_thread::sleep_for(Default_PollInterval);
+            std::cout << "stack_error_notification_poller " << threadId << " waking" << std::endl;
+        }
+    }
+
+    std::cout << "stack_error_notification_poller " << threadId << " exiting" << std::endl;
+}
+
+}
+
+
 struct MVLC::Private
 {
     Private(std::unique_ptr<MVLCBasicInterface> &&impl_)
         : impl(std::move(impl_))
         , dialog(impl.get())
+        , errorPollerQuit(false)
     {
+        errorPollerThread = std::thread(
+            stack_error_poller,
+            std::ref(dialog),
+            std::ref(locks.cmdMutex()),
+            std::ref(dialog.getProtectedStackErrorCounters()),
+            std::ref(errorPollerSuspendMutex),
+            std::ref(errorPollerQuit));
+    }
+
+    ~Private()
+    {
+        errorPollerQuit = true;
+
+        if (errorPollerThread.joinable())
+            errorPollerThread.join();
     }
 
     std::unique_ptr<MVLCBasicInterface> impl;
     MVLCDialog dialog;
     mutable Locks locks;
+
+    Mutex errorPollerSuspendMutex;
+    std::atomic<bool> errorPollerQuit;
+    std::thread errorPollerThread;
 };
 
 MVLC::MVLC()
@@ -55,10 +148,14 @@ MVLC::MVLC()
 MVLC::MVLC(std::unique_ptr<MVLCBasicInterface> &&impl)
     : d(std::make_shared<Private>(std::move(impl)))
 {
+    std::cout << __PRETTY_FUNCTION__
+        << " this=" << this << ", d=" << d.get() << std::endl;
 }
 
 MVLC::~MVLC()
 {
+    std::cout << __PRETTY_FUNCTION__
+        << " this=" << this << ", d=" << d.get() << std::endl;
 }
 
 MVLCBasicInterface *MVLC::getImpl()
@@ -233,6 +330,7 @@ std::vector<u32> MVLC::getResponseBuffer() const
     return d->dialog.getResponseBuffer();
 }
 
+#if 0
 std::vector<std::vector<u32>> MVLC::getStackErrorNotifications() const
 {
     auto guard = d->locks.lockCmd();
@@ -250,6 +348,27 @@ bool MVLC::hasStackErrorNotifications() const
     auto guard = d->locks.lockCmd();
     return d->dialog.hasStackErrorNotifications();
 }
+#else
+StackErrorCounters MVLC::getStackErrorCounters() const
+{
+    return d->dialog.getStackErrorCounters();
+}
+
+Protected<StackErrorCounters> &MVLC::getProtectedStackErrorCounters()
+{
+    return d->dialog.getProtectedStackErrorCounters();
+}
+
+void MVLC::clearStackErrorCounters()
+{
+    d->dialog.clearStackErrorCounters();
+}
+
+std::unique_lock<Mutex> MVLC::suspendStackErrorPolling()
+{
+    return std::unique_lock<Mutex>(d->errorPollerSuspendMutex);
+}
+#endif
 
 }
 }

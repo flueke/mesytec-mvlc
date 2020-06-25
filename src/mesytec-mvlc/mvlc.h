@@ -37,6 +37,8 @@
 #include "mvlc_constants.h"
 #include "mvlc_threading.h"
 #include "mvlc_command_builders.h"
+#include "mvlc_stack_errors.h"
+#include "util/protected.h"
 
 namespace mesytec
 {
@@ -163,12 +165,21 @@ class MESYTEC_MVLC_EXPORT MVLC: public MVLCBasicInterface
         // Stack Error Notifications (Command Pipe)
         //
 
+
+#if 0
         // Get the stack error notifications that may have resulted from the
         // previous stack operation. Performing another stack operation will
         // clear the internal buffer.
         std::vector<std::vector<u32>> getStackErrorNotifications() const;
         void clearStackErrorNotifications();
         bool hasStackErrorNotifications() const;
+#else
+        StackErrorCounters getStackErrorCounters() const;
+        Protected<StackErrorCounters> &getProtectedStackErrorCounters();
+        void clearStackErrorCounters();
+
+        std::unique_lock<Mutex> suspendStackErrorPolling();
+#endif
 
         //
         // Access to the low-level implementation and the mutexes.
