@@ -342,8 +342,8 @@ std::error_code make_error_code(ReadoutWorkerError error)
 
 struct ReadoutWorker::Private
 {
-    static constexpr size_t BufferSize = util::Megabytes(1);
-    static constexpr size_t BufferCount = 10;
+    static constexpr size_t ListfileWriterBufferSize = util::Megabytes(1);
+    static constexpr size_t ListfileWriterBufferCount = 10;
     static constexpr std::chrono::seconds ShutdownReadoutMaxWait = std::chrono::seconds(10);
 
     WaitableProtected<ReadoutWorker::State> state;
@@ -369,9 +369,9 @@ struct ReadoutWorker::Private
         , mvlc(mvlc_)
         , snoopQueues(snoopQueues_)
         , counters({})
-        , listfileQueues(BufferSize, BufferCount)
-        , localBuffer(BufferSize)
-        , previousData(BufferSize)
+        , listfileQueues(ListfileWriterBufferSize, ListfileWriterBufferCount)
+        , localBuffer(ListfileWriterBufferSize)
+        , previousData(ListfileWriterBufferSize)
     {}
 
     ~Private()
@@ -716,7 +716,7 @@ void ReadoutWorker::Private::loop(std::promise<std::error_code> promise)
         pollerThread.join();
 
     // Check that all buffers from the listfile writer queue have been returned.
-    assert(listfileQueues.emptyBufferQueue().size() == BufferCount);
+    assert(listfileQueues.emptyBufferQueue().size() == ListfileWriterBufferCount);
 
     setState(State::Idle);
 }
