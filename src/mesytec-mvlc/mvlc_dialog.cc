@@ -26,6 +26,7 @@
 
 #include "mvlc_constants.h"
 #include "mvlc_error.h"
+#include "mvlc_impl_usb.h"
 #include "mvlc_util.h"
 //#include "util/debug_timer.h"
 
@@ -138,8 +139,17 @@ std::error_code MVLCDialog::readWords(u32 *dest, size_t count, size_t &wordsTran
     // I have not encountered this issue when connected via USB3.  This
     // workaround has the side effect of multiplying the potential maximum time
     // spent waiting for a timeout by MaxReadAttempts.
-    static const u16 MaxReadAttempts = 2;
+    u16 maxReadAttempts = 1;
     u16 attempts = 0;
+
+    if (m_mvlc->connectionType() == ConnectionType::USB)
+    {
+        if (auto usbImpl = dynamic_cast<usb::Impl *>(m_mvlc))
+        {
+            if (usbImpl->getDeviceInfo().flags & usb::DeviceInfo::Flags::USB2)
+                maxReadAttempts = 2;
+        }
+    }
 
     do
     {
@@ -156,7 +166,7 @@ std::error_code MVLCDialog::readWords(u32 *dest, size_t count, size_t &wordsTran
 
     } while (ec == ErrorType::Timeout
              && bytesTransferred == 0
-             && ++attempts < MaxReadAttempts);
+             && ++attempts < maxReadAttempts);
 
     if (bytesTransferred > 0 && attempts > 0)
     {
