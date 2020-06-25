@@ -214,6 +214,7 @@ int main(int argc, char *argv[])
     unsigned opt_secondsToRun = 10;
     CommandExecOptions initOptions = {};
     bool opt_logReadoutData = false;
+    bool opt_noPeriodicCounterDumps = false;
 
     bool opt_showHelp = false;
 
@@ -253,9 +254,12 @@ int main(int argc, char *argv[])
         | lyra::opt(initOptions.noBatching)
             ["--init-no-batching"] ("disables command batching during the MVLC init phase")
 
-        // readout data logging
+        // logging
         | lyra::opt(opt_logReadoutData)
             ["--log-readout-data"]("log each word of readout data (very verbose!)")
+
+        | lyra::opt(opt_noPeriodicCounterDumps)
+            ["--no-periodic-counter-dumps"]("do not periodcally print readout and parser counters to stdout")
 
         // positional args
         | lyra::arg(opt_crateConfig, "crateConfig")
@@ -427,14 +431,15 @@ int main(int argc, char *argv[])
                     return state == ReadoutWorker::State::Idle;
                 });
 
-#if 1
-            dump_counters(
-                cout,
-                crateConfig.connectionType,
-                readoutWorker.counters(),
-                parserCounters.copy(),
-                miniDAQStats.copy());
-#endif
+            if (!opt_noPeriodicCounterDumps)
+            {
+                dump_counters(
+                    cout,
+                    crateConfig.connectionType,
+                    readoutWorker.counters(),
+                    parserCounters.copy(),
+                    miniDAQStats.copy());
+            }
         }
 
         cout << "stopping readout_parser" << endl;
