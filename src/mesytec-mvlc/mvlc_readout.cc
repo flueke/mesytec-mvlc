@@ -267,6 +267,7 @@ void MESYTEC_MVLC_EXPORT listfile_buffer_writer(
     cerr << "listfile_writer left write loop, writes=" << writes << ", bytesWritten=" << bytesWritten << endl;
 }
 
+#if 0
 void stack_error_notification_poller(
     MVLC mvlc,
     Protected<ReadoutWorker::Counters> &counters,
@@ -285,13 +286,20 @@ void stack_error_notification_poller(
 
     while (!quit)
     {
-        //std::cout << "stack_error_notification_poller begin read" << std::endl;
+        std::cout << "mvlc_readout::stack_error_notification_poller begin read" << std::endl;
+        auto tReadStart = std::chrono::steady_clock::now();
         auto ec = mvlc.readKnownBuffer(buffer);
-        //std::cout << "stack_error_notification_poller read done" << std::endl;
+        auto tReadEnd = std::chrono::steady_clock::now();
+        std::chrono::duration<double, std::milli> readElapsed = tReadEnd - tReadStart;
+        std::cout << "mvlc_readout::stack_error_notification_poller read done "
+            << ", dt=" << readElapsed.count()
+            << ", ec=" << ec.message()
+            << ", buffer.size()=" << buffer.size()
+            << std::endl;
 
         if (!buffer.empty())
         {
-            //std::cout << "stack_error_notification_poller updating counters" << std::endl;
+            //std::cout << "mvlc_readout::stack_error_notification_poller updating counters" << std::endl;
             update_stack_error_counters(counters.access()->stackErrors, buffer);
         }
 
@@ -300,14 +308,15 @@ void stack_error_notification_poller(
 
         if (buffer.empty())
         {
-            //std::cout << "stack_error_notification_poller sleeping" << std::endl;
+            std::cout << "mvlc_readout::stack_error_notification_poller sleeping" << std::endl;
             std::this_thread::sleep_for(Default_PollInterval);
-            //std::cout << "stack_error_notification_poller waking" << std::endl;
+            std::cout << "mvlc_readout::stack_error_notification_poller waking" << std::endl;
         }
     }
 
     std::cout << "stack_error_notification_poller exiting" << std::endl;
 }
+#endif
 
 namespace
 {
@@ -516,11 +525,13 @@ void ReadoutWorker::Private::loop(std::promise<std::error_code> promise)
     // stack error polling thread
     std::atomic<bool> quitErrorPoller(false);
 
+#if 0
     auto pollerThread = std::thread(
         stack_error_notification_poller,
         mvlc,
         std::ref(counters),
         std::ref(quitErrorPoller));
+#endif
 
     const auto TimestampInterval = std::chrono::seconds(1);
 
@@ -712,8 +723,10 @@ void ReadoutWorker::Private::loop(std::promise<std::error_code> promise)
     // stop the stack error poller
     quitErrorPoller = true;
 
+#if 0
     if (pollerThread.joinable())
         pollerThread.join();
+#endif
 
     // Check that all buffers from the listfile writer queue have been returned.
     assert(listfileQueues.emptyBufferQueue().size() == ListfileWriterBufferCount);
