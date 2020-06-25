@@ -23,13 +23,15 @@
 
 #include <chrono>
 #include <functional>
-#include <vector>
 #include <system_error>
+#include <vector>
 
 #include "mesytec-mvlc_export.h"
 #include "mvlc_basic_interface.h"
 #include "mvlc_buffer_validators.h"
 #include "mvlc_command_builders.h"
+#include "mvlc_stack_errors.h"
+#include "util/protected.h"
 
 // Higher level MVLC dialog (request/response) layer. Builds on top of the
 // AbstractImpl abstraction.
@@ -54,7 +56,7 @@ class MESYTEC_MVLC_EXPORT MVLCDialog
         // transaction is retried a maximum of MirrorMaxRetries times.
         constexpr static unsigned MirrorMaxRetries = 3;
 
-        MVLCDialog(MVLCBasicInterface *mvlc);
+        explicit MVLCDialog(MVLCBasicInterface *mvlc);
 
         // MVLC register access
         std::error_code readRegister(u16 address, u32 &value);
@@ -75,7 +77,8 @@ class MESYTEC_MVLC_EXPORT MVLCDialog
                                        VMEDataWidth dataWidth);
 
         // Note: The data from the block read is currently returned as is
-        // including the stack frame (0xF3) and block frame (0xF5) headers.
+        // including the stack frame (0xF3), stack continuation (0xF9) and
+        // block frame (0xF5) headers.
         // The flags of either of these headers are not interpreted by this
         // method.
         // FIXME: Blk2eSST is missing
@@ -148,19 +151,19 @@ class MESYTEC_MVLC_EXPORT MVLCDialog
         // The buffer will contain the last data received from the MVLC.
         std::vector<u32> getResponseBuffer() const { return m_responseBuffer; }
 
-        std::vector<std::vector<u32>> getStackErrorNotifications() const
+        StackErrorCounters getStackErrorCounters() const
         {
-            return m_stackErrorNotifications;
+            return m_stackErrorCounters.copy();
         }
 
-        void clearStackErrorNotifications()
+        Protected<StackErrorCounters> &getProtectedStackErrorCounters()
         {
-            m_stackErrorNotifications.clear();
+            return m_stackErrorCounters;
         }
 
-        bool hasStackErrorNotifications() const
+        void clearStackErrorCounters()
         {
-            return !m_stackErrorNotifications.empty();
+            m_stackErrorCounters.access().ref() = {};
         }
 
     private:
@@ -172,7 +175,7 @@ class MESYTEC_MVLC_EXPORT MVLCDialog
         MVLCBasicInterface *m_mvlc = nullptr;
         u32 m_referenceWord = 1;
         std::vector<u32> m_responseBuffer;
-        std::vector<std::vector<u32>> m_stackErrorNotifications;
+        mutable Protected<StackErrorCounters> m_stackErrorCounters;
 };
 
 } // end namespace mvlc

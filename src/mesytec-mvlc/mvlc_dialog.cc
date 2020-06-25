@@ -95,6 +95,7 @@ constexpr std::chrono::milliseconds MVLCDialog::ReadResponseMaxWait;
 
 MVLCDialog::MVLCDialog(MVLCBasicInterface *mvlc)
     : m_mvlc(mvlc)
+    , m_stackErrorCounters({})
 {
     assert(m_mvlc);
 }
@@ -138,9 +139,9 @@ std::error_code MVLCDialog::readWords(u32 *dest, size_t count, size_t &wordsTran
     // correct data.
     // I have not encountered this issue when connected via USB3.  This
     // workaround has the side effect of multiplying the potential maximum time
-    // spent waiting for a timeout by MaxReadAttempts.
+    // spent waiting for a timeout by maxReadAttempts.
     u16 maxReadAttempts = 1;
-    u16 attempts = 0;
+    u16 usedAttempts = 0;
 
     if (m_mvlc->connectionType() == ConnectionType::USB)
     {
@@ -159,18 +160,18 @@ std::error_code MVLCDialog::readWords(u32 *dest, size_t count, size_t &wordsTran
                           bytesTransferred);
 
         //std::cout << __PRETTY_FUNCTION__
-        //    << " attempt=" << attempts + 1
+        //    << " attempt=" << usedAttempts + 1
         //    << ", ec=" << ec.message()
         //    << ", bytesTransferred=" << bytesTransferred
         //    << std::endl;
 
     } while (ec == ErrorType::Timeout
              && bytesTransferred == 0
-             && ++attempts < maxReadAttempts);
+             && ++usedAttempts < maxReadAttempts);
 
-    if (bytesTransferred > 0 && attempts > 0)
+    if (bytesTransferred > 0 && usedAttempts > 0)
     {
-        LOG_DEBUG("Needed %u reads to receive incoming data.", attempts+1);
+        LOG_DEBUG("Needed %u reads to receive incoming data.", usedAttempts+1);
     }
 
     wordsTransferred = bytesTransferred / sizeof(u32);
@@ -236,7 +237,7 @@ std::error_code MVLCDialog::readResponse(BufferHeaderValidator bhv, std::vector<
         u32 header = dest[0];
 
         if (is_stackerror_notification(header))
-            m_stackErrorNotifications.push_back(dest);
+            update_stack_error_counters(getProtectedStackErrorCounters().access().ref(), dest);
         else
             break;
 
@@ -387,7 +388,7 @@ std::error_code MVLCDialog::mirrorTransaction(const std::vector<u32> &cmdBuffer,
 std::error_code MVLCDialog::stackTransaction(const std::vector<u32> &stack,
                                              std::vector<u32> &dest)
 {
-    clearStackErrorNotifications();
+    //clearStackErrorNotifications(); XXX why was this here?
     //DebugTimer timer;
 
     // upload, read mirror, verify mirror
