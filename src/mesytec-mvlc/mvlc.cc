@@ -40,6 +40,10 @@
 #include "mvlc_error.h"
 #include "util/storage_sizes.h"
 
+#include <iostream>
+using std::cout;
+using std::endl;
+
 namespace mesytec
 {
 namespace mvlc
@@ -65,20 +69,26 @@ void stack_error_poller(
     buffer.reserve(util::Megabytes(1));
     std::error_code ec = {};
 
-    auto threadId = std::this_thread::get_id();
+#define POLLER_DEBUG 0
 
+#if POLLER_DEBUG
+    auto threadId = std::this_thread::get_id();
     std::cout << "stack_error_notification_poller " << threadId << " entering loop" << std::endl;
+#endif
 
     while (!quit)
     {
         std::unique_lock<Mutex> suspendGuard(suspendMutex);
 
+#if POLLER_DEBUG
         std::cout << "stack_error_notification_poller " << threadId << " begin read" << std::endl;
         auto tReadStart = std::chrono::steady_clock::now();
+#endif
         {
             std::unique_lock<Mutex> cmdGuard(cmdMutex);
             ec = mvlc.readKnownBuffer(buffer);
         }
+#if POLLER_DEBUG
         auto tReadEnd = std::chrono::steady_clock::now();
         std::chrono::duration<double, std::milli> readElapsed = tReadEnd - tReadStart;
         std::cout << "stack_error_notification_poller " << threadId << " read done "
@@ -86,6 +96,7 @@ void stack_error_poller(
             << ", ec=" << ec.message()
             << ", buffer.size()=" << buffer.size()
             << std::endl;
+#endif
 
         if (!buffer.empty())
         {
@@ -95,13 +106,21 @@ void stack_error_poller(
 
         if (ec == ErrorType::ConnectionError || buffer.empty())
         {
+#if POLLER_DEBUG
             std::cout << "stack_error_notification_poller " << threadId << " sleeping" << std::endl;
+#endif
             std::this_thread::sleep_for(Default_PollInterval);
+#if POLLER_DEBUG
             std::cout << "stack_error_notification_poller " << threadId << " waking" << std::endl;
+#endif
         }
     }
 
+#if POLLER_DEBUG
     std::cout << "stack_error_notification_poller " << threadId << " exiting" << std::endl;
+#endif
+
+#undef POLLER_DEBUG
 }
 
 }
@@ -183,6 +202,7 @@ std::error_code MVLC::disconnect()
 bool MVLC::isConnected() const
 {
     auto guards = d->locks.lockBoth();
+    cout << __PRETTY_FUNCTION__ << this << "both locks taken" << endl;
     return d->impl->isConnected();
 }
 

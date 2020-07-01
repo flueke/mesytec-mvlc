@@ -187,8 +187,8 @@ class MVLCErrorCategory: public std::error_category
             case MVLCErrorCode::StackSyntaxError:
             case MVLCErrorCode::MirrorTransactionMaxWordsExceeded:
             case MVLCErrorCode::InvalidStackHeader:
-            case MVLCErrorCode::TimerCountExceeded: // FIXME: does not belong here
-            case MVLCErrorCode::ReadoutSetupError:  // FIXME: does not belong here
+            case MVLCErrorCode::TimerCountExceeded: // FIXME: does not belong here (used in mvlc_daq.cc)
+            case MVLCErrorCode::ReadoutSetupError:  // FIXME: does not belong here (used in mvlc_daq.cc)
             case MVLCErrorCode::StackIndexOutOfRange:
             case MVLCErrorCode::UnexpectedBufferHeader:
             case MVLCErrorCode::NeedMoreData:
