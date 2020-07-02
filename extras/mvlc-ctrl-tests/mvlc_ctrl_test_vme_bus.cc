@@ -12,6 +12,10 @@ using namespace mesytec::mvlc;
 using std::cout;
 using std::endl;
 
+// I think this test needs an MDPP on address 0 with the special test firmware
+// active. Figure this out and document it, then reactivate the test in
+// CMakeLists.txt.
+
 int main(int argc, char *argv[])
 {
     try
@@ -71,7 +75,7 @@ int main(int argc, char *argv[])
                 {
                     auto ec = mvlc.vmeWrite(av.first, av.second, vme_amods::A32, VMEDataWidth::D32);
 
-                    if (ec && ec != ErrorType::VMEError)
+                    if (ec /* && ec != ErrorType::VMEError */)
                         throw ec;
 
                     ++repetitions;
