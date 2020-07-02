@@ -125,12 +125,12 @@ void stack_error_poller(
 
 }
 
-
 struct MVLC::Private
 {
     Private(std::unique_ptr<MVLCBasicInterface> &&impl_)
         : impl(std::move(impl_))
         , dialog(impl.get())
+        , isConnected(false)
         , errorPollerQuit(false)
     {
         errorPollerThread = std::thread(
@@ -153,10 +153,20 @@ struct MVLC::Private
     std::unique_ptr<MVLCBasicInterface> impl;
     MVLCDialog dialog;
     mutable Locks locks;
+    std::atomic<bool> isConnected;
 
     Mutex errorPollerSuspendMutex;
     std::atomic<bool> errorPollerQuit;
     std::thread errorPollerThread;
+
+    std::error_code resultCheck(const std::error_code &ec)
+    {
+        // Update the local connection state without calling
+        // impl->isConnected() which would require us to take both pipe locks.
+        if (ec == ErrorType::ConnectionError)
+            this->isConnected = false;
+        return ec;
+    }
 };
 
 MVLC::MVLC()
@@ -190,20 +200,28 @@ Locks &MVLC::getLocks()
 std::error_code MVLC::connect()
 {
     auto guards = d->locks.lockBoth();
-    return d->impl->connect();
+    auto ec = d->impl->connect();
+    d->isConnected = d->impl->isConnected();
+    return ec;
 }
 
 std::error_code MVLC::disconnect()
 {
     auto guards = d->locks.lockBoth();
-    return d->impl->disconnect();
+    auto ec = d->impl->disconnect();
+    d->isConnected = d->impl->isConnected();
+    return ec;
 }
 
 bool MVLC::isConnected() const
 {
+#if 0
     auto guards = d->locks.lockBoth();
     cout << __PRETTY_FUNCTION__ << this << "both locks taken" << endl;
     return d->impl->isConnected();
+#else
+    return d->isConnected;
+#endif
 }
 
 ConnectionType MVLC::connectionType() const
@@ -222,26 +240,26 @@ std::error_code MVLC::write(Pipe pipe, const u8 *buffer, size_t size,
                       size_t &bytesTransferred)
 {
     auto guard = d->locks.lock(pipe);
-    return d->impl->write(pipe, buffer, size, bytesTransferred);
+    return d->resultCheck(d->impl->write(pipe, buffer, size, bytesTransferred));
 }
 
 std::error_code MVLC::read(Pipe pipe, u8 *buffer, size_t size,
                      size_t &bytesTransferred)
 {
     auto guard = d->locks.lock(pipe);
-    return d->impl->read(pipe, buffer, size, bytesTransferred);
+    return d->resultCheck(d->impl->read(pipe, buffer, size, bytesTransferred));
 }
 
 std::error_code MVLC::setWriteTimeout(Pipe pipe, unsigned ms)
 {
     auto guard = d->locks.lock(pipe);
-    return d->impl->setWriteTimeout(pipe, ms);
+    return d->resultCheck(d->impl->setWriteTimeout(pipe, ms));
 }
 
 std::error_code MVLC::setReadTimeout(Pipe pipe, unsigned ms)
 {
     auto guard = d->locks.lock(pipe);
-    return d->impl->setReadTimeout(pipe, ms);
+    return d->resultCheck(d->impl->setReadTimeout(pipe, ms));
 }
 
 unsigned MVLC::writeTimeout(Pipe pipe) const
@@ -271,34 +289,34 @@ bool MVLC::disableTriggersOnConnect() const
 std::error_code MVLC::readRegister(u16 address, u32 &value)
 {
     auto guard = d->locks.lockCmd();
-    return d->dialog.readRegister(address, value);
+    return d->resultCheck(d->dialog.readRegister(address, value));
 }
 
 std::error_code MVLC::writeRegister(u16 address, u32 value)
 {
     auto guard = d->locks.lockCmd();
-    return d->dialog.writeRegister(address, value);
+    return d->resultCheck(d->dialog.writeRegister(address, value));
 }
 
 std::error_code MVLC::vmeRead(u32 address, u32 &value, u8 amod,
                               VMEDataWidth dataWidth)
 {
     auto guard = d->locks.lockCmd();
-    return d->dialog.vmeRead(address, value, amod, dataWidth);
+    return d->resultCheck(d->dialog.vmeRead(address, value, amod, dataWidth));
 }
 
 std::error_code MVLC::vmeWrite(u32 address, u32 value, u8 amod,
                                VMEDataWidth dataWidth)
 {
     auto guard = d->locks.lockCmd();
-    return d->dialog.vmeWrite(address, value, amod, dataWidth);
+    return d->resultCheck(d->dialog.vmeWrite(address, value, amod, dataWidth));
 }
 
 std::error_code MVLC::vmeBlockRead(u32 address, u8 amod, u16 maxTransfers,
                              std::vector<u32> &dest)
 {
     auto guard = d->locks.lockCmd();
-    return d->dialog.vmeBlockRead(address, amod, maxTransfers, dest);
+    return d->resultCheck(d->dialog.vmeBlockRead(address, amod, maxTransfers, dest));
 }
 
 std::error_code MVLC::uploadStack(
@@ -308,40 +326,40 @@ std::error_code MVLC::uploadStack(
     std::vector<u32> &responseDest)
 {
     auto guard = d->locks.lockCmd();
-    return d->dialog.uploadStack(stackOutputPipe, stackMemoryOffset, commands, responseDest);
+    return d->resultCheck(d->dialog.uploadStack(stackOutputPipe, stackMemoryOffset, commands, responseDest));
 }
 
 std::error_code MVLC::execImmediateStack(
     u16 stackMemoryOffset, std::vector<u32> &responseDest)
 {
     auto guard = d->locks.lockCmd();
-    return d->dialog.execImmediateStack(stackMemoryOffset, responseDest);
+    return d->resultCheck(d->dialog.execImmediateStack(stackMemoryOffset, responseDest));
 }
 
 std::error_code MVLC::readResponse(BufferHeaderValidator bhv, std::vector<u32> &dest)
 {
     auto guard = d->locks.lockCmd();
-    return d->dialog.readResponse(bhv, dest);
+    return d->resultCheck(d->dialog.readResponse(bhv, dest));
 }
 
 std::error_code MVLC::mirrorTransaction(
     const std::vector<u32> &cmdBuffer, std::vector<u32> &responseDest)
 {
     auto guard = d->locks.lockCmd();
-    return d->dialog.mirrorTransaction(cmdBuffer, responseDest);
+    return d->resultCheck(d->dialog.mirrorTransaction(cmdBuffer, responseDest));
 }
 
 std::error_code MVLC::stackTransaction(const std::vector<u32> &stackUploadData,
                                  std::vector<u32> &responseDest)
 {
     auto guard = d->locks.lockCmd();
-    return d->dialog.stackTransaction(stackUploadData, responseDest);
+    return d->resultCheck(d->dialog.stackTransaction(stackUploadData, responseDest));
 }
 
 std::error_code MVLC::readKnownBuffer(std::vector<u32> &dest)
 {
     auto guard = d->locks.lockCmd();
-    return d->dialog.readKnownBuffer(dest);
+    return d->resultCheck(d->dialog.readKnownBuffer(dest));
 }
 
 std::vector<u32> MVLC::getResponseBuffer() const
@@ -371,6 +389,7 @@ bool MVLC::hasStackErrorNotifications() const
 #else
 StackErrorCounters MVLC::getStackErrorCounters() const
 {
+    // Note: this is thread-safe in MVLCDialog
     return d->dialog.getStackErrorCounters();
 }
 
@@ -381,11 +400,14 @@ Protected<StackErrorCounters> &MVLC::getProtectedStackErrorCounters()
 
 void MVLC::clearStackErrorCounters()
 {
+    // Note: this is thread-safe in MVLCDialog
     d->dialog.clearStackErrorCounters();
 }
 
 std::unique_lock<Mutex> MVLC::suspendStackErrorPolling()
 {
+    // Take the mutex so that the poller is forced to block on its next
+    // iteration.
     return std::unique_lock<Mutex>(d->errorPollerSuspendMutex);
 }
 #endif
