@@ -19,11 +19,18 @@ option(MZ_BUILD_UNIT_TEST "Builds minizip unit test project" OFF)
 option(MZ_BUILD_FUZZ_TEST "Builds minizip fuzzer executables" OFF)
 option(MZ_CODE_COVERAGE "Builds with code coverage flags" OFF)
 set(SKIP_INSTALL_ALL ON)
+# The next two lines should allow to build minizip against another zlib
+# (cloudflare and others) than the system one but it didn't work properly for
+# me when I last tried it.
 #set(ZLIB_REPOSITORY "https://github.com/Dead2/zlib-ng" CACHE STRING "")
 #set(ZLIB_TAG "develop" CACHE STRING "")
 
 add_subdirectory(minizip)
-target_compile_options(minizip PRIVATE -Wno-stringop-truncation -Wno-stringop-overflow)
+
+target_compile_options(minizip
+    PRIVATE $<${not-msvc}:-Wno-stringop-truncation -Wno-stringop-overflow -Wno-unused-variable>
+    PRIVATE $<${not-msvc}:-Wno-unused-parameter -Wno-cast-function-type -Wno-unused-local-typedefs>)
+
 target_include_directories(minizip
     PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/minizip>)
 
@@ -41,9 +48,9 @@ option(YAML_BUILD_SHARED_LIBS "Build Shared Libraries" OFF)
 add_subdirectory(yaml-cpp)
 # Disable the 'yaml-cpp/node/impl.h:202:11: warning: ‘operator=’ should return # a reference to ‘*this’ [-Weffc++]' warning
 # Note: the code does return *this.
-set(not-msvc $<NOT:$<CXX_COMPILER_ID:MSVC>>)
 target_compile_options(yaml-cpp
-  PRIVATE $<${not-msvc}:-Wno-effc++>)
+    PRIVATE $<${not-msvc}:-Wno-effc++>
+    )
 
 # Enable the PIC flag to fix a relocation error when linking against the
 # static version of yaml-cpp.
