@@ -15,7 +15,7 @@ namespace mvlc
 template<typename T> class Protected;
 
 template<typename T>
-class Access
+class [[nodiscard]] Access
 {
     public:
         T &ref() { return m_obj; }
