@@ -29,9 +29,12 @@
 #define __MESYTEC_MVLC_MVLC_READOUT_PARSER_H__
 
 #include <functional>
+#include <limits>
+#include <unordered_map>
 
 #include "mesytec-mvlc_export.h"
 #include "mvlc_command_builders.h"
+#include "mvlc_constants.h"
 #include "mvlc_util.h"
 #include "util/protected.h"
 
@@ -52,10 +55,9 @@ namespace readout_parser
 //   block_read     -> dynamic part (0xF5 framed)
 //
 // Restrictions applying to the structure of each stack command group:
-//
-// - an optional fixed size prefix part (single value read and marker commands)
-// - an optional dynamic block part (block read commands)
-// - an optional fixed size suffix part (single value read and marker commands)
+//   - an optional fixed size prefix part (single value read and marker commands)
+//   - an optional dynamic block part (a single block read command)
+//   - an optional fixed size suffix part (single value read and marker commands)
 
 
 struct GroupReadoutStructure
@@ -95,15 +97,15 @@ struct end_of_frame: public std::exception {};
 struct ReadoutParserCallbacks
 {
     // functions taking an event index
-    std::function<void (int ei)>
+    std::function<void (int eventIndex)>
         beginEvent = [] (int) {},
         endEvent   = [] (int) {};
 
-    // Parameters: event index, module index, pointer to first word, number of words
-    std::function<void (int ei, int mi, const u32 *data, u32 size)>
-        modulePrefix  = [] (int, int, const u32*, u32) {},
-        moduleDynamic = [] (int, int, const u32*, u32) {},
-        moduleSuffix  = [] (int, int, const u32*, u32) {};
+    // Parameters: event index, group (aka module) index, pointer to first data word, number of words
+    std::function<void (int eventIndex, int groupIndex, const u32 *data, u32 size)>
+        groupPrefix  = [] (int, int, const u32*, u32) {},
+        groupDynamic = [] (int, int, const u32*, u32) {},
+        groupSuffix  = [] (int, int, const u32*, u32) {};
 
     // Parameters: pointer to first word of the system event data, number of words
     std::function<void (const u32 *header, u32 size)>
@@ -139,20 +141,71 @@ enum class ParseResult
 
 MESYTEC_MVLC_EXPORT const char *get_parse_result_name(const ParseResult &pr);
 
+// Helper enabling the use of std::pair as the key in std::unordered_map.
+struct PairHash
+{
+    template <typename T1, typename T2>
+        std::size_t operator() (const std::pair<T1, T2> &pair) const
+        {
+            return std::hash<T1>()(pair.first) ^ std::hash<T2>()(pair.second);
+        }
+};
+
 struct MESYTEC_MVLC_EXPORT ReadoutParserCounters
 {
+    // Counts internal buffer loss across calls to parse_readout_buffer()
     u32 internalBufferLoss;
+
+    // Total number of buffers processes so far.
     u32 buffersProcessed;
+
+    // Number of bytes skipped by the parser. This can happen due to internal
+    // buffer loss, ethernet packet loss or unexpected/corrupted incoming data.
     u64 unusedBytes;
 
-    u32 ethPacketLoss;
+    // Ethernet specific packet and loss counters.
     u32 ethPacketsProcessed;
+    u32 ethPacketLoss;
 
-    std::array<u32, system_event::subtype::SubtypeMax + 1> systemEventTypes;
+    // Counts the number of system events seen per system event type.
+    using SystemEventCounts = std::array<u32, system_event::subtype::SubtypeMax + 1>;
 
-    using ParseResultArray = std::array<u32, static_cast<size_t>(ParseResult::ParseResultMax)>;
-    ParseResultArray parseResults;
+    SystemEventCounts systemEvents;
+
+    // The count of each ParseResult returned by the parser.
+    using ParseResultCounts = std::array<u32, static_cast<size_t>(ParseResult::ParseResultMax)>;
+
+    ParseResultCounts parseResults;
+
+    // Number of exceptions thrown by the parser.
     u32 parserExceptions;
+
+    // Number of stack frames with length zero. This should not happen but the
+    // MVLC sometimes generates them.
+    u32 emptyStackFrames;
+
+    struct PartSizeInfo
+    {
+        size_t min = std::numeric_limits<size_t>::max();
+        size_t max = 0u;
+        size_t sum = 0u;
+    };
+
+    using GroupPartHits = std::unordered_map<std::pair<int, int>, size_t, PairHash>;
+    using GroupPartSizes = std::unordered_map<std::pair<int, int>, PartSizeInfo, PairHash>;
+
+    // Event hit counts by eventIndex
+    std::unordered_map<int, size_t> eventHits;
+
+    // Part specific hit counts by (eventIndex, groupIndex)
+    GroupPartHits groupPrefixHits;
+    GroupPartHits groupDynamicHits;
+    GroupPartHits groupSuffixHits;
+
+    // Part specific event size information by (eventIndex, groupIndex)
+    GroupPartSizes groupPrefixSizes;
+    GroupPartSizes groupDynamicSizes;
+    GroupPartSizes groupSuffixSizes;
 };
 
 struct MESYTEC_MVLC_EXPORT ReadoutParserState
@@ -188,7 +241,7 @@ struct MESYTEC_MVLC_EXPORT ReadoutParserState
         u16 wordsLeft;
     };
 
-    enum ModuleParseState { Prefix, Dynamic, Suffix };
+    enum GroupParseState { Prefix, Dynamic, Suffix };
 
     using ReadoutStructure = std::vector<std::vector<GroupReadoutStructure>>;
 
@@ -216,8 +269,8 @@ struct MESYTEC_MVLC_EXPORT ReadoutParserState
     ReadoutStructure readoutStructure;
 
     int eventIndex = -1;
-    int moduleIndex = -1;
-    ModuleParseState moduleParseState = Prefix;
+    int groupIndex = -1;
+    GroupParseState groupParseState = Prefix;
 
     // Parsing state of the current 0xF3 stack frame. This is always active
     // when parsing readout data.

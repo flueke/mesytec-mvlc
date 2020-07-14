@@ -1,6 +1,8 @@
 #ifndef __MESYTEC_MVLC_MVLC_READOUT_PARSER_UTIL_H__
 #define __MESYTEC_MVLC_MVLC_READOUT_PARSER_UTIL_H__
 
+#include <ostream>
+
 #include "mesytec-mvlc_export.h"
 #include "mvlc_readout_parser.h"
 #include "util/readout_buffer_queues.h"
@@ -11,6 +13,11 @@ namespace mvlc
 {
 namespace readout_parser
 {
+
+// Driver function intended to run the readout parser in its own thread.
+// Readout buffers are taken from the snoopQueues and are passed to the readout
+// parser. Once a buffer has been processed it is re-enqueued on the empty
+// snoop queue.
 
 // Call like this:
 //  parserThread = std::thread(
@@ -26,6 +33,9 @@ void MESYTEC_MVLC_EXPORT run_readout_parser(
     Protected<readout_parser::ReadoutParserCounters> &counters,
     ReadoutBufferQueues &snoopQueues,
     readout_parser::ReadoutParserCallbacks &parserCallbacks);
+
+MESYTEC_MVLC_EXPORT std::ostream &dump_counters(
+    std::ostream &out, const ReadoutParserCounters &counters);
 
 } // end namespace readout_parser
 } // end namespace mvlc

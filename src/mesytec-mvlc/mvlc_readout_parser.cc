@@ -88,7 +88,7 @@ GroupReadoutStructure parse_group_readout_commands(const std::vector<StackComman
         if ((cmd.type == StackCT::VMERead
              && !vme_amods::is_block_mode(cmd.amod))
             || cmd.type == StackCT::WriteMarker)
-            // FIXME: WriteSpecial?
+            // TODO: WriteSpecial if and when it is used by the MVLC
         {
             switch (state)
             {
@@ -117,7 +117,7 @@ GroupReadoutStructure parse_group_readout_commands(const std::vector<StackComman
                 case Dynamic:
                     throw std::runtime_error("multiple block reads in module readout");
                 case Suffix:
-                    throw std::runtime_error("block read after suffix in module readout");
+                    throw std::runtime_error("block read the suffix part in module readout");
             }
         }
     }
@@ -280,10 +280,10 @@ inline bool is_event_in_progress(const ReadoutParserState &state)
 inline void parser_clear_event_state(ReadoutParserState &state)
 {
     state.eventIndex = -1;
-    state.moduleIndex = -1;
+    state.groupIndex = -1;
     state.curStackFrame = {};
     state.curBlockFrame = {};
-    state.moduleParseState = ReadoutParserState::Prefix;
+    state.groupParseState = ReadoutParserState::Prefix;
     assert(!is_event_in_progress(state));
 }
 
@@ -308,8 +308,8 @@ inline ParseResult parser_begin_event(ReadoutParserState &state, u32 frameHeader
     clear_readout_data_spans(state.readoutDataSpans);
 
     state.eventIndex = eventIndex;
-    state.moduleIndex = 0;
-    state.moduleParseState = ReadoutParserState::Prefix;
+    state.groupIndex = 0;
+    state.groupParseState = ReadoutParserState::Prefix;
     state.curStackFrame = { frameHeader };
     state.curBlockFrame = {};
 
@@ -354,7 +354,7 @@ inline bool try_handle_system_event(
                 throw end_of_buffer("SystemEvent frame size exceeds input buffer size.");
 
             u8 subtype = system_event::extract_subtype(frameHeader);
-            ++counters.systemEventTypes[subtype];
+            ++counters.systemEvents[subtype];
 
             // Pass the frame header itself and the contents to the system event
             // callback.
@@ -478,15 +478,15 @@ ParseResult parse_readout_contents(
 
                     if (state.curStackFrame.wordsLeft == 0)
                     {
-                        // This is case with a StackContinuation header of
+                        // This is the case with a StackContinuation header of
                         // length 0 (e.g. 0xF9010000 for stack 1).
                         // This implicitly ends the current block frame if any.
                         // This means even that although the current block
                         // frame has the continue bit set there's no follow up
                         // frame present.
-                        // The code below (switch case over the module parts)
+                        // The code below (switch case over the group/module parts)
                         // checks the current block frame for the continue bit
-                        // and tries to read the next part if it's set. To
+                        // and tries to read the next part if it is set. To
                         // avoid this the block frame is cleared here.
                         //cout << "Hello empty stackFrame!" << endl;
                         LOG_WARN("got an empty stack frame: 0x%08x",
@@ -545,13 +545,13 @@ ParseResult parse_readout_contents(
             assert(0 <= state.eventIndex
                    && static_cast<size_t>(state.eventIndex) < state.readoutStructure.size());
 
-            const auto &moduleReadoutInfos = state.readoutStructure[state.eventIndex];
+            const auto &groupReadoutInfos = state.readoutStructure[state.eventIndex];
 
             // Check for the case where a stack frame for an event is produced but
             // the event does not contain any modules. This can happen for example
             // when a periodic event is added without any modules.
             // The frame header for the event should have length 0.
-            if (moduleReadoutInfos.empty())
+            if (groupReadoutInfos.empty())
             {
                 auto fi = extract_frame_info(state.curStackFrame.header);
                 if (fi.len != 0u)
@@ -565,23 +565,23 @@ ParseResult parse_readout_contents(
                 return ParseResult::Ok;
             }
 
-            if (static_cast<size_t>(state.moduleIndex) >= moduleReadoutInfos.size())
+            if (static_cast<size_t>(state.groupIndex) >= groupReadoutInfos.size())
                 return ParseResult::GroupIndexOutOfRange;
 
 
-            const auto &moduleParts = moduleReadoutInfos[state.moduleIndex];
+            const auto &moduleParts = groupReadoutInfos[state.groupIndex];
 
             if (moduleParts.prefixLen == 0 && !moduleParts.hasDynamic && moduleParts.suffixLen == 0)
             {
                 // The module does not have any of the three parts, its readout is
                 // completely empty.
-                ++state.moduleIndex;
+                ++state.groupIndex;
             }
             else
             {
-                auto &moduleSpans = state.readoutDataSpans[state.moduleIndex];
+                auto &moduleSpans = state.readoutDataSpans[state.groupIndex];
 
-                switch (state.moduleParseState)
+                switch (state.groupParseState)
                 {
                     case ReadoutParserState::Prefix:
                         if (moduleSpans.prefixSpan.size < moduleParts.prefixLen)
@@ -607,20 +607,20 @@ ParseResult parse_readout_contents(
                         {
                             if (moduleParts.hasDynamic)
                             {
-                                state.moduleParseState = ReadoutParserState::Dynamic;
+                                state.groupParseState = ReadoutParserState::Dynamic;
                                 continue;
                             }
                             else if (moduleParts.suffixLen != 0)
                             {
-                                state.moduleParseState = ReadoutParserState::Suffix;
+                                state.groupParseState = ReadoutParserState::Suffix;
                                 continue;
                             }
                             else
                             {
                                 // We're done with this module as it does have neither
                                 // dynamic nor suffix parts.
-                                state.moduleIndex++;
-                                state.moduleParseState = ReadoutParserState::Prefix;
+                                state.groupIndex++;
+                                state.groupParseState = ReadoutParserState::Prefix;
                             }
                         }
 
@@ -646,7 +646,8 @@ ParseResult parse_readout_contents(
 
                                 if (state.curBlockFrame.info().type != frame_headers::BlockRead)
                                 {
-#if 1
+                                    // Verbose debug output
+#if 0
                                     s64 currentOffset = input.data() - originalInputView.data();
                                     s64 logStartOffset = std::max(currentOffset - 400, static_cast<s64>(0));
                                     size_t logWordCount = std::min(input.size(), static_cast<size_t>(400u + 100lu));
@@ -696,12 +697,12 @@ ParseResult parse_readout_contents(
                                 if (moduleParts.suffixLen == 0)
                                 {
                                     // No suffix, we're done with the module
-                                    state.moduleIndex++;
-                                    state.moduleParseState = ReadoutParserState::Prefix;
+                                    state.groupIndex++;
+                                    state.groupParseState = ReadoutParserState::Prefix;
                                 }
                                 else
                                 {
-                                    state.moduleParseState = ReadoutParserState::Suffix;
+                                    state.groupParseState = ReadoutParserState::Suffix;
                                     continue;
                                 }
                             }
@@ -729,8 +730,8 @@ ParseResult parse_readout_contents(
                         if (moduleSpans.suffixSpan.size >= moduleParts.suffixLen)
                         {
                             // Done with the module
-                            state.moduleIndex++;
-                            state.moduleParseState = ReadoutParserState::Prefix;
+                            state.groupIndex++;
+                            state.groupParseState = ReadoutParserState::Prefix;
                         }
 
                         break;
@@ -739,48 +740,66 @@ ParseResult parse_readout_contents(
 
             // Skip over modules that do not have any readout data.
             // Note: modules that are disabled in the vme config are handled this way.
-            while (state.moduleIndex < static_cast<int>(moduleReadoutInfos.size())
-                   && is_empty(moduleReadoutInfos[state.moduleIndex]))
+            while (state.groupIndex < static_cast<int>(groupReadoutInfos.size())
+                   && is_empty(groupReadoutInfos[state.groupIndex]))
             {
-                ++state.moduleIndex;
+                ++state.groupIndex;
             }
 
-            if (state.moduleIndex >= static_cast<int>(moduleReadoutInfos.size()))
+            auto update_part_sizes = [] (ReadoutParserCounters::PartSizeInfo &sizeInfo, size_t size)
+            {
+                sizeInfo.min = std::min(sizeInfo.min, static_cast<size_t>(size));
+                sizeInfo.max = std::max(sizeInfo.max, static_cast<size_t>(size));
+                sizeInfo.sum += size;
+            };
+
+            if (state.groupIndex >= static_cast<int>(groupReadoutInfos.size()))
             {
                 assert(!state.curBlockFrame);
                 // All modules have been processed and the event can be flushed.
 
                 callbacks.beginEvent(state.eventIndex);
 
-                for (int mi = 0; mi < static_cast<int>(moduleReadoutInfos.size()); mi++)
+                for (int mi = 0; mi < static_cast<int>(groupReadoutInfos.size()); mi++)
                 {
                     const auto &moduleSpans = state.readoutDataSpans[mi];
+                    const auto partIndex = std::make_pair(state.eventIndex, mi);
 
                     if (moduleSpans.prefixSpan.size)
                     {
-                        callbacks.modulePrefix(
+                        callbacks.groupPrefix(
                             state.eventIndex, mi,
                             state.workBuffer.buffer.data() + moduleSpans.prefixSpan.offset,
                             moduleSpans.prefixSpan.size);
+
+                        ++counters.groupPrefixHits[partIndex];
+                        update_part_sizes(counters.groupPrefixSizes[partIndex], moduleSpans.prefixSpan.size);
                     }
 
                     if (moduleSpans.dynamicSpan.size)
                     {
-                        callbacks.moduleDynamic(
+                        callbacks.groupDynamic(
                             state.eventIndex, mi,
                             state.workBuffer.buffer.data() + moduleSpans.dynamicSpan.offset,
                             moduleSpans.dynamicSpan.size);
+
+                        ++counters.groupDynamicHits[partIndex];
+                        update_part_sizes(counters.groupDynamicSizes[partIndex], moduleSpans.dynamicSpan.size);
                     }
 
                     if (moduleSpans.suffixSpan.size)
                     {
-                        callbacks.moduleSuffix(
+                        callbacks.groupSuffix(
                             state.eventIndex, mi,
                             state.workBuffer.buffer.data() + moduleSpans.suffixSpan.offset,
                             moduleSpans.suffixSpan.size);
+
+                        ++counters.groupSuffixHits[partIndex];
+                        update_part_sizes(counters.groupSuffixSizes[partIndex], moduleSpans.suffixSpan.size);
                     }
                 }
 
+                ++counters.eventHits[state.eventIndex];
                 callbacks.endEvent(state.eventIndex);
                 parser_clear_event_state(state);
             }

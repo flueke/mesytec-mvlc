@@ -5,6 +5,7 @@
 #endif
 
 #include <iostream>
+#include <fmt/format.h>
 
 using std::cerr;
 using std::endl;
@@ -86,6 +87,89 @@ void run_readout_parser(
     }
 
     cerr << "run_readout_parser left loop" << endl;
+}
+
+std::ostream &dump_counters(std::ostream &out, const ReadoutParserCounters &counters)
+{
+    auto dump_hits_and_sizes = [&out] (
+        const std::string &partTitle,
+        const ReadoutParserCounters::GroupPartHits &hits,
+        const ReadoutParserCounters::GroupPartSizes &sizes)
+    {
+        if (!hits.empty())
+        {
+            out << "group " + partTitle + " hits: ";
+
+            for (const auto &kv: hits)
+            {
+                out << fmt::format(
+                    "eventIndex={}, groupIndex={}, hits={}; ",
+                    kv.first.first, kv.first.second, kv.second);
+            }
+
+            out << endl;
+        }
+
+        if (!sizes.empty())
+        {
+            out << "group " + partTitle + " sizes: ";
+
+            for (const auto &kv: sizes)
+            {
+                out << fmt::format(
+                    "eventIndex={}, groupIndex={}, min={}, max={}, avg={}; ",
+                    kv.first.first, kv.first.second,
+                    kv.second.min,
+                    kv.second.max,
+                    kv.second.sum / static_cast<double>(hits.at(kv.first)));
+            }
+
+            out << endl;
+        }
+    };
+
+    out << "internalBufferLoss=" << counters.internalBufferLoss << endl;
+    out << "buffersProcessed=" << counters.buffersProcessed << endl;
+    out << "unusedBytes=" << counters.unusedBytes << endl;
+    out << "ethPacketsProcessed=" << counters.ethPacketsProcessed << endl;
+    out << "ethPacketLoss=" << counters.ethPacketLoss << endl;
+
+    for (size_t sysEvent = 0; sysEvent < counters.systemEvents.size(); ++sysEvent)
+    {
+        if (counters.systemEvents[sysEvent])
+        {
+            auto sysEventName = system_event_type_to_string(sysEvent);
+
+            out << fmt::format("systemEventType {}, count={}",
+                               sysEventName, counters.systemEvents[sysEvent])
+                << endl;
+        }
+    }
+
+    for (size_t pr=0; pr < counters.parseResults.size(); ++pr)
+    {
+        if (counters.parseResults[pr])
+        {
+            auto name = get_parse_result_name(static_cast<readout_parser::ParseResult>(pr));
+
+            out << fmt::format("parseResult={}, count={}",
+                               name, counters.parseResults[pr])
+                << endl;
+        }
+    }
+
+    out << "parserExceptions=" << counters.parserExceptions << endl;
+
+    out << "eventHits: ";
+    for (const auto &kv: counters.eventHits)
+        out << fmt::format("ei={}, hits={}, ", kv.first, kv.second);
+    out << endl;
+
+    dump_hits_and_sizes("prefix", counters.groupPrefixHits, counters.groupPrefixSizes);
+    dump_hits_and_sizes("dynamic", counters.groupDynamicHits, counters.groupDynamicSizes);
+    dump_hits_and_sizes("suffix", counters.groupSuffixHits, counters.groupSuffixSizes);
+
+    return out;
 }
 
 } // end namespace readout_parser

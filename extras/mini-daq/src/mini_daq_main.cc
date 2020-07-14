@@ -26,8 +26,7 @@ void dump_counters(
     std::ostream &out,
     const ConnectionType &connectionType,
     const ReadoutWorker::Counters &readoutWorkerCounters,
-    const readout_parser::ReadoutParserCounters &parserCounters,
-    const mini_daq::MiniDAQStats &miniDAQStats)
+    const readout_parser::ReadoutParserCounters &parserCounters)
 {
 #if 0
 // clear screen hacks
@@ -155,45 +154,9 @@ void dump_counters(
     // parser stats
     //
     {
-        auto counters = parserCounters;
-
-        cout << endl;
-        cout << "---- readout parser stats ----" << endl;
-        cout << "internalBufferLoss=" << counters.internalBufferLoss << endl;
-        cout << "buffersProcessed=" << counters.buffersProcessed << endl;
-        cout << "unusedBytes=" << counters.unusedBytes << endl;
-        cout << "ethPacketLoss=" << counters.ethPacketLoss << endl;
-        cout << "ethPacketsProcessed=" << counters.ethPacketsProcessed << endl;
-
-        for (size_t sysEvent = 0; sysEvent < counters.systemEventTypes.size(); ++sysEvent)
-        {
-            if (counters.systemEventTypes[sysEvent])
-            {
-                auto sysEventName = system_event_type_to_string(sysEvent);
-
-                cout << fmt::format("systemEventType {}, count={}",
-                                    sysEventName, counters.systemEventTypes[sysEvent])
-                    << endl;
-            }
-        }
-
-        for (size_t pr=0; pr < counters.parseResults.size(); ++pr)
-        {
-            if (counters.parseResults[pr])
-            {
-                auto name = get_parse_result_name(static_cast<const readout_parser::ParseResult>(pr));
-
-                cout << fmt::format("parseResult={}, count={}",
-                                    name, counters.parseResults[pr])
-                    << endl;
-            }
-        }
-
-        cout << "parserExceptions=" << counters.parserExceptions << endl;
+        cout << endl << "---- readout parser stats ----" << endl;
+        readout_parser::dump_counters(cout, parserCounters);
     }
-
-    cout << endl << "---- mini-daq stats ----" << endl;
-    mini_daq::dump_mini_daq_parser_stats(out, miniDAQStats);
 }
 
 int main(int argc, char *argv[])
@@ -286,9 +249,9 @@ int main(int argc, char *argv[])
             << " MVLC based DAQ." << endl << endl
             << "Configuration data has to be supplied in a YAML 'CrateConfig' file." << endl
             << "Such a config file can be generated from an mvme setup using the" << endl
-            << "'File -> Export VME Config' menu entry in mvme." << endl
-            << "Alternatively a CrateConfig object can be generated programmatically and" << endl << endl
-            << " using the to_yaml() free function."
+            << "'File -> Export VME Config' menu entry in mvme." << endl << endl
+            << "Alternatively a CrateConfig object can be generated programmatically and" << endl
+            << "written out using the to_yaml() free function."
             << endl;
         return 0;
     }
@@ -391,8 +354,7 @@ int main(int argc, char *argv[])
         const size_t BufferCount = 100;
         ReadoutBufferQueues snoopQueues(BufferSize, BufferCount);
 
-        Protected<mini_daq::MiniDAQStats> miniDAQStats({});
-        auto parserCallbacks = make_mini_daq_callbacks(miniDAQStats, opt_logReadoutData);
+        auto parserCallbacks = mini_daq::make_mini_daq_callbacks(opt_logReadoutData);
 
         auto parserState = readout_parser::make_readout_parser(crateConfig.stacks);
         Protected<readout_parser::ReadoutParserCounters> parserCounters({});
@@ -437,8 +399,7 @@ int main(int argc, char *argv[])
                     cout,
                     crateConfig.connectionType,
                     readoutWorker.counters(),
-                    parserCounters.copy(),
-                    miniDAQStats.copy());
+                    parserCounters.copy());
             }
         }
 
@@ -481,8 +442,7 @@ int main(int argc, char *argv[])
             cout,
             crateConfig.connectionType,
             readoutWorker.counters(),
-            parserCounters.copy(),
-            miniDAQStats.copy());
+            parserCounters.copy());
 
         return retval;
     }
