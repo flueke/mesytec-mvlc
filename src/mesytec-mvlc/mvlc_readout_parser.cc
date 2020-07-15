@@ -491,6 +491,7 @@ ParseResult parse_readout_contents(
                         //cout << "Hello empty stackFrame!" << endl;
                         LOG_WARN("got an empty stack frame: 0x%08x",
                                  state.curStackFrame.header);
+                        ++counters.emptyStackFrames;
                         state.curBlockFrame = {};
                     }
                 }

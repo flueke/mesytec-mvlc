@@ -154,18 +154,18 @@ struct PairHash
 struct MESYTEC_MVLC_EXPORT ReadoutParserCounters
 {
     // Counts internal buffer loss across calls to parse_readout_buffer()
-    u32 internalBufferLoss;
+    u32 internalBufferLoss = 0;
 
     // Total number of buffers processes so far.
-    u32 buffersProcessed;
+    u32 buffersProcessed = 0;
 
     // Number of bytes skipped by the parser. This can happen due to internal
     // buffer loss, ethernet packet loss or unexpected/corrupted incoming data.
-    u64 unusedBytes;
+    u64 unusedBytes = 0;
 
     // Ethernet specific packet and loss counters.
-    u32 ethPacketsProcessed;
-    u32 ethPacketLoss;
+    u32 ethPacketsProcessed = 0;
+    u32 ethPacketLoss = 0;
 
     // Counts the number of system events seen per system event type.
     using SystemEventCounts = std::array<u32, system_event::subtype::SubtypeMax + 1>;
@@ -178,11 +178,11 @@ struct MESYTEC_MVLC_EXPORT ReadoutParserCounters
     ParseResultCounts parseResults;
 
     // Number of exceptions thrown by the parser.
-    u32 parserExceptions;
+    u32 parserExceptions = 0;
 
     // Number of stack frames with length zero. This should not happen but the
     // MVLC sometimes generates them.
-    u32 emptyStackFrames;
+    u32 emptyStackFrames = 0;
 
     struct PartSizeInfo
     {

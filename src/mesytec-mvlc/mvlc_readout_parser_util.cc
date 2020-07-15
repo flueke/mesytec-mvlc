@@ -159,6 +159,7 @@ std::ostream &dump_counters(std::ostream &out, const ReadoutParserCounters &coun
     }
 
     out << "parserExceptions=" << counters.parserExceptions << endl;
+    out << "emptyStackFrames=" << counters.emptyStackFrames << endl;
 
     out << "eventHits: ";
     for (const auto &kv: counters.eventHits)
