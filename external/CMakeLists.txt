@@ -70,4 +70,4 @@ add_subdirectory(fmt)
 add_subdirectory(Lyra)
 
 # spdlog
-#add_subdirectory(spdlog)
+add_subdirectory(spdlog)
