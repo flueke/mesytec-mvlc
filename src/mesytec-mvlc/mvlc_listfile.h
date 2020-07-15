@@ -92,13 +92,33 @@ struct Preamble
 {
     std::string magic;
     std::vector<SystemEvent> systemEvents;
+
+    const SystemEvent *findSystemEvent(u8 type) const
+    {
+        auto it = std::find_if(
+            std::begin(systemEvents), std::end(systemEvents),
+            [type] (const auto &sysEvent)
+            {
+                return sysEvent.type == type;
+            });
+
+        return (it != std::end(systemEvents)
+                ? &(*it)
+                : nullptr);
+    }
+
+    const SystemEvent *findCrateConfig() const
+    {
+        return findSystemEvent(system_event::subtype::MVLCCrateConfig);
+    }
 };
 
 // An upper limit of the sum of section content sizes for read_preamble().
 constexpr size_t PreambleReadMaxSize = util::Megabytes(100);
 
 // Reads up to and including the first system_event::type::BeginRun section.
-Preamble MESYTEC_MVLC_EXPORT read_preamble(ReadHandle &rh, size_t preambleMaxSize = PreambleReadMaxSize);
+Preamble MESYTEC_MVLC_EXPORT read_preamble(
+    ReadHandle &rh, size_t preambleMaxSize = PreambleReadMaxSize);
 
 // Reading:
 // Info from the start of the listfile:
@@ -106,7 +126,7 @@ Preamble MESYTEC_MVLC_EXPORT read_preamble(ReadHandle &rh, size_t preambleMaxSiz
 //
 // - EndianMarker
 // - MVMEConfig
-// - MVLCCOnfig
+// - MVLCConfig
 //
 // read complete section into buffer (including continuations)
 

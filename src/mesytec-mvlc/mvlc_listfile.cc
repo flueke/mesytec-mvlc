@@ -203,6 +203,7 @@ Preamble read_preamble(ReadHandle &rh, const size_t preambleMaxSize)
 
         result.systemEvents.emplace_back(sysEvent);
 
+        // The BeginRun section marks the end of the preamble.
         if (system_event::extract_subtype(frameHeader) == system_event::subtype::BeginRun)
             break;
     }
