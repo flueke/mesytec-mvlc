@@ -371,19 +371,31 @@ int main(int argc, char *argv[])
         parserCallbacks.groupPrefix = [opt_logReadoutData] (int eventIndex, int groupIndex, const u32 *data, u32 size)
         {
             if (opt_logReadoutData)
-                util::log_buffer(std::cout, basic_string_view<u32>(data, size), "module prefix");
+            {
+                util::log_buffer(
+                    std::cout, basic_string_view<u32>(data, size),
+                    fmt::format("prefix part: eventIndex={}, groupIndex={}", eventIndex, groupIndex));
+            }
         };
 
         parserCallbacks.groupDynamic = [opt_logReadoutData] (int eventIndex, int groupIndex, const u32 *data, u32 size)
         {
             if (opt_logReadoutData)
-                util::log_buffer(std::cout, basic_string_view<u32>(data, size), "module dynamic");
+            {
+                util::log_buffer(
+                    std::cout, basic_string_view<u32>(data, size),
+                    fmt::format("dynamic part: eventIndex={}, groupIndex={}", eventIndex, groupIndex));
+            }
         };
 
         parserCallbacks.groupSuffix = [opt_logReadoutData] (int eventIndex, int groupIndex, const u32 *data, u32 size)
         {
             if (opt_logReadoutData)
-                util::log_buffer(std::cout, basic_string_view<u32>(data, size), "module suffix");
+            {
+                util::log_buffer(
+                    std::cout, basic_string_view<u32>(data, size),
+                    fmt::format("suffix part: eventIndex={}, groupIndex={}", eventIndex, groupIndex));
+            }
         };
 
         auto parserState = readout_parser::make_readout_parser(crateConfig.stacks);

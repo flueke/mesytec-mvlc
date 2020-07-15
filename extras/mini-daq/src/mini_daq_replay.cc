@@ -36,14 +36,6 @@ int main(int argc, char *argv[])
         // positional args
         | lyra::arg(opt_listfileArchiveName, "listfile")
             ("listfile zip archive file").required()
-
-#if 0
-        // FIXME: This somehow breaks lyra. The help text appears in --help but
-        // not the argument name. It's weird. With .required() it works but
-        // that's not what we want here.
-        | lyra::arg(opt_listfileMemberName, "listfile-member")
-            ("optional name of the zip member file to replay from").optional()
-#endif
         ;
 
     auto cliParseResult = cli.parse({ argc, argv });
@@ -64,7 +56,6 @@ int main(int argc, char *argv[])
             << "created by the mesytec-mvlc library, e.g. the mini-daq tool or the mvme program." << endl << endl
 
             << "The only required argument is the name of the listfile zip archive to replay from." << endl
-            // FIXME(see above): << " Optionally the name of the zip archive member file to replay from can be specified."
             << endl;
         return 0;
     }
@@ -113,14 +104,9 @@ int main(int argc, char *argv[])
     CrateConfig crateConfig = {};
 
     {
-        auto it = std::find_if(
-            std::begin(preamble.systemEvents), std::end(preamble.systemEvents),
-            [] (const auto &sysEvent)
-            {
-                return sysEvent.type == system_event::subtype::MVLCCrateConfig;
-            });
+        auto configSection = preamble.findCrateConfig();
 
-        if (it == std::end(preamble.systemEvents))
+        if (!configSection)
         {
             cerr << "The listfile does not contain an MVLC CrateConfig (corrupted file or wrong format)" << endl;
             return 1;
@@ -128,7 +114,7 @@ int main(int argc, char *argv[])
 
         try
         {
-            crateConfig = crate_config_from_yaml(it->contentsToString());
+            crateConfig = crate_config_from_yaml(configSection->contentsToString());
         }
         catch (const std::runtime_error &e)
         {
@@ -139,23 +125,13 @@ int main(int argc, char *argv[])
 
     if (opt_printCrateConfig)
     {
-        cout << "Read the following CrateConfig from the listfile:" << endl;
+        cout << "CrateConfig found in " << opt_listfileArchiveName << ":"
+            << entryName << ":" << endl;
         cout << to_yaml(crateConfig) << endl;
         return 0;
     }
 
     cout << "Starting replay from " << opt_listfileArchiveName << ":" << entryName << endl;
-
-#if 0
-    cout << "Preamble SystemEvent types:" << endl;
-    for (const auto &systemEvent: preamble.systemEvents)
-    {
-        cout << "  " << system_event_type_to_string(systemEvent.type) << endl;
-    }
-#endif
-
-    //cout << "Press the AnyKey to start the replay" << endl;
-    //std::getc(stdin);
 
     //
     // readout parser
@@ -173,19 +149,31 @@ int main(int argc, char *argv[])
     parserCallbacks.groupPrefix = [opt_logReadoutData] (int eventIndex, int groupIndex, const u32 *data, u32 size)
     {
         if (opt_logReadoutData)
-            util::log_buffer(std::cout, basic_string_view<u32>(data, size), "module prefix");
+        {
+            util::log_buffer(
+                std::cout, basic_string_view<u32>(data, size),
+                fmt::format("prefix part: eventIndex={}, groupIndex={}", eventIndex, groupIndex));
+        }
     };
 
     parserCallbacks.groupDynamic = [opt_logReadoutData] (int eventIndex, int groupIndex, const u32 *data, u32 size)
     {
         if (opt_logReadoutData)
-            util::log_buffer(std::cout, basic_string_view<u32>(data, size), "module dynamic");
+        {
+            util::log_buffer(
+                std::cout, basic_string_view<u32>(data, size),
+                fmt::format("dynamic part: eventIndex={}, groupIndex={}", eventIndex, groupIndex));
+        }
     };
 
     parserCallbacks.groupSuffix = [opt_logReadoutData] (int eventIndex, int groupIndex, const u32 *data, u32 size)
     {
         if (opt_logReadoutData)
-            util::log_buffer(std::cout, basic_string_view<u32>(data, size), "module suffix");
+        {
+            util::log_buffer(
+                std::cout, basic_string_view<u32>(data, size),
+                fmt::format("suffix part: eventIndex={}, groupIndex={}", eventIndex, groupIndex));
+        }
     };
 
     auto parserState = readout_parser::make_readout_parser(crateConfig.stacks);
