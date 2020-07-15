@@ -37,21 +37,21 @@ int main(int argc, char *argv[])
         | lyra::arg(opt_listfileArchiveName, "listfile")
             ("listfile zip archive file").required()
 
+#if 0
         // FIXME: This somehow breaks lyra. The help text appears in --help but
         // not the argument name. It's weird. With .required() it works but
         // that's not what we want here.
-#if 0
         | lyra::arg(opt_listfileMemberName, "listfile-member")
-            ("optional name of the zip member file to replay from").required()
+            ("optional name of the zip member file to replay from").optional()
 #endif
         ;
-
 
     auto cliParseResult = cli.parse({ argc, argv });
 
     if (!cliParseResult)
     {
-        cerr << "Error parsing command line arguments: " << cliParseResult.errorMessage() << endl;
+        cerr << "Error parsing command line arguments: "
+            << cliParseResult.errorMessage() << endl;
         return 1;
     }
 
@@ -64,7 +64,7 @@ int main(int argc, char *argv[])
             << "created by the mesytec-mvlc library, e.g. the mini-daq tool or the mvme program." << endl << endl
 
             << "The only required argument is the name of the listfile zip archive to replay from." << endl
-            // FIXME: see above<< " Optionally the name of the zip archive member file to replay from can be specified."
+            // FIXME(see above): << " Optionally the name of the zip archive member file to replay from can be specified."
             << endl;
         return 0;
     }
