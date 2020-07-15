@@ -1,8 +1,9 @@
 #include <regex>
 #include <unordered_set>
 
-#include <fmt/format.h>
 #include <mesytec-mvlc/mesytec-mvlc.h>
+#include <fmt/format.h>
+#include <lyra/lyra.hpp>
 
 #include "mini_daq_lib.h"
 
@@ -14,18 +15,70 @@ using namespace mesytec::mvlc;
 
 int main(int argc, char *argv[])
 {
-    if (argc < 2)
+    bool opt_logReadoutData = false;
+    bool opt_printCrateConfig = false;
+    std::string opt_listfileArchiveName;
+    std::string opt_listfileMemberName;
+
+    bool opt_showHelp = false;
+
+    auto cli
+        = lyra::help(opt_showHelp)
+
+        // opt_printCrateConfig
+        | lyra::opt(opt_printCrateConfig)
+            ["--print-config"]("print the MVLC CrateConfig extracted from the listfile and exit")
+
+        // logging
+        | lyra::opt(opt_logReadoutData)
+            ["--log-readout-data"]("log each word of readout data (very verbose!)")
+
+        // positional args
+        | lyra::arg(opt_listfileArchiveName, "listfile")
+            ("listfile zip archive file").required()
+
+        // FIXME: This somehow breaks lyra. The help text appears in --help but
+        // not the argument name. It's weird. With .required() it works but
+        // that's not what we want here.
+#if 0
+        | lyra::arg(opt_listfileMemberName, "listfile-member")
+            ("optional name of the zip member file to replay from").required()
+#endif
+        ;
+
+
+    auto cliParseResult = cli.parse({ argc, argv });
+
+    if (!cliParseResult)
+    {
+        cerr << "Error parsing command line arguments: " << cliParseResult.errorMessage() << endl;
         return 1;
+    }
+
+    if (opt_showHelp)
+    {
+        cout << cli << endl;
+
+        cout
+            << "The mini-daq-replay tool allows to replay MVLC readout data from listfiles" << endl
+            << "created by the mesytec-mvlc library, e.g. the mini-daq tool or the mvme program." << endl << endl
+
+            << "The only required argument is the name of the listfile zip archive to replay from." << endl
+            // FIXME: see above<< " Optionally the name of the zip archive member file to replay from can be specified."
+            << endl;
+        return 0;
+    }
 
     listfile::ZipReader zr;
-    zr.openArchive(argv[1]);
+    zr.openArchive(opt_listfileArchiveName);
 
     std::string entryName;
 
-    if (argc >= 3)
-        entryName = argv[2];
+    if (!opt_listfileMemberName.empty())
+        entryName = opt_listfileMemberName;
     else
     {
+        // Try to find a listfile inside the archive.
         auto entryNames = zr.entryNameList();
 
         auto it = std::find_if(
@@ -41,7 +94,10 @@ int main(int argc, char *argv[])
     }
 
     if (entryName.empty())
-        return 2;
+    {
+        cerr << "Could not find a mvlclst zip archive member to replay from." << endl;
+        return 1;
+    }
 
     auto &rh = *zr.openEntry(entryName);
 
@@ -49,7 +105,10 @@ int main(int argc, char *argv[])
 
     if (!(preamble.magic == listfile::get_filemagic_eth()
           || preamble.magic == listfile::get_filemagic_usb()))
-        return 3;
+    {
+        cerr << "Invalid file format (magic bytes do not match the MVLC formats)" << endl;
+        return 1;
+    }
 
     CrateConfig crateConfig = {};
 
@@ -62,19 +121,38 @@ int main(int argc, char *argv[])
             });
 
         if (it == std::end(preamble.systemEvents))
-            return 4;
+        {
+            cerr << "The listfile does not contain an MVLC CrateConfig (corrupted file or wrong format)" << endl;
+            return 1;
+        }
 
-        crateConfig = crate_config_from_yaml(it->contentsToString());
+        try
+        {
+            crateConfig = crate_config_from_yaml(it->contentsToString());
+        }
+        catch (const std::runtime_error &e)
+        {
+            cerr << "Error parsing CrateConfig from listfile: " << e.what() << endl;
+            return 1;
+        }
     }
 
-    //cout << "Read a CrateConfig from the listfile: " << endl;
-    //cout << to_yaml(crateConfig) << endl;
+    if (opt_printCrateConfig)
+    {
+        cout << "Read the following CrateConfig from the listfile:" << endl;
+        cout << to_yaml(crateConfig) << endl;
+        return 0;
+    }
 
+    cout << "Starting replay from " << opt_listfileArchiveName << ":" << entryName << endl;
+
+#if 0
     cout << "Preamble SystemEvent types:" << endl;
     for (const auto &systemEvent: preamble.systemEvents)
     {
         cout << "  " << system_event_type_to_string(systemEvent.type) << endl;
     }
+#endif
 
     //cout << "Press the AnyKey to start the replay" << endl;
     //std::getc(stdin);
@@ -86,7 +164,29 @@ int main(int argc, char *argv[])
     const size_t BufferCount = 100;
     ReadoutBufferQueues snoopQueues(BufferSize, BufferCount);
 
-    auto parserCallbacks = mini_daq::make_mini_daq_callbacks(false);
+    readout_parser::ReadoutParserCallbacks parserCallbacks;
+
+    parserCallbacks.beginEvent = [] (int eventIndex)
+    {
+    };
+
+    parserCallbacks.groupPrefix = [opt_logReadoutData] (int eventIndex, int groupIndex, const u32 *data, u32 size)
+    {
+        if (opt_logReadoutData)
+            util::log_buffer(std::cout, basic_string_view<u32>(data, size), "module prefix");
+    };
+
+    parserCallbacks.groupDynamic = [opt_logReadoutData] (int eventIndex, int groupIndex, const u32 *data, u32 size)
+    {
+        if (opt_logReadoutData)
+            util::log_buffer(std::cout, basic_string_view<u32>(data, size), "module dynamic");
+    };
+
+    parserCallbacks.groupSuffix = [opt_logReadoutData] (int eventIndex, int groupIndex, const u32 *data, u32 size)
+    {
+        if (opt_logReadoutData)
+            util::log_buffer(std::cout, basic_string_view<u32>(data, size), "module suffix");
+    };
 
     auto parserState = readout_parser::make_readout_parser(crateConfig.stacks);
     Protected<readout_parser::ReadoutParserCounters> parserCounters({});
@@ -116,6 +216,8 @@ int main(int argc, char *argv[])
     // stop the readout parser
     if (parserThread.joinable())
     {
+        // TODO: simplify the readout_parser stop sequence. maybe use an
+        // atomic<bool> to tell the parser to quit.
         cout << "waiting for empty snoopQueue buffer" << endl;
         auto sentinel = snoopQueues.emptyBufferQueue().dequeue(std::chrono::seconds(1));
 
@@ -133,6 +235,8 @@ int main(int argc, char *argv[])
 
         parserThread.join();
     }
+
+    cout << "Replay from " << opt_listfileArchiveName << ":" << entryName << " done" << endl;
 
     //
     // replay stats

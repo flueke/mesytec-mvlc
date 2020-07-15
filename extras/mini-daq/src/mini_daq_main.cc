@@ -266,10 +266,19 @@ int main(int argc, char *argv[])
 
     try
     {
-
         auto timeToRun = std::chrono::seconds(opt_secondsToRun);
 
-        auto crateConfig = crate_config_from_yaml(inConfig);
+        CrateConfig crateConfig = {};
+
+        try
+        {
+            crateConfig = crate_config_from_yaml(inConfig);
+        }
+        catch (const std::runtime_error &e)
+        {
+            cerr << "Error parsing CrateConfig: " << e.what() << endl;
+            return 1;
+        }
 
         MVLC mvlc;
 
@@ -302,7 +311,6 @@ int main(int argc, char *argv[])
             auto initResults = init_readout(mvlc, crateConfig, initOptions);
 
             cout << "Results from init_commands:" << endl << initResults.init << endl;
-            // cout << "Result from init_trigger_io:" << endl << initResults.triggerIO << endl;
 
             if (initResults.ec)
             {
@@ -354,7 +362,29 @@ int main(int argc, char *argv[])
         const size_t BufferCount = 100;
         ReadoutBufferQueues snoopQueues(BufferSize, BufferCount);
 
-        auto parserCallbacks = mini_daq::make_mini_daq_callbacks(opt_logReadoutData);
+        readout_parser::ReadoutParserCallbacks parserCallbacks;
+
+        parserCallbacks.beginEvent = [] (int eventIndex)
+        {
+        };
+
+        parserCallbacks.groupPrefix = [opt_logReadoutData] (int eventIndex, int groupIndex, const u32 *data, u32 size)
+        {
+            if (opt_logReadoutData)
+                util::log_buffer(std::cout, basic_string_view<u32>(data, size), "module prefix");
+        };
+
+        parserCallbacks.groupDynamic = [opt_logReadoutData] (int eventIndex, int groupIndex, const u32 *data, u32 size)
+        {
+            if (opt_logReadoutData)
+                util::log_buffer(std::cout, basic_string_view<u32>(data, size), "module dynamic");
+        };
+
+        parserCallbacks.groupSuffix = [opt_logReadoutData] (int eventIndex, int groupIndex, const u32 *data, u32 size)
+        {
+            if (opt_logReadoutData)
+                util::log_buffer(std::cout, basic_string_view<u32>(data, size), "module suffix");
+        };
 
         auto parserState = readout_parser::make_readout_parser(crateConfig.stacks);
         Protected<readout_parser::ReadoutParserCounters> parserCounters({});
@@ -408,6 +438,8 @@ int main(int argc, char *argv[])
         // stop the readout parser
         if (parserThread.joinable())
         {
+            // TODO: simplify the readout_parser stop sequence. maybe use an
+            // atomic<bool> to tell the parser to quit.
             cout << "waiting for empty snoopQueue buffer" << endl;
             auto sentinel = snoopQueues.emptyBufferQueue().dequeue(std::chrono::seconds(1));
 
