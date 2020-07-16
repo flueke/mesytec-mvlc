@@ -747,7 +747,7 @@ ParseResult parse_readout_contents(
                 ++state.groupIndex;
             }
 
-            auto update_part_sizes = [] (ReadoutParserCounters::PartSizeInfo &sizeInfo, size_t size)
+            auto update_part_size_info = [] (ReadoutParserCounters::PartSizeInfo &sizeInfo, size_t size)
             {
                 sizeInfo.min = std::min(sizeInfo.min, static_cast<size_t>(size));
                 sizeInfo.max = std::max(sizeInfo.max, static_cast<size_t>(size));
@@ -774,7 +774,8 @@ ParseResult parse_readout_contents(
                             moduleSpans.prefixSpan.size);
 
                         ++counters.groupPrefixHits[partIndex];
-                        update_part_sizes(counters.groupPrefixSizes[partIndex], moduleSpans.prefixSpan.size);
+                        update_part_size_info(
+                            counters.groupPrefixSizes[partIndex], moduleSpans.prefixSpan.size);
                     }
 
                     if (moduleSpans.dynamicSpan.size)
@@ -785,7 +786,8 @@ ParseResult parse_readout_contents(
                             moduleSpans.dynamicSpan.size);
 
                         ++counters.groupDynamicHits[partIndex];
-                        update_part_sizes(counters.groupDynamicSizes[partIndex], moduleSpans.dynamicSpan.size);
+                        update_part_size_info(
+                            counters.groupDynamicSizes[partIndex], moduleSpans.dynamicSpan.size);
                     }
 
                     if (moduleSpans.suffixSpan.size)
@@ -796,7 +798,8 @@ ParseResult parse_readout_contents(
                             moduleSpans.suffixSpan.size);
 
                         ++counters.groupSuffixHits[partIndex];
-                        update_part_sizes(counters.groupSuffixSizes[partIndex], moduleSpans.suffixSpan.size);
+                        update_part_size_info(
+                            counters.groupSuffixSizes[partIndex], moduleSpans.suffixSpan.size);
                     }
                 }
 
