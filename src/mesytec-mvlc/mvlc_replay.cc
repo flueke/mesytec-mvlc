@@ -44,9 +44,9 @@ const ReplayErrorCategory theReplayErrorCateogry {};
 
 constexpr auto FreeBufferWaitTimeout_ms = std::chrono::milliseconds(100);
 
-// Follows the framing structure inside the buffer until a partial frame at the
-// end is detected. The partial data is moved over to the tempBuffer so that
-// the readBuffer ends with a complete frame.
+// Follows the framing structure inside the buffer until an incomplete frame
+// which doesn't fit into the buffer is detected. The incomplete data is moved
+// over to the tempBuffer so that the readBuffer ends with a complete frame.
 //
 // The input buffer must start with a frame header (skip_count will be called
 // with the first word of the input buffer on the first iteration).
@@ -93,6 +93,13 @@ inline void fixup_buffer(
     }
 }
 
+} // end anon namespace
+
+std::error_code make_error_code(ReplayWorkerError error)
+{
+    return { static_cast<int>(error), theReplayErrorCateogry };
+}
+
 // The listfile contains two types of data:
 // - System event sections identified by a header word with 0xFA in the highest
 //   byte.
@@ -100,7 +107,7 @@ inline void fixup_buffer(
 //   by the packets payload
 // The first ETH packet header can never have the value 0xFA because the
 // highest two bits are always 0.
-inline void fixup_buffer_eth(ReadoutBuffer &readBuffer, ReadoutBuffer &tempBuffer)
+void fixup_buffer_eth(ReadoutBuffer &readBuffer, ReadoutBuffer &tempBuffer)
 {
     auto skip_func = [](const basic_string_view<const u8> &view) -> u32
     {
@@ -127,7 +134,7 @@ inline void fixup_buffer_eth(ReadoutBuffer &readBuffer, ReadoutBuffer &tempBuffe
     fixup_buffer(readBuffer, tempBuffer, skip_func);
 }
 
-inline void fixup_buffer_usb(ReadoutBuffer &readBuffer, ReadoutBuffer &tempBuffer)
+void fixup_buffer_usb(ReadoutBuffer &readBuffer, ReadoutBuffer &tempBuffer)
 {
     auto skip_func = [] (const basic_string_view<const u8> &view) -> u32
     {
@@ -139,13 +146,6 @@ inline void fixup_buffer_usb(ReadoutBuffer &readBuffer, ReadoutBuffer &tempBuffe
     };
 
     fixup_buffer(readBuffer, tempBuffer, skip_func);
-}
-
-} // end anon namespace
-
-std::error_code make_error_code(ReplayWorkerError error)
-{
-    return { static_cast<int>(error), theReplayErrorCateogry };
 }
 
 struct ReplayWorker::Private
