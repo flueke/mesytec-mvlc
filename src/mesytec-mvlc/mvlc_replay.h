@@ -75,9 +75,11 @@ inline void fixup_buffer(
     {
         case ConnectionType::ETH:
             fixup_buffer_eth(readBuffer, tempBuffer);
+            break;
 
         case ConnectionType::USB:
             fixup_buffer_usb(readBuffer, tempBuffer);
+            break;
     }
 }
 
