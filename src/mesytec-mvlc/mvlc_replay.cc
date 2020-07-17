@@ -12,6 +12,7 @@
 #include "mvlc_listfile.h"
 #include "mvlc_util.h"
 #include "util/perf.h"
+#include "util/io_util.h"
 
 namespace mesytec
 {
@@ -296,6 +297,8 @@ void ReplayWorker::Private::loop(std::promise<std::error_code> promise)
                         c->bytesRead += bytesRead;
                     }
 
+                    //mvlc::util::log_buffer(std::cout, destBuffer->viewU32(), "mvlc_replay: pre fixup workBuffer");
+
                     switch (listfileFormat)
                     {
                         case ConnectionType::ETH:
@@ -306,6 +309,8 @@ void ReplayWorker::Private::loop(std::promise<std::error_code> promise)
                             fixup_buffer_usb(*destBuffer, previousData);
                             break;
                     }
+
+                    //mvlc::util::log_buffer(std::cout, destBuffer->viewU32(), "mvlc_replay: post fixup workBuffer");
 
                     flushCurrentOutputBuffer();
                 }
