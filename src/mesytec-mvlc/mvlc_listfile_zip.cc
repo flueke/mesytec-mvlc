@@ -155,7 +155,7 @@ ZipCreator::~ZipCreator()
 
 void ZipCreator::createArchive(const std::string &zipFilename)
 {
-    s32 mzMode = MZ_OPEN_MODE_WRITE | MZ_OPEN_MODE_CREATE;
+    s32 mzMode = MZ_OPEN_MODE_WRITE | MZ_OPEN_MODE_CREATE; // TODO: add option to pass in a mode. right now zip archives are just silently overwritten.
 
     if (auto err = mz_stream_open(d->mz_bufStream, zipFilename.c_str(), mzMode))
         throw std::runtime_error("mz_stream_open: " + std::to_string(err));

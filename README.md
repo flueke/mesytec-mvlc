@@ -109,9 +109,6 @@ TODO
 ----
 * abstraction for the trigger/io system. This needs to be flexible because the
   system is going to change with future firmware udpates.
-* mini-daq
-  - make getting the CrateConfig from the listfile preamble easier. basically
-    move the code from mini_daq_replay.cc into the lib
 * mini-daq/readout worker: add ability to resume a running readout. This means
   triggers will not be disabled on connect and no init sequence will be run.
   Instead we go directly to reading from both pipes (data and notifications).
@@ -131,3 +128,6 @@ TODO
   This would solve the issue I'm having with the example project where
   find_package(mesytec-mvlc) cannot resolve the fmt dependency without a
   workaround of manually doing a find_package(fmt) first.
+
+* Add 'overwrite' flag to ZipCreator and default to not overwriting exiting
+  files.
