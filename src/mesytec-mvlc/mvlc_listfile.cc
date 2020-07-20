@@ -208,6 +208,9 @@ Preamble read_preamble(ReadHandle &rh, const size_t preambleMaxSize)
             break;
     }
 
+
+    rh.seek(magic.size());
+
     return result;
 }
 
