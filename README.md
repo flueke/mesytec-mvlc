@@ -10,8 +10,8 @@ Ethernet and higher-level communication logic for reading and writing internal
 MVLC registers and accessing VME modules. Additionally the basic blocks needed
 to build high-performance MVLC based DAQ readout systems are provided:
 
-* CrateConfig containing the setup and readout information for a single VME
-  crate containing multiple VME modules with an MVLC.
+* CrateConfig holding the setup and readout information for a single VME crate
+  containing multiple VME modules with an MVLC.
 
 * Multithreaded readout worker and listfile writer using fast data compression.
 
