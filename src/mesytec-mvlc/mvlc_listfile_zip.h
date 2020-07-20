@@ -2,9 +2,7 @@
 #define __MESYTEC_MVLC_MVLC_LISTFILE_ZIP_H__
 
 #include <memory>
-
 #include "mvlc_listfile.h"
-
 #include "mesytec-mvlc_export.h"
 
 namespace mesytec
