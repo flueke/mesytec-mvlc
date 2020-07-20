@@ -87,6 +87,7 @@ void listfile_write_system_event(
         throw std::runtime_error("system event subtype out of range");
 
     const u32 *endp  = buffp + totalWords;
+    u32 sectionCount = 0u;
 
     while (buffp < endp)
     {
@@ -111,7 +112,13 @@ void listfile_write_system_event(
                            wordsInSection * sizeof(u32));
 
         buffp += wordsInSection;
+        ++sectionCount;
     }
+
+    std::cout << "Wrote SystemEvent of type " << system_event_type_to_string(subtype)
+        << ", words=" << totalWords
+        << ", bytes=" << totalWords * sizeof(u32)
+        << " into " << sectionCount << " sections" << endl;
 
     assert(buffp == endp);
 }
@@ -162,6 +169,7 @@ Preamble read_preamble(ReadHandle &rh, const size_t preambleMaxSize)
 
     // does a seek(0)
     auto magic = read_magic(rh);
+    size_t byteOffset = magic.size();
 
     // convert magic bytes to std::string
     std::transform(
@@ -173,6 +181,8 @@ Preamble read_preamble(ReadHandle &rh, const size_t preambleMaxSize)
     while (true)
     {
         auto frameHeader = typed_read<u32>(rh);
+        byteOffset += sizeof(u32);
+
         auto frameInfo = extract_frame_info(frameHeader);
 
         if (frameInfo.type != frame_headers::SystemEvent)
@@ -193,11 +203,13 @@ Preamble read_preamble(ReadHandle &rh, const size_t preambleMaxSize)
             buffer.resize(buffer.size() + frameBytes);
             rh.read(buffer.data() + offset, frameBytes);
             totalContentsSize += frameBytes;
+            byteOffset += frameBytes;
 
             if (!(frameHeader & (1u << system_event::ContinueShift)))
                 break;
 
             frameHeader = typed_read<u32>(rh);
+            byteOffset += sizeof(u32);
             frameInfo = extract_frame_info(frameHeader);
         }
 
@@ -208,6 +220,7 @@ Preamble read_preamble(ReadHandle &rh, const size_t preambleMaxSize)
             break;
     }
 
+    result.endOffset = byteOffset;
 
     rh.seek(magic.size());
 

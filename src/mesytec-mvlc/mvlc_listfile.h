@@ -90,9 +90,18 @@ struct MESYTEC_MVLC_EXPORT SystemEvent
 
 struct Preamble
 {
+    // The magic bytes at the start of the file.
     std::string magic;
+
+    // SystemEvent sections as they appear in the listfile.
     std::vector<SystemEvent> systemEvents;
 
+    // Byte offset to seek to so that the next read starts right after the
+    // preamble.
+    size_t endOffset = 0u;
+
+    // Returns a pointer to the first systemEvent section with the given type
+    // or nullptr if no such section exists.
     const SystemEvent *findSystemEvent(u8 type) const
     {
         auto it = std::find_if(
