@@ -15,7 +15,7 @@ using namespace mesytec::mvlc;
 
 int main(int argc, char *argv[])
 {
-    bool opt_logReadoutData = false;
+    bool opt_printReadoutData = false;
     bool opt_printCrateConfig = false;
     std::string opt_listfileArchiveName;
     std::string opt_listfileMemberName;
@@ -30,8 +30,8 @@ int main(int argc, char *argv[])
             ["--print-config"]("print the MVLC CrateConfig extracted from the listfile and exit")
 
         // logging
-        | lyra::opt(opt_logReadoutData)
-            ["--log-readout-data"]("log each word of readout data (very verbose!)")
+        | lyra::opt(opt_printReadoutData)
+            ["--print-readout-data"]("log each word of readout data (very verbose!)")
 
         // positional args
         | lyra::arg(opt_listfileArchiveName, "listfile")
@@ -146,9 +146,9 @@ int main(int argc, char *argv[])
     {
     };
 
-    parserCallbacks.groupPrefix = [opt_logReadoutData] (int eventIndex, int groupIndex, const u32 *data, u32 size)
+    parserCallbacks.groupPrefix = [opt_printReadoutData] (int eventIndex, int groupIndex, const u32 *data, u32 size)
     {
-        if (opt_logReadoutData)
+        if (opt_printReadoutData)
         {
             util::log_buffer(
                 std::cout, basic_string_view<u32>(data, size),
@@ -156,9 +156,9 @@ int main(int argc, char *argv[])
         }
     };
 
-    parserCallbacks.groupDynamic = [opt_logReadoutData] (int eventIndex, int groupIndex, const u32 *data, u32 size)
+    parserCallbacks.groupDynamic = [opt_printReadoutData] (int eventIndex, int groupIndex, const u32 *data, u32 size)
     {
-        if (opt_logReadoutData)
+        if (opt_printReadoutData)
         {
             util::log_buffer(
                 std::cout, basic_string_view<u32>(data, size),
@@ -166,9 +166,9 @@ int main(int argc, char *argv[])
         }
     };
 
-    parserCallbacks.groupSuffix = [opt_logReadoutData] (int eventIndex, int groupIndex, const u32 *data, u32 size)
+    parserCallbacks.groupSuffix = [opt_printReadoutData] (int eventIndex, int groupIndex, const u32 *data, u32 size)
     {
-        if (opt_logReadoutData)
+        if (opt_printReadoutData)
         {
             util::log_buffer(
                 std::cout, basic_string_view<u32>(data, size),
