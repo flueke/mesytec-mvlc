@@ -1,3 +1,4 @@
+#include "mesytec-mvlc/mvlc_constants.h"
 #include <regex>
 #include <unordered_set>
 
@@ -171,6 +172,18 @@ int main(int argc, char *argv[])
             util::log_buffer(
                 std::cout, basic_string_view<u32>(data, size),
                 fmt::format("suffix part: eventIndex={}, groupIndex={}", eventIndex, groupIndex));
+        }
+    };
+
+    parserCallbacks.systemEvent = [opt_printReadoutData] (const u32 *header, u32 size)
+    {
+        if (opt_printReadoutData)
+        {
+            std::cout
+                << "SystemEvent: type=" << system_event_type_to_string(
+                    system_event::extract_subtype(*header))
+                << ", size=" << size << ", bytes=" << (size * sizeof(u32))
+                << endl;
         }
     };
 

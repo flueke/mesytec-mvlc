@@ -11,7 +11,7 @@ MVLC registers and accessing VME modules. Additionally the basic blocks needed
 to build high-performance MVLC based DAQ readout systems are provided:
 
 * CrateConfig holding the setup and readout information for a single VME crate
-  containing multiple VME modules with an MVLC.
+  containing multiple VME modules.
 
 * Multithreaded readout worker and listfile writer using fast data compression.
 
