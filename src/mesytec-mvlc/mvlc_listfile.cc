@@ -186,7 +186,12 @@ Preamble read_preamble(ReadHandle &rh, const size_t preambleMaxSize)
         auto frameInfo = extract_frame_info(frameHeader);
 
         if (frameInfo.type != frame_headers::SystemEvent)
-            break; // should not happen for correctly written listfiles
+        {
+            // Note: files written by mvme-1.0 do not contain a BeginRun
+            // section which means we will read into the beginning of the
+            // actual readout data. Newer listfiles won't run into this path.
+            break;
+        }
 
         SystemEvent sysEvent = {};
         sysEvent.type = system_event::extract_subtype(frameHeader);
@@ -222,6 +227,7 @@ Preamble read_preamble(ReadHandle &rh, const size_t preambleMaxSize)
 
     result.endOffset = byteOffset;
 
+    // Seek to just after the magic bytes.
     rh.seek(magic.size());
 
     return result;

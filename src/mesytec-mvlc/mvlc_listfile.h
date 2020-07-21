@@ -125,7 +125,13 @@ struct Preamble
 // An upper limit of the sum of section content sizes for read_preamble().
 constexpr size_t PreambleReadMaxSize = util::Megabytes(100);
 
-// Reads up to and including the first system_event::type::BeginRun section.
+// Reads up to and including the first system_event::type::BeginRun section or
+// a non-SystemEvent frame header (for mvme-1.0.1 files).
+//
+// Afterwards the ReadHandle is positioned directly after the magic bytes at
+// the start of the file. This means the SystemEvent sections making up the
+// preamble will be read again and are available for processing by e.g. the
+// readout parser.
 Preamble MESYTEC_MVLC_EXPORT read_preamble(
     ReadHandle &rh, size_t preambleMaxSize = PreambleReadMaxSize);
 
