@@ -5,8 +5,6 @@
 #include <fmt/format.h>
 #include <lyra/lyra.hpp>
 
-#include "mini_daq_lib.h"
-
 using std::cout;
 using std::cerr;
 using std::endl;
