@@ -90,9 +90,18 @@ struct MESYTEC_MVLC_EXPORT SystemEvent
 
 struct Preamble
 {
+    // The magic bytes at the start of the file.
     std::string magic;
+
+    // SystemEvent sections as they appear in the listfile.
     std::vector<SystemEvent> systemEvents;
 
+    // Byte offset to seek to so that the next read starts right after the
+    // preamble.
+    size_t endOffset = 0u;
+
+    // Returns a pointer to the first systemEvent section with the given type
+    // or nullptr if no such section exists.
     const SystemEvent *findSystemEvent(u8 type) const
     {
         auto it = std::find_if(
@@ -116,11 +125,13 @@ struct Preamble
 // An upper limit of the sum of section content sizes for read_preamble().
 constexpr size_t PreambleReadMaxSize = util::Megabytes(100);
 
-// Reads SystemEvent sections until a non-SystemEvent header or
-// system_event::type::BeginRun section is read.
-// On exit the ReadHandle is repositioned to the start of the file just after
-// the magic bytes so when reading from the ReadHandle the preamble will be
-// encountered again.
+// Reads up to and including the first system_event::type::BeginRun section or
+// a non-SystemEvent frame header (for mvme-1.0.1 files).
+//
+// Afterwards the ReadHandle is positioned directly after the magic bytes at
+// the start of the file. This means the SystemEvent sections making up the
+// preamble will be read again and are available for processing by e.g. the
+// readout parser.
 Preamble MESYTEC_MVLC_EXPORT read_preamble(
     ReadHandle &rh, size_t preambleMaxSize = PreambleReadMaxSize);
 

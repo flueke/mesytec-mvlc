@@ -223,7 +223,8 @@ inline void ensure_free_space(WorkBuffer &workBuffer, size_t freeWords)
         workBuffer.buffer.resize(workBuffer.buffer.size() + freeWords);
 }
 
-inline void copy_to_workbuffer(ReadoutParserState &state, basic_string_view<u32> &source, size_t wordsToCopy)
+inline void copy_to_workbuffer(
+    ReadoutParserState &state, basic_string_view<u32> &source, size_t wordsToCopy)
 {
     assert(source.size() >= wordsToCopy);
 
@@ -511,11 +512,13 @@ ParseResult parse_readout_contents(
                     if (!nextStackFrame)
                         return ParseResult::NoStackFrameFound;
 
+                    assert(input.data() == nextStackFrame);
+
                     auto stackFrameOffset = nextStackFrame - prevIterPtr;
                     LOG_TRACE("found next StackFrame: @%p 0x%08x (searchOffset=%lu)",
                               nextStackFrame, *nextStackFrame, stackFrameOffset);
 
-                    auto unusedWords = input.data() - prevIterPtr;
+                    auto unusedWords = nextStackFrame - prevIterPtr;
 
                     counters.unusedBytes += unusedWords * sizeof(u32);
 
@@ -526,12 +529,12 @@ ParseResult parse_readout_contents(
                     if (input.empty())
                         throw end_of_buffer("stack frame header of new event");
 
-                    auto pr = parser_begin_event(state, input[0]);
+                    auto pr = parser_begin_event(state, *nextStackFrame);
 
                     if (pr != ParseResult::Ok)
                     {
                         LOG_WARN("error from parser_begin_event, iter offset=%ld, bufferNumber=%u",
-                                 input.data() - inputBegin,
+                                 nextStackFrame - inputBegin,
                                  bufferNumber);
                         return pr;
                     }
@@ -574,8 +577,8 @@ ParseResult parse_readout_contents(
 
             if (moduleParts.prefixLen == 0 && !moduleParts.hasDynamic && moduleParts.suffixLen == 0)
             {
-                // The module does not have any of the three parts, its readout is
-                // completely empty.
+                // The group/module does not have any of the three parts, its
+                // readout is completely empty.
                 ++state.groupIndex;
             }
             else

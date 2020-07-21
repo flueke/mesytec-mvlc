@@ -14,8 +14,6 @@
 #include <fmt/format.h>
 #include <lyra/lyra.hpp>
 
-#include "mini_daq_lib.h"
-
 using std::cout;
 using std::cerr;
 using std::endl;
@@ -176,7 +174,7 @@ int main(int argc, char *argv[])
     std::string opt_crateConfig;
     unsigned opt_secondsToRun = 10;
     CommandExecOptions initOptions = {};
-    bool opt_logReadoutData = false;
+    bool opt_printReadoutData = false;
     bool opt_noPeriodicCounterDumps = false;
 
     bool opt_showHelp = false;
@@ -218,8 +216,8 @@ int main(int argc, char *argv[])
             ["--init-no-batching"] ("disables command batching during the MVLC init phase")
 
         // logging
-        | lyra::opt(opt_logReadoutData)
-            ["--log-readout-data"]("log each word of readout data (very verbose!)")
+        | lyra::opt(opt_printReadoutData)
+            ["--print-readout-data"]("log each word of readout data (very verbose!)")
 
         | lyra::opt(opt_noPeriodicCounterDumps)
             ["--no-periodic-counter-dumps"]("do not periodcally print readout and parser counters to stdout")
@@ -368,9 +366,9 @@ int main(int argc, char *argv[])
         {
         };
 
-        parserCallbacks.groupPrefix = [opt_logReadoutData] (int eventIndex, int groupIndex, const u32 *data, u32 size)
+        parserCallbacks.groupPrefix = [opt_printReadoutData] (int eventIndex, int groupIndex, const u32 *data, u32 size)
         {
-            if (opt_logReadoutData)
+            if (opt_printReadoutData)
             {
                 util::log_buffer(
                     std::cout, basic_string_view<u32>(data, size),
@@ -378,9 +376,9 @@ int main(int argc, char *argv[])
             }
         };
 
-        parserCallbacks.groupDynamic = [opt_logReadoutData] (int eventIndex, int groupIndex, const u32 *data, u32 size)
+        parserCallbacks.groupDynamic = [opt_printReadoutData] (int eventIndex, int groupIndex, const u32 *data, u32 size)
         {
-            if (opt_logReadoutData)
+            if (opt_printReadoutData)
             {
                 util::log_buffer(
                     std::cout, basic_string_view<u32>(data, size),
@@ -388,13 +386,25 @@ int main(int argc, char *argv[])
             }
         };
 
-        parserCallbacks.groupSuffix = [opt_logReadoutData] (int eventIndex, int groupIndex, const u32 *data, u32 size)
+        parserCallbacks.groupSuffix = [opt_printReadoutData] (int eventIndex, int groupIndex, const u32 *data, u32 size)
         {
-            if (opt_logReadoutData)
+            if (opt_printReadoutData)
             {
                 util::log_buffer(
                     std::cout, basic_string_view<u32>(data, size),
                     fmt::format("suffix part: eventIndex={}, groupIndex={}", eventIndex, groupIndex));
+            }
+        };
+
+        parserCallbacks.systemEvent = [opt_printReadoutData] (const u32 *header, u32 size)
+        {
+            if (opt_printReadoutData)
+            {
+                std::cout
+                    << "SystemEvent: type=" << system_event_type_to_string(
+                        system_event::extract_subtype(*header))
+                    << ", size=" << size << ", bytes=" << (size * sizeof(u32))
+                    << endl;
             }
         };
 

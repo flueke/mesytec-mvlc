@@ -1,11 +1,10 @@
+#include "mesytec-mvlc/mvlc_constants.h"
 #include <regex>
 #include <unordered_set>
 
 #include <mesytec-mvlc/mesytec-mvlc.h>
 #include <fmt/format.h>
 #include <lyra/lyra.hpp>
-
-#include "mini_daq_lib.h"
 
 using std::cout;
 using std::cerr;
@@ -15,7 +14,7 @@ using namespace mesytec::mvlc;
 
 int main(int argc, char *argv[])
 {
-    bool opt_logReadoutData = false;
+    bool opt_printReadoutData = false;
     bool opt_printCrateConfig = false;
     std::string opt_listfileArchiveName;
     std::string opt_listfileMemberName;
@@ -30,8 +29,8 @@ int main(int argc, char *argv[])
             ["--print-config"]("print the MVLC CrateConfig extracted from the listfile and exit")
 
         // logging
-        | lyra::opt(opt_logReadoutData)
-            ["--log-readout-data"]("log each word of readout data (very verbose!)")
+        | lyra::opt(opt_printReadoutData)
+            ["--print-readout-data"]("log each word of readout data (very verbose!)")
 
         // positional args
         | lyra::arg(opt_listfileArchiveName, "listfile")
@@ -146,9 +145,9 @@ int main(int argc, char *argv[])
     {
     };
 
-    parserCallbacks.groupPrefix = [opt_logReadoutData] (int eventIndex, int groupIndex, const u32 *data, u32 size)
+    parserCallbacks.groupPrefix = [opt_printReadoutData] (int eventIndex, int groupIndex, const u32 *data, u32 size)
     {
-        if (opt_logReadoutData)
+        if (opt_printReadoutData)
         {
             util::log_buffer(
                 std::cout, basic_string_view<u32>(data, size),
@@ -156,9 +155,9 @@ int main(int argc, char *argv[])
         }
     };
 
-    parserCallbacks.groupDynamic = [opt_logReadoutData] (int eventIndex, int groupIndex, const u32 *data, u32 size)
+    parserCallbacks.groupDynamic = [opt_printReadoutData] (int eventIndex, int groupIndex, const u32 *data, u32 size)
     {
-        if (opt_logReadoutData)
+        if (opt_printReadoutData)
         {
             util::log_buffer(
                 std::cout, basic_string_view<u32>(data, size),
@@ -166,13 +165,25 @@ int main(int argc, char *argv[])
         }
     };
 
-    parserCallbacks.groupSuffix = [opt_logReadoutData] (int eventIndex, int groupIndex, const u32 *data, u32 size)
+    parserCallbacks.groupSuffix = [opt_printReadoutData] (int eventIndex, int groupIndex, const u32 *data, u32 size)
     {
-        if (opt_logReadoutData)
+        if (opt_printReadoutData)
         {
             util::log_buffer(
                 std::cout, basic_string_view<u32>(data, size),
                 fmt::format("suffix part: eventIndex={}, groupIndex={}", eventIndex, groupIndex));
+        }
+    };
+
+    parserCallbacks.systemEvent = [opt_printReadoutData] (const u32 *header, u32 size)
+    {
+        if (opt_printReadoutData)
+        {
+            std::cout
+                << "SystemEvent: type=" << system_event_type_to_string(
+                    system_event::extract_subtype(*header))
+                << ", size=" << size << ", bytes=" << (size * sizeof(u32))
+                << endl;
         }
     };
 

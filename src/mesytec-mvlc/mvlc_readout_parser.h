@@ -265,7 +265,7 @@ struct MESYTEC_MVLC_EXPORT ReadoutParserState
     // current layout of the workbuffer.
     std::vector<GroupReadoutSpans> readoutDataSpans;
 
-    // Per event preparsed module readout info.
+    // Per event preparsed group/module readout info.
     ReadoutStructure readoutStructure;
 
     int eventIndex = -1;
