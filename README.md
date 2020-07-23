@@ -28,8 +28,6 @@ to build high-performance MVLC based DAQ readout systems are provided:
 
 * Can use configs exported from [mvme](https://mesytec.com/downloads/mvme.html).
 
-![library overview](doc/images/mesytec-mvlc.svg.png)
-
 Components
 ----------
 
@@ -78,6 +76,8 @@ Components
   - Used to execute large command lists by splitting them into max sized stack
     chunks and running those. Max size means that the command stack does not
     overflow.
+
+![library overview](doc/images/mesytec-mvlc.svg.png)
 
 Limitations
 -----------
