@@ -88,7 +88,7 @@ Limitations
   [mvme](https://mesytec.com/downloads/mvme.html) the Trigger/IO setup is
   included and will be applied during the DAQ init procedure.
 
-  Once the Trigger/IO Module has matured and is feature complete appropriate
+  Once the Trigger/IO Module has matured and is feature complete an appropriate
   software abstraction will be added.
 
 * Multicrate readouts are not yet supported. In theory multiple MVLCs can be
