@@ -10,10 +10,11 @@ Ethernet and higher-level communication logic for reading and writing internal
 MVLC registers and accessing VME modules. Additionally the basic blocks needed
 to build high-performance MVLC based DAQ readout systems are provided:
 
-* CrateConfig holding the setup and readout information for a single VME crate
-  containing multiple VME modules.
+* Configuration holding the setup and readout information for a single VME
+  crate containing multiple VME modules.
 
-* Multithreaded readout worker and listfile writer using fast data compression.
+* Multithreaded readout worker and listfile writer using fast data compression
+  (LZ4 or ZIP deflate).
 
 * Readout parser which is able to handle potential ethernet packet loss.
 
@@ -24,6 +25,10 @@ to build high-performance MVLC based DAQ readout systems are provided:
   and how to replay data from a previously recorded listfile.
 
 * Various counters for monitoring the system.
+
+* Can use configs exported from [mvme](https://mesytec.com/downloads/mvme.html).
+
+![library overview](doc/images/mesytec-mvlc.svg.png)
 
 Components
 ----------
