@@ -211,7 +211,7 @@ namespace
 class end_of_buffer: public std::runtime_error
 {
     public:
-        end_of_buffer(const char *arg): std::runtime_error(arg) {}
+        explicit end_of_buffer(const char *arg): std::runtime_error(arg) {}
         end_of_buffer(): std::runtime_error("end_of_buffer") {}
 };
 
@@ -282,8 +282,8 @@ inline void parser_clear_event_state(ReadoutParserState &state)
 {
     state.eventIndex = -1;
     state.groupIndex = -1;
-    state.curStackFrame = {};
-    state.curBlockFrame = {};
+    state.curStackFrame = ReadoutParserState::FrameParseState{};
+    state.curBlockFrame = ReadoutParserState::FrameParseState{};
     state.groupParseState = ReadoutParserState::Prefix;
     assert(!is_event_in_progress(state));
 }
@@ -311,8 +311,8 @@ inline ParseResult parser_begin_event(ReadoutParserState &state, u32 frameHeader
     state.eventIndex = eventIndex;
     state.groupIndex = 0;
     state.groupParseState = ReadoutParserState::Prefix;
-    state.curStackFrame = { frameHeader };
-    state.curBlockFrame = {};
+    state.curStackFrame = ReadoutParserState::FrameParseState{ frameHeader };
+    state.curBlockFrame = ReadoutParserState::FrameParseState{};
 
     assert(is_event_in_progress(state));
     return ParseResult::Ok;
@@ -473,7 +473,7 @@ ParseResult parse_readout_contents(
 
                     // The stack frame is ok and can now be extracted from the
                     // buffer.
-                    state.curStackFrame = { input[0] };
+                    state.curStackFrame = ReadoutParserState::FrameParseState{ input[0] };
                     LOG_TRACE("new curStackFrame: 0x%08x", state.curStackFrame.header);
                     input.remove_prefix(1);
 
@@ -493,7 +493,7 @@ ParseResult parse_readout_contents(
                         LOG_WARN("got an empty stack frame: 0x%08x",
                                  state.curStackFrame.header);
                         ++counters.emptyStackFrames;
-                        state.curBlockFrame = {};
+                        state.curBlockFrame = ReadoutParserState::FrameParseState{};
                     }
                 }
                 else
@@ -644,7 +644,7 @@ ParseResult parse_readout_contents(
                                 }
 
                                 // Peek the potential block frame header
-                                state.curBlockFrame = { input[0] };
+                                state.curBlockFrame = ReadoutParserState::FrameParseState{ input[0] };
 
                                 LOG_TRACE("state.curBlockFrame.header=0x%x", state.curBlockFrame.header);
 
@@ -671,7 +671,7 @@ ParseResult parse_readout_contents(
                                               state.curBlockFrame.info().type,
                                               state.curBlockFrame.header);
 
-                                    state.curBlockFrame = {};
+                                    state.curBlockFrame = ReadoutParserState::FrameParseState{};
                                     parser_clear_event_state(state);
                                     return ParseResult::NotABlockFrame;
                                 }

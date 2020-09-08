@@ -19,7 +19,7 @@ namespace listfile
 class MESYTEC_MVLC_EXPORT BufferWriteHandle: public WriteHandle
 {
     public:
-        BufferWriteHandle(ReadoutBuffer &buffer)
+        explicit BufferWriteHandle(ReadoutBuffer &buffer)
             : m_buffer(buffer)
         {
         }

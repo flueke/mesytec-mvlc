@@ -424,7 +424,7 @@ struct ZipReader::Private
     // linkname are set to nullptr for the mz_zip_entry structures stored in
     // the vector.
     std::vector<mz_zip_entry> entryInfoCache;
-    ZipReadHandle entryReadHandle = nullptr;
+    ZipReadHandle entryReadHandle { nullptr };
     ZipEntryInfo entryInfo;
     LZ4ReadContext lz4Ctx;
 };

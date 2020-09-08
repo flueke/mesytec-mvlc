@@ -127,7 +127,7 @@ void stack_error_poller(
 
 struct MVLC::Private
 {
-    Private(std::unique_ptr<MVLCBasicInterface> &&impl_)
+    explicit Private(std::unique_ptr<MVLCBasicInterface> &&impl_)
         : impl(std::move(impl_))
         , dialog(impl.get())
         , isConnected(false)

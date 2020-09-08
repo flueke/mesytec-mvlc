@@ -214,7 +214,7 @@ struct MESYTEC_MVLC_EXPORT ReadoutParserState
     // style data frame.
     struct FrameParseState
     {
-        FrameParseState(u32 frameHeader = 0)
+        explicit FrameParseState(u32 frameHeader = 0)
             : header(frameHeader)
             , wordsLeft(extract_frame_info(frameHeader).len)
         {}
@@ -274,11 +274,11 @@ struct MESYTEC_MVLC_EXPORT ReadoutParserState
 
     // Parsing state of the current 0xF3 stack frame. This is always active
     // when parsing readout data.
-    FrameParseState curStackFrame = {};
+    FrameParseState curStackFrame{};
 
     // Parsing state of the current 0xF5 block readout frame. This is only
     // active when parsing the dynamic part of a module readout.
-    FrameParseState curBlockFrame = {};
+    FrameParseState curBlockFrame{};
 
     // ETH parsing only. The transmitted packet number type is u16. Using an
     // s32 here to represent the "no previous packet" case by storing a -1.

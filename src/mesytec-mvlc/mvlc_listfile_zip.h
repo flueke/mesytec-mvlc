@@ -87,7 +87,7 @@ class ZipReader;
 class MESYTEC_MVLC_EXPORT ZipReadHandle: public ReadHandle
 {
     public:
-        ZipReadHandle(ZipReader *reader)
+        explicit ZipReadHandle(ZipReader *reader)
             : m_zipReader(reader)
         { }
 
