@@ -213,12 +213,12 @@ const MVLCErrorCategory theMVLCErrorCategory {};
 
 class ErrorTypeCategory: public std::error_category
 {
-    const char *name() const noexcept
+    const char *name() const noexcept override
     {
         return "mvlc error type";
     }
 
-    std::string message(int ev) const
+    std::string message(int ev) const override
     {
         using mesytec::mvlc::ErrorType;
 
@@ -247,7 +247,7 @@ class ErrorTypeCategory: public std::error_category
     }
 
     // Equivalence between local conditions and any error code
-    bool equivalent(const std::error_code &ec, int condition) const noexcept
+    bool equivalent(const std::error_code &ec, int condition) const noexcept override
     {
         using mesytec::mvlc::ErrorType;
 
