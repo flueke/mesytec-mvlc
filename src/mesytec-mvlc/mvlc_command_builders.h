@@ -89,7 +89,8 @@ struct MESYTEC_MVLC_EXPORT StackCommand
         VMEWrite        = static_cast<u8>(StackCommandType::VMEWrite),
         WriteMarker     = static_cast<u8>(StackCommandType::WriteMarker),
         WriteSpecial    = static_cast<u8>(StackCommandType::WriteSpecial),
-        // some value not used in the mvlc protocol
+        // A value not in use by the MVLC protocol is used for the
+        // SoftwareDelay command.
         SoftwareDelay   = static_cast<u8>(0xEDu),
     };
 
