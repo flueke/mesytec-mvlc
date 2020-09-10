@@ -115,10 +115,12 @@ void listfile_write_system_event(
         ++sectionCount;
     }
 
+#if 0
     std::cout << "Wrote SystemEvent of type " << system_event_type_to_string(subtype)
         << ", words=" << totalWords
         << ", bytes=" << totalWords * sizeof(u32)
         << " into " << sectionCount << " sections" << endl;
+#endif
 
     assert(buffp == endp);
 }
