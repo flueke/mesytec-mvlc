@@ -201,6 +201,7 @@ inline u32 trigger_value(stacks::TriggerType triggerType, u8 irqLevel = 0)
     return triggerVal;
 }
 
+// Returns a pair consisting of (TriggerType, irqLevel).
 inline std::pair<stacks::TriggerType, u8> decode_trigger_value(const u32 triggerVal)
 {
     stacks::TriggerType triggerType = static_cast<stacks::TriggerType>(
