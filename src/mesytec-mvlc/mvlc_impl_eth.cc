@@ -56,6 +56,8 @@ do\
 #define LOG_DEBUG(fmt, ...) DO_LOG(LOG_LEVEL_DEBUG, "DEBUG - mvlc_eth ", fmt, ##__VA_ARGS__)
 #define LOG_TRACE(fmt, ...) DO_LOG(LOG_LEVEL_TRACE, "TRACE - mvlc_eth ", fmt, ##__VA_ARGS__)
 
+#define MVLC_ETH_USE_SPECIFIC_LOCAL_PORT 0
+
 namespace
 {
 using namespace mesytec::mvlc;
@@ -319,10 +321,17 @@ std::error_code Impl::connect()
         struct sockaddr_in cmdLocal = {};
         cmdLocal.sin_family = AF_INET;
         cmdLocal.sin_addr.s_addr = INADDR_ANY;
+#if MVLC_ETH_USE_SPECIFIC_LOCAL_PORT
+        LOG_TRACE("Trying local port %u for command socket", localCmdPort);
         cmdLocal.sin_port = htons(localCmdPort);
+#endif
 
         struct sockaddr_in dataLocal = cmdLocal;
-        dataLocal.sin_port = htons(localCmdPort + 1);
+#if MVLC_ETH_USE_SPECIFIC_LOCAL_PORT
+        u16 localDataPort = localCmdPort + 1;
+        LOG_TRACE("Trying local port %u for data socket", localDataPort);
+        dataLocal.sin_port = htons(localDataPort);
+#endif
 
         // Bind both sockets. In case of an error close the sockets and
         // continue with the loop.
@@ -668,6 +677,8 @@ static inline std::error_code receive_one_packet(int sockfd, u8 *dest, size_t si
 
     ssize_t res = ::recv(sockfd, reinterpret_cast<char *>(dest), size, 0);
 
+    LOG_TRACE("::recv res=%lld", res);
+
     if (res == SOCKET_ERROR)
     {
         int err = WSAGetLastError();
@@ -740,6 +751,8 @@ PacketReadResult Impl::read_packet(Pipe pipe_, u8 *buffer, size_t size)
         pipeStats.receivedBytes += res.bytesTransferred;
         ++pipeStats.packetSizes[res.bytesTransferred];
     }
+
+    LOG_TRACE("  pipe=%u, res.bytesTransferred=%u", pipe, res.bytesTransferred);
 
     if (!res.hasHeaders())
     {
