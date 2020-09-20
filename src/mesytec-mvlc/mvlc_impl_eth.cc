@@ -10,17 +10,17 @@
 #include <sstream>
 
 #ifndef __WIN32
-#include <netdb.h>
-#include <sys/socket.h>
-#include <sys/types.h>
-#include <unistd.h>
-#ifdef __APPLE__
-#include <arpa/inet.h>
-#endif
+    #include <netdb.h>
+    #include <sys/socket.h>
+    #include <sys/types.h>
+    #include <unistd.h>
+    #ifdef __APPLE__
+        #include <arpa/inet.h>
+    #endif
 #else
-#include <ws2tcpip.h>
-#include <stdio.h>
-#include <fcntl.h>
+    #include <ws2tcpip.h>
+    #include <stdio.h>
+    #include <fcntl.h>
 #endif
 
 #include "mvlc_buffer_validators.h"
@@ -29,6 +29,8 @@
 #include "mvlc_error.h"
 #include "mvlc_threading.h"
 #include "mvlc_util.h"
+#include "util/io_util.h"
+#include "util/string_view.hpp"
 
 #define LOG_LEVEL_OFF   0
 #define LOG_LEVEL_WARN  100
@@ -208,7 +210,9 @@ Impl::Impl(const std::string &host)
     WORD wVersionRequested;
     WSADATA wsaData;
     wVersionRequested = MAKEWORD(2, 1);
-    WSAStartup( wVersionRequested, &wsaData );
+    int res = WSAStartup( wVersionRequested, &wsaData );
+    if (res != 0)
+        throw std::runtime_error("Error initializing Windows Socket API (WSAStartup failed)");
 #endif
 }
 
@@ -689,7 +693,18 @@ static inline std::error_code receive_one_packet(int sockfd, u8 *dest, size_t si
         return make_error_code(MVLCErrorCode::SocketError);
     }
 
+#if LOG_LEVEL_SETTING >= LOG_LEVEL_TRACE
+    if (res >= static_cast<ssize_t>(sizeof(u32)))
+    {
+        util::log_buffer(
+            std::cerr,
+            basic_string_view<const u32>(reinterpret_cast<const u32 *>(dest), res / sizeof(u32)),
+            "32-bit words in buffer from ::recv()");
+    }
+#endif
+
     bytesTransferred = res;
+
     return {};
 }
 #else
