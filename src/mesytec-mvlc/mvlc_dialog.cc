@@ -267,6 +267,16 @@ std::error_code MVLCDialog::readRegister(u16 address, u32 &value)
 {
     SuperCommandBuilder cmdList;
     cmdList.addReferenceWord(m_referenceWord++);
+
+    // Note: workaround for the Windows 10 Build 2004 issue where Ethernet
+    // frame padding data is included in the result from recv(). By adding
+    // reference words for a total of 20 bytes the minimum Ethernet frame size
+    // is reached without needing any additional zero padding after the frame.
+    static const size_t AdditionalReferenceWords = 5;
+
+    for (size_t i=0; i<AdditionalReferenceWords; ++i)
+        cmdList.addReferenceWord(m_referenceWord++);
+
     cmdList.addReadLocal(address);
 
     auto request = make_command_buffer(cmdList);
@@ -276,10 +286,10 @@ std::error_code MVLCDialog::readRegister(u16 address, u32 &value)
     logBuffer(m_responseBuffer, "readRegister <<<");
     if (ec) return ec;
 
-    if (m_responseBuffer.size() < 4)
+    if (m_responseBuffer.size() < 4 + AdditionalReferenceWords)
         return make_error_code(MVLCErrorCode::UnexpectedResponseSize);
 
-    value = m_responseBuffer[3];
+    value = m_responseBuffer[3+AdditionalReferenceWords];
 
     return {};
 }
