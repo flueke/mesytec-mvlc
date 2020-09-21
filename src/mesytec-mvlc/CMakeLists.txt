@@ -65,7 +65,7 @@ target_compile_options(mesytec-mvlc PRIVATE -Wall -Wextra)
 
 if (WIN32)
     target_link_libraries(mesytec-mvlc PRIVATE ws2_32)
-    #target_compile_options(mesytec-mvlc PRIVATE -Wno-format)
+    target_compile_options(mesytec-mvlc PRIVATE -Wno-format)
 endif(WIN32)
 
 include(GenerateExportHeader)
