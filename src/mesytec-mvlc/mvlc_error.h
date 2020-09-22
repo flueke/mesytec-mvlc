@@ -36,6 +36,7 @@ enum class MVLCErrorCode
     SocketReadTimeout,
     SocketWriteTimeout,
     UDPPacketChannelOutOfRange,
+    UDPDataWordCountExceedsPacketSize, // dataWordCount in header0 exceeds received packet length
     StackCountExceeded,
     StackMemoryExceeded,
     ImmediateStackReservedMemoryExceeded,
