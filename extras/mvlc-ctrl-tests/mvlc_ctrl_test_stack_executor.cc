@@ -78,7 +78,7 @@ TEST(mvlc_stack_executor, MVLCTestTransactions)
                 {
                     if (ec)
                     {
-                        std::cout << "stack_transactions returned: " << ec.message() << std::endl;
+                        std::cout << "(expected) stack_transaction returned: " << ec.message() << std::endl;
                     }
 
                     if (ec != ErrorType::VMEError)
