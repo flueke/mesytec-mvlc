@@ -787,6 +787,23 @@ PacketReadResult Impl::read_packet(Pipe pipe_, u8 *buffer, size_t size)
     LOG_TRACE("  pipe=%u, calculated available data words = %u, leftover bytes = %u",
               pipe, res.availablePayloadWords(), res.leftoverBytes());
 
+    if (res.dataWordCount() > res.availablePayloadWords())
+    {
+        res.ec = make_error_code(MVLCErrorCode::UDPDataWordCountExceedsPacketSize);
+        return res;
+    }
+
+    // This is a workaround for an issue in Windows 10 Build 2004 where
+    // ethernet padding bytes coming after the UDP data are for some reason
+    // included in the return value from recv(). The workaround truncates the
+    // received data to the number of data words transmitted by the MVLC in
+    // packet header0.
+    if (res.availablePayloadWords() > res.dataWordCount())
+    {
+        LOG_WARN("Win10 Build 2004 UDP length hack code path reached!");
+        res.bytesTransferred = res.dataWordCount() * sizeof(u32) + eth::HeaderBytes;
+    }
+
     if (res.leftoverBytes() > 0)
     {
         LOG_WARN("  pipe=%u, %u leftover bytes in received packet",
