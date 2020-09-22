@@ -800,7 +800,7 @@ PacketReadResult Impl::read_packet(Pipe pipe_, u8 *buffer, size_t size)
     // packet header0.
     if (res.availablePayloadWords() > res.dataWordCount())
     {
-        LOG_WARN("Win10 Build 2004 UDP length hack code path reached!");
+        //LOG_WARN("Win10 Build 2004 UDP length hack code path reached!");
         res.bytesTransferred = res.dataWordCount() * sizeof(u32) + eth::HeaderBytes;
     }
 
