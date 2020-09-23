@@ -144,6 +144,7 @@ inline u8 get_frame_type(u32 header)
 
 namespace frame_flags
 {
+    // These shifts are relative to the beginning of the FrameFlags field.
     namespace shifts
     {
         static const u8 Timeout     = 0;
