@@ -5,9 +5,14 @@ if (DOXYGEN_FOUND)
     set(DOXYGEN_EXTRACT_ALL YES)
     #set(DOXYGEN_TOC_INCLUDE_HEADINGS 10)
 
-    doxygen_add_docs(doc
+    doxygen_add_docs(mesytec-mvlc-doc ALL
         ../README.md
         ${CMAKE_CURRENT_SOURCE_DIR}
         ${CMAKE_SOURCE_DIR}/src
         )
+
+    add_custom_command(TARGET mesytec-mvlc-doc POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+            ${CMAKE_CURRENT_SOURCE_DIR}/images
+            ${CMAKE_CURRENT_BINARY_DIR}/html/doc/images)
 endif (DOXYGEN_FOUND)
