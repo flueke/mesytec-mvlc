@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.10)
+cmake_minimum_required(VERSION 3.12)
 
 project(mesytec-mvlc
     DESCRIPTION "User space driver library for the Mesytec MVLC VME controller")
