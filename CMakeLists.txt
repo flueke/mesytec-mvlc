@@ -95,7 +95,7 @@ if (MVLC_BUILD_TESTS)
     message("-- Building tests")
     include(CTest)
     enable_testing()
-endif(MVLC_BUILD_TESTS)
+endif (MVLC_BUILD_TESTS)
 
 option(MVLC_BUILD_CONTROLLER_TESTS "Build online MVLC controller tests" OFF)
 
@@ -107,6 +107,11 @@ add_subdirectory(external)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 
-add_subdirectory(doc)
+option(MVLC_BUILD_DOCS "Build documentation (if doxygen found)" ON)
+
+if (MVLC_BUILD_DOCS)
+    add_subdirectory(doc)
+endif (MVLC_BUILD_DOCS)
+
 add_subdirectory(extras)
 add_subdirectory(src)
