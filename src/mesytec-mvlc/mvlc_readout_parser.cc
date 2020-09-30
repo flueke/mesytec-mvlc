@@ -104,7 +104,7 @@ GroupReadoutStructure parse_group_readout_commands(const std::vector<StackComman
                     break;
             }
         }
-        else if (cmd.type == StackCT::VMERead)
+        else if (cmd.type == StackCT::VMERead || cmd.type == StackCT::VMEMBLTSwapped)
         {
             assert(vme_amods::is_block_mode(cmd.amod));
 

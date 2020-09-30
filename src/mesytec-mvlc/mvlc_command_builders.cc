@@ -493,6 +493,7 @@ bool MESYTEC_MVLC_EXPORT produces_output(const StackCommand &cmd)
     switch (cmd.type)
     {
         case StackCommand::CommandType::VMERead:
+        case StackCommand::CommandType::VMEMBLTSwapped:
         case StackCommand::CommandType::WriteMarker:
         case StackCommand::CommandType::WriteSpecial:
             return true;

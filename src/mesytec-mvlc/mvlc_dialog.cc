@@ -673,6 +673,22 @@ std::error_code MVLCDialog::vmeBlockRead(u32 address, u8 amod, u16 maxTransfers,
     return ec;
 }
 
+std::error_code MVLCDialog::vmeMBLTSwapped(u32 address, u16 maxTransfers,
+                                           std::vector<u32> &dest)
+{
+    SuperCommandBuilder cmdList;
+    cmdList.addReferenceWord(m_referenceWord++);
+    cmdList.addVMEMBLTSwapped(address, maxTransfers);
+
+    auto request = make_command_buffer(cmdList);
+
+    auto ec = stackTransaction(request, dest);
+
+    logBuffer(dest, "vmeMBLTSwapped response");
+
+    return ec;
+}
+
 void MVLCDialog::logBuffer(const std::vector<u32> &buffer, const std::string &info)
 {
     if (LOG_LEVEL_SETTING >= LOG_LEVEL_TRACE)

@@ -319,6 +319,12 @@ std::error_code MVLC::vmeBlockRead(u32 address, u8 amod, u16 maxTransfers,
     return d->resultCheck(d->dialog.vmeBlockRead(address, amod, maxTransfers, dest));
 }
 
+std::error_code MVLC::vmeMBLTSwapped(u32 address, u16 maxTransfers, std::vector<u32> &dest)
+{
+    auto guard = d->locks.lockCmd();
+    return d->resultCheck(d->dialog.vmeMBLTSwapped(address, maxTransfers, dest));
+}
+
 std::error_code MVLC::uploadStack(
     u8 stackOutputPipe,
     u16 stackMemoryOffset,

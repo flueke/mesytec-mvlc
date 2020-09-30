@@ -107,6 +107,9 @@ class MESYTEC_MVLC_EXPORT MVLC: public MVLCBasicInterface
         std::error_code vmeBlockRead(
             u32 address, u8 amod, u16 maxTransfers, std::vector<u32> &dest);
 
+        std::error_code vmeMBLTSwapped(
+            u32 address, u16 maxTransfers, std::vector<u32> &dest);
+
         std::error_code uploadStack(
             u8 stackOutputPipe,
             u16 stackMemoryOffset,
