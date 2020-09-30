@@ -107,7 +107,7 @@ add_subdirectory(external)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 
-option(MVLC_BUILD_DOCS "Build documentation (if doxygen found)" ON)
+option(MVLC_BUILD_DOCS "Build documentation (if doxygen found)" ${MESYTEC_MVLC_MASTER_PROJECT})
 
 if (MVLC_BUILD_DOCS)
     add_subdirectory(doc)
