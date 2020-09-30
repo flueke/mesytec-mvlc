@@ -92,12 +92,17 @@ namespace stack_commands
 
     enum class StackCommandType: u8
     {
-        StackStart      = 0xF3,
-        StackEnd        = 0xF4,
-        VMERead         = 0x12,
-        VMEWrite        = 0x23,
-        WriteMarker     = 0xC2,
-        WriteSpecial    = 0xC1,
+        StackStart          = 0xF3,
+        StackEnd            = 0xF4,
+        VMERead             = 0x12,
+        // Special MBLT read command which swaps the order of the two 32-bit
+        // words in each received 64-bit word. Argument wise it's the same as
+        // the VMERead command but should only be used with the MBLT64 address
+        // modifier.
+        VMEMBLTSwapped      = 0x13,
+        VMEWrite            = 0x23,
+        WriteMarker         = 0xC2,
+        WriteSpecial        = 0xC1,
     // TODO: ScanDataRead, ReadDataLoop and masks/enums
     //static const u32 ScanDataRead      = 0x34;
     };

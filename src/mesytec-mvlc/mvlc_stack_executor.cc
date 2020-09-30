@@ -100,6 +100,7 @@ Iter parse_stack_frame(
                 break;
 
             case CT::VMERead:
+            case CT::VMEMBLTSwapped:
                 if (stackFrame.size() == 0)
                     return itCmd;
 

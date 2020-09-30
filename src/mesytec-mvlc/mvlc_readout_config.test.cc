@@ -25,6 +25,8 @@ TEST(mvlc_readout_config, CrateConfigYaml)
             sb.addVMEBlockRead(0x00000000u, vme_amods::MBLT64, (1u << 16)-1);
             sb.beginGroup("module1");
             sb.addVMEBlockRead(0x10000000u, vme_amods::MBLT64, (1u << 16)-1);
+            sb.beginGroup("module2");
+            sb.addVMEMBLTSwapped(0x20000000u, vme_amods::MBLT64, (1u << 16)-1);
             sb.beginGroup("reset");
             sb.addVMEWrite(0xbb006070u, 1, vme_amods::A32, VMEDataWidth::D32);
 

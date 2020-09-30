@@ -56,6 +56,8 @@ class MESYTEC_MVLC_EXPORT SuperCommandBuilder
         // outputPipe=CommandPipe(=0) and stackMemoryOffset=0
         SuperCommandBuilder &addVMERead(u32 address, u8 amod, VMEDataWidth dataWidth);
         SuperCommandBuilder &addVMEBlockRead(u32 address, u8 amod, u16 maxTransfers);
+        SuperCommandBuilder &addVMEMBLTSwapped(u32 address, u8 amod, u16 maxTransfers);
+        SuperCommandBuilder &addVMEMBLTSwapped(u32 address, u16 maxTransfers);
         SuperCommandBuilder &addVMEWrite(u32 address, u32 value, u8 amod, VMEDataWidth dataWidth);
 
         SuperCommandBuilder &addStackUpload(
@@ -87,6 +89,7 @@ struct MESYTEC_MVLC_EXPORT StackCommand
         StackEnd        = static_cast<u8>(StackCommandType::StackEnd),
         VMERead         = static_cast<u8>(StackCommandType::VMERead),
         VMEWrite        = static_cast<u8>(StackCommandType::VMEWrite),
+        VMEMBLTSwapped  = static_cast<u8>(StackCommandType::VMEMBLTSwapped),
         WriteMarker     = static_cast<u8>(StackCommandType::WriteMarker),
         WriteSpecial    = static_cast<u8>(StackCommandType::WriteSpecial),
         // A value not in use by the MVLC protocol is used for the
@@ -157,6 +160,9 @@ class MESYTEC_MVLC_EXPORT StackCommandBuilder
         // created.
         StackCommandBuilder &addVMERead(u32 address, u8 amod, VMEDataWidth dataWidth);
         StackCommandBuilder &addVMEBlockRead(u32 address, u8 amod, u16 maxTransfers);
+        StackCommandBuilder &addVMEMBLTSwapped(u32 address, u8 amod, u16 maxTransfers);
+        // Overload of addVMEMBLTSwapped() using vme_amods::MBLT64 as the VME address modifier.
+        StackCommandBuilder &addVMEMBLTSwapped(u32 address, u16 maxTransfers);
         StackCommandBuilder &addVMEWrite(u32 address, u32 value, u8 amod, VMEDataWidth dataWidth);
         StackCommandBuilder &addWriteMarker(u32 value);
 

@@ -39,6 +39,7 @@ bool is_stack_command(u8 v)
             || v == static_cast<u8>(StackCT::StackEnd)
             || v == static_cast<u8>(StackCT::VMEWrite)
             || v == static_cast<u8>(StackCT::VMERead)
+            || v == static_cast<u8>(StackCT::VMEMBLTSwapped)
             || v == static_cast<u8>(StackCT::WriteMarker)
             || v == static_cast<u8>(StackCT::WriteSpecial));
 }
@@ -103,6 +104,18 @@ SuperCommandBuilder &SuperCommandBuilder::addVMERead(u32 address, u8 amod, VMEDa
 SuperCommandBuilder &SuperCommandBuilder::addVMEBlockRead(u32 address, u8 amod, u16 maxTransfers)
 {
     auto stack = StackCommandBuilder().addVMEBlockRead(address, amod, maxTransfers);
+    return addCommands(make_stack_upload_commands(CommandPipe, 0u, stack));
+}
+
+SuperCommandBuilder &SuperCommandBuilder::addVMEMBLTSwapped(u32 address, u8 amod, u16 maxTransfers)
+{
+    auto stack = StackCommandBuilder().addVMEMBLTSwapped(address, amod, maxTransfers);
+    return addCommands(make_stack_upload_commands(CommandPipe, 0u, stack));
+}
+
+SuperCommandBuilder &SuperCommandBuilder::addVMEMBLTSwapped(u32 address, u16 maxTransfers)
+{
+    auto stack = StackCommandBuilder().addVMEMBLTSwapped(address, maxTransfers);
     return addCommands(make_stack_upload_commands(CommandPipe, 0u, stack));
 }
 
@@ -191,6 +204,11 @@ std::string to_string(const StackCommand &cmd)
                 "vme_block_read {:#04x} {} {:#010x}",
                 cmd.amod, cmd.transfers, cmd.address);
 
+        case CT::VMEMBLTSwapped:
+            return fmt::format(
+                "vme_mblt_swapped {:#04x} {} {:#010x}",
+                cmd.amod, cmd.transfers, cmd.address);
+
         case CT::VMEWrite:
             return fmt::format(
                 "vme_write {:#04x} {} {:#010x} {:#010x}",
@@ -237,6 +255,13 @@ StackCommand stack_command_from_string(const std::string &str)
     {
         // FIXME: Blk2eSST is missing
         result.type = CT::VMERead;
+        iss >> arg; result.amod = std::stoul(arg, nullptr, 0);
+        iss >> arg; result.transfers = std::stoul(arg, nullptr, 0);
+        iss >> arg; result.address = std::stoul(arg, nullptr, 0);
+    }
+    else if (name == "vme_mblt_swapped")
+    {
+        result.type = CT::VMEMBLTSwapped;
         iss >> arg; result.amod = std::stoul(arg, nullptr, 0);
         iss >> arg; result.transfers = std::stoul(arg, nullptr, 0);
         iss >> arg; result.address = std::stoul(arg, nullptr, 0);
@@ -324,6 +349,25 @@ StackCommandBuilder &StackCommandBuilder::addVMEBlockRead(u32 address, u8 amod, 
 
     return *this;
 }
+
+StackCommandBuilder &StackCommandBuilder::addVMEMBLTSwapped(u32 address, u8 amod, u16 maxTransfers)
+{
+    StackCommand cmd = {};
+    cmd.type = CommandType::VMEMBLTSwapped;
+    cmd.address = address;
+    cmd.amod = amod;
+    cmd.transfers = maxTransfers;
+
+    addCommand(cmd);
+
+    return *this;
+}
+
+StackCommandBuilder &StackCommandBuilder::addVMEMBLTSwapped(u32 address, u16 maxTransfers)
+{
+    return addVMEMBLTSwapped(address, vme_amods::MBLT64, maxTransfers);
+}
+
 
 StackCommandBuilder &StackCommandBuilder::addVMEWrite(u32 address, u32 value, u8 amod, VMEDataWidth dataWidth)
 {
@@ -517,6 +561,7 @@ size_t get_encoded_size(const StackCommand::CommandType &type)
             return 1;
 
         case StackCT::VMERead:
+        case StackCT::VMEMBLTSwapped:
             return 2;
 
         case StackCT::VMEWrite:
@@ -690,6 +735,7 @@ std::vector<u32> make_stack_buffer(const std::vector<StackCommand> &stack)
         switch (cmd.type)
         {
             case CommandType::VMERead:
+            case CommandType::VMEMBLTSwapped:
                 if (!vme_amods::is_block_mode(cmd.amod))
                 {
                     cmdWord |= cmd.amod << stack_commands::CmdArg0Shift;
@@ -789,6 +835,7 @@ std::vector<StackCommand> stack_commands_from_buffer(const std::vector<u32> &buf
                 continue;
 
             case StackCT::VMERead:
+            case StackCT::VMEMBLTSwapped:
                 cmd.amod = arg0;
 
                 if (!vme_amods::is_block_mode(cmd.amod))
