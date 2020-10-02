@@ -27,6 +27,7 @@
  */
 
 #include "mvlc.h"
+#include "mvlc_constants.h"
 
 #include <atomic>
 #include <iostream>
@@ -131,6 +132,8 @@ struct MVLC::Private
         : impl(std::move(impl_))
         , dialog(impl.get())
         , isConnected(false)
+        , hardwareId(0)
+        , firmwareRevision(0)
         , errorPollerQuit(false)
     {
         errorPollerThread = std::thread(
@@ -154,6 +157,8 @@ struct MVLC::Private
     MVLCDialog dialog;
     mutable Locks locks;
     std::atomic<bool> isConnected;
+    std::atomic<u32> hardwareId;
+    std::atomic<u32> firmwareRevision;
 
     Mutex errorPollerSuspendMutex;
     std::atomic<bool> errorPollerQuit;
@@ -202,6 +207,27 @@ std::error_code MVLC::connect()
     auto guards = d->locks.lockBoth();
     auto ec = d->impl->connect();
     d->isConnected = d->impl->isConnected();
+
+    if (isConnected())
+    {
+        u32 hardwareId = 0;
+        u32 firmwareRevision = 0;
+
+        // Note: if resultCheck detects a ConnectionError it will update
+        // d->isConnected.
+
+        if (auto ec = d->resultCheck(d->dialog.readRegister(
+                    registers::hardware_id, hardwareId)))
+            return ec;
+
+        if (auto ec = d->resultCheck(d->dialog.readRegister(
+                    registers::firmware_revision, firmwareRevision)))
+            return ec;
+
+        d->hardwareId = hardwareId;
+        d->firmwareRevision = firmwareRevision;
+    }
+
     return ec;
 }
 
@@ -234,6 +260,16 @@ std::string MVLC::connectionInfo() const
 {
     // No need to lock. Impl must guarantee that this access is thread-safe.
     return d->impl->connectionInfo();
+}
+
+u32 MVLC::hardwareId() const
+{
+    return d->hardwareId;
+}
+
+u32 MVLC::firmwareRevision() const
+{
+    return d->firmwareRevision;
 }
 
 std::error_code MVLC::write(Pipe pipe, const u8 *buffer, size_t size,

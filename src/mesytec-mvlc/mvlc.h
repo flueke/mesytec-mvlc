@@ -68,6 +68,11 @@ class MESYTEC_MVLC_EXPORT MVLC: public MVLCBasicInterface
         explicit operator bool() const { return d != nullptr; }
         bool isValid() const { return static_cast<bool>(*this); }
 
+        // Contents of the hardware_id register (0x6008)
+        u32 hardwareId() const;
+        // Contents of the firmware_revision register (0x600e)
+        u32 firmwareRevision() const;
+
         //
         // MVLCBasicInterface
         //
