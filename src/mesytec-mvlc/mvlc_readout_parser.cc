@@ -482,13 +482,14 @@ ParseResult parse_readout_contents(
                         // This is the case with a StackContinuation header of
                         // length 0 (e.g. 0xF9010000 for stack 1).
                         // This implicitly ends the current block frame if any.
-                        // This means even that although the current block
-                        // frame has the continue bit set there's no follow up
-                        // frame present.
-                        // The code below (switch case over the group/module parts)
-                        // checks the current block frame for the continue bit
-                        // and tries to read the next part if it is set. To
-                        // avoid this the block frame is cleared here.
+                        // This means that although the current block frame has
+                        // the continue bit set there's no follow up frame
+                        // present.
+                        // The code below (switch-case over the group/module
+                        // parts) checks the current block frame for the
+                        // continue bit and tries to read the next part if it
+                        // is set. To avoid this the block frame is cleared
+                        // here.
                         //cout << "Hello empty stackFrame!" << endl;
                         LOG_WARN("got an empty stack frame: 0x%08x",
                                  state.curStackFrame.header);
