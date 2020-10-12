@@ -63,13 +63,13 @@ namespace super_commands
 
     enum class SuperCommandType: u16
     {
-        CmdBufferStart = 0xF100,
-        CmdBufferEnd   = 0xF200,
-        ReferenceWord  = 0x0101,
-        ReadLocal      = 0x0102,
-        ReadLocalBlock = 0x0103,
-        WriteLocal     = 0x0204,
-        WriteReset     = 0x0206,
+        CmdBufferStart = 0xF100,    // Marks the beginning of a command buffer
+        CmdBufferEnd   = 0xF200,    // Marks the end of a command buffer
+        ReferenceWord  = 0x0101,    // A reference word to be mirrored by the MVLC
+        ReadLocal      = 0x0102,    // Read a MVLC register
+        ReadLocalBlock = 0x0103,    // Read a block of local memory (not implemented).
+        WriteLocal     = 0x0204,    // Write a MVLC register
+        WriteReset     = 0x0206,    // Reset command (TODO: is this even used?)
         EthDelay       = 0x0207,    // Ethernet specific delay command for the throttle port only. This
                                     // command is not embedded in CmdBufferStart/End. The lowest 16-bits
                                     // contain a delay value in µs. The max value ((2^16)-1) is used to
@@ -96,17 +96,17 @@ namespace stack_commands
 
     enum class StackCommandType: u8
     {
-        StackStart          = 0xF3,
-        StackEnd            = 0xF4,
-        VMERead             = 0x12,
-        // Special MBLT read command which swaps the order of the two 32-bit
-        // words in each received 64-bit word. Argument wise it's the same as
-        // the VMERead command but should only be used with the MBLT64 address
-        // modifier.
-        VMEMBLTSwapped      = 0x13,
-        VMEWrite            = 0x23,
-        WriteMarker         = 0xC2,
-        WriteSpecial        = 0xC1,
+        StackStart          = 0xF3, // First word in a command stack.
+        StackEnd            = 0xF4, // Last word in a command stack.
+        VMERead             = 0x12, // VME read requests including block reads.
+
+        VMEMBLTSwapped      = 0x13, // Special MBLT read command which swaps the order of the two 32-bit
+                                    // words in each received 64-bit word. Argument wise it's the same as
+                                    // the VMERead command but should only be used with the MBLT64 address
+                                    // modifier.
+        VMEWrite            = 0x23, // VME write requests.
+        WriteMarker         = 0xC2, // Writes a 32-bit marker value into the output data stream.
+        WriteSpecial        = 0xC1, // Write a special value into the output data stream (not implemented).
     // TODO: ScanDataRead, ReadDataLoop and masks/enums
     //static const u32 ScanDataRead      = 0x34;
     };
@@ -114,16 +114,20 @@ namespace stack_commands
 
 using stack_commands::StackCommandType;
 
+// Constants for working with incoming data frames.
 namespace frame_headers
 {
     enum FrameTypes: u8
     {
-        SuperFrame        = 0xF1,
-        StackFrame        = 0xF3,
-        BlockRead         = 0xF5,
-        StackError        = 0xF7,
-        StackContinuation = 0xF9,
-        SystemEvent       = 0xFA,
+        SuperFrame          = 0xF1, // Outermost command buffer response frame.
+        StackFrame          = 0xF3, // Outermost frame for readout data produced by command stack execution.
+        BlockRead           = 0xF5, // Inner frame for block reads. Always contained within a StackFrame.
+        StackError          = 0xF7, // Error notification frame embedded either between readout data or
+                                    // sent to the command port for monitoring.
+        StackContinuation   = 0xF9, // Continuation frame for BlockRead frames with the Continue bit set.
+                                    // The last F9 frame in a sequence has the Continue bit cleared.
+        SystemEvent         = 0xFA, // Software generated frames used for transporting additional
+                                    // information. See the system_event namespace below for details.
     };
 
     // Header: Type[7:0] Continue[0:0] ErrorFlags[2:0] StackNum[3:0] CtrlId[2:0] Length[12:0]
@@ -151,6 +155,8 @@ inline u8 get_frame_type(u32 header)
     return (header >> frame_headers::TypeShift) & frame_headers::TypeMask;
 }
 
+// Constants describing the Continue and ErrorFlag bits present in StackFrames
+// and StackContinuations.
 namespace frame_flags
 {
     // These shifts are relative to the beginning of the FrameFlags field.
@@ -407,7 +413,8 @@ namespace eth
     enum class PacketChannel: u8
     {
         Command, // Command and mirror responses
-        Stack,   // Data produced by stack executions routed to the command pipe
+        Stack,   // Data produced by stack executions routed to the command
+                 // pipe (F7 error notifications).
         Data,    // Readout data produced by stacks routed to the data pipe
     };
 
