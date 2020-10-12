@@ -70,6 +70,10 @@ namespace super_commands
         ReadLocalBlock = 0x0103,
         WriteLocal     = 0x0204,
         WriteReset     = 0x0206,
+        EthDelay       = 0x0207,    // Ethernet specific delay command for the throttle port only. This
+                                    // command is not embedded in CmdBufferStart/End. The lowest 16-bits
+                                    // contain a delay value in µs. The max value ((2^16)-1) is used to
+                                    // completely stop the MVLC from sending data packets.
     };
 }
 
@@ -352,6 +356,8 @@ namespace eth
 {
     static const u16 CommandPort = 0x8000; // 32768
     static const u16 DataPort = CommandPort + 1;
+    static const u16 DelayPort = DataPort + 1;
+
     static const u32 HeaderWords = 2;
     static const u32 HeaderBytes = HeaderWords * sizeof(u32);
 
@@ -406,6 +412,10 @@ namespace eth
     };
 
     static const u8 NumPacketChannels = 3;
+
+    // Constants for the EthDelay command.
+    static const u16 NoDelay = 0u;
+    static const u16 StopSending = (1u << 16) - 1;
 
 } // end namespace eth
 
