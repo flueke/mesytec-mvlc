@@ -462,12 +462,8 @@ namespace registers
     // Set to 1 to enable 8k eth jumbo frames on the data pipe.
     static const u16 jumbo_frame_enable     = 0x4430;
 
-    static const u16 arp_sender_mac_rx_0    = 0x4432;
-    static const u16 arp_sender_mac_rx_1    = 0x4434;
-    static const u16 arp_sender_mac_rx_2    = 0x4436;
-
-    static const u16 arp_sender_ip_rx_lo    = 0x4438;
-    static const u16 arp_sender_ip_rx_hi    = 0x443a;
+    // Returns the delay value of the last ETH delay request on the throttling port.
+    static const u16 eth_delay_read         = 0x4432;
 
     static const u16 reset_register_mask    = 0x0202;
     static const u16 reset_register         = 0x6090;
