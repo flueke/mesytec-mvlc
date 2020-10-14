@@ -886,6 +886,15 @@ inline void fixup_usb_buffer(
 
 static const std::chrono::milliseconds FlushBufferTimeout(500);
 
+// Code to add delays after reading from the MVLC.
+#define ENABLE_ARTIFICIAL_READ_DELAYS 0
+
+#if ENABLE_ARTIFICIAL_READ_DELAYS
+static const std::chrono::milliseconds DebugPostReadoutDelay(50);
+static const std::chrono::milliseconds DebugPostReadoutDelayIncrement(30);
+static const size_t StartDelayBufferNumber = 500;
+#endif
+
 std::error_code ReadoutWorker::Private::readout(size_t &bytesTransferred)
 {
     assert(this->mvlcETH || this->mvlcUSB);
@@ -896,6 +905,18 @@ std::error_code ReadoutWorker::Private::readout(size_t &bytesTransferred)
         ec = readout_usb(mvlcUSB, bytesTransferred);
     else
         ec = readout_eth(mvlcETH, bytesTransferred);
+
+#if ENABLE_ARTIFICIAL_READ_DELAYS
+    //if (DebugPostReadoutDelay.count() > 0)
+    //    std::this_thread::sleep_for(DebugPostReadoutDelay);
+
+    //if (DebugPostReadoutDelay.count() > 0)
+    //    std::this_thread::sleep_for(DebugPostReadoutDelay
+    //                                + DebugPostReadoutDelayIncrement * nextOutputBufferNumber);
+
+    //if (DebugPostReadoutDelay.count() > 0 && nextOutputBufferNumber > StartDelayBufferNumber)
+    //    std::this_thread::sleep_for(DebugPostReadoutDelay);
+#endif
 
     {
         auto c = counters.access();
