@@ -936,42 +936,36 @@ std::error_code ReadoutWorker::Private::readout_usb(
 
     destBuffer->ensureFreeSpace(usb::USBStreamPipeReadSize);
 
+    while (destBuffer->free() >= usb::USBStreamPipeReadSize)
     {
-        // XXX: Attempt to make this as close as possible to the old non-lib
-        // version by moving the dataGuard to the inside.
-        //auto dataGuard = mvlc.getLocks().lockData();
+        const size_t bytesToRead = usb::USBStreamPipeReadSize;
+        size_t bytesTransferred = 0u;
 
-        while (destBuffer->free() >= usb::USBStreamPipeReadSize)
+        auto dataGuard = mvlc.getLocks().lockData();
+        ec = mvlcUSB->read_unbuffered(
+            Pipe::Data,
+            destBuffer->data() + destBuffer->used(),
+            bytesToRead,
+            bytesTransferred);
+        dataGuard.unlock();
+
+        destBuffer->use(bytesTransferred);
+        totalBytesTransferred += bytesTransferred;
+
+        if (ec == ErrorType::ConnectionError)
         {
-            const size_t bytesToRead = usb::USBStreamPipeReadSize;
-            size_t bytesTransferred = 0u;
-
-            auto dataGuard = mvlc.getLocks().lockData();
-            ec = mvlcUSB->read_unbuffered(
-                Pipe::Data,
-                destBuffer->data() + destBuffer->used(),
-                bytesToRead,
-                bytesTransferred);
-            dataGuard.unlock();
-
-            destBuffer->use(bytesTransferred);
-            totalBytesTransferred += bytesTransferred;
-
-            if (ec == ErrorType::ConnectionError)
-            {
-                //cerr << "connection error from usb::Impl::read_unbuffered(): " << ec.message() << endl;
-                break;
-            }
-
-            auto elapsed = std::chrono::steady_clock::now() - tStart;
-
-            if (elapsed >= FlushBufferTimeout)
-            {
-                //cerr << "flush buffer timeout reached, leaving reaodut_usb()" << endl;
-                break;
-            }
+            //cerr << "connection error from usb::Impl::read_unbuffered(): " << ec.message() << endl;
+            break;
         }
-    } // with dataGuard XXX
+
+        auto elapsed = std::chrono::steady_clock::now() - tStart;
+
+        if (elapsed >= FlushBufferTimeout)
+        {
+            //cerr << "flush buffer timeout reached, leaving reaodut_usb()" << endl;
+            break;
+        }
+    }
 
     //util::log_buffer(std::cout, destBuffer->viewU32(),
     //                 fmt::format("usb buffer#{} pre fixup", destBuffer->bufferNumber()),
