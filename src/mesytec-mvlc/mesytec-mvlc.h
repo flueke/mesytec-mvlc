@@ -45,6 +45,7 @@
 #include "mvlc_threading.h"
 #include "mvlc_util.h"
 #include "util/filesystem.h"
+#include "util/int_types.h"
 #include "util/io_util.h"
 #include "vme_constants.h"
 

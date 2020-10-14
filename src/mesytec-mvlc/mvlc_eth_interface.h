@@ -167,6 +167,15 @@ class MVLC_ETH_Interface
 
         virtual std::error_code enableJumboFrames(bool b) = 0;
         virtual std::pair<bool, std::error_code> jumboFramesEnabled() = 0;
+
+        // Returns the size of the socket receive buffer for the data pipe as returned by
+        // getsockopt() with the SO_RCVBUF flag.
+        virtual u32 getDataSocketReceiveBufferSize() const = 0;
+
+        // Sends the EthDelay command with the specified delay in microseconds. The
+        // command is sent using the delay socket.
+        // This method must be thread-safe in the implementation!
+        virtual std::error_code sendDelayCommand(u16 delay_us) = 0;
 };
 
 } // end namespace eth

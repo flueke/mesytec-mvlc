@@ -536,6 +536,7 @@ size_t get_encoded_size(const SuperCommandType &type)
         case SuperCT::WriteReset:
         case SuperCT::CmdBufferStart:
         case SuperCT::CmdBufferEnd:
+        case SuperCT::EthDelay:
             return 1;
 
         case SuperCT::ReadLocalBlock:
@@ -652,6 +653,7 @@ MESYTEC_MVLC_EXPORT std::vector<u32> make_command_buffer(const basic_string_view
             // in here just in case.
             case SuperCT::CmdBufferStart:
             case SuperCT::CmdBufferEnd:
+            case SuperCT::EthDelay:
                 result.push_back(cmdWord);
                 break;
         }
@@ -684,6 +686,7 @@ SuperCommandBuilder super_builder_from_buffer(const std::vector<u32> &buffer)
         {
             case SuperCT::CmdBufferStart:
             case SuperCT::CmdBufferEnd:
+            case SuperCT::EthDelay:
                 continue;
 
             case SuperCT::ReferenceWord:

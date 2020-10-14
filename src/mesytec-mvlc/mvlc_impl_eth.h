@@ -93,6 +93,7 @@ class MESYTEC_MVLC_EXPORT Impl: public MVLCBasicInterface, public MVLC_ETH_Inter
 
         sockaddr_in getCmdSockAddress() const { return m_cmdAddr; }
         sockaddr_in getDataSockAddress() const { return m_dataAddr; }
+        sockaddr_in getDelaySockAddress() const { return m_delayAddr; }
 
         void setDisableTriggersOnConnect(bool b) override
         {
@@ -107,14 +108,19 @@ class MESYTEC_MVLC_EXPORT Impl: public MVLCBasicInterface, public MVLC_ETH_Inter
         std::error_code enableJumboFrames(bool b) override;
         std::pair<bool, std::error_code> jumboFramesEnabled() override;
 
+        u32 getDataSocketReceiveBufferSize() const override { return m_dataSocketReceiveBufferSize; }
+        std::error_code sendDelayCommand(u16 delay_us) override;
+
     private:
         int getSocket(Pipe pipe) { return pipe == Pipe::Command ? m_cmdSock : m_dataSock; }
 
         std::string m_host;
         int m_cmdSock = -1;
         int m_dataSock = -1;
+        int m_delaySock = -1;
         struct sockaddr_in m_cmdAddr = {};
         struct sockaddr_in m_dataAddr = {};
+        struct sockaddr_in m_delayAddr = {};
 
         std::array<unsigned, PipeCount> m_writeTimeouts = {
             DefaultWriteTimeout_ms, DefaultWriteTimeout_ms
@@ -145,6 +151,8 @@ class MESYTEC_MVLC_EXPORT Impl: public MVLCBasicInterface, public MVLC_ETH_Inter
         std::array<s32, NumPacketChannels> m_lastPacketNumbers;
         bool m_disableTriggersOnConnect = true;
         mutable TicketMutex m_statsMutex;
+        mutable TicketMutex m_delaySocketMutex;
+        int m_dataSocketReceiveBufferSize = 0;
 };
 
 // Given the previous and current packet numbers returns the number of lost

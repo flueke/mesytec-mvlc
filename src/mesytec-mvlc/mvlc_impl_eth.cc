@@ -8,6 +8,7 @@
 #include <cstring>
 #include <limits>
 #include <sstream>
+#include <system_error>
 
 #ifndef __WIN32
     #include <netdb.h>
@@ -179,7 +180,6 @@ std::error_code close_socket(int sock)
 }
 #endif
 
-const u16 FirstDynamicPort = 49152;
 static const int SocketReceiveBufferSize = 1024 * 1024 * 100;
 
 inline std::string format_ipv4(u32 a)
@@ -236,10 +236,9 @@ Impl::~Impl()
 
 // Things happening in Impl::connect:
 // * Remote host lookup to get the IPv4 address of the MVLC.
-// * Create two UDP sockets and bind them to two consecutive local ports.
-//   Ports are tried starting from FirstDynamicPort (49152).
-// * Use ::connect() on both sockets with the MVLC address and the default
-//   command and data ports. This way the sockets will only receive datagrams
+// * Create three UDP sockets for the command, data and delay pipes.
+// * Use ::connect() on the sockets with the MVLC address and the default
+//   command, data and delay ports. This way the sockets will only receive datagrams
 //   originating from the MVLC.
 // * Send an initial request and read the response. Preferably this
 //   should tell us if another client is currently using the MVLC. It could be
@@ -253,8 +252,12 @@ std::error_code Impl::connect()
             close_socket(m_cmdSock);
         if (m_dataSock >= 0)
             close_socket(m_dataSock);
+        if (m_delaySock >= 0)
+            close_socket(m_delaySock);
+
         m_cmdSock = -1;
         m_dataSock = -1;
+        m_delaySock = -1;
     };
 
     if (isConnected())
@@ -262,6 +265,8 @@ std::error_code Impl::connect()
 
     m_cmdSock = -1;
     m_dataSock = -1;
+    m_delaySock = -1;
+
     resetPipeAndChannelStats();
 
     LOG_TRACE("looking up host %s...", m_host.c_str());
@@ -279,92 +284,64 @@ std::error_code Impl::connect()
     m_dataAddr = m_cmdAddr;
     m_dataAddr.sin_port = htons(DataPort);
 
-    // Lookup succeeded and we now have two remote addresses, one for the
-    // command and one for the data pipe.
+    // Same for the delay port.
+    m_delayAddr = m_cmdAddr;
+    m_delayAddr.sin_port = htons(DelayPort);
+
+    // Lookup succeeded and we now have three remote addresses, one for the
+    // command, one for the data pipe and one for the delay port.
     //
-    // Now create two IPv4 UDP sockets and try to bind them to two consecutive
-    // local ports.
+    // Now create the IPv4 UDP sockets and bind them.
 
     LOG_TRACE("creating sockets...");
 
-    for (u16 localCmdPort = FirstDynamicPort;
-         // Using 'less than' to leave one spare port for the data pipe
-         localCmdPort < std::numeric_limits<u16>::max();
-         localCmdPort++)
+    m_cmdSock = socket(AF_INET, SOCK_DGRAM, 0);
+
+    if (m_cmdSock < 0)
     {
-        assert(m_cmdSock < 0 && m_dataSock < 0);
-
-        // Not being able to create the sockets is considered a fatal error.
-
-        m_cmdSock = socket(AF_INET, SOCK_DGRAM, 0);
-        if (m_cmdSock < 0)
-        {
-            auto ec = std::error_code(errno, std::system_category());
-            LOG_TRACE("socket() failed for command pipe: %s", ec.message().c_str());
-            return ec;
-        }
-
-        m_dataSock = socket(AF_INET, SOCK_DGRAM, 0);
-        if (m_dataSock < 0)
-        {
-            auto ec = std::error_code(errno, std::system_category());
-            LOG_TRACE("socket() failed for data pipe: %s", ec.message().c_str());
-
-            if (m_cmdSock >= 0)
-            {
-                ::close(m_cmdSock);
-                m_cmdSock = -1;
-            }
-            return ec;
-        }
-
-        assert(m_cmdSock >= 0 && m_dataSock >= 0);
-
-        // Setup the local address structures using two consecutive port
-        // numbers.
-        struct sockaddr_in cmdLocal = {};
-        cmdLocal.sin_family = AF_INET;
-        cmdLocal.sin_addr.s_addr = INADDR_ANY;
-#if MVLC_ETH_USE_SPECIFIC_LOCAL_PORT
-        LOG_TRACE("Trying local port %u for command socket", localCmdPort);
-        cmdLocal.sin_port = htons(localCmdPort);
-#endif
-
-        struct sockaddr_in dataLocal = cmdLocal;
-#if MVLC_ETH_USE_SPECIFIC_LOCAL_PORT
-        u16 localDataPort = localCmdPort + 1;
-        LOG_TRACE("Trying local port %u for data socket", localDataPort);
-        dataLocal.sin_port = htons(localDataPort);
-#endif
-
-        // Bind both sockets. In case of an error close the sockets and
-        // continue with the loop.
-        if (::bind(m_cmdSock, reinterpret_cast<struct sockaddr *>(&cmdLocal),
-                             sizeof(cmdLocal)))
-        {
-            goto try_again;
-        }
-
-        if (::bind(m_dataSock, reinterpret_cast<struct sockaddr *>(&dataLocal),
-                             sizeof(dataLocal)))
-        {
-            goto try_again;
-        }
-
-        // both socket and bind calls succeeded
-        break;
-
-        try_again:
-        {
-            close_sockets();
-        }
+        auto ec = std::error_code(errno, std::system_category());
+        LOG_TRACE("socket() failed for command pipe: %s", ec.message().c_str());
+        return ec;
     }
 
-    if (m_cmdSock < 0 || m_dataSock < 0)
+    m_dataSock = socket(AF_INET, SOCK_DGRAM, 0);
+
+    if (m_dataSock < 0)
     {
-        auto ec = make_error_code(MVLCErrorCode::BindLocalError);
-        LOG_TRACE("could not bind() both local sockets: %s", ec.message().c_str());
+        auto ec = std::error_code(errno, std::system_category());
+        LOG_TRACE("socket() failed for data pipe: %s", ec.message().c_str());
+        close_sockets();
         return ec;
+    }
+
+    m_delaySock = socket(AF_INET, SOCK_DGRAM, 0);
+
+    if (m_delaySock < 0)
+    {
+        auto ec = std::error_code(errno, std::system_category());
+        LOG_TRACE("socket() failed for delay address: %s", ec.message().c_str());
+        close_sockets();
+        return ec;
+    }
+
+    assert(m_cmdSock >= 0 && m_dataSock >= 0 && m_delaySock >= 0);
+
+    LOG_TRACE("binding sockets...");
+
+    {
+        struct sockaddr_in localAddr = {};
+        localAddr.sin_family = AF_INET;
+        localAddr.sin_addr.s_addr = INADDR_ANY;
+
+        for (auto sock: { m_cmdSock, m_dataSock, m_delaySock })
+        {
+            if (::bind(sock, reinterpret_cast<struct sockaddr *>(&localAddr),
+                       sizeof(localAddr)))
+            {
+                close_sockets();
+                return std::error_code(errno, std::system_category());
+            }
+        }
     }
 
     LOG_TRACE("connecting sockets...");
@@ -389,7 +366,16 @@ std::error_code Impl::connect()
         return ec;
     }
 
-    // Set read and write timeouts
+    if (::connect(m_delaySock, reinterpret_cast<struct sockaddr *>(&m_delayAddr),
+                            sizeof(m_delayAddr)))
+    {
+        auto ec = std::error_code(errno, std::system_category());
+        LOG_TRACE("connect() failed for delay socket: %s", ec.message().c_str());
+        close_sockets();
+        return ec;
+    }
+
+    // Set read and write timeouts for the command and data ports.
     LOG_TRACE("setting socket timeouts...");
 
     for (auto pipe: { Pipe::Command, Pipe::Data })
@@ -407,6 +393,13 @@ std::error_code Impl::connect()
             LOG_TRACE("set_socket_read_timeout failed: %s", ec.message().c_str());
             return ec;
         }
+    }
+
+    // Set the write timeout for the delay socket
+    if (auto ec = set_socket_write_timeout(m_delaySock, DefaultWriteTimeout_ms))
+    {
+        LOG_TRACE("set_socket_write_timeout failed: %s", ec.message().c_str());
+        return ec;
     }
 
     // Set socket receive buffer size
@@ -447,6 +440,7 @@ std::error_code Impl::connect()
 #endif
 
             assert(res == 0);
+
             if (res != 0)
                 return std::error_code(errno, std::system_category());
 
@@ -457,10 +451,13 @@ std::error_code Impl::connect()
                 LOG_INFO("pipe=%u, requested SO_RCVBUF of %d bytes, got %d bytes",
                          static_cast<unsigned>(pipe), SocketReceiveBufferSize, actualBufferSize);
             }
+
+            if (pipe == Pipe::Data)
+                m_dataSocketReceiveBufferSize = actualBufferSize;
         }
     }
 
-    assert(m_cmdSock >= 0 && m_dataSock >= 0);
+    assert(m_cmdSock >= 0 && m_dataSock >= 0 && m_delaySock >= 0);
 
     // Attempt to read the trigger registers. If one has a non-zero value
     // assume the MVLC is in use by another client. If the
@@ -543,8 +540,10 @@ std::error_code Impl::disconnect()
 
     ::close(m_cmdSock);
     ::close(m_dataSock);
+    ::close(m_delaySock);
     m_cmdSock = -1;
     m_dataSock = -1;
+    m_delaySock = -1;
     return {};
 }
 
@@ -600,21 +599,14 @@ static const size_t MaxOutgoingPayloadSize = 1500 - 20 - 8;
 // The send() call should return EMSGSIZE if the payload is too large to be
 // atomically transmitted.
 #ifdef _WIN32
-std::error_code Impl::write(Pipe pipe, const u8 *buffer, size_t size,
-                            size_t &bytesTransferred)
+inline std::error_code write_to_socket(
+    int socket, const u8 *buffer, size_t size, size_t &bytesTransferred)
 {
     assert(size <= MaxOutgoingPayloadSize);
-    assert(static_cast<unsigned>(pipe) < PipeCount);
-
-    if (static_cast<unsigned>(pipe) >= PipeCount)
-        return make_error_code(MVLCErrorCode::InvalidPipe);
 
     bytesTransferred = 0;
 
-    if (!isConnected())
-        return make_error_code(MVLCErrorCode::IsDisconnected);
-
-    ssize_t res = ::send(getSocket(pipe), reinterpret_cast<const char *>(buffer), size, 0);
+    ssize_t res = ::send(socket, reinterpret_cast<const char *>(buffer), size, 0);
 
     if (res == SOCKET_ERROR)
     {
@@ -631,22 +623,15 @@ std::error_code Impl::write(Pipe pipe, const u8 *buffer, size_t size,
     bytesTransferred = res;
     return {};
 }
-#else
-std::error_code Impl::write(Pipe pipe, const u8 *buffer, size_t size,
-                            size_t &bytesTransferred)
+#else // !_WIN32
+inline std::error_code write_to_socket(
+    int socket, const u8 *buffer, size_t size, size_t &bytesTransferred)
 {
     assert(size <= MaxOutgoingPayloadSize);
-    assert(static_cast<unsigned>(pipe) < PipeCount);
-
-    if (static_cast<unsigned>(pipe) >= PipeCount)
-        return make_error_code(MVLCErrorCode::InvalidPipe);
 
     bytesTransferred = 0;
 
-    if (!isConnected())
-        return make_error_code(MVLCErrorCode::IsDisconnected);
-
-    ssize_t res = ::send(getSocket(pipe), reinterpret_cast<const char *>(buffer), size, 0);
+    ssize_t res = ::send(socket, reinterpret_cast<const char *>(buffer), size, 0);
 
     if (res < 0)
     {
@@ -659,7 +644,23 @@ std::error_code Impl::write(Pipe pipe, const u8 *buffer, size_t size,
     bytesTransferred = res;
     return {};
 }
-#endif
+#endif // !_WIN32
+
+std::error_code Impl::write(Pipe pipe, const u8 *buffer, size_t size,
+                            size_t &bytesTransferred)
+{
+    assert(static_cast<unsigned>(pipe) < PipeCount);
+
+    if (static_cast<unsigned>(pipe) >= PipeCount)
+        return make_error_code(MVLCErrorCode::InvalidPipe);
+
+    bytesTransferred = 0;
+
+    if (!isConnected())
+        return make_error_code(MVLCErrorCode::IsDisconnected);
+
+    return write_to_socket(getSocket(pipe), buffer, size, bytesTransferred);
+}
 
 #ifdef __WIN32
 static inline std::error_code receive_one_packet(int sockfd, u8 *dest, size_t size,
@@ -1028,6 +1029,23 @@ std::pair<bool, std::error_code> Impl::jumboFramesEnabled()
     auto ec = MVLCDialog(this).readRegister(registers::jumbo_frame_enable, value);
 
     return std::make_pair(static_cast<bool>(value), ec);
+}
+
+std::error_code Impl::sendDelayCommand(u16 delay_us)
+{
+    u32 cmd = static_cast<u32>(super_commands::SuperCommandType::EthDelay) << super_commands::SuperCmdShift;
+    cmd |= delay_us;
+    UniqueLock guard(m_delaySocketMutex);
+    size_t bytesTransferred = 0;
+    auto ec = write_to_socket(m_delaySock, reinterpret_cast<const u8 *>(&cmd), sizeof(cmd), bytesTransferred);
+
+    if (ec)
+        return ec;
+
+    if (bytesTransferred != sizeof(cmd))
+        return make_error_code(MVLCErrorCode::ShortWrite);
+
+    return {};
 }
 
 #if 0
