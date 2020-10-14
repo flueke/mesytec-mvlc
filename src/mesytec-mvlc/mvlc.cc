@@ -182,14 +182,18 @@ MVLC::MVLC()
 MVLC::MVLC(std::unique_ptr<MVLCBasicInterface> &&impl)
     : d(std::make_shared<Private>(std::move(impl)))
 {
+#if 0
     std::cout << __PRETTY_FUNCTION__
         << " this=" << this << ", d=" << d.get() << std::endl;
+#endif
 }
 
 MVLC::~MVLC()
 {
+#if 0
     std::cout << __PRETTY_FUNCTION__
         << " this=" << this << ", d=" << d.get() << std::endl;
+#endif
 }
 
 MVLCBasicInterface *MVLC::getImpl()
