@@ -49,7 +49,7 @@ class Protected
 {
     public:
         explicit Protected(T &&obj)
-            : m_obj(obj)
+            : m_obj(std::move(obj))
         {
         }
 
@@ -116,7 +116,7 @@ class WaitableProtected
 {
     public:
         WaitableProtected(T && obj)
-            : m_obj(obj)
+            : m_obj(std::move(obj))
         {
         }
 
