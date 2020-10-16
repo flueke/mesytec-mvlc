@@ -105,6 +105,7 @@ send_query(int fd, u16 srcPort, u16 dstPort)
     }
 }
 
+#if 0
 static int
 print_diag(const struct inet_diag_msg *diag, unsigned int len)
 {
@@ -186,6 +187,7 @@ print_diag(const struct inet_diag_msg *diag, unsigned int len)
     putchar('\n');
     return 0;
 }
+#endif
 
 using DiagCallback = std::function<int (const inet_diag_msg *msg, unsigned len)>;
 
@@ -370,7 +372,6 @@ int rmem_monitor(const inet_diag_msg *diag, unsigned len, ReadoutDelayContext &c
         const unsigned ThrottleSteps = 16;
         const double ThrottleIncrement = ThrottleRange / ThrottleSteps;
         const double ThrottleMinThreshold = 0.5;
-        const double ThrottleMaxThreshold = ThrottleMinThreshold + ThrottleRange;
 
         double aboveThreshold = 0.0;
         u32 increments = 0u;
