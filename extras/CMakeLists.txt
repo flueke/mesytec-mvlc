@@ -16,10 +16,11 @@ add_subdirectory(mini-daq)
 add_subdirectory(mvlc-ctrl-tests)
 add_subdirectory(ftdi-list-devices)
 
-add_executable(netlink-test netlink-socket-mem-monitoring/netlink-test.cc)
+if (UNIX AND NOT APPLE)
+    add_executable(netlink-test netlink-socket-mem-monitoring/netlink-test.cc)
 
-add_executable(netlink-monitor-rmem netlink-socket-mem-monitoring/netlink-monitor-rmem.cc)
-target_link_libraries(netlink-monitor-rmem
-    PRIVATE mesytec-mvlc
-    PRIVATE BFG::Lyra
-    )
+    add_executable(netlink-monitor-rmem netlink-socket-mem-monitoring/netlink-monitor-rmem.cc)
+    target_link_libraries(netlink-monitor-rmem
+        PRIVATE mesytec-mvlc
+        PRIVATE BFG::Lyra)
+endif()

@@ -27,6 +27,7 @@
 
     #include <arpa/inet.h>
 #else // __WIN32
+    #include <winsock2.h>
     #include <ws2tcpip.h>
     #include <stdio.h>
     #include <fcntl.h>
@@ -280,7 +281,7 @@ static const int DesiredSocketReceiveBufferSize = 1024 * 1024 * 100;
  * obtain socket memory information and then applies exponential throttling
  * based on the receive buffer fill level.
  *
- * The Windows version uses ioctl() with FIONREAD to obtain the current buffer
+ * The Windows version uses WSAIoctl() with FIONREAD to obtain the current buffer
  * fill level.
  */
 
@@ -555,13 +556,27 @@ void mvlc_eth_throttler(
     Protected<eth::EthThrottleCounters> &counters)
 {
     int dataSocket = ctx.access()->dataSocket;
-    ReceiveBufferSnapshot rbs = { 0u, ctx.access()->dataSocketReceiveBufferSize };
+    ReceiveBufferSnapshot rbs = { 0u, static_cast<u32>(ctx.access()->dataSocketReceiveBufferSize) };
 
     LOG_DEBUG("mvlc_eth_throttler entering loop");
 
     while (!ctx.access()->quit)
     {
-        if (ioctl(dataSocket, FIONREAD, &rbs.rcvBufUsed) >= 0)
+        auto tStart = std::chrono::steady_clock::now();
+
+        DWORD bytesReturned = 0;
+        int res = WSAIoctl(
+            dataSocket,         // socket
+            FIONREAD,           // opcode
+            nullptr,            // ptr to input buffer
+            0,                  // input buffer size
+            &rbs.used,          // ptr to output buffer
+            sizeof(rbs.used),   // output buffer size
+            &bytesReturned,     // actual number of bytes output
+            nullptr,            // overlapped
+            nullptr);           // completion
+
+        if (res == 0)
         {
             u16 delay = calculate_delay(ctx.access().ref(), rbs);
             send_delay_command(ctx.access()->delaySocket, delay);
@@ -573,14 +588,27 @@ void mvlc_eth_throttler(
             if (ctx.access()->debugOut.good())
             {
                 ctx.access()->debugOut
-                    << " rmem_alloc=" << res.first.used
-                    << " rcvbuf=" << res.first.capacity
+                    << " rmem_alloc=" << rbs.used
+                    << " rcvbuf=" << rbs.capacity
                     << " delay=" << delay
                     << std::endl;
             }
         }
+        else
+        {
+            LOG_WARN("WSAIoctl failed: %d", WSAGetLastError());
+        }
 
+        auto tDelayDone = std::chrono::steady_clock::now();
         std::this_thread::sleep_for(ctx.access()->queryDelay);
+        auto tSleepDone = std::chrono::steady_clock::now();
+
+        auto dtDelay = std::chrono::duration_cast<std::chrono::microseconds>(tDelayDone - tStart);
+        auto dtSleep = std::chrono::duration_cast<std::chrono::microseconds>(tSleepDone - tDelayDone);
+        auto dtTotal = std::chrono::duration_cast<std::chrono::microseconds>(tSleepDone - tStart);
+
+        LOG_DEBUG("mvlc_eth_throttler: dtDelay=%d us, dtSleep=%d us, dtTotal=%d us",
+                  dtDelay.count(), dtSleep.count(), dtTotal.count());
     }
 
     LOG_DEBUG("mvlc_eth_throttler leaving loop");
@@ -935,8 +963,7 @@ std::error_code Impl::connect()
             tc->dataSocketInode = sb.st_ino;
 
         tc->delaySocket = m_delaySock;
-#else
-  #error "Implement me!"
+#else // __WIN32
         tc->dataSocket = m_dataSock;
         tc->dataSocketReceiveBufferSize = m_dataSocketReceiveBufferSize;
 #endif
