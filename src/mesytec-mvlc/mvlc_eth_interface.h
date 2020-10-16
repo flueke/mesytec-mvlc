@@ -155,6 +155,15 @@ struct MESYTEC_MVLC_EXPORT PacketReadResult
     }
 };
 
+struct EthThrottleCounters
+{
+    u32 rcvBufferSize = 0u;
+    u32 rcvBufferUsed = 0u;
+    u16 currentDelay = 0u;
+    u16 maxDelay = 0u;
+    u16 avgDelay = 0u;
+};
+
 class MVLC_ETH_Interface
 {
     public:
@@ -170,12 +179,15 @@ class MVLC_ETH_Interface
 
         // Returns the size of the socket receive buffer for the data pipe as returned by
         // getsockopt() with the SO_RCVBUF flag.
+        // FIXME: might not need this
         virtual u32 getDataSocketReceiveBufferSize() const = 0;
 
         // Sends the EthDelay command with the specified delay in microseconds. The
         // command is sent using the delay socket.
         // This method must be thread-safe in the implementation!
         virtual std::error_code sendDelayCommand(u16 delay_us) = 0;
+
+        virtual EthThrottleCounters getThrottleCounters() const = 0;
 };
 
 } // end namespace eth

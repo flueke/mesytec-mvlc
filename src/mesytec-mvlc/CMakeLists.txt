@@ -38,6 +38,9 @@ add_library(mesytec-mvlc SHARED
     util/readout_buffer_queues.cc
     )
 
+set_source_files_properties(mvlc_impl_eth.cc PROPERTIES
+    COMPILE_FLAGS "-Wno-missing-field-initializers")
+
 target_include_directories(mesytec-mvlc
     PRIVATE ${CMAKE_CURRENT_BINARY_DIR}
     PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}

@@ -12,13 +12,21 @@
 
 #ifndef __WIN32
     #include <netdb.h>
+    #include <sys/prctl.h>
+    #include <sys/stat.h>
     #include <sys/socket.h>
     #include <sys/types.h>
     #include <unistd.h>
-    #ifdef __APPLE__
-        #include <arpa/inet.h>
+
+    #ifdef __linux__
+        #include <linux/netlink.h>
+        #include <linux/rtnetlink.h>
+        #include <linux/inet_diag.h>
+        #include <linux/sock_diag.h>
     #endif
-#else
+
+    #include <arpa/inet.h>
+#else // __WIN32
     #include <ws2tcpip.h>
     #include <stdio.h>
     #include <fcntl.h>
@@ -59,7 +67,7 @@ do\
 #define LOG_DEBUG(fmt, ...) DO_LOG(LOG_LEVEL_DEBUG, "DEBUG - mvlc_eth ", fmt, ##__VA_ARGS__)
 #define LOG_TRACE(fmt, ...) DO_LOG(LOG_LEVEL_TRACE, "TRACE - mvlc_eth ", fmt, ##__VA_ARGS__)
 
-#define MVLC_ETH_USE_SPECIFIC_LOCAL_PORT 0
+#define MVLC_ETH_THROTTLE_DEBUG 1
 
 namespace
 {
@@ -180,8 +188,6 @@ std::error_code close_socket(int sock)
 }
 #endif
 
-static const int SocketReceiveBufferSize = 1024 * 1024 * 100;
-
 inline std::string format_ipv4(u32 a)
 {
     std::stringstream ss;
@@ -192,6 +198,355 @@ inline std::string format_ipv4(u32 a)
        << ((a >>  0) & 0xff);
 
     return ss.str();
+}
+
+// Standard MTU is 1500 bytes
+// IPv4 header is 20 bytes
+// UDP header is 8 bytes
+static const size_t MaxOutgoingPayloadSize = 1500 - 20 - 8;
+
+// Note: it is not necessary to split writes into multiple calls to send()
+// because outgoing MVLC command buffers have to be smaller than the maximum,
+// non-jumbo ethernet MTU.
+// The send() call should return EMSGSIZE if the payload is too large to be
+// atomically transmitted.
+#ifdef _WIN32
+inline std::error_code write_to_socket(
+    int socket, const u8 *buffer, size_t size, size_t &bytesTransferred)
+{
+    assert(size <= MaxOutgoingPayloadSize);
+
+    bytesTransferred = 0;
+
+    ssize_t res = ::send(socket, reinterpret_cast<const char *>(buffer), size, 0);
+
+    if (res == SOCKET_ERROR)
+    {
+        int err = WSAGetLastError();
+
+        if (err == WSAETIMEDOUT || err == WSAEWOULDBLOCK)
+            return make_error_code(MVLCErrorCode::SocketWriteTimeout);
+
+        // Maybe TODO: use WSAGetLastError here with a WSA specific error
+        // category like this: https://gist.github.com/bbolli/710010adb309d5063111889530237d6d
+        return make_error_code(MVLCErrorCode::SocketError);
+    }
+
+    bytesTransferred = res;
+    return {};
+}
+#else // !_WIN32
+inline std::error_code write_to_socket(
+    int socket, const u8 *buffer, size_t size, size_t &bytesTransferred)
+{
+    assert(size <= MaxOutgoingPayloadSize);
+
+    bytesTransferred = 0;
+
+    ssize_t res = ::send(socket, reinterpret_cast<const char *>(buffer), size, 0);
+
+    if (res < 0)
+    {
+        if (errno == EAGAIN || errno == EWOULDBLOCK)
+            return make_error_code(MVLCErrorCode::SocketWriteTimeout);
+
+        return std::error_code(errno, std::system_category());
+    }
+
+    bytesTransferred = res;
+    return {};
+}
+#endif // !_WIN32
+
+
+// Amount of receive buffer space requested from the OS for both the command
+// and data sockets. It's not considered an error if less buffer space is
+// granted.
+static const int DesiredSocketReceiveBufferSize = 1024 * 1024 * 100;
+
+/* Ethernet throttling implementation:
+ * The MVLC now has a new 'delay pipe' on port 0x8002. It accepts delay
+ * commands only and doesn't send any responses. Delay commands carry a 16-bit
+ * delay value in microseconds. This delay is applied to the MVLCs data pipe
+ * between each outgoing Ethernet frame thus limiting the total data rate. The
+ * MVLC will block readout triggers if its internal buffers are full the same
+ * way as is happening when using USB.
+ *
+ * The goal of the throttling code is to have packet-loss-free readouts by
+ * sending appropriate delay values based on the operating systems socket
+ * buffer fill level.
+ *
+ * The Linux version of the throttling code uses the NETLINK_SOCK_DIAG API to
+ * obtain socket memory information and then applies exponential throttling
+ * based on the receive buffer fill level.
+ *
+ * The Windows version uses ioctl() with FIONREAD to obtain the current buffer
+ * fill level.
+ */
+
+// This code increases the delay value by powers of two. The max value is 64k
+// so we need 16 steps to reach the maximum.
+static const unsigned EthThrottleSteps = 16;
+
+void mvlc_eth_throttler(
+    Protected<eth::EthThrottleContext> &ctx,
+    Protected<eth::EthThrottleCounters> &counters)
+{
+    auto send_query = [] (int netlinkSock)
+    {
+        struct sockaddr_nl nladdr = {
+            .nl_family = AF_NETLINK
+        };
+
+        struct
+        {
+            struct nlmsghdr nlh;
+            struct inet_diag_req_v2 req;
+        } req = {
+            .nlh = {
+                .nlmsg_len = sizeof(req),
+                .nlmsg_type = SOCK_DIAG_BY_FAMILY,
+                .nlmsg_flags = NLM_F_REQUEST | NLM_F_MATCH,
+            },
+            .req = {
+                .sdiag_family = AF_INET,
+                .sdiag_protocol = IPPROTO_UDP,
+                .idiag_ext = (1u << (INET_DIAG_SKMEMINFO - 1)),
+                .pad = 0,
+                .idiag_states = 0xffffffffu, // All states (0 filters out all sockets).
+                .id = {
+                    // Filter by dest port to reduce the number of results.
+                    .idiag_dport = htons(eth::DataPort),
+                }
+            }
+        };
+
+        struct iovec iov = {
+            .iov_base = &req,
+            .iov_len = sizeof(req)
+        };
+
+        struct msghdr msg = {
+            .msg_name = (void *) &nladdr,
+            .msg_namelen = sizeof(nladdr),
+            .msg_iov = &iov,
+            .msg_iovlen = 1
+        };
+
+        for (;;) {
+            if (sendmsg(netlinkSock, &msg, 0) < 0) {
+                if (errno == EINTR)
+                    continue;
+
+                perror("sendmsg");
+                return -1;
+            }
+
+            return 0;
+        }
+    };
+
+    auto receive_responses = [] (int netlinkSock, u32 dataSocketInode, auto callback)
+    {
+        long buf[8192 / sizeof(long)];
+        struct sockaddr_nl nladdr = {
+            .nl_family = AF_NETLINK
+        };
+        struct iovec iov = {
+            .iov_base = buf,
+            .iov_len = sizeof(buf)
+        };
+        int flags = 0;
+
+        for (;;) {
+            struct msghdr msg = {
+                .msg_name = (void *) &nladdr,
+                .msg_namelen = sizeof(nladdr),
+                .msg_iov = &iov,
+                .msg_iovlen = 1
+            };
+
+            ssize_t ret = recvmsg(netlinkSock, &msg, flags);
+
+            if (ret < 0) {
+                if (errno == EINTR)
+                    continue;
+
+                return -1;
+            }
+            if (ret == 0)
+                return 0;
+
+            const struct nlmsghdr *h = (struct nlmsghdr *) buf;
+
+            if (!NLMSG_OK(h, ret)) {
+                return -1;
+            }
+
+            for (; NLMSG_OK(h, ret); h = NLMSG_NEXT(h, ret)) {
+                if (h->nlmsg_type == NLMSG_DONE)
+                    return 0;
+
+                if (h->nlmsg_type == NLMSG_ERROR) {
+                    return -1;
+                }
+
+                if (h->nlmsg_type != SOCK_DIAG_BY_FAMILY) {
+                    return -1;
+                }
+
+                auto diag = reinterpret_cast<const inet_diag_msg *>(NLMSG_DATA(h));
+
+                // Test the inode so that we do not react to foreign sockets.
+                if (diag->idiag_inode == dataSocketInode)
+                    callback(diag, h->nlmsg_len);
+            }
+        }
+    };
+
+    auto send_delay_command = [](int delaySock, u16 delay_us) -> std::error_code
+    {
+        u32 cmd = static_cast<u32>(super_commands::SuperCommandType::EthDelay) << super_commands::SuperCmdShift;
+        cmd |= delay_us;
+
+        size_t bytesTransferred = 0;
+        auto ec = write_to_socket(delaySock, reinterpret_cast<const u8 *>(&cmd), sizeof(cmd), bytesTransferred);
+
+        if (ec)
+            return ec;
+
+        if (bytesTransferred != sizeof(cmd))
+            return make_error_code(MVLCErrorCode::ShortWrite);
+
+        return {};
+    };
+
+    auto throttle_callback = [&ctx, &counters, &send_delay_command] (const inet_diag_msg *diag, unsigned len)
+    {
+        if (len < NLMSG_LENGTH(sizeof(*diag))) {
+            return -1;
+        }
+
+        if (diag->idiag_family != AF_INET) {
+            return -1;
+        }
+
+        unsigned int rta_len = len - NLMSG_LENGTH(sizeof(*diag));
+
+        for (auto attr = (struct rtattr *) (diag + 1);
+             RTA_OK(attr, rta_len);
+             attr = RTA_NEXT(attr, rta_len))
+        {
+            switch (attr->rta_type)
+            {
+                case INET_DIAG_SKMEMINFO:
+                    if (RTA_PAYLOAD(attr) >= sizeof(u32) * SK_MEMINFO_VARS)
+                    {
+                        auto memInfo = reinterpret_cast<const u32 *>(RTA_DATA(attr));
+
+                        u32 rmem_alloc = memInfo[SK_MEMINFO_RMEM_ALLOC];
+                        u32 rcvbuf_capacity = memInfo[SK_MEMINFO_RCVBUF];
+
+                        /* At 50% buffer level start throttling. Delay value
+                         * scales within the range of ctx.range of buffer usage
+                         * from 1 to 2^16.
+                         * So at buffer fill level of (ctx.threshold +
+                         * ctx.range) the maximum delay value should be set,
+                         * effectively blocking the MVLC from sending. Directly
+                         * at threshold level the minimum delay of 1 should be
+                         * set. In between scaling in powers of two is applied
+                         * to the delay value. This means the scaling range is
+                         * divided into 16 scaling steps so that at the maximum
+                         * value a delay of 2^16 is calculated.
+                         */
+
+                        double bufferUse = rmem_alloc * 1.0 / rcvbuf_capacity;
+                        double aboveThreshold = 0.0;
+                        u32 increments = 0u;
+                        u16 delay = 0u;
+                        auto ctx_ = ctx.access(); // Gain access to the context object from here on.
+
+                        if (bufferUse >= ctx_->threshold)
+                        {
+                            const double throttleIncrement = ctx_->range / EthThrottleSteps;
+                            aboveThreshold = bufferUse - ctx_->threshold;
+                            increments = std::floor(aboveThreshold / throttleIncrement);
+
+                            if (increments > EthThrottleSteps)
+                                increments = EthThrottleSteps;
+
+                            delay = std::min(1u << increments, static_cast<u32>(std::numeric_limits<u16>::max()));
+                        }
+
+                        auto ec = send_delay_command(ctx_->delaySocket, delay);
+
+                        auto counters_ = counters.access();
+
+                        if (!ec)
+                        {
+                            counters_->currentDelay = delay;
+                            counters_->maxDelay = std::max(counters_->maxDelay, delay);
+                            // TODO: avgDelay
+                        }
+
+                        counters_->rcvBufferSize = rcvbuf_capacity;
+                        counters_->rcvBufferUsed = rmem_alloc;
+
+                        if (ctx_->debugOut.good())
+                        {
+                            static const size_t BufLen = 50;
+                            char srcAddr[BufLen] = { 0 };
+                            char dstAddr[BufLen] = { 0 };
+
+                            strncpy(srcAddr, inet_ntoa(*(struct in_addr *)diag->id.idiag_src), BufLen-1);
+                            strncpy(dstAddr, inet_ntoa(*(struct in_addr *)diag->id.idiag_dst), BufLen-1);
+
+                            ctx_->debugOut
+                                << srcAddr << ":" << ntohs(diag->id.idiag_sport)
+                                << "<-"
+                                << dstAddr << ":" << ntohs(diag->id.idiag_dport)
+                                << " inode=" << diag->idiag_inode
+                                << " rmem_alloc=" << rmem_alloc
+                                << " rcvbuf=" << rcvbuf_capacity
+                                << " delay=" << delay
+                                << std::endl;
+                        }
+                    }
+                    break;
+            }
+        }
+
+        return 0;
+    };
+
+#ifndef __WIN32
+    prctl(PR_SET_NAME,"eth_throttler",0,0,0);
+#endif
+
+    int diagSocket = socket(AF_NETLINK, SOCK_RAW | SOCK_CLOEXEC, NETLINK_SOCK_DIAG);
+
+    if (diagSocket < 0)
+    {
+        LOG_WARN("mvlc_eth_throttler: could not create netlink diag socket: %s",
+                 strerror(errno));
+        return;
+    }
+
+    u32 dataSocketInode = ctx.access()->dataSocketInode;
+
+    LOG_DEBUG("mvlc_eth_throttler entering loop");
+
+    while (!ctx.access()->quit)
+    {
+        if (send_query(diagSocket) == 0)
+            receive_responses(diagSocket, dataSocketInode, throttle_callback);
+
+        std::this_thread::sleep_for(ctx.access()->queryDelay);
+    }
+
+    close_socket(diagSocket);
+
+    LOG_DEBUG("mvlc_eth_throttler leaving loop");
 }
 
 } // end anon namespace
@@ -205,6 +560,8 @@ namespace eth
 
 Impl::Impl(const std::string &host)
     : m_host(host)
+    , m_throttleCounters({})
+    , m_throttleContext({})
 {
 #ifdef __WIN32
     WORD wVersionRequested;
@@ -319,7 +676,7 @@ std::error_code Impl::connect()
     if (m_delaySock < 0)
     {
         auto ec = std::error_code(errno, std::system_category());
-        LOG_TRACE("socket() failed for delay address: %s", ec.message().c_str());
+        LOG_TRACE("socket() failed for delay port: %s", ec.message().c_str());
         close_sockets();
         return ec;
     }
@@ -409,12 +766,12 @@ std::error_code Impl::connect()
     {
 #ifndef __WIN32
         int res = setsockopt(getSocket(pipe), SOL_SOCKET, SO_RCVBUF,
-                             &SocketReceiveBufferSize,
-                             sizeof(SocketReceiveBufferSize));
+                             &DesiredSocketReceiveBufferSize,
+                             sizeof(DesiredSocketReceiveBufferSize));
 #else
         int res = setsockopt(getSocket(pipe), SOL_SOCKET, SO_RCVBUF,
-                             reinterpret_cast<const char *>(&SocketReceiveBufferSize),
-                             sizeof(SocketReceiveBufferSize));
+                             reinterpret_cast<const char *>(&DesiredSocketReceiveBufferSize),
+                             sizeof(DesiredSocketReceiveBufferSize));
 #endif
         //assert(res == 0);
 
@@ -446,10 +803,10 @@ std::error_code Impl::connect()
 
             LOG_INFO("pipe=%u, SO_RCVBUF=%d", static_cast<unsigned>(pipe), actualBufferSize);
 
-            if (actualBufferSize < SocketReceiveBufferSize)
+            if (actualBufferSize < DesiredSocketReceiveBufferSize)
             {
                 LOG_INFO("pipe=%u, requested SO_RCVBUF of %d bytes, got %d bytes",
-                         static_cast<unsigned>(pipe), SocketReceiveBufferSize, actualBufferSize);
+                         static_cast<unsigned>(pipe), DesiredSocketReceiveBufferSize, actualBufferSize);
             }
 
             if (pipe == Pipe::Data)
@@ -528,7 +885,33 @@ std::error_code Impl::connect()
 
     LOG_TRACE("ETH connect sequence finished");
 
-    assert(m_cmdSock >= 0 && m_dataSock >= 0);
+    assert(m_cmdSock >= 0 && m_dataSock >= 0 && m_delaySock >= 0);
+
+    {
+        auto tc = m_throttleContext.access();
+#ifndef __WIN32
+
+        struct stat sb = {};
+
+        if (fstat(m_dataSock, &sb) == 0)
+            tc->dataSocketInode = sb.st_ino;
+
+        tc->delaySocket = m_delaySock;
+#else
+  #error "Implement me!"
+        tc->dataSocket = m_dataSock;
+        tc->dataSocketReceiveBufferSize = m_dataSocketReceiveBufferSize;
+#endif
+        tc->quit = false;
+#if MVLC_ETH_THROTTLE_DEBUG
+        tc->debugOut = std::ofstream("mvlc-eth-throttle-debug.txt");
+#endif
+    }
+
+    m_throttleThread = std::thread(
+        mvlc_eth_throttler,
+        std::ref(m_throttleContext),
+        std::ref(m_throttleCounters));
 
     return {};
 }
@@ -538,9 +921,14 @@ std::error_code Impl::disconnect()
     if (!isConnected())
         return make_error_code(MVLCErrorCode::IsDisconnected);
 
-    ::close(m_cmdSock);
-    ::close(m_dataSock);
-    ::close(m_delaySock);
+    m_throttleContext.access()->quit = true;
+
+    if (m_throttleThread.joinable())
+        m_throttleThread.join();
+
+    close_socket(m_cmdSock);
+    close_socket(m_dataSock);
+    close_socket(m_delaySock);
     m_cmdSock = -1;
     m_dataSock = -1;
     m_delaySock = -1;
@@ -549,7 +937,7 @@ std::error_code Impl::disconnect()
 
 bool Impl::isConnected() const
 {
-    return m_cmdSock >= 0 && m_dataSock >= 0;
+    return m_cmdSock >= 0 && m_dataSock >= 0 && m_delaySock >= 0;
 }
 
 std::error_code Impl::setWriteTimeout(Pipe pipe, unsigned ms)
@@ -587,64 +975,6 @@ unsigned Impl::readTimeout(Pipe pipe) const
     if (static_cast<unsigned>(pipe) >= PipeCount) return 0u;
     return m_readTimeouts[static_cast<unsigned>(pipe)];
 }
-
-// Standard MTU is 1500 bytes
-// IPv4 header is 20 bytes
-// UDP header is 8 bytes
-static const size_t MaxOutgoingPayloadSize = 1500 - 20 - 8;
-
-// Note: it is not necessary to split writes into multiple calls to send()
-// because outgoing MVLC command buffers have to be smaller than the maximum,
-// non-jumbo ethernet MTU.
-// The send() call should return EMSGSIZE if the payload is too large to be
-// atomically transmitted.
-#ifdef _WIN32
-inline std::error_code write_to_socket(
-    int socket, const u8 *buffer, size_t size, size_t &bytesTransferred)
-{
-    assert(size <= MaxOutgoingPayloadSize);
-
-    bytesTransferred = 0;
-
-    ssize_t res = ::send(socket, reinterpret_cast<const char *>(buffer), size, 0);
-
-    if (res == SOCKET_ERROR)
-    {
-        int err = WSAGetLastError();
-
-        if (err == WSAETIMEDOUT || err == WSAEWOULDBLOCK)
-            return make_error_code(MVLCErrorCode::SocketWriteTimeout);
-
-        // Maybe TODO: use WSAGetLastError here with a WSA specific error
-        // category like this: https://gist.github.com/bbolli/710010adb309d5063111889530237d6d
-        return make_error_code(MVLCErrorCode::SocketError);
-    }
-
-    bytesTransferred = res;
-    return {};
-}
-#else // !_WIN32
-inline std::error_code write_to_socket(
-    int socket, const u8 *buffer, size_t size, size_t &bytesTransferred)
-{
-    assert(size <= MaxOutgoingPayloadSize);
-
-    bytesTransferred = 0;
-
-    ssize_t res = ::send(socket, reinterpret_cast<const char *>(buffer), size, 0);
-
-    if (res < 0)
-    {
-        if (errno == EAGAIN || errno == EWOULDBLOCK)
-            return make_error_code(MVLCErrorCode::SocketWriteTimeout);
-
-        return std::error_code(errno, std::system_category());
-    }
-
-    bytesTransferred = res;
-    return {};
-}
-#endif // !_WIN32
 
 std::error_code Impl::write(Pipe pipe, const u8 *buffer, size_t size,
                             size_t &bytesTransferred)
@@ -1035,7 +1365,7 @@ std::error_code Impl::sendDelayCommand(u16 delay_us)
 {
     u32 cmd = static_cast<u32>(super_commands::SuperCommandType::EthDelay) << super_commands::SuperCmdShift;
     cmd |= delay_us;
-    UniqueLock guard(m_delaySocketMutex);
+
     size_t bytesTransferred = 0;
     auto ec = write_to_socket(m_delaySock, reinterpret_cast<const u8 *>(&cmd), sizeof(cmd), bytesTransferred);
 
@@ -1046,6 +1376,12 @@ std::error_code Impl::sendDelayCommand(u16 delay_us)
         return make_error_code(MVLCErrorCode::ShortWrite);
 
     return {};
+}
+
+
+EthThrottleCounters Impl::getThrottleCounters() const
+{
+    return m_throttleCounters.copy();
 }
 
 #if 0

@@ -403,6 +403,7 @@ int rmem_monitor(const inet_diag_msg *diag, unsigned len, ReadoutDelayContext &c
             << " bufferUse=" << bufferUse
             << " aboveThreshold=" << aboveThreshold
             << " increments=" << increments
+            << " inode=" << diag->idiag_inode
             << endl;
     }
 

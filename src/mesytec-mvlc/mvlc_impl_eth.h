@@ -35,13 +35,16 @@
 #endif
 
 #include <array>
+#include <fstream>
 #include <string>
+#include <thread>
 
 #include "mesytec-mvlc_export.h"
 #include "mvlc_basic_interface.h"
 #include "mvlc_constants.h"
 #include "mvlc_counters.h"
 #include "mvlc_eth_interface.h"
+#include "util/protected.h"
 #include "util/ticketmutex.h"
 
 namespace mesytec
@@ -50,6 +53,29 @@ namespace mvlc
 {
 namespace eth
 {
+
+struct EthThrottleContext
+{
+#ifndef __WIN32
+    u32 dataSocketInode; // Inode of the socket used for MVLCs data pipe. This is needed
+                         // to correctly identify the socket in the netlink response data.
+#else
+    int dataSocket = -1; // File descriptor of the data pipe socket.
+    int dataSocketReceiveBufferSize; // Size in bytes of the receive buffer in the OS.
+#endif
+
+    int delaySocket = -1; // The socket used for sending delay commands to the MVLC.
+
+    std::chrono::milliseconds queryDelay = std::chrono::milliseconds(10); // Amount of time to sleep after each cycle.
+
+    float threshold = 0.5; // Throttling begins when buffer fill level / buffer capacity is above this level.
+    float range = 0.45; // The buffer fill level range until max throttle is reached.
+                        // Throttling starts at threshold and reaches its max value at
+                        // threshold+range.
+    bool quit = false; // Set to true to make the throttler thread quit
+
+    std::ofstream debugOut; // Will receive throttling debug output if open.
+};
 
 class MESYTEC_MVLC_EXPORT Impl: public MVLCBasicInterface, public MVLC_ETH_Interface
 {
@@ -110,6 +136,7 @@ class MESYTEC_MVLC_EXPORT Impl: public MVLCBasicInterface, public MVLC_ETH_Inter
 
         u32 getDataSocketReceiveBufferSize() const override { return m_dataSocketReceiveBufferSize; }
         std::error_code sendDelayCommand(u16 delay_us) override;
+        EthThrottleCounters getThrottleCounters() const override;
 
     private:
         int getSocket(Pipe pipe) { return pipe == Pipe::Command ? m_cmdSock : m_dataSock; }
@@ -151,8 +178,10 @@ class MESYTEC_MVLC_EXPORT Impl: public MVLCBasicInterface, public MVLC_ETH_Inter
         std::array<s32, NumPacketChannels> m_lastPacketNumbers;
         bool m_disableTriggersOnConnect = true;
         mutable TicketMutex m_statsMutex;
-        mutable TicketMutex m_delaySocketMutex;
         int m_dataSocketReceiveBufferSize = 0;
+        mutable Protected<EthThrottleCounters> m_throttleCounters;
+        Protected<EthThrottleContext> m_throttleContext;
+        std::thread m_throttleThread;
 };
 
 // Given the previous and current packet numbers returns the number of lost

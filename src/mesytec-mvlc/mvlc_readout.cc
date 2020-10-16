@@ -890,7 +890,7 @@ static const std::chrono::milliseconds FlushBufferTimeout(500);
 #define ENABLE_ARTIFICIAL_READ_DELAYS 0
 
 #if ENABLE_ARTIFICIAL_READ_DELAYS
-static const std::chrono::milliseconds DebugPostReadoutDelay(50);
+static const std::chrono::milliseconds DebugPostReadoutDelay(5);
 static const std::chrono::milliseconds DebugPostReadoutDelayIncrement(30);
 static const size_t StartDelayBufferNumber = 500;
 #endif
@@ -906,18 +906,20 @@ std::error_code ReadoutWorker::Private::readout(size_t &bytesTransferred)
     else
         ec = readout_eth(mvlcETH, bytesTransferred);
 
-#if ENABLE_ARTIFICIAL_READ_DELAYS
-    //if (DebugPostReadoutDelay.count() > 0)
-    //    std::this_thread::sleep_for(DebugPostReadoutDelay);
-
-    //if (DebugPostReadoutDelay.count() > 0)
-    //    std::this_thread::sleep_for(DebugPostReadoutDelay
-    //                                + DebugPostReadoutDelayIncrement * nextOutputBufferNumber);
-
-    //if (DebugPostReadoutDelay.count() > 0 && nextOutputBufferNumber > StartDelayBufferNumber)
-    //    std::this_thread::sleep_for(DebugPostReadoutDelay);
+#if ENABLE_ARTIFICIAL_READ_DELAYS == 1
+    // Static Delay
+    if (DebugPostReadoutDelay.count() > 0)
+        std::this_thread::sleep_for(DebugPostReadoutDelay);
+#elif ENABLE_ARTIFICIAL_READ_DELAYS == 2
+    // Increasing delay based on buffer number
+    if (DebugPostReadoutDelay.count() > 0)
+        std::this_thread::sleep_for(DebugPostReadoutDelay
+                                    + DebugPostReadoutDelayIncrement * nextOutputBufferNumber);
+#elif ENABLE_ARTIFICIAL_READ_DELAYS == 3
+    // Delay starts after StartDelayBufferNumbers buffers haven been filled
+    if (DebugPostReadoutDelay.count() > 0 && nextOutputBufferNumber > StartDelayBufferNumber)
+        std::this_thread::sleep_for(DebugPostReadoutDelay);
 #endif
-
     {
         auto c = counters.access();
 
