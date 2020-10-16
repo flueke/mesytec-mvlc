@@ -210,7 +210,7 @@ static const size_t MaxOutgoingPayloadSize = 1500 - 20 - 8;
 // non-jumbo ethernet MTU.
 // The send() call should return EMSGSIZE if the payload is too large to be
 // atomically transmitted.
-#ifdef _WIN32
+#ifdef __WIN32
 inline std::error_code write_to_socket(
     int socket, const u8 *buffer, size_t size, size_t &bytesTransferred)
 {
@@ -235,7 +235,7 @@ inline std::error_code write_to_socket(
     bytesTransferred = res;
     return {};
 }
-#else // !_WIN32
+#else // !__WIN32
 inline std::error_code write_to_socket(
     int socket, const u8 *buffer, size_t size, size_t &bytesTransferred)
 {
@@ -256,7 +256,7 @@ inline std::error_code write_to_socket(
     bytesTransferred = res;
     return {};
 }
-#endif // !_WIN32
+#endif // !__WIN32
 
 
 // Amount of receive buffer space requested from the OS for both the command
@@ -284,10 +284,69 @@ static const int DesiredSocketReceiveBufferSize = 1024 * 1024 * 100;
  * fill level.
  */
 
+std::error_code send_delay_command(int delaySock, u16 delay_us)
+{
+    u32 cmd = static_cast<u32>(super_commands::SuperCommandType::EthDelay) << super_commands::SuperCmdShift;
+    cmd |= delay_us;
+
+    size_t bytesTransferred = 0;
+    auto ec = write_to_socket(delaySock, reinterpret_cast<const u8 *>(&cmd), sizeof(cmd), bytesTransferred);
+
+    if (ec)
+        return ec;
+
+    if (bytesTransferred != sizeof(cmd))
+        return make_error_code(MVLCErrorCode::ShortWrite);
+
+    return {};
+};
+
 // This code increases the delay value by powers of two. The max value is 64k
 // so we need 16 steps to reach the maximum.
 static const unsigned EthThrottleSteps = 16;
 
+struct ReceiveBufferSnapshot
+{
+    u32 used = 0u;
+    u32 capacity = 0u;
+};
+
+u16 calculate_delay(eth::EthThrottleContext &ctx,  const ReceiveBufferSnapshot &bufferInfo)
+{
+    /* At 50% buffer level start throttling. Delay value
+     * scales within the range of ctx.range of buffer usage
+     * from 1 to 2^16.
+     * So at buffer fill level of (ctx.threshold +
+     * ctx.range) the maximum delay value should be set,
+     * effectively blocking the MVLC from sending. Directly
+     * at threshold level the minimum delay of 1 should be
+     * set. In between scaling in powers of two is applied
+     * to the delay value. This means the scaling range is
+     * divided into 16 scaling steps so that at the maximum
+     * value a delay of 2^16 is calculated.
+     */
+
+    double bufferUse = bufferInfo.used * 1.0 / bufferInfo.capacity;
+    double aboveThreshold = 0.0;
+    u32 increments = 0u;
+    u16 delay = 0u;
+
+    if (bufferUse >= ctx.threshold)
+    {
+        const double throttleIncrement = ctx.range / EthThrottleSteps;
+        aboveThreshold = bufferUse - ctx.threshold;
+        increments = std::floor(aboveThreshold / throttleIncrement);
+
+        if (increments > EthThrottleSteps)
+            increments = EthThrottleSteps;
+
+        delay = std::min(1u << increments, static_cast<u32>(std::numeric_limits<u16>::max()));
+    }
+
+    return delay;
+};
+
+#ifndef __WIN32
 void mvlc_eth_throttler(
     Protected<eth::EthThrottleContext> &ctx,
     Protected<eth::EthThrottleCounters> &counters)
@@ -343,8 +402,47 @@ void mvlc_eth_throttler(
         }
     };
 
-    auto receive_responses = [] (int netlinkSock, u32 dataSocketInode, auto callback)
+    auto get_buffer_snapshot = [] (const inet_diag_msg *diag, unsigned len)
+        -> std::pair<ReceiveBufferSnapshot, bool>
     {
+        std::pair<ReceiveBufferSnapshot, bool> ret = {};
+
+        if (len < NLMSG_LENGTH(sizeof(*diag)))
+            return ret;
+
+        if (diag->idiag_family != AF_INET)
+            return ret;
+
+        unsigned int rta_len = len - NLMSG_LENGTH(sizeof(*diag));
+
+        for (auto attr = (struct rtattr *) (diag + 1);
+             RTA_OK(attr, rta_len);
+             attr = RTA_NEXT(attr, rta_len))
+        {
+            switch (attr->rta_type)
+            {
+                case INET_DIAG_SKMEMINFO:
+                    if (RTA_PAYLOAD(attr) >= sizeof(u32) * SK_MEMINFO_VARS)
+                    {
+                        auto memInfo = reinterpret_cast<const u32 *>(RTA_DATA(attr));
+
+                        ret.first.used = memInfo[SK_MEMINFO_RMEM_ALLOC];
+                        ret.first.capacity = memInfo[SK_MEMINFO_RCVBUF];
+                        ret.second = true;
+                        return ret;
+                    }
+                    break;
+            }
+        }
+
+        return ret;
+    };
+
+    auto receive_response = [&get_buffer_snapshot] (int netlinkSock, u32 dataSocketInode)
+        -> std::pair<ReceiveBufferSnapshot, bool>
+    {
+        std::pair<ReceiveBufferSnapshot, bool> result = {};
+
         long buf[8192 / sizeof(long)];
         struct sockaddr_nl nladdr = {
             .nl_family = AF_NETLINK
@@ -369,156 +467,40 @@ void mvlc_eth_throttler(
                 if (errno == EINTR)
                     continue;
 
-                return -1;
+                return result;
             }
+
             if (ret == 0)
-                return 0;
+                return result;
 
             const struct nlmsghdr *h = (struct nlmsghdr *) buf;
 
             if (!NLMSG_OK(h, ret)) {
-                return -1;
+                return result;
             }
 
             for (; NLMSG_OK(h, ret); h = NLMSG_NEXT(h, ret)) {
                 if (h->nlmsg_type == NLMSG_DONE)
-                    return 0;
+                    return result;
 
-                if (h->nlmsg_type == NLMSG_ERROR) {
-                    return -1;
-                }
+                if (h->nlmsg_type == NLMSG_ERROR)
+                    return result;
 
-                if (h->nlmsg_type != SOCK_DIAG_BY_FAMILY) {
-                    return -1;
-                }
+                if (h->nlmsg_type != SOCK_DIAG_BY_FAMILY)
+                    return result;
 
                 auto diag = reinterpret_cast<const inet_diag_msg *>(NLMSG_DATA(h));
 
                 // Test the inode so that we do not react to foreign sockets.
                 if (diag->idiag_inode == dataSocketInode)
-                    callback(diag, h->nlmsg_len);
-            }
-        }
-    };
-
-    auto send_delay_command = [](int delaySock, u16 delay_us) -> std::error_code
-    {
-        u32 cmd = static_cast<u32>(super_commands::SuperCommandType::EthDelay) << super_commands::SuperCmdShift;
-        cmd |= delay_us;
-
-        size_t bytesTransferred = 0;
-        auto ec = write_to_socket(delaySock, reinterpret_cast<const u8 *>(&cmd), sizeof(cmd), bytesTransferred);
-
-        if (ec)
-            return ec;
-
-        if (bytesTransferred != sizeof(cmd))
-            return make_error_code(MVLCErrorCode::ShortWrite);
-
-        return {};
-    };
-
-    auto throttle_callback = [&ctx, &counters, &send_delay_command] (const inet_diag_msg *diag, unsigned len)
-    {
-        if (len < NLMSG_LENGTH(sizeof(*diag))) {
-            return -1;
-        }
-
-        if (diag->idiag_family != AF_INET) {
-            return -1;
-        }
-
-        unsigned int rta_len = len - NLMSG_LENGTH(sizeof(*diag));
-
-        for (auto attr = (struct rtattr *) (diag + 1);
-             RTA_OK(attr, rta_len);
-             attr = RTA_NEXT(attr, rta_len))
-        {
-            switch (attr->rta_type)
-            {
-                case INET_DIAG_SKMEMINFO:
-                    if (RTA_PAYLOAD(attr) >= sizeof(u32) * SK_MEMINFO_VARS)
-                    {
-                        auto memInfo = reinterpret_cast<const u32 *>(RTA_DATA(attr));
-
-                        u32 rmem_alloc = memInfo[SK_MEMINFO_RMEM_ALLOC];
-                        u32 rcvbuf_capacity = memInfo[SK_MEMINFO_RCVBUF];
-
-                        /* At 50% buffer level start throttling. Delay value
-                         * scales within the range of ctx.range of buffer usage
-                         * from 1 to 2^16.
-                         * So at buffer fill level of (ctx.threshold +
-                         * ctx.range) the maximum delay value should be set,
-                         * effectively blocking the MVLC from sending. Directly
-                         * at threshold level the minimum delay of 1 should be
-                         * set. In between scaling in powers of two is applied
-                         * to the delay value. This means the scaling range is
-                         * divided into 16 scaling steps so that at the maximum
-                         * value a delay of 2^16 is calculated.
-                         */
-
-                        double bufferUse = rmem_alloc * 1.0 / rcvbuf_capacity;
-                        double aboveThreshold = 0.0;
-                        u32 increments = 0u;
-                        u16 delay = 0u;
-                        auto ctx_ = ctx.access(); // Gain access to the context object from here on.
-
-                        if (bufferUse >= ctx_->threshold)
-                        {
-                            const double throttleIncrement = ctx_->range / EthThrottleSteps;
-                            aboveThreshold = bufferUse - ctx_->threshold;
-                            increments = std::floor(aboveThreshold / throttleIncrement);
-
-                            if (increments > EthThrottleSteps)
-                                increments = EthThrottleSteps;
-
-                            delay = std::min(1u << increments, static_cast<u32>(std::numeric_limits<u16>::max()));
-                        }
-
-                        auto ec = send_delay_command(ctx_->delaySocket, delay);
-
-                        auto counters_ = counters.access();
-
-                        if (!ec)
-                        {
-                            counters_->currentDelay = delay;
-                            counters_->maxDelay = std::max(counters_->maxDelay, delay);
-                            // TODO: avgDelay
-                        }
-
-                        counters_->rcvBufferSize = rcvbuf_capacity;
-                        counters_->rcvBufferUsed = rmem_alloc;
-
-                        if (ctx_->debugOut.good())
-                        {
-                            static const size_t BufLen = 50;
-                            char srcAddr[BufLen] = { 0 };
-                            char dstAddr[BufLen] = { 0 };
-
-                            strncpy(srcAddr, inet_ntoa(*(struct in_addr *)diag->id.idiag_src), BufLen-1);
-                            strncpy(dstAddr, inet_ntoa(*(struct in_addr *)diag->id.idiag_dst), BufLen-1);
-
-                            ctx_->debugOut
-                                << srcAddr << ":" << ntohs(diag->id.idiag_sport)
-                                << "<-"
-                                << dstAddr << ":" << ntohs(diag->id.idiag_dport)
-                                << " inode=" << diag->idiag_inode
-                                << " rmem_alloc=" << rmem_alloc
-                                << " rcvbuf=" << rcvbuf_capacity
-                                << " delay=" << delay
-                                << std::endl;
-                        }
-                    }
-                    break;
+                    return get_buffer_snapshot(diag, h->nlmsg_len);
             }
         }
 
-        return 0;
+        return result;
     };
 
-#ifndef __WIN32
     prctl(PR_SET_NAME,"eth_throttler",0,0,0);
-#endif
 
     int diagSocket = socket(AF_NETLINK, SOCK_RAW | SOCK_CLOEXEC, NETLINK_SOCK_DIAG);
 
@@ -536,7 +518,29 @@ void mvlc_eth_throttler(
     while (!ctx.access()->quit)
     {
         if (send_query(diagSocket) == 0)
-            receive_responses(diagSocket, dataSocketInode, throttle_callback);
+        {
+            auto res = receive_response(diagSocket, dataSocketInode);
+
+            if (res.second)
+            {
+                u16 delay = calculate_delay(ctx.access().ref(), res.first);
+                send_delay_command(ctx.access()->delaySocket, delay);
+
+                auto ca = counters.access();
+                ca->currentDelay = delay;
+                ca->maxDelay = std::max(ca->maxDelay, delay);
+
+                if (ctx.access()->debugOut.good())
+                {
+                    ctx.access()->debugOut
+                        << " rmem_alloc=" << res.first.used
+                        << " rcvbuf=" << res.first.capacity
+                        << " delay=" << delay
+                        << std::endl;
+                }
+            }
+        }
+
 
         std::this_thread::sleep_for(ctx.access()->queryDelay);
     }
@@ -545,6 +549,43 @@ void mvlc_eth_throttler(
 
     LOG_DEBUG("mvlc_eth_throttler leaving loop");
 }
+#else // __WIN32
+void mvlc_eth_throttler(
+    Protected<eth::EthThrottleContext> &ctx,
+    Protected<eth::EthThrottleCounters> &counters)
+{
+    int dataSocket = ctx.access()->dataSocket;
+    ReceiveBufferSnapshot rbs = { 0u, ctx.access()->dataSocketReceiveBufferSize };
+
+    LOG_DEBUG("mvlc_eth_throttler entering loop");
+
+    while (!ctx.access()->quit)
+    {
+        if (ioctl(dataSocket, FIONREAD, &rbs.rcvBufUsed) >= 0)
+        {
+            u16 delay = calculate_delay(ctx.access().ref(), rbs);
+            send_delay_command(ctx.access()->delaySocket, delay);
+
+            auto ca = counters.access();
+            ca->currentDelay = delay;
+            ca->maxDelay = std::max(ca->maxDelay, delay);
+
+            if (ctx.access()->debugOut.good())
+            {
+                ctx.access()->debugOut
+                    << " rmem_alloc=" << res.first.used
+                    << " rcvbuf=" << res.first.capacity
+                    << " delay=" << delay
+                    << std::endl;
+            }
+        }
+
+        std::this_thread::sleep_for(ctx.access()->queryDelay);
+    }
+
+    LOG_DEBUG("mvlc_eth_throttler leaving loop");
+}
+#endif
 
 } // end anon namespace
 
