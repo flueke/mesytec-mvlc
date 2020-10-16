@@ -298,28 +298,25 @@ void mvlc_eth_throttler(
             .nl_family = AF_NETLINK
         };
 
-        struct
+        struct NetlinkDiagMessage
         {
             struct nlmsghdr nlh;
-            struct inet_diag_req_v2 req;
-        } req = {
-            .nlh = {
-                .nlmsg_len = sizeof(req),
-                .nlmsg_type = SOCK_DIAG_BY_FAMILY,
-                .nlmsg_flags = NLM_F_REQUEST | NLM_F_MATCH,
-            },
-            .req = {
-                .sdiag_family = AF_INET,
-                .sdiag_protocol = IPPROTO_UDP,
-                .idiag_ext = (1u << (INET_DIAG_SKMEMINFO - 1)),
-                .pad = 0,
-                .idiag_states = 0xffffffffu, // All states (0 filters out all sockets).
-                .id = {
-                    // Filter by dest port to reduce the number of results.
-                    .idiag_dport = htons(eth::DataPort),
-                }
-            }
+            struct inet_diag_req_v2 diagReq;
         };
+
+        NetlinkDiagMessage req = {};
+
+        req.nlh.nlmsg_len = sizeof(req);
+        req.nlh.nlmsg_type = SOCK_DIAG_BY_FAMILY;
+        req.nlh.nlmsg_flags = NLM_F_REQUEST | NLM_F_MATCH;
+
+        req.diagReq.sdiag_family = AF_INET;
+        req.diagReq.sdiag_protocol = IPPROTO_UDP;
+        req.diagReq.idiag_ext = (1u << (INET_DIAG_SKMEMINFO - 1));
+        req.diagReq.pad = 0;
+        req.diagReq.idiag_states = 0xffffffffu; // All states (0 filters out all sockets).
+        // Filter by dest port to reduce the number of results.
+        req.diagReq.id.idiag_dport = htons(eth::DataPort);
 
         struct iovec iov = {
             .iov_base = &req,
