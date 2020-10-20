@@ -68,7 +68,7 @@ struct EthThrottleContext
 
     // Amount of time to sleep after each cycle. This directly affects the number of
     // measurements taken and the number of delay packets sent out per second!
-    std::chrono::milliseconds queryDelay = std::chrono::milliseconds(1);
+    std::chrono::milliseconds queryDelay = std::chrono::milliseconds(10);
 
     float threshold = 0.5; // Throttling begins when buffer fill level / buffer capacity is above this level.
     float range = 0.45; // The buffer fill level range until max throttle is reached.

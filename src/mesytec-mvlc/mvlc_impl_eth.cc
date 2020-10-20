@@ -49,7 +49,7 @@
 #define LOG_LEVEL_TRACE 400
 
 #ifndef MVLC_ETH_LOG_LEVEL
-#define MVLC_ETH_LOG_LEVEL LOG_LEVEL_WARN
+#define MVLC_ETH_LOG_LEVEL LOG_LEVEL_DEBUG
 #endif
 
 #define LOG_LEVEL_SETTING MVLC_ETH_LOG_LEVEL
@@ -310,6 +310,9 @@ struct ReceiveBufferSnapshot
 {
     u32 used = 0u;
     u32 capacity = 0u;
+#ifndef __WIN32
+    ino_t inode = 0u;
+#endif
 };
 
 u16 calculate_delay(eth::EthThrottleContext &ctx,  const ReceiveBufferSnapshot &bufferInfo)
@@ -409,10 +412,16 @@ void mvlc_eth_throttler(
         std::pair<ReceiveBufferSnapshot, bool> ret = {};
 
         if (len < NLMSG_LENGTH(sizeof(*diag)))
+        {
+            LOG_WARN("mvlc_eth_throttler: NLMSG_LENGTH");
             return ret;
+        }
 
         if (diag->idiag_family != AF_INET)
+        {
+            LOG_WARN("mvlc_eth_throttler: idiag_family != AF_INET");
             return ret;
+        }
 
         unsigned int rta_len = len - NLMSG_LENGTH(sizeof(*diag));
 
@@ -429,6 +438,7 @@ void mvlc_eth_throttler(
 
                         ret.first.used = memInfo[SK_MEMINFO_RMEM_ALLOC];
                         ret.first.capacity = memInfo[SK_MEMINFO_RCVBUF];
+                        ret.first.inode = diag->idiag_inode;
                         ret.second = true;
                         return ret;
                     }
@@ -436,14 +446,13 @@ void mvlc_eth_throttler(
             }
         }
 
+        LOG_WARN("mvlc_eth_throttler: defaulted return in get_buffer_snapshot()");
         return ret;
     };
 
     auto receive_response = [&get_buffer_snapshot] (int netlinkSock, u32 dataSocketInode)
         -> std::pair<ReceiveBufferSnapshot, bool>
     {
-        std::pair<ReceiveBufferSnapshot, bool> result = {};
-
         long buf[8192 / sizeof(long)];
         struct sockaddr_nl nladdr = {
             .nl_family = AF_NETLINK
@@ -468,37 +477,60 @@ void mvlc_eth_throttler(
                 if (errno == EINTR)
                     continue;
 
-                return result;
+                LOG_WARN("mvlc_eth_throttler: recvmsg failed: %s",
+                         strerror(errno));
+
+                return {};
             }
 
             if (ret == 0)
-                return result;
+            {
+                LOG_WARN("mvlc_eth_throttler: empty netlink response");
+                return {};
+            }
 
             const struct nlmsghdr *h = (struct nlmsghdr *) buf;
 
-            if (!NLMSG_OK(h, ret)) {
-                return result;
+            if (!NLMSG_OK(h, ret))
+            {
+                LOG_WARN("mvlc_eth_throttler: netlink header not ok");
+                return {};
             }
 
             for (; NLMSG_OK(h, ret); h = NLMSG_NEXT(h, ret)) {
                 if (h->nlmsg_type == NLMSG_DONE)
-                    return result;
+                {
+                    LOG_WARN("mvlc_eth_throttler: NLMSG_DONE");
+                    return {};
+                }
 
                 if (h->nlmsg_type == NLMSG_ERROR)
-                    return result;
+                {
+                    auto err = reinterpret_cast<const nlmsgerr *>(NLMSG_DATA(h));
+                    LOG_WARN("mvlc_eth_throttler: NLMSG_ERROR error=%d (%s)",
+                             err->error, strerror(-err->error));
+                    return {};
+                }
 
                 if (h->nlmsg_type != SOCK_DIAG_BY_FAMILY)
-                    return result;
+                {
+                    LOG_WARN("mvlc_eth_throttler: not SOCK_DIAG_BY_FAMILY");
+                    return {};
+                }
 
                 auto diag = reinterpret_cast<const inet_diag_msg *>(NLMSG_DATA(h));
 
                 // Test the inode so that we do not react to foreign sockets.
                 if (diag->idiag_inode == dataSocketInode)
                     return get_buffer_snapshot(diag, h->nlmsg_len);
+                else
+                {
+                    LOG_WARN("mvlc_eth_throttler: wrong inode");
+                }
             }
         }
 
-        return result;
+        return {};
     };
 
     prctl(PR_SET_NAME,"eth_throttler",0,0,0);
@@ -534,13 +566,21 @@ void mvlc_eth_throttler(
                 if (ctx.access()->debugOut.good())
                 {
                     ctx.access()->debugOut
+                        << " inode=" << res.first.inode
                         << " rmem_alloc=" << res.first.used
                         << " rcvbuf=" << res.first.capacity
                         << " delay=" << delay
                         << std::endl;
                 }
+                else
+                {
+                    LOG_WARN("mvlc_eth_throttler: debugOut got bad :-(");
+                }
             }
         }
+
+        LOG_WARN("mvlc_eth_throttler: I'm alive! queryDelay=%ld",
+                 ctx.access()->queryDelay.count());
 
 
         std::this_thread::sleep_for(ctx.access()->queryDelay);
