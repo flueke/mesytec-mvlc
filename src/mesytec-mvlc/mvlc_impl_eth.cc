@@ -463,6 +463,8 @@ void mvlc_eth_throttler(
         };
         int flags = 0;
 
+        std::pair<ReceiveBufferSnapshot, bool> result{};
+
         for (;;) {
             struct msghdr msg = {
                 .msg_name = (void *) &nladdr,
@@ -501,7 +503,7 @@ void mvlc_eth_throttler(
                 if (h->nlmsg_type == NLMSG_DONE)
                 {
                     LOG_WARN("mvlc_eth_throttler: NLMSG_DONE");
-                    return {};
+                    return result;
                 }
 
                 if (h->nlmsg_type == NLMSG_ERROR)
@@ -520,9 +522,9 @@ void mvlc_eth_throttler(
 
                 auto diag = reinterpret_cast<const inet_diag_msg *>(NLMSG_DATA(h));
 
-                // Test the inode so that we do not react to foreign sockets.
+                // Test the inode so that we do not monitor foreign sockets.
                 if (diag->idiag_inode == dataSocketInode)
-                    return get_buffer_snapshot(diag, h->nlmsg_len);
+                    result = get_buffer_snapshot(diag, h->nlmsg_len);
                 else
                 {
                     LOG_WARN("mvlc_eth_throttler: wrong inode");
