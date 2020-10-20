@@ -887,7 +887,7 @@ inline void fixup_usb_buffer(
 static const std::chrono::milliseconds FlushBufferTimeout(500);
 
 // Code to add delays after reading from the MVLC.
-#define ENABLE_ARTIFICIAL_READ_DELAYS 1
+#define ENABLE_ARTIFICIAL_READ_DELAYS 0
 
 #if ENABLE_ARTIFICIAL_READ_DELAYS
 static const std::chrono::milliseconds DebugPostReadoutDelay(50);
