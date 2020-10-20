@@ -315,7 +315,10 @@ struct ReceiveBufferSnapshot
 #endif
 };
 
-u16 calculate_delay(eth::EthThrottleContext &ctx,  const ReceiveBufferSnapshot &bufferInfo)
+u16 throttle_exponential(eth::EthThrottleContext &ctx,  const ReceiveBufferSnapshot &bufferInfo) __attribute__((used));
+u16 throttle_linear(eth::EthThrottleContext &ctx, const ReceiveBufferSnapshot &bufferInfo) __attribute__((used));
+
+u16 throttle_exponential(eth::EthThrottleContext &ctx,  const ReceiveBufferSnapshot &bufferInfo)
 {
     /* At 50% buffer level start throttling. Delay value
      * scales within the range of ctx.range of buffer usage
@@ -331,15 +334,13 @@ u16 calculate_delay(eth::EthThrottleContext &ctx,  const ReceiveBufferSnapshot &
      */
 
     double bufferUse = bufferInfo.used * 1.0 / bufferInfo.capacity;
-    double aboveThreshold = 0.0;
-    u32 increments = 0u;
     u16 delay = 0u;
 
     if (bufferUse >= ctx.threshold)
     {
         const double throttleIncrement = ctx.range / EthThrottleSteps;
-        aboveThreshold = bufferUse - ctx.threshold;
-        increments = std::floor(aboveThreshold / throttleIncrement);
+        double aboveThreshold = bufferUse - ctx.threshold;
+        u32 increments = std::floor(aboveThreshold / throttleIncrement);
 
         if (increments > EthThrottleSteps)
             increments = EthThrottleSteps;
@@ -349,6 +350,22 @@ u16 calculate_delay(eth::EthThrottleContext &ctx,  const ReceiveBufferSnapshot &
 
     return delay;
 };
+
+// Similar to throttle_exponential but apply linear throttling from 1 to 300 µs
+// in the range [ctx.threshold, ctx.treshold + ctx.range].
+u16 throttle_linear(eth::EthThrottleContext &ctx, const ReceiveBufferSnapshot &bufferInfo)
+{
+    double bufferUse = bufferInfo.used * 1.0 / bufferInfo.capacity;
+    u16 delay = 0u;
+
+    if (bufferUse >= ctx.threshold)
+    {
+        double aboveThreshold = bufferUse - ctx.threshold;
+        delay = 747.5 * aboveThreshold + 1;
+    }
+
+    return delay;
+}
 
 #ifndef __WIN32
 void mvlc_eth_throttler(
@@ -558,7 +575,7 @@ void mvlc_eth_throttler(
 
             if (res.second)
             {
-                u16 delay = calculate_delay(ctx.access().ref(), res.first);
+                u16 delay = throttle_linear(ctx.access().ref(), res.first);
                 send_delay_command(ctx.access()->delaySocket, delay);
 
                 auto ca = counters.access();
@@ -612,7 +629,7 @@ void mvlc_eth_throttler(
 
         if (res == 0)
         {
-            u16 delay = calculate_delay(ctx.access().ref(), rbs);
+            u16 delay = throttle_exponential(ctx.access().ref(), rbs);
             send_delay_command(ctx.access()->delaySocket, delay);
 
             auto ca = counters.access();
