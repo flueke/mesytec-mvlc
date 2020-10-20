@@ -890,7 +890,7 @@ static const std::chrono::milliseconds FlushBufferTimeout(500);
 #define ENABLE_ARTIFICIAL_READ_DELAYS 0
 
 #if ENABLE_ARTIFICIAL_READ_DELAYS
-static const std::chrono::milliseconds DebugPostReadoutDelay(50);
+static const std::chrono::milliseconds DebugPostReadoutDelay(10);
 static const std::chrono::milliseconds DebugPostReadoutDelayIncrement(30);
 static const size_t StartDelayBufferNumber = 500;
 #endif

@@ -31,6 +31,7 @@
     #include <ws2tcpip.h>
     #include <stdio.h>
     #include <fcntl.h>
+    #include <mmsystem.h>
 #endif
 
 #include "mvlc_buffer_validators.h"
@@ -351,7 +352,8 @@ u16 throttle_exponential(eth::EthThrottleContext &ctx,  const ReceiveBufferSnaps
     return delay;
 };
 
-// Similar to throttle_exponential but apply linear throttling from 1 to 300 µs
+// Similar to throttle_exponential but apply linear throttling from 1 to 300
+// µs (at a=747.5).
 // in the range [ctx.threshold, ctx.treshold + ctx.range].
 u16 throttle_linear(eth::EthThrottleContext &ctx, const ReceiveBufferSnapshot &bufferInfo)
 {
@@ -361,11 +363,16 @@ u16 throttle_linear(eth::EthThrottleContext &ctx, const ReceiveBufferSnapshot &b
     if (bufferUse >= ctx.threshold)
     {
         double aboveThreshold = bufferUse - ctx.threshold;
-        delay = 747.5 * aboveThreshold + 1;
+        const double a = 747.5;
+        delay = a * aboveThreshold + 1;
     }
 
     return delay;
 }
+
+using ThrottleFunc = u16 (*)(eth::EthThrottleContext &ctx,  const ReceiveBufferSnapshot &bufferInfo);
+
+static ThrottleFunc theThrottleFunc = throttle_exponential;
 
 #ifndef __WIN32
 void mvlc_eth_throttler(
@@ -575,7 +582,7 @@ void mvlc_eth_throttler(
 
             if (res.second)
             {
-                u16 delay = throttle_linear(ctx.access().ref(), res.first);
+                u16 delay = theThrottleFunc(ctx.access().ref(), res.first);
                 send_delay_command(ctx.access()->delaySocket, delay);
 
                 auto ca = counters.access();
@@ -609,6 +616,10 @@ void mvlc_eth_throttler(
     int dataSocket = ctx.access()->dataSocket;
     ReceiveBufferSnapshot rbs = { 0u, static_cast<u32>(ctx.access()->dataSocketReceiveBufferSize) };
 
+    // Use timeBeginPeriod and timeEndPeriod to get better sleep granularity.
+    static const unsigned Win32TimePeriod = 1;
+    timeBeginPeriod(Win32TimePeriod);
+
     LOG_DEBUG("mvlc_eth_throttler entering loop");
 
     while (!ctx.access()->quit)
@@ -629,7 +640,7 @@ void mvlc_eth_throttler(
 
         if (res == 0)
         {
-            u16 delay = throttle_exponential(ctx.access().ref(), rbs);
+            u16 delay = theThrottleFunc(ctx.access().ref(), rbs);
             send_delay_command(ctx.access()->delaySocket, delay);
 
             auto ca = counters.access();
@@ -658,9 +669,11 @@ void mvlc_eth_throttler(
         auto dtSleep = std::chrono::duration_cast<std::chrono::microseconds>(tSleepDone - tDelayDone);
         auto dtTotal = std::chrono::duration_cast<std::chrono::microseconds>(tSleepDone - tStart);
 
-        LOG_DEBUG("mvlc_eth_throttler: dtDelay=%d us, dtSleep=%d us, dtTotal=%d us",
-                  dtDelay.count(), dtSleep.count(), dtTotal.count());
+        //LOG_DEBUG("mvlc_eth_throttler: dtDelay=%d us, dtSleep=%d us, dtTotal=%d us",
+        //          dtDelay.count(), dtSleep.count(), dtTotal.count());
     }
+
+    timeEndPeriod(Win32TimePeriod);
 
     LOG_DEBUG("mvlc_eth_throttler leaving loop");
 }
@@ -1012,12 +1025,12 @@ std::error_code Impl::connect()
 
         if (fstat(m_dataSock, &sb) == 0)
             tc->dataSocketInode = sb.st_ino;
-
-        tc->delaySocket = m_delaySock;
 #else // __WIN32
         tc->dataSocket = m_dataSock;
         tc->dataSocketReceiveBufferSize = m_dataSocketReceiveBufferSize;
 #endif
+
+        tc->delaySocket = m_delaySock;
         tc->quit = false;
 #if MVLC_ETH_THROTTLE_DEBUG
         tc->debugOut = std::ofstream("mvlc-eth-throttle-debug.txt");
