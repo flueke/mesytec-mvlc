@@ -398,7 +398,7 @@ void mvlc_eth_throttler(
                 if (errno == EINTR)
                     continue;
 
-                perror("sendmsg");
+                LOG_WARN("mvlc_eth_throttler: sendmsg failed: %s", strerror(errno));
                 return -1;
             }
 
@@ -502,7 +502,7 @@ void mvlc_eth_throttler(
             for (; NLMSG_OK(h, ret); h = NLMSG_NEXT(h, ret)) {
                 if (h->nlmsg_type == NLMSG_DONE)
                 {
-                    LOG_WARN("mvlc_eth_throttler: NLMSG_DONE");
+                    LOG_TRACE("mvlc_eth_throttler: NLMSG_DONE");
                     return result;
                 }
 
@@ -574,16 +574,8 @@ void mvlc_eth_throttler(
                         << " delay=" << delay
                         << std::endl;
                 }
-                else
-                {
-                    LOG_WARN("mvlc_eth_throttler: debugOut got bad :-(");
-                }
             }
         }
-
-        LOG_WARN("mvlc_eth_throttler: I'm alive! queryDelay=%ld",
-                 ctx.access()->queryDelay.count());
-
 
         std::this_thread::sleep_for(ctx.access()->queryDelay);
     }
