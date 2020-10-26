@@ -466,7 +466,20 @@ ParseResult parse_readout_contents(
                     auto frameInfo = extract_frame_info(input[0]);
 
                     if (frameInfo.type != frame_headers::StackContinuation)
+                    {
+                        LOG_TRACE("NotAStackContinuation:"
+                                 " curStackFrame.wordsLeft=%u"
+                                 " , curBlockFrame.wordsLeft=%u"
+                                 ", eventIndex=%d, groupIndex=%d"
+                                 ", inputOffset=%lu",
+                                 state.curStackFrame.wordsLeft,
+                                 state.curBlockFrame.wordsLeft,
+                                 state.eventIndex,
+                                 state.groupIndex,
+                                 input.data() - inputBegin
+                                 );
                         return ParseResult::NotAStackContinuation;
+                    }
 
                     if (frameInfo.stack - 1 != state.eventIndex)
                         return ParseResult::StackIndexChanged;
@@ -566,6 +579,8 @@ ParseResult parse_readout_contents(
                              state.eventIndex, fi.len, state.curStackFrame.header);
                 }
 
+                LOG_TRACE("parser_clear_event_state because groupReadoutInfos.empty(), eventIndex=%d",
+                          state.eventIndex);
                 parser_clear_event_state(state);
                 return ParseResult::Ok;
             }
@@ -809,6 +824,8 @@ ParseResult parse_readout_contents(
 
                 ++counters.eventHits[state.eventIndex];
                 callbacks.endEvent(state.eventIndex);
+                LOG_TRACE("parser_clear_event_state because event is done, eventIndex=%d",
+                          state.eventIndex);
                 parser_clear_event_state(state);
             }
 
