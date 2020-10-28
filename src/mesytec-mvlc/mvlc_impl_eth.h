@@ -176,7 +176,7 @@ class MESYTEC_MVLC_EXPORT Impl: public MVLCBasicInterface, public MVLC_ETH_Inter
         std::array<PipeStats, PipeCount> m_pipeStats;
         std::array<PacketChannelStats, NumPacketChannels> m_packetChannelStats;
         std::array<s32, NumPacketChannels> m_lastPacketNumbers;
-        bool m_disableTriggersOnConnect = true;
+        bool m_disableTriggersOnConnect = false;
         mutable TicketMutex m_statsMutex;
         mutable Protected<EthThrottleCounters> m_throttleCounters;
         Protected<EthThrottleContext> m_throttleContext;
