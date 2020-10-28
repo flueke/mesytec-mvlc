@@ -136,8 +136,6 @@ class MESYTEC_MVLC_EXPORT Impl: public MVLCBasicInterface, public MVLC_ETH_Inter
         std::error_code enableJumboFrames(bool b) override;
         std::pair<bool, std::error_code> jumboFramesEnabled() override;
 
-        u32 getDataSocketReceiveBufferSize() const override { return m_dataSocketReceiveBufferSize; }
-        std::error_code sendDelayCommand(u16 delay_us) override;
         EthThrottleCounters getThrottleCounters() const override;
 
     private:
@@ -180,7 +178,6 @@ class MESYTEC_MVLC_EXPORT Impl: public MVLCBasicInterface, public MVLC_ETH_Inter
         std::array<s32, NumPacketChannels> m_lastPacketNumbers;
         bool m_disableTriggersOnConnect = true;
         mutable TicketMutex m_statsMutex;
-        int m_dataSocketReceiveBufferSize = 0;
         mutable Protected<EthThrottleCounters> m_throttleCounters;
         Protected<EthThrottleContext> m_throttleContext;
         std::thread m_throttleThread;

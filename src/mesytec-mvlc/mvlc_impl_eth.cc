@@ -50,7 +50,7 @@
 #define LOG_LEVEL_TRACE 400
 
 #ifndef MVLC_ETH_LOG_LEVEL
-#define MVLC_ETH_LOG_LEVEL LOG_LEVEL_DEBUG
+#define MVLC_ETH_LOG_LEVEL LOG_LEVEL_WARN
 #endif
 
 #define LOG_LEVEL_SETTING MVLC_ETH_LOG_LEVEL
@@ -69,7 +69,7 @@ do\
 #define LOG_DEBUG(fmt, ...) DO_LOG(LOG_LEVEL_DEBUG, "DEBUG - mvlc_eth ", fmt, ##__VA_ARGS__)
 #define LOG_TRACE(fmt, ...) DO_LOG(LOG_LEVEL_TRACE, "TRACE - mvlc_eth ", fmt, ##__VA_ARGS__)
 
-#define MVLC_ETH_THROTTLE_DEBUG 1
+#define MVLC_ETH_THROTTLE_WRITE_DEBUG_FILE 0
 
 namespace
 {
@@ -370,6 +370,13 @@ u16 throttle_linear(eth::EthThrottleContext &ctx, const ReceiveBufferSnapshot &b
     return delay;
 }
 
+inline float calc_avg_delay(u16 curDelay, float lastAvg)
+{
+    static const float Smoothing = 0.75;
+
+    return Smoothing * curDelay + (1.0 - Smoothing) * lastAvg;
+}
+
 using ThrottleFunc = u16 (*)(eth::EthThrottleContext &ctx,  const ReceiveBufferSnapshot &bufferInfo);
 
 static ThrottleFunc theThrottleFunc = throttle_exponential;
@@ -588,6 +595,9 @@ void mvlc_eth_throttler(
                 auto ca = counters.access();
                 ca->currentDelay = delay;
                 ca->maxDelay = std::max(ca->maxDelay, delay);
+                ca->avgDelay = calc_avg_delay(delay, ca->avgDelay);
+                ca->rcvBufferSize = res.first.capacity;
+                ca->rcvBufferUsed = res.first.used;
 
                 if (ctx.access()->debugOut.good())
                 {
@@ -646,6 +656,9 @@ void mvlc_eth_throttler(
             auto ca = counters.access();
             ca->currentDelay = delay;
             ca->maxDelay = std::max(ca->maxDelay, delay);
+            ca->avgDelay = calc_avg_delay(delay, ca->avgDelay);
+            ca->rcvBufferSize = rbs.capacity;
+            ca->rcvBufferUsed = rbs.used;
 
             if (ctx.access()->debugOut.good())
             {
@@ -892,6 +905,10 @@ std::error_code Impl::connect()
     // Set socket receive buffer size
     LOG_TRACE("setting socket receive buffer sizes...");
 
+#ifdef __WIN32
+    int dataSocketReceiveBufferSize = 0;
+#endif
+
     for (auto pipe: { Pipe::Command, Pipe::Data })
     {
 #ifndef __WIN32
@@ -903,13 +920,10 @@ std::error_code Impl::connect()
                              reinterpret_cast<const char *>(&DesiredSocketReceiveBufferSize),
                              sizeof(DesiredSocketReceiveBufferSize));
 #endif
-        //assert(res == 0);
-
         if (res != 0)
         {
             auto ec = std::error_code(errno, std::system_category());
             LOG_WARN("setting socket buffer size failed: %s", ec.message().c_str());
-            //return ec;
         }
 
         {
@@ -925,9 +939,6 @@ std::error_code Impl::connect()
                              reinterpret_cast<char *>(&actualBufferSize),
                              &szLen);
 #endif
-
-            assert(res == 0);
-
             if (res != 0)
                 return std::error_code(errno, std::system_category());
 
@@ -939,8 +950,10 @@ std::error_code Impl::connect()
                          static_cast<unsigned>(pipe), DesiredSocketReceiveBufferSize, actualBufferSize);
             }
 
+#ifdef __WIN32
             if (pipe == Pipe::Data)
-                m_dataSocketReceiveBufferSize = actualBufferSize;
+                dataSocketReceiveBufferSize = actualBufferSize;
+#endif
         }
     }
 
@@ -1017,6 +1030,7 @@ std::error_code Impl::connect()
 
     assert(m_cmdSock >= 0 && m_dataSock >= 0 && m_delaySock >= 0);
 
+    // Setup the EthThrottleContext
     {
         auto tc = m_throttleContext.access();
 #ifndef __WIN32
@@ -1025,14 +1039,15 @@ std::error_code Impl::connect()
 
         if (fstat(m_dataSock, &sb) == 0)
             tc->dataSocketInode = sb.st_ino;
+
 #else // __WIN32
         tc->dataSocket = m_dataSock;
-        tc->dataSocketReceiveBufferSize = m_dataSocketReceiveBufferSize;
+        tc->dataSocketReceiveBufferSize = dataSocketReceiveBufferSize;
 #endif
 
         tc->delaySocket = m_delaySock;
         tc->quit = false;
-#if MVLC_ETH_THROTTLE_DEBUG
+#if MVLC_ETH_THROTTLE_WRITE_DEBUG_FILE
         tc->debugOut = std::ofstream("mvlc-eth-throttle-debug.txt");
 #endif
     }
@@ -1489,24 +1504,6 @@ std::pair<bool, std::error_code> Impl::jumboFramesEnabled()
 
     return std::make_pair(static_cast<bool>(value), ec);
 }
-
-std::error_code Impl::sendDelayCommand(u16 delay_us)
-{
-    u32 cmd = static_cast<u32>(super_commands::SuperCommandType::EthDelay) << super_commands::SuperCmdShift;
-    cmd |= delay_us;
-
-    size_t bytesTransferred = 0;
-    auto ec = write_to_socket(m_delaySock, reinterpret_cast<const u8 *>(&cmd), sizeof(cmd), bytesTransferred);
-
-    if (ec)
-        return ec;
-
-    if (bytesTransferred != sizeof(cmd))
-        return make_error_code(MVLCErrorCode::ShortWrite);
-
-    return {};
-}
-
 
 EthThrottleCounters Impl::getThrottleCounters() const
 {
