@@ -1052,6 +1052,8 @@ std::error_code Impl::connect()
 #endif
     }
 
+    m_throttleCounters.access().ref() = {};
+
     m_throttleThread = std::thread(
         mvlc_eth_throttler,
         std::ref(m_throttleContext),
