@@ -465,9 +465,14 @@ namespace registers
     // Returns the delay value of the last ETH delay request on the throttling port.
     static const u16 eth_delay_read         = 0x4432;
 
+    // Mask specifying what should be reset on a write to 0x6090.
+    // TODO: document the bits
     static const u16 reset_register_mask    = 0x0202;
+    // Counter/state reset register.
     static const u16 reset_register         = 0x6090;
+    // write: master reset, read: hardware_id
     static const u16 hardware_id            = 0x6008;
+    // read: firmware_revision
     static const u16 firmware_revision      = 0x600e;
     static const u16 mcst_enable            = 0x6020;
     static const u16 mcst_address           = 0x6024;
