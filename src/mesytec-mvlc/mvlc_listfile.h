@@ -1,6 +1,8 @@
 #ifndef __MESYTEC_MVLC_MVLC_LISTFILE_H__
 #define __MESYTEC_MVLC_MVLC_LISTFILE_H__
 
+#include <algorithm>
+
 #include "mesytec-mvlc_export.h"
 
 #include "mvlc_readout_config.h"
