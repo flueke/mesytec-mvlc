@@ -388,9 +388,8 @@ void mvlc_eth_throttler(
 {
     auto send_query = [] (int netlinkSock)
     {
-        struct sockaddr_nl nladdr = {
-            .nl_family = AF_NETLINK
-        };
+        struct sockaddr_nl nladdr = {};
+        nladdr.nl_family = AF_NETLINK;
 
         struct NetlinkDiagMessage
         {
@@ -417,12 +416,11 @@ void mvlc_eth_throttler(
             .iov_len = sizeof(req)
         };
 
-        struct msghdr msg = {
-            .msg_name = (void *) &nladdr,
-            .msg_namelen = sizeof(nladdr),
-            .msg_iov = &iov,
-            .msg_iovlen = 1
-        };
+        struct msghdr msg = {};
+        msg.msg_name = (void *) &nladdr;
+        msg.msg_namelen = sizeof(nladdr);
+        msg.msg_iov = &iov;
+        msg.msg_iovlen = 1;
 
         for (;;) {
             if (sendmsg(netlinkSock, &msg, 0) < 0) {
@@ -485,9 +483,9 @@ void mvlc_eth_throttler(
         -> std::pair<ReceiveBufferSnapshot, bool>
     {
         long buf[8192 / sizeof(long)];
-        struct sockaddr_nl nladdr = {
-            .nl_family = AF_NETLINK
-        };
+        struct sockaddr_nl nladdr = {};
+        nladdr.nl_family = AF_NETLINK;
+
         struct iovec iov = {
             .iov_base = buf,
             .iov_len = sizeof(buf)
@@ -497,12 +495,11 @@ void mvlc_eth_throttler(
         std::pair<ReceiveBufferSnapshot, bool> result{};
 
         for (;;) {
-            struct msghdr msg = {
-                .msg_name = (void *) &nladdr,
-                .msg_namelen = sizeof(nladdr),
-                .msg_iov = &iov,
-                .msg_iovlen = 1
-            };
+            struct msghdr msg = {};
+            msg.msg_name = (void *) &nladdr;
+            msg.msg_namelen = sizeof(nladdr);
+            msg.msg_iov = &iov;
+            msg.msg_iovlen = 1;
 
             ssize_t ret = recvmsg(netlinkSock, &msg, flags);
 
