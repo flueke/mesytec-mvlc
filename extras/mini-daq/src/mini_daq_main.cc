@@ -338,7 +338,9 @@ int main(int argc, char *argv[])
 
             cout << "Opening output listfile " << opt_listfileOut << " for writing." << endl;
 
-            zipWriter.createArchive(opt_listfileOut);
+            zipWriter.createArchive(opt_listfileOut, opt_overwriteListfile
+                                    ? listfile::ZipCreator::Overwrite
+                                    : listfile::ZipCreator::DontOverwrite);
 
             if (opt_listfileCompressionType == "lz4")
                 lfh = zipWriter.createLZ4Entry("listfile.mvlclst", opt_listfileCompressionLevel);

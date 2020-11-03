@@ -14,6 +14,7 @@
 #include <mz_zip_rw.h>
 #include <sys/stat.h>
 
+#include "util/filesystem.h"
 #include "util/storage_sizes.h"
 #include "util/string_view.hpp"
 
@@ -153,9 +154,14 @@ ZipCreator::~ZipCreator()
 
 }
 
-void ZipCreator::createArchive(const std::string &zipFilename)
+void ZipCreator::createArchive(
+    const std::string &zipFilename,
+    const OverwriteMode &mode)
 {
-    s32 mzMode = MZ_OPEN_MODE_WRITE | MZ_OPEN_MODE_CREATE; // TODO: add option to pass in a mode. right now zip archives are just silently overwritten.
+    if (mode == OverwriteMode::DontOverwrite && util::file_exists(zipFilename))
+        throw std::runtime_error("archive file exists");
+
+    s32 mzMode = MZ_OPEN_MODE_WRITE | MZ_OPEN_MODE_CREATE;
 
     if (auto err = mz_stream_open(d->mz_bufStream, zipFilename.c_str(), mzMode))
         throw std::runtime_error("mz_stream_open: " + std::to_string(err));

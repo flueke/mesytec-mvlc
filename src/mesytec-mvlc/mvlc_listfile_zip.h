@@ -41,10 +41,12 @@ class ZipEntryWriteHandle;
 class MESYTEC_MVLC_EXPORT ZipCreator
 {
     public:
+        enum OverwriteMode { DontOverwrite, Overwrite };
+
         ZipCreator();
         ~ZipCreator();
 
-        void createArchive(const std::string &zipFilename);
+        void createArchive(const std::string &zipFilename, const OverwriteMode &mode = DontOverwrite);
         void closeArchive();
         bool isOpen() const;
 

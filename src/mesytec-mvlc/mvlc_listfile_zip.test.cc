@@ -125,6 +125,24 @@ TEST(mvlc_listfile_zip, MinizipCreate)
 }
 #endif
 
+TEST(mvlc_listfile_zip, CreateOverwrite)
+{
+    std::string archiveName = "mvlc_listfile_CreateOverwrite.zip";
+
+    {
+        ZipCreator creator;
+        ASSERT_NO_THROW(creator.createArchive(archiveName));
+    }
+
+    {
+        ZipCreator creator;
+        ASSERT_THROW(creator.createArchive(archiveName), std::runtime_error);
+        ASSERT_NO_THROW(creator.createArchive(archiveName, ZipCreator::Overwrite));
+    }
+
+    ASSERT_EQ(mz_os_unlink(archiveName.c_str()), MZ_OK);
+}
+
 TEST(mvlc_listfile_zip, CreateWriteRead)
 {
     const std::vector<u8> outData0 = { 0x12, 0x34, 0x56, 0x78 };
@@ -134,7 +152,7 @@ TEST(mvlc_listfile_zip, CreateWriteRead)
 
     {
         ZipCreator creator;
-        creator.createArchive(archiveName);
+        creator.createArchive(archiveName, ZipCreator::Overwrite);
 
         {
             // Write outData0 two times
@@ -239,7 +257,7 @@ TEST(mvlc_listfile_zip, LZ4Data)
 
     {
         ZipCreator creator;
-        creator.createArchive(archiveName);
+        creator.createArchive(archiveName, ZipCreator::Overwrite);
 
         auto &writeHandle = *creator.createLZ4Entry("outfile0.data", 0);
 
