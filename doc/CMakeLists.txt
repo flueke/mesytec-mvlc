@@ -20,4 +20,7 @@ if (DOXYGEN_FOUND)
         COMMAND ${CMAKE_COMMAND} -E copy_directory
             ${CMAKE_CURRENT_SOURCE_DIR}/images
             ${CMAKE_CURRENT_BINARY_DIR}/html/doc/images)
+
+    install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/html
+        DESTINATION share/doc)
 endif (DOXYGEN_FOUND)
