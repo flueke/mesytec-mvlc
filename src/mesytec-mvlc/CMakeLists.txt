@@ -4,6 +4,8 @@ configure_file("git_version.cc.in" "git_version.cc" @ONLY)
 
 add_library(mesytec-mvlc SHARED
     "${CMAKE_CURRENT_BINARY_DIR}/git_version.cc"
+    fmt/format.cc
+    fmt/os.cc
 
     mvlc_basic_interface.cc
     mvlc.cc
@@ -36,9 +38,6 @@ add_library(mesytec-mvlc SHARED
     util/ticketmutex.cc
     util/readout_buffer.cc
     util/readout_buffer_queues.cc
-
-    format.cc
-    os.cc
     )
 
 #set_source_files_properties(mvlc_impl_eth.cc PROPERTIES
@@ -70,6 +69,7 @@ target_compile_options(mesytec-mvlc PRIVATE -Wall -Wextra)
 if (WIN32)
     target_link_libraries(mesytec-mvlc PRIVATE ws2_32 winmm)
     target_compile_options(mesytec-mvlc PRIVATE -Wno-format)
+    set_target_properties(mesytec-mvlc PROPERTIES POSITION_INDEPENDENT_CODE ON)
     if (MINGW)
       check_cxx_compiler_flag("Wa,-mbig-obj" HAS_MBIG_OBJ)
       if (${HAS_MBIG_OBJ})
