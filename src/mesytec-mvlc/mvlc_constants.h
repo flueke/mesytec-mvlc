@@ -216,6 +216,7 @@ namespace system_event
 
         // For compatibility with existing mvme-generated listfiles. This
         // section contains a JSON encoded version of the mvme VME setup.
+        // This section is not directly used by the library.
         static const u8 MVMEConfig      = 0x10;
 
         // Software generated low-accuracy timestamp, written once per second.

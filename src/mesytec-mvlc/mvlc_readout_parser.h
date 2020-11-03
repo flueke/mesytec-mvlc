@@ -133,6 +133,7 @@ enum class ParseResult
     ParseReadoutContentsNotAdvancing,
     ParseEthBufferNotAdvancing,
     ParseEthPacketNotAdvancing,
+
     UnexpectedEndOfBuffer,
     UnhandledException,
 
@@ -156,7 +157,7 @@ struct MESYTEC_MVLC_EXPORT ReadoutParserCounters
     // Counts internal buffer loss across calls to parse_readout_buffer()
     u32 internalBufferLoss = 0;
 
-    // Total number of buffers processes so far.
+    // Total number of buffers processed so far.
     u32 buffersProcessed = 0;
 
     // Number of bytes skipped by the parser. This can happen due to internal
