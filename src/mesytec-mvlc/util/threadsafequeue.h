@@ -47,8 +47,7 @@ class ThreadSafeQueue
             m_cond.notify_all();
         }
 
-        // Dequeue operation returning a default constructed value if the queue
-        // is empty.
+        // Dequeue operation returning defaultValue if the queue is empty.
         T dequeue(const T &defaultValue = {})
         {
             Lock lock(m_mutex);
@@ -64,16 +63,16 @@ class ThreadSafeQueue
         }
 
         // Dequeue operation waiting for the queues wait condition to be
-        // signaled in case the queue is empty. A default constructed value is
+        // signaled in case the queue is empty. The given defaultValue is
         // returned in case the wait times out and the queue is still empty.
-        T dequeue(const std::chrono::milliseconds &timeout)
+        T dequeue(const std::chrono::milliseconds &timeout, const T &defaultValue = {})
         {
             auto pred = [this] () { return !m_queue.empty(); };
 
             Lock lock(m_mutex);
 
             if (!m_cond.wait_for(lock, timeout, pred))
-                return {};
+                return defaultValue;
 
             auto ret = m_queue.front();
             m_queue.pop_front();
