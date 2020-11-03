@@ -61,11 +61,6 @@ add_subdirectory(lz4/contrib/cmake_unofficial)
 target_include_directories(lz4_static
     PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/lz4/lib/>)
 
-# fmt
-set(CMAKE_POSITION_INDEPENDENT_CODE ON) # adds -fPIC when linking against the static version of fmt
-option(FMT_INSTALL "Generate the fmt install target." ON)
-add_subdirectory(fmt)
-
 # Lyra command line parser
 add_subdirectory(Lyra)
 
