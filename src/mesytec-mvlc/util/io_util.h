@@ -1,7 +1,7 @@
 #ifndef __MESYTEC_MVLC_IO_UTIL_H__
 #define __MESYTEC_MVLC_IO_UTIL_H__
 
-#include <fmt/format.h>
+#include <mesytec-mvlc/fmt.h>
 #include <iostream>
 #include <string>
 

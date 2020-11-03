@@ -30,6 +30,7 @@
 
 /** @file */
 
+#include "fmt.h"
 #include "mvlc_command_builders.h"
 #include "mvlc_dialog.h"
 #include "mvlc_dialog_util.h"
@@ -37,10 +38,10 @@
 #include "mvlc.h"
 #include "mvlc_listfile.h"
 #include "mvlc_listfile_zip.h"
-#include "mvlc_replay.h"
+#include "mvlc_readout.h"
 #include "mvlc_readout_parser.h"
 #include "mvlc_readout_parser_util.h"
-#include "mvlc_readout.h"
+#include "mvlc_replay.h"
 #include "mvlc_stack_executor.h"
 #include "mvlc_threading.h"
 #include "mvlc_util.h"

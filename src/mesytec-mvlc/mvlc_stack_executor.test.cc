@@ -1,17 +1,10 @@
 #include <chrono>
 #include <iostream>
-#include <fmt/format.h>
+#include <limits>
+#include <ratio>
 
 #include "gtest/gtest.h"
-#include <ratio>
-#include <limits>
-
-#include "mesytec-mvlc/mvlc_constants.h"
-#include "mvlc_constants.h"
-#include "mvlc_dialog_util.h"
-#include "mvlc_factory.h"
-#include "mvlc_stack_executor.h"
-#include "vme_constants.h"
+#include "mesytec-mvlc/mesytec-mvlc.h"
 
 using std::cout;
 using std::cerr;

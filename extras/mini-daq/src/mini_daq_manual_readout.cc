@@ -9,7 +9,6 @@
 #include <mesytec-mvlc/mesytec-mvlc.h>
 #include <mesytec-mvlc/mvlc_usb_interface.h>
 #include <mesytec-mvlc/mvlc_eth_interface.h>
-#include <fmt/format.h>
 #include <lyra/lyra.hpp>
 
 using std::cout;

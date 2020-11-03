@@ -1,7 +1,12 @@
 find_package(Doxygen)
 
 if (DOXYGEN_FOUND)
-    set(DOXYGEN_EXCLUDE_PATTERNS *.test.cc)
+    set(DOXYGEN_EXCLUDE_PATTERNS
+        *.test.cc
+        */mesytec-mvlc/fmt/*
+        */mesytec-mvlc/format.cc
+        */mesytec-mvlc/os.cc)
+
     set(DOXYGEN_EXTRACT_ALL YES)
     #set(DOXYGEN_TOC_INCLUDE_HEADINGS 10)
 

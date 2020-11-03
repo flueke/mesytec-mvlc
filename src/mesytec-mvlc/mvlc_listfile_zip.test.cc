@@ -7,13 +7,13 @@
 #include <mz_strm_os.h>
 #include <mz_zip.h>
 #include <mz_zip_rw.h>
-#include <fmt/format.h>
 
 #include "gtest/gtest.h"
 
 #include "mvlc_listfile_zip.h"
 #include "util/io_util.h"
 #include "util/storage_sizes.h"
+#include "mesytec-mvlc/fmt.h"
 
 using std::cout;
 using std::endl;

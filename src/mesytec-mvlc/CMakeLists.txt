@@ -36,10 +36,13 @@ add_library(mesytec-mvlc SHARED
     util/ticketmutex.cc
     util/readout_buffer.cc
     util/readout_buffer_queues.cc
+
+    format.cc
+    os.cc
     )
 
-set_source_files_properties(mvlc_impl_eth.cc PROPERTIES
-    COMPILE_FLAGS "-Wno-missing-field-initializers")
+#set_source_files_properties(mvlc_impl_eth.cc PROPERTIES
+#    COMPILE_FLAGS "-Wno-missing-field-initializers")
 
 target_include_directories(mesytec-mvlc
     PRIVATE ${CMAKE_CURRENT_BINARY_DIR}
@@ -49,8 +52,6 @@ target_include_directories(mesytec-mvlc
     )
 
 target_link_libraries(mesytec-mvlc
-    #PUBLIC fmt::fmt-header-only # does add -DFMT_HEADER_ONLY=1
-    PUBLIC fmt::fmt
     PRIVATE lz4_static
     PRIVATE minizip
     PRIVATE yaml-cpp
@@ -69,6 +70,12 @@ target_compile_options(mesytec-mvlc PRIVATE -Wall -Wextra)
 if (WIN32)
     target_link_libraries(mesytec-mvlc PRIVATE ws2_32 winmm)
     target_compile_options(mesytec-mvlc PRIVATE -Wno-format)
+    if (MINGW)
+      check_cxx_compiler_flag("Wa,-mbig-obj" HAS_MBIG_OBJ)
+      if (${HAS_MBIG_OBJ})
+        target_compile_options(mesytec-mvlc PUBLIC "-Wa,-mbig-obj")
+      endif()
+    endif ()
 endif(WIN32)
 
 include(GenerateExportHeader)
@@ -79,8 +86,6 @@ install(TARGETS mesytec-mvlc
     LIBRARY DESTINATION lib
     RUNTIME DESTINATION bin
     )
-
-#export(EXPORT mesytec-mvlc FILE mesytec-mvlc.cmake)
 
 install(EXPORT libmesytec-mvlc
     DESTINATION lib/cmake/mesytec-mvlc
@@ -112,7 +117,6 @@ if (MVLC_BUILD_TESTS)
             PRIVATE mesytec-mvlc
             PRIVATE gtest
             PRIVATE gtest_main
-            PRIVATE fmt::fmt-header-only # does add -DFMT_HEADER_ONLY=1
             )
 
         add_test(NAME ${exe_name} COMMAND $<TARGET_FILE:${exe_name}>)

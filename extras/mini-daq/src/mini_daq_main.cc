@@ -11,7 +11,6 @@
 #endif
 
 #include <mesytec-mvlc/mesytec-mvlc.h>
-#include <fmt/format.h>
 #include <lyra/lyra.hpp>
 
 using std::cout;
