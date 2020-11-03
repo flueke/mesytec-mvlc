@@ -64,6 +64,7 @@ target_include_directories(lz4_static
 # fmt
 option(FMT_INSTALL "Generate the fmt install target." ON)
 add_subdirectory(fmt)
+set_target_properties(fmt PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
 # Lyra command line parser
 add_subdirectory(Lyra)
