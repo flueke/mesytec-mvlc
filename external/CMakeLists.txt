@@ -65,4 +65,4 @@ target_include_directories(lz4_static
 add_subdirectory(Lyra)
 
 # spdlog
-add_subdirectory(spdlog)
+#add_subdirectory(spdlog)
