@@ -35,7 +35,7 @@ void MESYTEC_MVLC_EXPORT run_readout_parser(
     ReadoutBufferQueues &snoopQueues,
     readout_parser::ReadoutParserCallbacks &parserCallbacks);
 
-MESYTEC_MVLC_EXPORT std::ostream &dump_counters(
+MESYTEC_MVLC_EXPORT std::ostream &print_counters(
     std::ostream &out, const ReadoutParserCounters &counters);
 
 } // end namespace readout_parser

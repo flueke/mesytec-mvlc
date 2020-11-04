@@ -89,9 +89,9 @@ void run_readout_parser(
     cerr << "run_readout_parser left loop" << endl;
 }
 
-std::ostream &dump_counters(std::ostream &out, const ReadoutParserCounters &counters)
+std::ostream &print_counters(std::ostream &out, const ReadoutParserCounters &counters)
 {
-    auto dump_hits_and_sizes = [&out] (
+    auto print_hits_and_sizes = [&out] (
         const std::string &partTitle,
         const ReadoutParserCounters::GroupPartHits &hits,
         const ReadoutParserCounters::GroupPartSizes &sizes)
@@ -166,9 +166,9 @@ std::ostream &dump_counters(std::ostream &out, const ReadoutParserCounters &coun
         out << fmt::format("ei={}, hits={}, ", kv.first, kv.second);
     out << endl;
 
-    dump_hits_and_sizes("prefix", counters.groupPrefixHits, counters.groupPrefixSizes);
-    dump_hits_and_sizes("dynamic", counters.groupDynamicHits, counters.groupDynamicSizes);
-    dump_hits_and_sizes("suffix", counters.groupSuffixHits, counters.groupSuffixSizes);
+    print_hits_and_sizes("prefix", counters.groupPrefixHits, counters.groupPrefixSizes);
+    print_hits_and_sizes("dynamic", counters.groupDynamicHits, counters.groupDynamicSizes);
+    print_hits_and_sizes("suffix", counters.groupSuffixHits, counters.groupSuffixSizes);
 
     return out;
 }
