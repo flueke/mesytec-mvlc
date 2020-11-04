@@ -36,7 +36,6 @@
 #include "mvlc_command_builders.h"
 #include "mvlc_constants.h"
 #include "mvlc_util.h"
-#include "util/protected.h"
 
 namespace mesytec
 {
@@ -302,19 +301,19 @@ MESYTEC_MVLC_EXPORT ParseResult parse_readout_buffer(
     ConnectionType bufferType,
     ReadoutParserState &state,
     ReadoutParserCallbacks &callbacks,
-    Protected<ReadoutParserCounters> &counters,
+    ReadoutParserCounters &counters,
     u32 bufferNumber, const u32 *buffer, size_t bufferWords);
 
 MESYTEC_MVLC_EXPORT ParseResult parse_readout_buffer_eth(
     ReadoutParserState &state,
     ReadoutParserCallbacks &callbacks,
-    Protected<ReadoutParserCounters> &counters,
+    ReadoutParserCounters &counters,
     u32 bufferNumber, const u32 *buffer, size_t bufferWords);
 
 MESYTEC_MVLC_EXPORT ParseResult parse_readout_buffer_usb(
     ReadoutParserState &state,
     ReadoutParserCallbacks &callbacks,
-    Protected<ReadoutParserCounters> &counters,
+    ReadoutParserCounters &counters,
     u32 bufferNumber, const u32 *buffer, size_t bufferWords);
 
 } // end namespace readout_parser

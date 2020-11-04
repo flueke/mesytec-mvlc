@@ -53,7 +53,7 @@ void run_readout_parser(
                     buffer->type(),
                     state,
                     parserCallbacks,
-                    counters,
+                    counters.access().ref(),
                     buffer->bufferNumber(),
                     bufferView.data(),
                     bufferView.size());

@@ -937,7 +937,7 @@ ParseResult parse_readout_buffer(
     ConnectionType bufferType,
     ReadoutParserState &state,
     ReadoutParserCallbacks &callbacks,
-    Protected<ReadoutParserCounters> &counters,
+    ReadoutParserCounters &counters,
     u32 bufferNumber, const u32 *buffer, size_t bufferWords)
 {
     LOG_TRACE("begin: bufferNumber=%u, buffer=%p, bufferWords=%lu",
@@ -961,12 +961,12 @@ ParseResult parse_readout_buffer(
     }
     catch (const end_of_buffer &e)
     {
-        ++counters.access()->parserExceptions;
+        ++counters.parserExceptions;
         return ParseResult::UnexpectedEndOfBuffer;
     }
     catch (...)
     {
-        ++counters.access()->parserExceptions;
+        ++counters.parserExceptions;
         return ParseResult::UnhandledException;
     }
 
@@ -979,7 +979,7 @@ ParseResult parse_readout_buffer(
 ParseResult parse_readout_buffer_eth(
     ReadoutParserState &state,
     ReadoutParserCallbacks &callbacks,
-    Protected<ReadoutParserCounters> &counters_,
+    ReadoutParserCounters &counters,
     u32 bufferNumber, const u32 *buffer, size_t bufferWords)
 {
     const size_t bufferBytes = bufferWords * sizeof(u32);
@@ -989,14 +989,12 @@ ParseResult parse_readout_buffer_eth(
     s64 bufferLoss = calc_buffer_loss(bufferNumber, state.lastBufferNumber);
     state.lastBufferNumber = bufferNumber;
 
-    auto counters = counters_.access();
-
     if (bufferLoss != 0)
     {
         // Clear processing state/workBuffer, restart at next 0xF3.
         // Any output data prepared so far is discarded.
         parser_clear_event_state(state);
-        counters->internalBufferLoss += bufferLoss;
+        counters.internalBufferLoss += bufferLoss;
         // Also clear the last packet number so that we do not end up with huge
         // packet loss counts on the parsing side which are entirely caused by
         // internal buffer loss.
@@ -1015,7 +1013,7 @@ ParseResult parse_readout_buffer_eth(
             // ETH readout data consists of a mix of SystemEvent frames and raw
             // packet data starting with ETH header0.
 
-            if (try_handle_system_event(callbacks, counters.ref(), input))
+            if (try_handle_system_event(callbacks, counters, input))
                 continue;
 
             if (input.size() < eth::HeaderWords)
@@ -1054,7 +1052,7 @@ ParseResult parse_readout_buffer_eth(
                                                       ethHdrs.packetNumber()))
                 {
                     parser_clear_event_state(state);
-                    counters->ethPacketLoss += loss;
+                    counters.ethPacketLoss += loss;
                     LOG_DEBUG("packet loss detected: lastPacketNumber=%d, packetNumber=%d, loss=%d",
                              state.lastPacketNumber,
                              ethHdrs.packetNumber(),
@@ -1073,7 +1071,7 @@ ParseResult parse_readout_buffer_eth(
 
             try
             {
-                pr = parse_eth_packet(state, callbacks, counters.ref(), packetInput, bufferNumber);
+                pr = parse_eth_packet(state, callbacks, counters, packetInput, bufferNumber);
             }
             catch (...)
             {
@@ -1136,13 +1134,13 @@ ParseResult parse_readout_buffer_eth(
             if (pr != ParseResult::Ok || exceptionSeen)
             {
                 parser_clear_event_state(state);
-                ++counters->ethPacketsProcessed;
-                counters->unusedBytes += packetWords * sizeof(u32);
+                ++counters.ethPacketsProcessed;
+                counters.unusedBytes += packetWords * sizeof(u32);
 
                 if (exceptionSeen)
-                    ++counters->parserExceptions;
+                    ++counters.parserExceptions;
                 else
-                    count_parse_result(counters.ref(), pr);
+                    count_parse_result(counters, pr);
 
                 if (input.size() >= packetWords)
                 {
@@ -1155,7 +1153,7 @@ ParseResult parse_readout_buffer_eth(
                 continue;
             }
 
-            ++counters->ethPacketsProcessed;
+            ++counters.ethPacketsProcessed;
 
             LOG_TRACE("parse_packet result: %d\n", (int)pr);
 
@@ -1173,8 +1171,8 @@ ParseResult parse_readout_buffer_eth(
                  bufferNumber, bufferBytes, e.what());
 
         parser_clear_event_state(state);
-        counters->unusedBytes += input.size() * sizeof(u32);
-        ++counters->parserExceptions;
+        counters.unusedBytes += input.size() * sizeof(u32);
+        ++counters.parserExceptions;
         throw;
     }
     catch (...)
@@ -1183,14 +1181,14 @@ ParseResult parse_readout_buffer_eth(
                  bufferNumber, bufferBytes);
 
         parser_clear_event_state(state);
-        counters->unusedBytes += input.size() * sizeof(u32);
-        ++counters->parserExceptions;
+        counters.unusedBytes += input.size() * sizeof(u32);
+        ++counters.parserExceptions;
         throw;
     }
 
-    ++counters->buffersProcessed;
+    ++counters.buffersProcessed;
     auto unusedBytes = input.size() * sizeof(u32);
-    counters->unusedBytes += unusedBytes;
+    counters.unusedBytes += unusedBytes;
 
     LOG_TRACE("end parsing ETH buffer %u, size=%lu bytes, unused bytes=%lu",
               bufferNumber, bufferBytes, unusedBytes);
@@ -1201,7 +1199,7 @@ ParseResult parse_readout_buffer_eth(
 ParseResult parse_readout_buffer_usb(
     ReadoutParserState &state,
     ReadoutParserCallbacks &callbacks,
-    Protected<ReadoutParserCounters> &counters_,
+    ReadoutParserCounters &counters,
     u32 bufferNumber, const u32 *buffer, size_t bufferWords)
 {
     const size_t bufferBytes = bufferWords * sizeof(u32);
@@ -1211,14 +1209,12 @@ ParseResult parse_readout_buffer_usb(
     s64 bufferLoss = calc_buffer_loss(bufferNumber, state.lastBufferNumber);
     state.lastBufferNumber = bufferNumber;
 
-    auto counters = counters_.access();
-
     if (bufferLoss != 0)
     {
         // Clear processing state/workBuffer, restart at next 0xF3.
         // Any output data prepared so far will be discarded.
         parser_clear_event_state(state);
-        counters->internalBufferLoss += bufferLoss;
+        counters.internalBufferLoss += bufferLoss;
     }
 
     basic_string_view<u32> input(buffer, bufferWords);
@@ -1227,13 +1223,13 @@ ParseResult parse_readout_buffer_usb(
     {
         while (!input.empty())
         {
-            auto pr = parse_readout_contents(state, callbacks, counters.ref(), input, false, bufferNumber);
-            count_parse_result(counters.ref(), pr);
+            auto pr = parse_readout_contents(state, callbacks, counters, input, false, bufferNumber);
+            count_parse_result(counters, pr);
 
             if (pr != ParseResult::Ok)
             {
                 parser_clear_event_state(state);
-                counters->unusedBytes += input.size() * sizeof(u32);
+                counters.unusedBytes += input.size() * sizeof(u32);
                 return pr;
             }
         }
@@ -1244,8 +1240,8 @@ ParseResult parse_readout_buffer_usb(
                  bufferNumber, bufferBytes, e.what());
 
         parser_clear_event_state(state);
-        counters->unusedBytes += input.size() * sizeof(u32);
-        ++counters->parserExceptions;
+        counters.unusedBytes += input.size() * sizeof(u32);
+        ++counters.parserExceptions;
         throw;
     }
     catch (...)
@@ -1254,13 +1250,13 @@ ParseResult parse_readout_buffer_usb(
                  bufferNumber, bufferBytes);
 
         parser_clear_event_state(state);
-        counters->unusedBytes += input.size() * sizeof(u32);
-        ++counters->parserExceptions;
+        counters.unusedBytes += input.size() * sizeof(u32);
+        ++counters.parserExceptions;
         throw;
     }
 
-    ++counters->buffersProcessed;
-    counters->unusedBytes += input.size() * sizeof(u32);
+    ++counters.buffersProcessed;
+    counters.unusedBytes += input.size() * sizeof(u32);
     LOG_TRACE("end parsing USB buffer %u, size=%lu bytes", bufferNumber, bufferBytes);
 
     return {};
