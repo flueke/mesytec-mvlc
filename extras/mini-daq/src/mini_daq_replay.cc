@@ -268,7 +268,7 @@ int main(int argc, char *argv[])
 
         cout << endl;
         cout << "---- readout parser stats ----" << endl;
-        readout_parser::dump_counters(cout, parserCounters.copy());
+        readout_parser::print_counters(cout, parserCounters.copy());
     }
 
     return 0;

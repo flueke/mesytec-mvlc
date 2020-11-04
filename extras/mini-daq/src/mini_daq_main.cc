@@ -152,7 +152,7 @@ void dump_counters(
     //
     {
         cout << endl << "---- readout parser stats ----" << endl;
-        readout_parser::dump_counters(cout, parserCounters);
+        readout_parser::print_counters(cout, parserCounters);
     }
 }
 
