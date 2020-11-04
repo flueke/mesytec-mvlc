@@ -462,8 +462,6 @@ std::error_code Impl::closeHandle()
 
 std::error_code Impl::connect()
 {
-    std::cout << __PRETTY_FUNCTION__ << ": MVLC USB new lib implementation" << std::endl;
-
     if (isConnected())
         return make_error_code(MVLCErrorCode::IsConnected);
 
