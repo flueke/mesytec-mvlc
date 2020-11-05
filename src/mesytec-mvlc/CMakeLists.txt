@@ -43,8 +43,10 @@ add_library(mesytec-mvlc SHARED
 target_include_directories(mesytec-mvlc
     PRIVATE ${CMAKE_CURRENT_BINARY_DIR}
     PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}
-    PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../>
-    PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/>
+    PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/..>
+    PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>
+    PUBLIC $<INSTALL_INTERFACE:include>
+    PUBLIC $<INSTALL_INTERFACE:include/mesytec-mvlc>
     )
 
 target_link_libraries(mesytec-mvlc
@@ -63,6 +65,7 @@ else()
 endif()
 
 target_compile_options(mesytec-mvlc PRIVATE -Wall -Wextra)
+target_compile_features(mesytec-mvlc PUBLIC cxx_std_14)
 
 if (WIN32)
     target_link_libraries(mesytec-mvlc PRIVATE ws2_32 winmm)
@@ -85,7 +88,7 @@ install(EXPORT libmesytec-mvlc
 
 install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/
     DESTINATION include/mesytec-mvlc
-    FILES_MATCHING PATTERN "*.h")
+    FILES_MATCHING PATTERN "*.h" PATTERN "*.hpp")
 
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/mesytec-mvlc_export.h
     DESTINATION include/mesytec-mvlc)
