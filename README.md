@@ -28,13 +28,15 @@ to build high-performance MVLC based DAQ readout systems are provided:
 
 * Can use configs exported from [mvme](https://mesytec.com/downloads/mvme.html).
 
-Components
+Structure
 ----------
+
+![library overview](doc/images/mesytec-mvlc.svg.png)
 
 * MVLC USB and Ethernet/UDP implementations
   - Two pipes (mapped to USB endpoints or UDP ports)
   - Buffered reads for direct communication
-  - Unbuffered/low level reads for high-performance readouts
+  - Unbuffered/low level reads for high-performance
   - Counters
 
 * Dialog layer - internal and VME register read/write access
@@ -42,14 +44,13 @@ Components
 
 * Stack error notification polling
 * Standard Listfile format plus writer and reader code
-* Core readout loop and multithreaded readout worker
+* Multithreaded readout worker
 * Thread-safe readout buffer queues. Allows to sniff and analyze data in a
   separate thread during a DAQ run.
-* Init/readout stack building
-* Stack memory management and uploading
+* Abstractions for building MVLC command stacks
+* Command stack memory management and uploading
 * Readout/Response Parser using information from the readout stacks to parse
   incoming data.
-
 * Single VME Crate readout config:
   - List of stack triggers: required to setup the MVLC
   - List of readout stacks: required for the MVLC setup and for parsing the data stream
@@ -63,21 +64,10 @@ Components
   - readout buffer queue plus operations (blocking, non-blocking)
   - listfile output (the readout config is serialized into the listfile at the start)
 
-* Listfile Writer
-  - Takes copies of readout buffers and internally queues them up for writing
-  - Fast LZ4 and slower ZIP (deflate) compressions are supported.
-
-* Listfile reader
-  - Transparently handles LZ4 and ZIP compressions
-  - Loads the CrateConfig from the listfile
-  - Reads data buffers, checks internal framing, passes buffers to thread-safe queue.
-
-* Stack batch execution
-  - Used to execute large command lists by splitting them into max sized stack
-    chunks and running those. Max size means that the command stack does not
-    overflow.
-
-![library overview](doc/images/mesytec-mvlc.svg.png)
+* Listfile writer and reader
+  - Standard listfile format, compatible with mvme
+  - Multithreaded writer
+  - LZ4 and ZIP (deflate) compression support
 
 Limitations
 -----------
@@ -108,21 +98,4 @@ working build system.
     mkdir mesytec-mvlc/build
     cd mesytec-mvlc/build
     cmake -DCMAKE_BUILD_TYPE=Release ..
-    make
-
-TODO
-----
-* abstraction for the trigger/io system. This needs to be flexible because the
-  system is going to change with future firmware udpates.
-* mini-daq/readout worker: add ability to resume a running readout. This means
-  triggers will not be disabled on connect and no init sequence will be run.
-  Instead we go directly to reading from both pipes (data and notifications).
-
-* examples
-  - Minimal CrateConfig creation and writing it to file
-  - Complete manual readout including CrateConfig setup for an MDPP-16
-
-* Multicrate support.
-  - Additional information needed and where to store it.
-  - multi-crate-mini-daq
-  - multi-crate-mini-daq-replay
+    make install

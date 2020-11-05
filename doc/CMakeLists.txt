@@ -12,6 +12,7 @@ if (DOXYGEN_FOUND)
 
     doxygen_add_docs(mesytec-mvlc-doc ALL
         ../README.md
+        ../TODO.md
         ${CMAKE_CURRENT_SOURCE_DIR}
         ${CMAKE_SOURCE_DIR}/src
         )
