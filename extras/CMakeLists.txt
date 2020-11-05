@@ -24,3 +24,6 @@ if (UNIX AND NOT APPLE)
         PRIVATE mesytec-mvlc
         PRIVATE BFG::Lyra)
 endif()
+
+install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/mesytec-mvlc-cmake-example
+    DESTINATION share/mesytec-mvlc)

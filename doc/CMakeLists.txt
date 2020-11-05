@@ -23,5 +23,5 @@ if (DOXYGEN_FOUND)
             ${CMAKE_CURRENT_BINARY_DIR}/html/doc/images)
 
     install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/html
-        DESTINATION share/doc)
+        DESTINATION share/doc/mesytec-mvlc)
 endif (DOXYGEN_FOUND)

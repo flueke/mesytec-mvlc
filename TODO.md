@@ -12,3 +12,7 @@ TODO {#todo}
   - Additional information needed and where to store it.
   - multi-crate-mini-daq
   - multi-crate-mini-daq-replay
+
+* mini-daq and mini-daq-replay: load plugins like in mvme/listfile_reader This
+  would make the two tools way more useful (and more complex). Specify plugins
+  to load (and their args) on the command line.
