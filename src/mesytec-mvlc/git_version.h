@@ -11,6 +11,8 @@ extern const char GIT_VERSION[];
 extern const char GIT_VERSION_SHORT[];
 extern const char GIT_VERSION_TAG[];
 
+inline const char *library_version() { return GIT_VERSION; }
+
 } // end namespace mvlc
 } // end namespace mesytec
 
