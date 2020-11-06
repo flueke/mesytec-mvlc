@@ -39,13 +39,13 @@
 #include <string>
 #include <thread>
 
-#include "mesytec-mvlc_export.h"
-#include "mvlc_basic_interface.h"
-#include "mvlc_constants.h"
-#include "mvlc_counters.h"
-#include "mvlc_eth_interface.h"
-#include "util/protected.h"
-#include "util/ticketmutex.h"
+#include "mesytec-mvlc/mesytec-mvlc_export.h"
+#include "mesytec-mvlc/mvlc_basic_interface.h"
+#include "mesytec-mvlc/mvlc_constants.h"
+#include "mesytec-mvlc/mvlc_counters.h"
+#include "mesytec-mvlc/mvlc_eth_interface.h"
+#include "mesytec-mvlc/util/protected.h"
+#include "mesytec-mvlc/util/ticketmutex.h"
 
 namespace mesytec
 {

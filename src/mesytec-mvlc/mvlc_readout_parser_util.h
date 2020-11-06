@@ -3,10 +3,10 @@
 
 #include <ostream>
 
-#include "mesytec-mvlc_export.h"
-#include "mvlc_readout_parser.h"
-#include "util/protected.h"
-#include "readout_buffer_queues.h"
+#include "mesytec-mvlc/mesytec-mvlc_export.h"
+#include "mesytec-mvlc/mvlc_readout_parser.h"
+#include "mesytec-mvlc/readout_buffer_queues.h"
+#include "mesytec-mvlc/util/protected.h"
 
 namespace mesytec
 {

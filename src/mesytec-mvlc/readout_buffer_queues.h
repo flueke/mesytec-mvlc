@@ -1,10 +1,10 @@
 #ifndef __MESYTEC_MVLC_UTIL_READOUT_BUFFER_QUEUES_H__
 #define __MESYTEC_MVLC_UTIL_READOUT_BUFFER_QUEUES_H__
 
-#include "mesytec-mvlc_export.h"
-#include "readout_buffer.h"
-#include "util/storage_sizes.h"
-#include "util/threadsafequeue.h"
+#include "mesytec-mvlc/mesytec-mvlc_export.h"
+#include "mesytec-mvlc/readout_buffer.h"
+#include "mesytec-mvlc/util/storage_sizes.h"
+#include "mesytec-mvlc/util/threadsafequeue.h"
 
 namespace mesytec
 {

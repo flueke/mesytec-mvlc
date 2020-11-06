@@ -2,7 +2,7 @@
 #define __MESYTEC_MVLC_PROTECTED_H__
 
 #include <condition_variable>
-#include "util/ticketmutex.h"
+#include "mesytec-mvlc/util/ticketmutex.h"
 
 namespace mesytec
 {

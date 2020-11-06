@@ -1,7 +1,7 @@
 #include "gtest/gtest.h"
 #include <chrono>
 #include <future>
-#include "util/protected.h"
+#include "mesytec-mvlc/util/protected.h"
 
 using namespace mesytec::mvlc;
 

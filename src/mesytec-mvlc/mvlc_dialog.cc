@@ -27,8 +27,7 @@
 #include "mvlc_constants.h"
 #include "mvlc_error.h"
 #include "mvlc_impl_usb.h"
-#include "mvlc_util.h"
-//#include "util/debug_timer.h"
+#include "util/io_util.h"
 
 #define LOG_LEVEL_OFF     0
 #define LOG_LEVEL_WARN  100

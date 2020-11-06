@@ -3,7 +3,7 @@
 
 #include <algorithm>
 
-#include "mesytec-mvlc_export.h"
+#include "mesytec-mvlc/mesytec-mvlc_export.h"
 
 #include "mvlc_readout_config.h"
 #include "util/int_types.h"

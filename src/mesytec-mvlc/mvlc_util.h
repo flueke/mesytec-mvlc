@@ -24,8 +24,8 @@
 #include <iomanip>
 #include <vector>
 
-#include "mesytec-mvlc_export.h"
-#include "mvlc_constants.h"
+#include "mesytec-mvlc/mesytec-mvlc_export.h"
+#include "mesytec-mvlc/mvlc_constants.h"
 
 namespace mesytec
 {
@@ -68,27 +68,6 @@ inline bool has_error_flag_set(u8 frameFlags)
     return (frameFlags & frame_flags::AllErrorFlags) != 0u;
 }
 
-
-template<typename Out>
-void log_buffer(Out &out, const u32 *buffer, size_t size, const char *info)
-{
-    using std::endl;
-
-    out << "begin " << info << " (size=" << size << ")" << endl;
-
-    for (size_t i=0; i < size; i++)
-    {
-        out << "  0x"
-            << std::setfill('0') << std::setw(8) << std::hex
-            << buffer[i]
-            << std::dec << std::setw(0)
-            << endl
-            ;
-    }
-
-    out << "end " << info << endl;
-}
-
 MESYTEC_MVLC_EXPORT const char *get_frame_flag_shift_name(u8 flag);
 
 stacks::TimerBaseUnit MESYTEC_MVLC_EXPORT timer_base_unit_from_string(const std::string &str);
@@ -96,6 +75,37 @@ stacks::TimerBaseUnit MESYTEC_MVLC_EXPORT timer_base_unit_from_string(const std:
 // String representation for the known system_event::subtype flags.
 // Returns "unknown/custom" for user defined flags.
 std::string MESYTEC_MVLC_EXPORT system_event_type_to_string(u8 eventType);
+
+inline u32 trigger_value(stacks::TriggerType triggerType, u8 irqLevel = 0)
+{
+    u32 triggerVal = triggerType << stacks::TriggerTypeShift;
+
+    if ((triggerType == stacks::TriggerType::IRQNoIACK
+         || triggerType == stacks::TriggerType::IRQWithIACK)
+        && irqLevel > 0)
+    {
+        triggerVal |= (irqLevel - 1) & stacks::TriggerBitsMask;
+    }
+
+    return triggerVal;
+}
+
+// Returns a pair consisting of (TriggerType, irqLevel).
+inline std::pair<stacks::TriggerType, u8> decode_trigger_value(const u32 triggerVal)
+{
+    stacks::TriggerType triggerType = static_cast<stacks::TriggerType>(
+        (triggerVal >> stacks::TriggerTypeShift) & stacks::TriggerTypeMask);
+
+    u8 irqLevel = 0;
+
+    if (triggerType == stacks::TriggerType::IRQNoIACK
+        || triggerType == stacks::TriggerType::IRQWithIACK)
+    {
+        irqLevel = 1 + (triggerVal & stacks::TriggerBitsMask);
+    }
+
+    return std::make_pair(triggerType, irqLevel);
+}
 
 
 } // end namespace mvlc

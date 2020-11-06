@@ -28,8 +28,8 @@
 #ifndef __MESYTEC_MVLC_MVLC_FACTORY_H__
 #define __MESYTEC_MVLC_MVLC_FACTORY_H__
 
-#include "mvlc.h"
-#include "mesytec-mvlc_export.h"
+#include "mesytec-mvlc/mesytec-mvlc_export.h"
+#include "mesytec-mvlc/mvlc.h"
 
 namespace mesytec
 {

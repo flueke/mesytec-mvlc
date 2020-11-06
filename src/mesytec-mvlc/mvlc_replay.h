@@ -3,11 +3,11 @@
 
 #include <future>
 
-#include "mesytec-mvlc_export.h"
+#include "mesytec-mvlc/mesytec-mvlc_export.h"
 
-#include "mvlc_listfile.h"
-#include "readout_buffer_queues.h"
-#include "util/protected.h"
+#include "mesytec-mvlc/mvlc_listfile.h"
+#include "mesytec-mvlc/readout_buffer_queues.h"
+#include "mesytec-mvlc/util/protected.h"
 
 namespace mesytec
 {

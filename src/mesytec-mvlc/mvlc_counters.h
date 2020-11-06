@@ -3,8 +3,8 @@
 
 #include <unordered_map>
 
-#include "mesytec-mvlc_export.h"
-#include "util/int_types.h"
+#include "mesytec-mvlc/mesytec-mvlc_export.h"
+#include "mesytec-mvlc/util/int_types.h"
 
 namespace mesytec
 {

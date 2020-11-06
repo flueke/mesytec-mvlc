@@ -2,7 +2,7 @@
 #define __MESYTEC_MVLC_UTIL_FILESYSTEM_H__
 
 #include <string>
-#include "mesytec-mvlc_export.h"
+#include "mesytec-mvlc/mesytec-mvlc_export.h"
 
 namespace mesytec
 {

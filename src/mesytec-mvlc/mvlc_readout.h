@@ -3,17 +3,16 @@
 
 #include <future>
 
-#include "mesytec-mvlc_export.h"
-
-#include "mvlc_eth_interface.h"
-#include "mvlc.h"
-#include "mvlc_impl_eth.h"
-#include "mvlc_listfile.h"
-#include "mvlc_readout_config.h"
-#include "mvlc_stack_errors.h"
-#include "mvlc_stack_executor.h"
-#include "readout_buffer_queues.h"
-#include "util/protected.h"
+#include "mesytec-mvlc/mesytec-mvlc_export.h"
+#include "mesytec-mvlc/mvlc_eth_interface.h"
+#include "mesytec-mvlc/mvlc.h"
+#include "mesytec-mvlc/mvlc_impl_eth.h"
+#include "mesytec-mvlc/mvlc_listfile.h"
+#include "mesytec-mvlc/mvlc_readout_config.h"
+#include "mesytec-mvlc/mvlc_stack_errors.h"
+#include "mesytec-mvlc/mvlc_stack_executor.h"
+#include "mesytec-mvlc/readout_buffer_queues.h"
+#include "mesytec-mvlc/util/protected.h"
 
 namespace mesytec
 {

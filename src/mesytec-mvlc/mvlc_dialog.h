@@ -26,12 +26,12 @@
 #include <system_error>
 #include <vector>
 
-#include "mesytec-mvlc_export.h"
-#include "mvlc_basic_interface.h"
-#include "mvlc_buffer_validators.h"
-#include "mvlc_command_builders.h"
-#include "mvlc_stack_errors.h"
-#include "util/protected.h"
+#include "mesytec-mvlc/mesytec-mvlc_export.h"
+#include "mesytec-mvlc/mvlc_basic_interface.h"
+#include "mesytec-mvlc/mvlc_buffer_validators.h"
+#include "mesytec-mvlc/mvlc_command_builders.h"
+#include "mesytec-mvlc/mvlc_stack_errors.h"
+#include "mesytec-mvlc/util/protected.h"
 
 // Higher level MVLC dialog (request/response) layer. Builds on top of the
 // AbstractImpl abstraction.

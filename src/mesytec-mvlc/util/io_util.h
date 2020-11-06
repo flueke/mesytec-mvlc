@@ -3,7 +3,9 @@
 
 #include <iostream>
 #include <string>
-#include "util/fmt.h"
+#include "mesytec-mvlc/util/fmt.h"
+#include "mesytec-mvlc/util/int_types.h"
+#include "mesytec-mvlc/util/string_view.hpp"
 
 namespace mesytec
 {

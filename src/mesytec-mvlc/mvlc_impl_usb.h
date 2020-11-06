@@ -27,12 +27,12 @@
 #include <thread>
 #include <vector>
 
-#include "mesytec-mvlc_export.h"
-#include "mvlc_basic_interface.h"
+#include "mesytec-mvlc/mesytec-mvlc_export.h"
+#include "mesytec-mvlc/mvlc_basic_interface.h"
 #ifdef __WIN32
-#include "mvlc_impl_support.h"
+#include "mesytec-mvlc/mvlc_impl_support.h"
 #endif
-#include "mvlc_usb_interface.h"
+#include "mesytec-mvlc/mvlc_usb_interface.h"
 
 namespace mesytec
 {

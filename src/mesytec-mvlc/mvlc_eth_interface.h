@@ -30,7 +30,7 @@
 
 #include <system_error>
 
-#include "mesytec-mvlc_export.h"
+#include "mesytec-mvlc/mesytec-mvlc_export.h"
 #include "mvlc_constants.h"
 #include "mvlc_counters.h"
 

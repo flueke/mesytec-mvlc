@@ -111,6 +111,7 @@ StackCommandBuilder stack_command_builder_from_yaml(const YAML::Node &yStack)
 
 } // end anon namespace
 
+/// Serializes a CrateConfig to YAML format.
 std::string to_yaml(const CrateConfig &crateConfig)
 {
     YAML::Emitter out;
@@ -149,12 +150,16 @@ std::string to_yaml(const CrateConfig &crateConfig)
     return out.c_str();
 }
 
+/// Parses a CreateConfig from the given YAML input string.
+/// throws std::runtime_error on error.
 CrateConfig crate_config_from_yaml(const std::string &yamlText)
 {
     std::istringstream iss(yamlText);
     return crate_config_from_yaml(iss);
 }
 
+/// Parses a CreateConfig from the given YAML input stream.
+/// throws std::runtime_error on error.
 CrateConfig crate_config_from_yaml(std::istream &input)
 {
     CrateConfig result = {};

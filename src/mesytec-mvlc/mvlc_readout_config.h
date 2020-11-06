@@ -1,7 +1,7 @@
 #ifndef __MESYTEC_MVLC_MVLC_READOUT_CONFIG_H__
 #define __MESYTEC_MVLC_MVLC_READOUT_CONFIG_H__
 
-#include "mesytec-mvlc_export.h"
+#include "mesytec-mvlc/mesytec-mvlc_export.h"
 
 #include "mvlc_constants.h"
 #include "mvlc_command_builders.h"
@@ -13,6 +13,7 @@ namespace mvlc
 
 struct MESYTEC_MVLC_EXPORT CrateConfig
 {
+    /// How to connect to the MVLC, USB or ETH.
     ConnectionType connectionType;
 
     // For ConnectionType::USB: If usbIndex is >= 0 it takes precedence over a

@@ -32,10 +32,10 @@
 #include <limits>
 #include <unordered_map>
 
-#include "mesytec-mvlc_export.h"
-#include "mvlc_command_builders.h"
-#include "mvlc_constants.h"
-#include "mvlc_util.h"
+#include "mesytec-mvlc/mesytec-mvlc_export.h"
+#include "mesytec-mvlc/mvlc_command_builders.h"
+#include "mesytec-mvlc/mvlc_constants.h"
+#include "mesytec-mvlc/mvlc_util.h"
 
 namespace mesytec
 {

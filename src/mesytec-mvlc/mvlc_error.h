@@ -2,7 +2,7 @@
 #define __MESYTEC_MVLC_MVLC_ERROR_H__
 
 #include <system_error>
-#include "mesytec-mvlc_export.h"
+#include "mesytec-mvlc/mesytec-mvlc_export.h"
 
 namespace mesytec
 {

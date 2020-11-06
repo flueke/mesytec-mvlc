@@ -37,17 +37,10 @@ add_library(mesytec-mvlc SHARED
     util/ticketmutex.cc
     )
 
-#set_source_files_properties(mvlc_impl_eth.cc PROPERTIES
-#    COMPILE_FLAGS "-Wno-missing-field-initializers")
-
 target_include_directories(mesytec-mvlc
-    PRIVATE ${CMAKE_CURRENT_BINARY_DIR}
-    PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}
-    PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/>
     PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/..>
-    PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>
+    PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/..>
     PUBLIC $<INSTALL_INTERFACE:include>
-    PUBLIC $<INSTALL_INTERFACE:include/mesytec-mvlc>
     )
 
 target_link_libraries(mesytec-mvlc

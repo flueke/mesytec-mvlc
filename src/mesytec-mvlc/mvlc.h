@@ -31,7 +31,7 @@
 #include <memory>
 #include <vector>
 
-#include "mesytec-mvlc_export.h"
+#include "mesytec-mvlc/mesytec-mvlc_export.h"
 #include "mvlc_basic_interface.h"
 #include "mvlc_buffer_validators.h"
 #include "mvlc_constants.h"
