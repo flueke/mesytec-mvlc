@@ -9,7 +9,7 @@ if (DOXYGEN_FOUND)
 
     set(DOXYGEN_EXTRACT_ALL YES)
     set(DOXYGEN_EXTRACT_STATIC YES)
-    set(DOXYGEN_TOC_INCLUDE_HEADINGS 10)
+    set(DOXYGEN_TOC_INCLUDE_HEADINGS 0)
 
     doxygen_add_docs(mesytec-mvlc-doc ALL
         ../README.md

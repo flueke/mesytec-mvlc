@@ -1,9 +1,6 @@
 Using the mesytec-mvlc library {#usage-guide}
 =============================================
 
-* Integration with CMake
-* Creating MVLC and connecting
-* Manual VME register access
 * Creating a CreateConfig and writing it to disk
 * Snoop queues, listfile and readout ReadoutWorker, readout_parser,
 * Listfile format and parsing
@@ -13,6 +10,8 @@ Using the mesytec-mvlc library {#usage-guide}
 
 Usage with cmake
 ----------------
+
+CMakeLists.txt for locating and linking against the library.
 
     cmake_minimum_required(VERSION 3.12)
     project(mesytec-mvlc-cmake-example)
@@ -26,14 +25,15 @@ If the library was installed in a non-system location set the environment
 variable `CMAKE_PREFIX_PATH` to point to the root of the installation prefix.
 
 A small cmake example project can be found in
-`share/mesytec-mvlc/mesytec-mvlc-cmake-example` under the installation
-directory.
+`share/mesytec-mvlc/cmake-example` under the installation directory.
 
 MVLC objects and direct VME access
 ----------------------------------
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~{.cc}
     #include <mesytec-mvlc/mesytec-mvlc.h>
+
+    using namespace mesytec::mvlc;
 
     int main()
     {
@@ -62,14 +62,17 @@ MVLC objects and direct VME access
 
         // Writing to the same address (0x6008 is "module reset" for mesytec-module)
         mvlc.vmeWrite(vmeBase + regAddr, 1, vme_amods::A32, VMEDataWidth::D16);
-
-        // Manual block read from the base address with the maximum number of
-        // cycles (64k) into the destination buffer. The buffer will be resized
-        // as required to hold the received data.
-        std::vector<uint32_t> buffer;
-
-        auto ec = mvlc.vmeBlockRead(vmeBase, 0xffff, buffer);
     }
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 See the mesytec::mvlc::MVLC page for the full interface.
+
+Building a CrateConfig
+----------------------
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~{.cc}
+CrateConfig cfg = {};
+cfg.connectionType = ConnectionType::ETH;
+cfg.ethHost = "mvlc-0007";
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
