@@ -11,9 +11,9 @@
 #include "gtest/gtest.h"
 
 #include "mvlc_listfile_zip.h"
+#include "util/fmt.h"
 #include "util/io_util.h"
 #include "util/storage_sizes.h"
-#include "mesytec-mvlc/fmt.h"
 
 using std::cout;
 using std::endl;

@@ -6,7 +6,7 @@
 #include "mesytec-mvlc_export.h"
 
 #include "mvlc_listfile.h"
-#include "util/readout_buffer_queues.h"
+#include "readout_buffer_queues.h"
 #include "util/protected.h"
 
 namespace mesytec

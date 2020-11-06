@@ -4,7 +4,7 @@
 #include <cstring>
 
 #include "mvlc_listfile.h"
-#include "util/readout_buffer.h"
+#include "readout_buffer.h"
 
 namespace mesytec
 {

@@ -1,4 +1,4 @@
-#include "util/readout_buffer_queues.h"
+#include "readout_buffer_queues.h"
 
 namespace mesytec
 {

@@ -27,14 +27,14 @@ add_library(mesytec-mvlc SHARED
     mvlc_stack_executor.cc
     mvlc_usb_interface.cc
     mvlc_util.cc
+    readout_buffer.cc
+    readout_buffer_queues.cc
 
     util/filesystem.cc
     util/protected.cc
     util/string_util.cc
     util/threadsafequeue.cc
     util/ticketmutex.cc
-    util/readout_buffer.cc
-    util/readout_buffer_queues.cc
     )
 
 #set_source_files_properties(mvlc_impl_eth.cc PROPERTIES
@@ -43,6 +43,7 @@ add_library(mesytec-mvlc SHARED
 target_include_directories(mesytec-mvlc
     PRIVATE ${CMAKE_CURRENT_BINARY_DIR}
     PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}
+    PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/>
     PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/..>
     PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>
     PUBLIC $<INSTALL_INTERFACE:include>

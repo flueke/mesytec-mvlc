@@ -30,7 +30,6 @@
 
 /** @file */
 
-#include "fmt.h"
 #include "git_version.h"
 #include "mvlc_command_builders.h"
 #include "mvlc_dialog.h"
@@ -47,6 +46,7 @@
 #include "mvlc_threading.h"
 #include "mvlc_util.h"
 #include "util/filesystem.h"
+#include "util/fmt.h"
 #include "util/int_types.h"
 #include "util/io_util.h"
 #include "vme_constants.h"

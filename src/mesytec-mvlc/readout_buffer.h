@@ -5,15 +5,13 @@
 #include <vector>
 
 #include "mesytec-mvlc_export.h"
-#include "mesytec-mvlc/mvlc_constants.h"
-#include "mesytec-mvlc/util/string_view.hpp"
+#include "mvlc_constants.h"
+#include "util/string_view.hpp"
 
 namespace mesytec
 {
 namespace mvlc
 {
-
-using nonstd::basic_string_view;
 
 class MESYTEC_MVLC_EXPORT ReadoutBuffer
 {
@@ -61,14 +59,14 @@ class MESYTEC_MVLC_EXPORT ReadoutBuffer
         const u8 *data() const { return buffer().data(); }
         u8 *data() { return buffer().data(); }
 
-        basic_string_view<const u8> viewU8() const
+        nonstd::basic_string_view<const u8> viewU8() const
         {
-            return basic_string_view<const u8>(m_buffer.data(), m_used);
+            return nonstd::basic_string_view<const u8>(m_buffer.data(), m_used);
         }
 
-        basic_string_view<const u32> viewU32() const
+        nonstd::basic_string_view<const u32> viewU32() const
         {
-            return basic_string_view<const u32>(
+            return nonstd::basic_string_view<const u32>(
                 reinterpret_cast<const u32 *>(m_buffer.data()),
                 m_used / sizeof(u32));
         }

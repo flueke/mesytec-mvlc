@@ -2,8 +2,9 @@
 #define __MESYTEC_MVLC_UTIL_READOUT_BUFFER_QUEUES_H__
 
 #include "mesytec-mvlc_export.h"
-#include "mesytec-mvlc/util/readout_buffer.h"
-#include "mesytec-mvlc/util/threadsafequeue.h"
+#include "readout_buffer.h"
+#include "util/storage_sizes.h"
+#include "util/threadsafequeue.h"
 
 namespace mesytec
 {
@@ -15,7 +16,7 @@ class MESYTEC_MVLC_EXPORT ReadoutBufferQueues
     public:
         using QueueType = ThreadSafeQueue<ReadoutBuffer *>;
 
-        ReadoutBufferQueues(size_t bufferCapacity, size_t bufferCount);
+        explicit ReadoutBufferQueues(size_t bufferCapacity = util::Megabytes(1), size_t bufferCount = 10);
 
         QueueType &filledBufferQueue() { return m_filledBuffers; }
         QueueType &emptyBufferQueue() { return m_emptyBuffers; }

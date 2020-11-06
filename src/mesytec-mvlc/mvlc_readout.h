@@ -5,14 +5,14 @@
 
 #include "mesytec-mvlc_export.h"
 
-#include "mvlc.h"
 #include "mvlc_eth_interface.h"
+#include "mvlc.h"
 #include "mvlc_impl_eth.h"
 #include "mvlc_listfile.h"
 #include "mvlc_readout_config.h"
 #include "mvlc_stack_errors.h"
 #include "mvlc_stack_executor.h"
-#include "util/readout_buffer_queues.h"
+#include "readout_buffer_queues.h"
 #include "util/protected.h"
 
 namespace mesytec

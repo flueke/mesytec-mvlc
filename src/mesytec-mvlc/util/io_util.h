@@ -1,9 +1,9 @@
 #ifndef __MESYTEC_MVLC_IO_UTIL_H__
 #define __MESYTEC_MVLC_IO_UTIL_H__
 
-#include <mesytec-mvlc/fmt.h>
 #include <iostream>
 #include <string>
+#include "util/fmt.h"
 
 namespace mesytec
 {
