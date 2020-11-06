@@ -358,7 +358,7 @@ int main(int argc, char *argv[])
         // Setup and start the readout parser.
         //
         const size_t BufferSize = util::Megabytes(1);
-        const size_t BufferCount = 100;
+        const size_t BufferCount = 10;
         ReadoutBufferQueues snoopQueues(BufferSize, BufferCount);
 
         readout_parser::ReadoutParserCallbacks parserCallbacks;
