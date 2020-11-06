@@ -4,10 +4,8 @@
 #    add_subdirectory(python)
 #endif(MVLC_ENABLE_PYTHON)
 
-add_subdirectory(zip-tests)
 add_subdirectory(mini-daq)
 add_subdirectory(mvlc-ctrl-tests)
-add_subdirectory(ftdi-list-devices)
 
 if (UNIX AND NOT APPLE)
     add_executable(netlink-test netlink-socket-mem-monitoring/netlink-test.cc)
