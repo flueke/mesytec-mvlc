@@ -23,13 +23,14 @@ Usage with cmake
     target_link_libraries(my_tool PRIVATE mesytec-mvlc::mesytec-mvlc)
 
 If the library was installed in a non-system location set the environment
-variable **CMAKE_PREFIX_PATH** to point to the root of the installation prefix.
+variable `CMAKE_PREFIX_PATH` to point to the root of the installation prefix.
 
 A small cmake example project can be found in
-*share/mesytec-mvlc/mesytec-mvlc-cmake-example* under the installation directory.
+`share/mesytec-mvlc/mesytec-mvlc-cmake-example` under the installation
+directory.
 
-MVLC objects and VME register access
-------------------------------------
+MVLC objects and direct VME access
+----------------------------------
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~{.cc}
     #include <mesytec-mvlc/mesytec-mvlc.h>
@@ -63,7 +64,8 @@ MVLC objects and VME register access
         mvlc.vmeWrite(vmeBase + regAddr, 1, vme_amods::A32, VMEDataWidth::D16);
 
         // Manual block read from the base address with the maximum number of
-        cycles (64k) into the destination buffer.
+        // cycles (64k) into the destination buffer. The buffer will be resized
+        // as required to hold the received data.
         std::vector<uint32_t> buffer;
 
         auto ec = mvlc.vmeBlockRead(vmeBase, 0xffff, buffer);

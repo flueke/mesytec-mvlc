@@ -8,7 +8,8 @@ if (DOXYGEN_FOUND)
         */mesytec-mvlc/os.cc)
 
     set(DOXYGEN_EXTRACT_ALL YES)
-    #set(DOXYGEN_TOC_INCLUDE_HEADINGS 10)
+    set(DOXYGEN_EXTRACT_STATIC YES)
+    set(DOXYGEN_TOC_INCLUDE_HEADINGS 10)
 
     doxygen_add_docs(mesytec-mvlc-doc ALL
         ../README.md
@@ -23,5 +24,10 @@ if (DOXYGEN_FOUND)
             ${CMAKE_CURRENT_BINARY_DIR}/html/doc/images)
 
     install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/html
+        DESTINATION share/doc/mesytec-mvlc)
+
+    install(FILES
+        ${CMAKE_CURRENT_SOURCE_DIR}/../README.md
+        ${CMAKE_CURRENT_SOURCE_DIR}/usage-guide.md
         DESTINATION share/doc/mesytec-mvlc)
 endif (DOXYGEN_FOUND)
