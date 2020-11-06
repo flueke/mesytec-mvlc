@@ -10,11 +10,5 @@ target_link_libraries(mini-daq-replay
     PRIVATE BFG::Lyra
     )
 
-add_executable(mini-daq-manual-readout mini_daq_manual_readout.cc)
-target_link_libraries(mini-daq-manual-readout
-    PRIVATE mesytec-mvlc
-    PRIVATE BFG::Lyra
-    )
-
-install(TARGETS mini-daq mini-daq-replay mini-daq-manual-readout
+install(TARGETS mini-daq mini-daq-replay
     RUNTIME DESTINATION bin)
