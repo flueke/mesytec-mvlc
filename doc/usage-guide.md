@@ -75,4 +75,7 @@ CrateConfig cfg = {};
 cfg.connectionType = ConnectionType::ETH;
 cfg.ethHost = "mvlc-0007";
 
+cfg.stacks = { readoutStack };
+cfg.triggers = { trigger_value(TriggerType::IRQNoIACK, 1); };
+
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
