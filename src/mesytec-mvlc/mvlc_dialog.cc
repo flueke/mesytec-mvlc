@@ -693,8 +693,7 @@ void MVLCDialog::logBuffer(const std::vector<u32> &buffer, const std::string &in
 {
     if (LOG_LEVEL_SETTING >= LOG_LEVEL_TRACE)
     {
-        log_buffer(std::cerr, buffer.data(), buffer.size(),
-                   ("MVLCDialog::" + info).c_str());
+        util::log_buffer(std::cerr, buffer.data(), buffer.size(), "MVLCDialog::" + info);
     }
 }
 

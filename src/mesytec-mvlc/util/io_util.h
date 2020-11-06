@@ -50,6 +50,12 @@ Out &log_buffer(Out &out, const View &buffer, const std::string &header,
     return out;
 }
 
+template<typename Out>
+Out &log_buffer(Out &out, const u32 *buffer, size_t size, const std::string &header = {})
+{
+    return log_buffer(out, nonstd::basic_string_view<const u32>(buffer, size), header);
+}
+
 } // end namespace util
 } // end namespace mvlc
 } // end namespace mesytec

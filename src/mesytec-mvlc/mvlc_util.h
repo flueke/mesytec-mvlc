@@ -68,8 +68,6 @@ inline bool has_error_flag_set(u8 frameFlags)
     return (frameFlags & frame_flags::AllErrorFlags) != 0u;
 }
 
-MESYTEC_MVLC_EXPORT void log_buffer(const u32 *buffer, size_t size, const std::string &info = {});
-MESYTEC_MVLC_EXPORT void log_buffer(const std::vector<u32> &buffer, const std::string &info = {});
 
 template<typename Out>
 void log_buffer(Out &out, const u32 *buffer, size_t size, const char *info)

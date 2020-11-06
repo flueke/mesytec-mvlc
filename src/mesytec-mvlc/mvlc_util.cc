@@ -114,27 +114,6 @@ std::string decode_frame_header(u32 header)
     return result;
 }
 
-void log_buffer(const u32 *buffer, size_t size, const std::string &info)
-{
-    using std::cout;
-    using std::endl;
-
-    cout << "begin " << info << " (size=" << size << ")" << endl;
-
-    for (size_t i = 0; i < size; i++)
-    {
-        //printf("  %3lu: 0x%08x\n", i, buffer[i]);
-        printf("  0x%08X\n", buffer[i]);
-    }
-
-    cout << "end " << info << endl;
-}
-
-void log_buffer(const std::vector<u32> &buffer, const std::string &info)
-{
-    log_buffer(buffer.data(), buffer.size(), info);
-}
-
 const char *get_frame_flag_shift_name(u8 flag_shift)
 {
     if (flag_shift == frame_flags::shifts::Timeout)
