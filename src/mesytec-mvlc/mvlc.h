@@ -174,20 +174,16 @@ class MESYTEC_MVLC_EXPORT MVLC: public MVLCBasicInterface
         //
 
 
-#if 0
-        // Get the stack error notifications that may have resulted from the
-        // previous stack operation. Performing another stack operation will
-        // clear the internal buffer.
-        std::vector<std::vector<u32>> getStackErrorNotifications() const;
-        void clearStackErrorNotifications();
-        bool hasStackErrorNotifications() const;
-#else
         StackErrorCounters getStackErrorCounters() const;
         Protected<StackErrorCounters> &getProtectedStackErrorCounters();
         void clearStackErrorCounters();
 
+        // Temporarily suspend polling for stack errors. Take the mutex before
+        // running a batch of commands (e.g. VME writes from an init sequence)
+        // and hold it until all commands are done. This way the stack error
+        // poller won't slow down the command execution with reads that run
+        // into timeouts.
         std::unique_lock<Mutex> suspendStackErrorPolling();
-#endif
 
         //
         // Access to the low-level implementation and the mutexes.

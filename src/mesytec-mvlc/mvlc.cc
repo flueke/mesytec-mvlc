@@ -414,25 +414,6 @@ std::vector<u32> MVLC::getResponseBuffer() const
     return d->dialog.getResponseBuffer();
 }
 
-#if 0
-std::vector<std::vector<u32>> MVLC::getStackErrorNotifications() const
-{
-    auto guard = d->locks.lockCmd();
-    return d->dialog.getStackErrorNotifications();
-}
-
-void MVLC::clearStackErrorNotifications()
-{
-    auto guard = d->locks.lockCmd();
-    d->dialog.clearStackErrorNotifications();
-}
-
-bool MVLC::hasStackErrorNotifications() const
-{
-    auto guard = d->locks.lockCmd();
-    return d->dialog.hasStackErrorNotifications();
-}
-#else
 StackErrorCounters MVLC::getStackErrorCounters() const
 {
     // Note: this is thread-safe in MVLCDialog
@@ -456,7 +437,6 @@ std::unique_lock<Mutex> MVLC::suspendStackErrorPolling()
     // iteration.
     return std::unique_lock<Mutex>(d->errorPollerSuspendMutex);
 }
-#endif
 
 }
 }

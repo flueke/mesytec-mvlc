@@ -93,9 +93,8 @@ class MESYTEC_MVLC_EXPORT ReadoutWorker
             // tStart is recorded right before entering the readout loop
             std::chrono::time_point<std::chrono::steady_clock> tStart;
 
-            // tEnd is recorded at the end of the readout loop but before
-            // stopping the error polling thread. This reflects the DAQ time
-            // including the termination sequence.
+            // tEnd is recorded at the end of the readout loop. This reflects
+            // the DAQ time including the termination sequence.
             std::chrono::time_point<std::chrono::steady_clock> tEnd;
 
             // tTerminateStart is recorded right before the termination sequence is run.

@@ -267,57 +267,6 @@ void MESYTEC_MVLC_EXPORT listfile_buffer_writer(
     cerr << "listfile_writer left write loop, writes=" << writes << ", bytesWritten=" << bytesWritten << endl;
 }
 
-#if 0
-void stack_error_notification_poller(
-    MVLC mvlc,
-    Protected<ReadoutWorker::Counters> &counters,
-    std::atomic<bool> &quit)
-{
-    static constexpr auto Default_PollInterval = std::chrono::milliseconds(1000);
-
-#ifndef __WIN32
-    prctl(PR_SET_NAME,"error_poller",0,0,0);
-#endif
-
-    std::vector<u32> buffer;
-    buffer.reserve(util::Megabytes(1));
-
-    std::cout << "stack_error_notification_poller entering loop" << std::endl;
-
-    while (!quit)
-    {
-        std::cout << "mvlc_readout::stack_error_notification_poller begin read" << std::endl;
-        auto tReadStart = std::chrono::steady_clock::now();
-        auto ec = mvlc.readKnownBuffer(buffer);
-        auto tReadEnd = std::chrono::steady_clock::now();
-        std::chrono::duration<double, std::milli> readElapsed = tReadEnd - tReadStart;
-        std::cout << "mvlc_readout::stack_error_notification_poller read done "
-            << ", dt=" << readElapsed.count()
-            << ", ec=" << ec.message()
-            << ", buffer.size()=" << buffer.size()
-            << std::endl;
-
-        if (!buffer.empty())
-        {
-            //std::cout << "mvlc_readout::stack_error_notification_poller updating counters" << std::endl;
-            update_stack_error_counters(counters.access()->stackErrors, buffer);
-        }
-
-        if (ec == ErrorType::ConnectionError)
-            break;
-
-        if (buffer.empty())
-        {
-            std::cout << "mvlc_readout::stack_error_notification_poller sleeping" << std::endl;
-            std::this_thread::sleep_for(Default_PollInterval);
-            std::cout << "mvlc_readout::stack_error_notification_poller waking" << std::endl;
-        }
-    }
-
-    std::cout << "stack_error_notification_poller exiting" << std::endl;
-}
-#endif
-
 namespace
 {
 
@@ -473,7 +422,7 @@ void ReadoutWorker::Private::loop(std::promise<std::error_code> promise)
 
     std::cout << "readout_worker thread starting" << std::endl;
 
-    counters.access().ref() = {}; // reset the counters
+    counters.access().ref() = {}; // reset the readout counters
 
     // ConnectionType specifics
     this->mvlcETH = nullptr;
@@ -513,6 +462,9 @@ void ReadoutWorker::Private::loop(std::promise<std::error_code> promise)
 
     assert(mvlcETH || mvlcUSB);
 
+    // Reset the MVLC-wide stack error counters
+    mvlc.clearStackErrorCounters();
+
     // listfile writer thread
     Protected<ListfileWriterCounters> writerCounters({});
 
@@ -521,17 +473,6 @@ void ReadoutWorker::Private::loop(std::promise<std::error_code> promise)
         lfh,
         std::ref(listfileQueues),
         std::ref(writerCounters));
-
-    // stack error polling thread
-    std::atomic<bool> quitErrorPoller(false);
-
-#if 0
-    auto pollerThread = std::thread(
-        stack_error_notification_poller,
-        mvlc,
-        std::ref(counters),
-        std::ref(quitErrorPoller));
-#endif
 
     const auto TimestampInterval = std::chrono::seconds(1);
 
@@ -706,27 +647,13 @@ void ReadoutWorker::Private::loop(std::promise<std::error_code> promise)
     // ReadoutWorker::Counters structure.
     counters.access()->listfileWriterCounters = writerCounters.access().ref();
 
-    // Record the tEnd before waiting for the error poller to stop. This way
-    // the final stats more closely reflect the actual data rate while the DAQ
-    // was active. Note that the time taken in terminateReadout() is still
-    // counted into the duration which means there's at least one read timeout
-    // at the end. For long runs this doesn't really have an effect on the rate
-    // but for short runs the final rate is noticably lower due to that last
-    // read timeout.
+    // Record the final tEnd
     {
         auto tEnd = std::chrono::steady_clock::now();
         auto c = counters.access();
         c->tEnd = tEnd;
         c->ec = ec;
     }
-
-    // stop the stack error poller
-    quitErrorPoller = true;
-
-#if 0
-    if (pollerThread.joinable())
-        pollerThread.join();
-#endif
 
     // Check that all buffers from the listfile writer queue have been returned.
     assert(listfileQueues.emptyBufferQueue().size() == ListfileWriterBufferCount);
