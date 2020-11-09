@@ -89,6 +89,9 @@ void stack_error_poller(
             std::unique_lock<Mutex> cmdGuard(cmdMutex);
             ec = mvlc.readKnownBuffer(buffer);
         }
+
+        suspendGuard.unlock();
+
 #if POLLER_DEBUG
         auto tReadEnd = std::chrono::steady_clock::now();
         std::chrono::duration<double, std::milli> readElapsed = tReadEnd - tReadStart;
