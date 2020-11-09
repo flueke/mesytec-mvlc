@@ -170,6 +170,7 @@ class MVLCErrorCategory: public std::error_category
             case MVLCErrorCode::EmptyHostname:
             case MVLCErrorCode::InUse:
             case MVLCErrorCode::USBChipConfigError:
+            case MVLCErrorCode::MirrorMaxTriesExceeded:
                 return ErrorType::ConnectionError;
 
             case MVLCErrorCode::ShortWrite:
@@ -205,7 +206,6 @@ class MVLCErrorCategory: public std::error_category
             case MVLCErrorCode::SocketReadTimeout:
             case MVLCErrorCode::SocketWriteTimeout:
             case MVLCErrorCode::ReadResponseMaxWaitExceeded:
-            case MVLCErrorCode::MirrorMaxTriesExceeded:
                 return ErrorType::Timeout;
         }
         assert(false);
