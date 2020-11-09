@@ -69,15 +69,38 @@ endif(WIN32)
 include(GenerateExportHeader)
 generate_export_header(mesytec-mvlc)
 
-install(TARGETS mesytec-mvlc
-    EXPORT libmesytec-mvlc
-    LIBRARY DESTINATION lib
-    RUNTIME DESTINATION bin
-    )
+# Export and installation
+include(CMakePackageConfigHelpers)
+# TODO set(version_config ${PROJECT_BINARY_DIR}/fmt-config-version.cmake)
+set(project_config ${PROJECT_BINARY_DIR}/mesytec-mvlc-config.cmake)
+set(targets_export_name mesytec-mvlc-targets)
 
-install(EXPORT libmesytec-mvlc
+# TODO  write_basic_package_version_file(
+#    ${version_config}
+#    VERSION ${FMT_VERSION}
+#    COMPATIBILITY AnyNewerVersion)
+
+configure_package_config_file(
+    "${PROJECT_SOURCE_DIR}/tools/cmake/mesytec-mvlc-config.cmake.in"
+    ${project_config}
+    INSTALL_DESTINATION lib/cmake/mesytec-mvlc)
+
+set(INSTALL_TARGETS mesytec-mvlc)
+export(TARGETS ${INSTALL_TARGETS} NAMESPACE mesytec-mvlc::
+    FILE ${PROJECT_BINARY_DIR}/${targets_export_name}.cmake)
+
+install(FILES ${project_config}
+    DESTINATION lib/cmake/mesytec-mvlc)
+
+install(EXPORT ${targets_export_name}
     DESTINATION lib/cmake/mesytec-mvlc
     NAMESPACE mesytec-mvlc::
+    )
+
+install(TARGETS ${INSTALL_TARGETS}
+    EXPORT ${targets_export_name}
+    LIBRARY DESTINATION lib
+    RUNTIME DESTINATION bin
     )
 
 install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/
@@ -86,16 +109,6 @@ install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/
 
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/mesytec-mvlc_export.h
     DESTINATION include/mesytec-mvlc)
-
-#include(CMakePackageConfigHelpers)
-set(project_config ${PROJECT_BINARY_DIR}/mesytec-mvlc-config.cmake)
-set(targets_export_name libmesytec-mvlc)
-configure_package_config_file(
-    "${PROJECT_SOURCE_DIR}/tools/cmake/mesytec-mvlc-config.cmake.in"
-    ${project_config}
-    INSTALL_DESTINATION lib/cmake/mesytec-mvlc)
-install(FILES ${project_config}
-    DESTINATION lib/cmake/mesytec-mvlc)
 
 if (MVLC_BUILD_TESTS)
     function(add_gtest exe_name exe_source)
