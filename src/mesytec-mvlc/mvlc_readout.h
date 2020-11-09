@@ -9,7 +9,6 @@
 #include "mesytec-mvlc/mvlc_impl_eth.h"
 #include "mesytec-mvlc/mvlc_listfile.h"
 #include "mesytec-mvlc/mvlc_readout_config.h"
-#include "mesytec-mvlc/mvlc_stack_errors.h"
 #include "mesytec-mvlc/mvlc_stack_executor.h"
 #include "mesytec-mvlc/readout_buffer_queues.h"
 #include "mesytec-mvlc/util/protected.h"
@@ -144,7 +143,6 @@ class MESYTEC_MVLC_EXPORT ReadoutWorker
             std::array<eth::PipeStats, PipeCount> ethStats;
             std::error_code ec;
             std::exception_ptr eptr;
-            StackErrorCounters stackErrors;
             ListfileWriterCounters listfileWriterCounters = {};
         };
 

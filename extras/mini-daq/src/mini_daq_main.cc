@@ -22,6 +22,7 @@ using namespace mesytec::mvlc;
 void dump_counters(
     std::ostream &out,
     const ConnectionType &connectionType,
+    const StackErrorCounters &stackErrors,
     const ReadoutWorker::Counters &readoutWorkerCounters,
     const readout_parser::ReadoutParserCounters &parserCounters)
 {
@@ -78,9 +79,9 @@ void dump_counters(
         cout << endl;
 
         cout << "stackErrors:";
-        for (size_t stack=0; stack<counters.stackErrors.stackErrors.size(); ++stack)
+        for (size_t stack=0; stack<stackErrors.stackErrors.size(); ++stack)
         {
-            const auto &errorCounts = counters.stackErrors.stackErrors[stack];
+            const auto &errorCounts = stackErrors.stackErrors[stack];
 
             for (auto it=errorCounts.begin(); it!=errorCounts.end(); ++it)
             {
@@ -451,6 +452,7 @@ int main(int argc, char *argv[])
                 dump_counters(
                     cout,
                     crateConfig.connectionType,
+                    mvlc.getStackErrorCounters(),
                     readoutWorker.counters(),
                     parserCounters.copy());
             }
@@ -496,6 +498,7 @@ int main(int argc, char *argv[])
         dump_counters(
             cout,
             crateConfig.connectionType,
+            mvlc.getStackErrorCounters(),
             readoutWorker.counters(),
             parserCounters.copy());
 
