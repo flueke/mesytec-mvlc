@@ -93,6 +93,23 @@ inline bool is_empty(const GroupReadoutSpans &spans)
 
 struct end_of_frame: public std::exception {};
 
+#if 0
+struct PointerSpan
+{
+    const u32 *data;
+    const u32 size;
+};
+
+struct GroupData
+{
+    PointerSpan prefix;
+    PointerSpan dynamic;
+    PointerSpan suffix;
+};
+
+void eventData(int eventIndex, const GroupData *groups, size_t groupCount);
+#endif
+
 struct ReadoutParserCallbacks
 {
     // functions taking an event index
