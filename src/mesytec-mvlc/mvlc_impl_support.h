@@ -29,6 +29,7 @@
 #define __MESYTEC_MVLC_MVLC_IMPL_SUPPORT_H__
 
 #include <array>
+#include <cstddef>
 #include "util/int_types.h"
 
 namespace mesytec
