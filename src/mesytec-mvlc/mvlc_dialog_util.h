@@ -111,9 +111,21 @@ read_stack_info(DIALOG_API &mvlc, u8 id)
 }
 
 template<typename DIALOG_API>
+std::error_code enable_daq_mode(DIALOG_API &mvlc)
+{
+    return mvlc.writeRegister(DAQModeEnableRegister, 1);
+}
+
+template<typename DIALOG_API>
+std::error_code disable_daq_mode(DIALOG_API &mvlc)
+{
+    return mvlc.writeRegister(DAQModeEnableRegister, 0);
+}
+
+template<typename DIALOG_API>
 std::error_code disable_all_triggers(DIALOG_API &mvlc)
 {
-    if (auto ec = mvlc.writeRegister(DAQModeEnableRegister, 0))
+    if (auto ec = disable_daq_mode(mvlc))
         return ec;
 
     for (u8 stackId = 0; stackId < stacks::StackCount; stackId++)
@@ -243,6 +255,9 @@ std::error_code setup_readout_triggers(
 
         ++stackId;
     }
+
+    if (auto ec = enable_daq_mode(mvlc))
+        return ec;
 
     return {};
 }
