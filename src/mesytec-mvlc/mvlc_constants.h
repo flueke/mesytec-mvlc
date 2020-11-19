@@ -272,9 +272,6 @@ static const u16 InternalRegisterMax = 0x5FFF;
 
 // Setting bit 0 to 1 enables autonomous execution of stacks in
 // reaction to triggers.
-// IMPORTANT: This is always active right now, meaning as soon as an individual
-// stack trigger register is set to active the triggers will immediately be
-// processed.
 static const u32 DAQModeEnableRegister = 0x1300;
 
 namespace stacks

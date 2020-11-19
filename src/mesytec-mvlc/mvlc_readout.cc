@@ -64,7 +64,6 @@
 #include "mvlc_listfile.h"
 
 #include <atomic>
-#include <chrono>
 #include <cstring>
 #include <exception>
 #include <iostream>
@@ -117,6 +116,11 @@ ReadoutInitResults MESYTEC_MVLC_EXPORT init_readout(
     const CommandExecOptions stackExecOptions)
 {
     ReadoutInitResults ret;
+
+    ret.ec = mvlc.writeRegister(DAQModeEnableRegister, 0);
+
+    if (ret.ec)
+        return ret;
 
     // exec init_commands using all of the available stack memory
     {
@@ -172,6 +176,8 @@ ReadoutInitResults MESYTEC_MVLC_EXPORT init_readout(
         auto mvlcETH = dynamic_cast<eth::MVLC_ETH_Interface *>(mvlc.getImpl());
         mvlcETH->enableJumboFrames(crateConfig.ethJumboEnable);
     }
+
+    ret.ec = mvlc.writeRegister(DAQModeEnableRegister, 1);
 
     return ret;
 }

@@ -113,6 +113,9 @@ read_stack_info(DIALOG_API &mvlc, u8 id)
 template<typename DIALOG_API>
 std::error_code disable_all_triggers(DIALOG_API &mvlc)
 {
+    if (auto ec = mvlc.writeRegister(DAQModeEnableRegister, 0))
+        return ec;
+
     for (u8 stackId = 0; stackId < stacks::StackCount; stackId++)
     {
         u16 addr = stacks::get_trigger_register(stackId);
