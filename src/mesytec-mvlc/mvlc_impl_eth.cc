@@ -553,10 +553,6 @@ void mvlc_eth_throttler(
                 // Test the inode so that we do not monitor foreign sockets.
                 if (diag->idiag_inode == dataSocketInode)
                     result = get_buffer_snapshot(diag, h->nlmsg_len);
-                else
-                {
-                    LOG_WARN("mvlc_eth_throttler: wrong inode");
-                }
             }
         }
 
