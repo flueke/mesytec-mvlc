@@ -364,37 +364,30 @@ int main(int argc, char *argv[])
 
         readout_parser::ReadoutParserCallbacks parserCallbacks;
 
-        parserCallbacks.beginEvent = [] (int eventIndex)
-        {
-        };
-
-        parserCallbacks.groupPrefix = [opt_printReadoutData] (int eventIndex, int groupIndex, const u32 *data, u32 size)
+        parserCallbacks.eventData = [opt_printReadoutData] (
+            int eventIndex, const readout_parser::ModuleData *moduleDataList, unsigned moduleCount)
         {
             if (opt_printReadoutData)
             {
-                util::log_buffer(
-                    std::cout, basic_string_view<u32>(data, size),
-                    fmt::format("prefix part: eventIndex={}, groupIndex={}", eventIndex, groupIndex));
-            }
-        };
+                for (u32 moduleIndex = 0; moduleIndex < moduleCount; ++moduleIndex)
+                {
+                    auto &moduleData = moduleDataList[moduleIndex];
 
-        parserCallbacks.groupDynamic = [opt_printReadoutData] (int eventIndex, int groupIndex, const u32 *data, u32 size)
-        {
-            if (opt_printReadoutData)
-            {
-                util::log_buffer(
-                    std::cout, basic_string_view<u32>(data, size),
-                    fmt::format("dynamic part: eventIndex={}, groupIndex={}", eventIndex, groupIndex));
-            }
-        };
+                    if (moduleData.prefix.size)
+                        util::log_buffer(
+                            std::cout, basic_string_view<u32>(moduleData.prefix.data, moduleData.prefix.size),
+                            fmt::format("prefix part: eventIndex={}, moduleIndex={}", eventIndex, moduleIndex));
 
-        parserCallbacks.groupSuffix = [opt_printReadoutData] (int eventIndex, int groupIndex, const u32 *data, u32 size)
-        {
-            if (opt_printReadoutData)
-            {
-                util::log_buffer(
-                    std::cout, basic_string_view<u32>(data, size),
-                    fmt::format("suffix part: eventIndex={}, groupIndex={}", eventIndex, groupIndex));
+                    if (moduleData.dynamic.size)
+                        util::log_buffer(
+                            std::cout, basic_string_view<u32>(moduleData.dynamic.data, moduleData.dynamic.size),
+                            fmt::format("dynamic part: eventIndex={}, moduleIndex={}", eventIndex, moduleIndex));
+
+                    if (moduleData.suffix.size)
+                        util::log_buffer(
+                            std::cout, basic_string_view<u32>(moduleData.suffix.data, moduleData.suffix.size),
+                            fmt::format("suffix part: eventIndex={}, moduleIndex={}", eventIndex, moduleIndex));
+                }
             }
         };
 

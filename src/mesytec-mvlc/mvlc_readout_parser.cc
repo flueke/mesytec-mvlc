@@ -75,75 +75,79 @@ namespace mvlc
 namespace readout_parser
 {
 
-GroupReadoutStructure parse_group_readout_commands(const std::vector<StackCommand> &commands)
+namespace
 {
-    using StackCT = StackCommand::CommandType;
-
-    enum State { Prefix, Dynamic, Suffix };
-    State state = Prefix;
-    GroupReadoutStructure modParts = {};
-
-    for (const auto &cmd: commands)
+    ModuleReadoutStructure parse_module_readout_commands(const std::vector<StackCommand> &commands)
     {
-        if ((cmd.type == StackCT::VMERead
-             && !vme_amods::is_block_mode(cmd.amod))
-            || cmd.type == StackCT::WriteMarker)
-            // TODO: WriteSpecial if and when it is used by the MVLC
+        using StackCT = StackCommand::CommandType;
+
+        enum State { Prefix, Dynamic, Suffix };
+        State state = Prefix;
+        ModuleReadoutStructure modParts = {};
+
+        for (const auto &cmd: commands)
         {
-            switch (state)
+            if ((cmd.type == StackCT::VMERead
+                 && !vme_amods::is_block_mode(cmd.amod))
+                || cmd.type == StackCT::WriteMarker)
+                // TODO: WriteSpecial if and when it is used by the MVLC
             {
-                case Prefix:
-                    modParts.prefixLen++;
-                    break;
-                case Dynamic:
-                    modParts.suffixLen++;
-                    state = Suffix;
-                    break;
-                case Suffix:
-                    modParts.suffixLen++;
-                    break;
+                switch (state)
+                {
+                    case Prefix:
+                        modParts.prefixLen++;
+                        break;
+                    case Dynamic:
+                        modParts.suffixLen++;
+                        state = Suffix;
+                        break;
+                    case Suffix:
+                        modParts.suffixLen++;
+                        break;
+                }
+            }
+            else if (cmd.type == StackCT::VMERead || cmd.type == StackCT::VMEMBLTSwapped)
+            {
+                assert(vme_amods::is_block_mode(cmd.amod));
+
+                switch (state)
+                {
+                    case Prefix:
+                        modParts.hasDynamic = true;
+                        state = Dynamic;
+                        break;
+                    case Dynamic:
+                        throw std::runtime_error("multiple block reads in module readout");
+                    case Suffix:
+                        throw std::runtime_error("block read the suffix part in module readout");
+                }
             }
         }
-        else if (cmd.type == StackCT::VMERead || cmd.type == StackCT::VMEMBLTSwapped)
-        {
-            assert(vme_amods::is_block_mode(cmd.amod));
 
-            switch (state)
-            {
-                case Prefix:
-                    modParts.hasDynamic = true;
-                    state = Dynamic;
-                    break;
-                case Dynamic:
-                    throw std::runtime_error("multiple block reads in module readout");
-                case Suffix:
-                    throw std::runtime_error("block read the suffix part in module readout");
-            }
-        }
+        return modParts;
     }
 
-    return modParts;
-}
-
-ReadoutParserState::ReadoutStructure build_readout_structure(
-    const std::vector<StackCommandBuilder> &readoutStacks)
-{
-    ReadoutParserState::ReadoutStructure result;
-
-    for (const auto &stack: readoutStacks)
+    ReadoutParserState::ReadoutStructure build_readout_structure(
+        const std::vector<StackCommandBuilder> &readoutStacks)
     {
-        std::vector<GroupReadoutStructure> groupStructure;
+        ReadoutParserState::ReadoutStructure result;
 
-        for (const auto &group: stack.getGroups())
+        for (const auto &stack: readoutStacks)
         {
-            groupStructure.emplace_back(parse_group_readout_commands(group.commands));
+            std::vector<ModuleReadoutStructure> groupStructure;
+
+            for (const auto &group: stack.getGroups())
+            {
+                groupStructure.emplace_back(parse_module_readout_commands(group.commands));
+            }
+
+            result.emplace_back(groupStructure);
         }
 
-        result.emplace_back(groupStructure);
+        return result;
     }
-
-    return result;
 }
+
 
 const char *get_parse_result_name(const ParseResult &pr)
 {
@@ -262,15 +266,16 @@ MESYTEC_MVLC_EXPORT ReadoutParserState make_readout_parser(
     }
 
     result.readoutDataSpans.resize(maxGroupCount);
+    result.moduleDataBuffer.resize(maxGroupCount);
 
     ensure_free_space(result.workBuffer, InitialWorkerBufferSize);
 
     return result;
 }
 
-inline void clear_readout_data_spans(std::vector<GroupReadoutSpans> &spans)
+inline void clear_readout_data_spans(std::vector<ModuleReadoutSpans> &spans)
 {
-    std::fill(spans.begin(), spans.end(), GroupReadoutSpans{});
+    std::fill(spans.begin(), spans.end(), ModuleReadoutSpans{});
 }
 
 inline bool is_event_in_progress(const ReadoutParserState &state)
@@ -281,7 +286,7 @@ inline bool is_event_in_progress(const ReadoutParserState &state)
 inline void parser_clear_event_state(ReadoutParserState &state)
 {
     state.eventIndex = -1;
-    state.groupIndex = -1;
+    state.moduleIndex = -1;
     state.curStackFrame = ReadoutParserState::FrameParseState{};
     state.curBlockFrame = ReadoutParserState::FrameParseState{};
     state.groupParseState = ReadoutParserState::Prefix;
@@ -309,7 +314,7 @@ inline ParseResult parser_begin_event(ReadoutParserState &state, u32 frameHeader
     clear_readout_data_spans(state.readoutDataSpans);
 
     state.eventIndex = eventIndex;
-    state.groupIndex = 0;
+    state.moduleIndex = 0;
     state.groupParseState = ReadoutParserState::Prefix;
     state.curStackFrame = ReadoutParserState::FrameParseState{ frameHeader };
     state.curBlockFrame = ReadoutParserState::FrameParseState{};
@@ -470,12 +475,12 @@ ParseResult parse_readout_contents(
                         LOG_TRACE("NotAStackContinuation:"
                                  " curStackFrame.wordsLeft=%u"
                                  " , curBlockFrame.wordsLeft=%u"
-                                 ", eventIndex=%d, groupIndex=%d"
+                                 ", eventIndex=%d, moduleIndex=%d"
                                  ", inputOffset=%lu",
                                  state.curStackFrame.wordsLeft,
                                  state.curBlockFrame.wordsLeft,
                                  state.eventIndex,
-                                 state.groupIndex,
+                                 state.moduleIndex,
                                  input.data() - inputBegin
                                  );
                         return ParseResult::NotAStackContinuation;
@@ -563,13 +568,14 @@ ParseResult parse_readout_contents(
             assert(0 <= state.eventIndex
                    && static_cast<size_t>(state.eventIndex) < state.readoutStructure.size());
 
-            const auto &groupReadoutInfos = state.readoutStructure[state.eventIndex];
+            const auto &moduleReadoutInfos = state.readoutStructure[state.eventIndex];
+            const auto moduleCount = moduleReadoutInfos.size();
 
             // Check for the case where a stack frame for an event is produced but
             // the event does not contain any modules. This can happen for example
             // when a periodic event is added without any modules.
             // The frame header for the event should have length 0.
-            if (groupReadoutInfos.empty())
+            if (moduleReadoutInfos.empty())
             {
                 auto fi = extract_frame_info(state.curStackFrame.header);
                 if (fi.len != 0u)
@@ -579,27 +585,27 @@ ParseResult parse_readout_contents(
                              state.eventIndex, fi.len, state.curStackFrame.header);
                 }
 
-                LOG_TRACE("parser_clear_event_state because groupReadoutInfos.empty(), eventIndex=%d",
+                LOG_TRACE("parser_clear_event_state because moduleReadoutInfos.empty(), eventIndex=%d",
                           state.eventIndex);
                 parser_clear_event_state(state);
                 return ParseResult::Ok;
             }
 
-            if (static_cast<size_t>(state.groupIndex) >= groupReadoutInfos.size())
+            if (static_cast<size_t>(state.moduleIndex) >= moduleCount)
                 return ParseResult::GroupIndexOutOfRange;
 
 
-            const auto &moduleParts = groupReadoutInfos[state.groupIndex];
+            const auto &moduleParts = moduleReadoutInfos[state.moduleIndex];
 
             if (moduleParts.prefixLen == 0 && !moduleParts.hasDynamic && moduleParts.suffixLen == 0)
             {
                 // The group/module does not have any of the three parts, its
                 // readout is completely empty.
-                ++state.groupIndex;
+                ++state.moduleIndex;
             }
             else
             {
-                auto &moduleSpans = state.readoutDataSpans[state.groupIndex];
+                auto &moduleSpans = state.readoutDataSpans[state.moduleIndex];
 
                 switch (state.groupParseState)
                 {
@@ -639,7 +645,7 @@ ParseResult parse_readout_contents(
                             {
                                 // We're done with this module as it does have neither
                                 // dynamic nor suffix parts.
-                                state.groupIndex++;
+                                state.moduleIndex++;
                                 state.groupParseState = ReadoutParserState::Prefix;
                             }
                         }
@@ -717,7 +723,7 @@ ParseResult parse_readout_contents(
                                 if (moduleParts.suffixLen == 0)
                                 {
                                     // No suffix, we're done with the module
-                                    state.groupIndex++;
+                                    state.moduleIndex++;
                                     state.groupParseState = ReadoutParserState::Prefix;
                                 }
                                 else
@@ -750,7 +756,7 @@ ParseResult parse_readout_contents(
                         if (moduleSpans.suffixSpan.size >= moduleParts.suffixLen)
                         {
                             // Done with the module
-                            state.groupIndex++;
+                            state.moduleIndex++;
                             state.groupParseState = ReadoutParserState::Prefix;
                         }
 
@@ -760,10 +766,10 @@ ParseResult parse_readout_contents(
 
             // Skip over modules that do not have any readout data.
             // Note: modules that are disabled in the vme config are handled this way.
-            while (state.groupIndex < static_cast<int>(groupReadoutInfos.size())
-                   && is_empty(groupReadoutInfos[state.groupIndex]))
+            while (state.moduleIndex < static_cast<int>(moduleCount)
+                   && is_empty(moduleReadoutInfos[state.moduleIndex]))
             {
-                ++state.groupIndex;
+                ++state.moduleIndex;
             }
 
             auto update_part_size_info = [] (ReadoutParserCounters::PartSizeInfo &sizeInfo, size_t size)
@@ -773,25 +779,43 @@ ParseResult parse_readout_contents(
                 sizeInfo.sum += size;
             };
 
-            if (state.groupIndex >= static_cast<int>(groupReadoutInfos.size()))
+            if (state.moduleIndex >= static_cast<int>(moduleCount))
             {
                 assert(!state.curBlockFrame);
+
                 // All modules have been processed and the event can be flushed.
 
-                callbacks.beginEvent(state.eventIndex);
 
-                for (int mi = 0; mi < static_cast<int>(groupReadoutInfos.size()); mi++)
+                // Transform the offset based ModuleReadoutSpans into pointer
+                // based ModuleData structures, then invoke the eventData()
+                // callback.
+                for (unsigned mi = 0; mi < moduleCount; ++mi)
                 {
                     const auto &moduleSpans = state.readoutDataSpans[mi];
+                    auto &moduleData = state.moduleDataBuffer[mi];
+
+                    moduleData.prefix =
+                    {
+                        state.workBuffer.buffer.data() + moduleSpans.prefixSpan.offset,
+                        moduleSpans.prefixSpan.size
+                    };
+
+                    moduleData.dynamic =
+                    {
+                        state.workBuffer.buffer.data() + moduleSpans.dynamicSpan.offset,
+                        moduleSpans.dynamicSpan.size
+                    };
+
+                    moduleData.suffix =
+                    {
+                        state.workBuffer.buffer.data() + moduleSpans.suffixSpan.offset,
+                        moduleSpans.suffixSpan.size
+                    };
+
                     const auto partIndex = std::make_pair(state.eventIndex, mi);
 
                     if (moduleSpans.prefixSpan.size)
                     {
-                        callbacks.groupPrefix(
-                            state.eventIndex, mi,
-                            state.workBuffer.buffer.data() + moduleSpans.prefixSpan.offset,
-                            moduleSpans.prefixSpan.size);
-
                         ++counters.groupPrefixHits[partIndex];
                         update_part_size_info(
                             counters.groupPrefixSizes[partIndex], moduleSpans.prefixSpan.size);
@@ -799,11 +823,6 @@ ParseResult parse_readout_contents(
 
                     if (moduleSpans.dynamicSpan.size)
                     {
-                        callbacks.groupDynamic(
-                            state.eventIndex, mi,
-                            state.workBuffer.buffer.data() + moduleSpans.dynamicSpan.offset,
-                            moduleSpans.dynamicSpan.size);
-
                         ++counters.groupDynamicHits[partIndex];
                         update_part_size_info(
                             counters.groupDynamicSizes[partIndex], moduleSpans.dynamicSpan.size);
@@ -811,21 +830,19 @@ ParseResult parse_readout_contents(
 
                     if (moduleSpans.suffixSpan.size)
                     {
-                        callbacks.groupSuffix(
-                            state.eventIndex, mi,
-                            state.workBuffer.buffer.data() + moduleSpans.suffixSpan.offset,
-                            moduleSpans.suffixSpan.size);
-
                         ++counters.groupSuffixHits[partIndex];
                         update_part_size_info(
                             counters.groupSuffixSizes[partIndex], moduleSpans.suffixSpan.size);
                     }
                 }
 
+                callbacks.eventData(state.eventIndex, state.moduleDataBuffer.data(), moduleCount);
+
                 ++counters.eventHits[state.eventIndex];
-                callbacks.endEvent(state.eventIndex);
+
                 LOG_TRACE("parser_clear_event_state because event is done, eventIndex=%d",
                           state.eventIndex);
+
                 parser_clear_event_state(state);
             }
 

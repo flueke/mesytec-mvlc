@@ -57,18 +57,47 @@ namespace readout_parser
 //   - an optional fixed size prefix part (single value read and marker commands)
 //   - an optional dynamic block part (a single block read command)
 //   - an optional fixed size suffix part (single value read and marker commands)
+//
+// A stack group is typically used to read out a single VME module, so groups
+// are synonymous with modules in the parser code.
 
+struct DataBlock
+{
+    const u32 *data;
+    u32 size;
+};
 
-struct GroupReadoutStructure
+struct ModuleData
+{
+    DataBlock prefix;
+    DataBlock dynamic;
+    DataBlock suffix;
+};
+
+struct ReadoutParserCallbacks
+{
+    // Parameters: index of the VME event the data belongs to, pointer to an
+    // array of ModuleData allowing access to the actual module readout data and
+    // the moduleCount, specifying the number of elements in the groups array.
+    std::function<void (int eventIndex, const ModuleData *moduleDataList, unsigned moduleCount)>
+        eventData = [] (int, const ModuleData *, size_t) {};
+
+    // Parameters: pointer to the system event header, number of words in the
+    // system event
+    std::function<void (const u32 *header, u32 size)>
+        systemEvent = [] (const u32 *, u32) {};
+};
+
+struct ModuleReadoutStructure
 {
     u8 prefixLen; // length in 32 bit words of the fixed part prefix
     u8 suffixLen; // length in 32 bit words of the fixed part suffix
     bool hasDynamic; // true if a dynamic part (block read) is present
 };
 
-inline bool is_empty(const GroupReadoutStructure &mrp)
+inline bool is_empty(const ModuleReadoutStructure &mrs)
 {
-    return mrp.prefixLen == 0 && mrp.suffixLen == 0 && !mrp.hasDynamic;
+    return mrs.prefixLen == 0 && mrs.suffixLen == 0 && !mrs.hasDynamic;
 }
 
 struct Span
@@ -77,14 +106,14 @@ struct Span
     u32 size;
 };
 
-struct GroupReadoutSpans
+struct ModuleReadoutSpans
 {
     Span prefixSpan;
     Span dynamicSpan;
     Span suffixSpan;
 };
 
-inline bool is_empty(const GroupReadoutSpans &spans)
+inline bool is_empty(const ModuleReadoutSpans &spans)
 {
     return (spans.prefixSpan.size == 0
             && spans.dynamicSpan.size == 0
@@ -92,41 +121,6 @@ inline bool is_empty(const GroupReadoutSpans &spans)
 }
 
 struct end_of_frame: public std::exception {};
-
-#if 0
-struct PointerSpan
-{
-    const u32 *data;
-    const u32 size;
-};
-
-struct GroupData
-{
-    PointerSpan prefix;
-    PointerSpan dynamic;
-    PointerSpan suffix;
-};
-
-void eventData(int eventIndex, const GroupData *groups, size_t groupCount);
-#endif
-
-struct ReadoutParserCallbacks
-{
-    // functions taking an event index
-    std::function<void (int eventIndex)>
-        beginEvent = [] (int) {},
-        endEvent   = [] (int) {};
-
-    // Parameters: event index, group (aka module) index, pointer to first data word, number of words
-    std::function<void (int eventIndex, int groupIndex, const u32 *data, u32 size)>
-        groupPrefix  = [] (int, int, const u32*, u32) {},
-        groupDynamic = [] (int, int, const u32*, u32) {},
-        groupSuffix  = [] (int, int, const u32*, u32) {};
-
-    // Parameters: pointer to first word of the system event data, number of words
-    std::function<void (const u32 *header, u32 size)>
-        systemEvent = [] (const u32 *, u32) {};
-};
 
 enum class ParseResult
 {
@@ -214,12 +208,12 @@ struct MESYTEC_MVLC_EXPORT ReadoutParserCounters
     // Event hit counts by eventIndex
     std::unordered_map<int, size_t> eventHits;
 
-    // Part specific hit counts by (eventIndex, groupIndex)
+    // Part specific hit counts by (eventIndex, moduleIndex)
     GroupPartHits groupPrefixHits;
     GroupPartHits groupDynamicHits;
     GroupPartHits groupSuffixHits;
 
-    // Part specific event size information by (eventIndex, groupIndex)
+    // Part specific event size information by (eventIndex, moduleIndex)
     GroupPartSizes groupPrefixSizes;
     GroupPartSizes groupDynamicSizes;
     GroupPartSizes groupSuffixSizes;
@@ -260,7 +254,7 @@ struct MESYTEC_MVLC_EXPORT ReadoutParserState
 
     enum GroupParseState { Prefix, Dynamic, Suffix };
 
-    using ReadoutStructure = std::vector<std::vector<GroupReadoutStructure>>;
+    using ReadoutStructure = std::vector<std::vector<ModuleReadoutStructure>>;
 
     struct WorkBuffer
     {
@@ -280,13 +274,18 @@ struct MESYTEC_MVLC_EXPORT ReadoutParserState
 
     // Per module offsets and sizes into the workbuffer. This is a map of the
     // current layout of the workbuffer.
-    std::vector<GroupReadoutSpans> readoutDataSpans;
+    std::vector<ModuleReadoutSpans> readoutDataSpans;
+
+    // Same information as in readoutDataSpans but this time using pointers
+    // into the current workBuffer instead of offsets. Used to invoke the
+    // eventData callback.
+    std::vector<ModuleData> moduleDataBuffer;
 
     // Per event preparsed group/module readout info.
     ReadoutStructure readoutStructure;
 
     int eventIndex = -1;
-    int groupIndex = -1;
+    int moduleIndex = -1;
     GroupParseState groupParseState = Prefix;
 
     // Parsing state of the current 0xF3 stack frame. This is always active
