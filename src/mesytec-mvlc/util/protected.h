@@ -108,7 +108,6 @@ class WaitableAccess
         std::unique_lock<TicketMutex> m_lock;
         std::condition_variable_any &m_cond;
         T &m_obj;
-
 };
 
 template<typename T>
@@ -185,6 +184,8 @@ class WaitableProtected
                 m_cond,
                 m_obj);
         }
+
+        T copy() { return access().copy(); }
 
     private:
         TicketMutex m_mutex;
