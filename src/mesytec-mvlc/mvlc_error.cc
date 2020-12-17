@@ -127,6 +127,9 @@ class MVLCErrorCategory: public std::error_category
             case MVLCErrorCode::InvalidStackHeader:
                  return "Invalid stack header";
 
+            case MVLCErrorCode::NonBlockAddressMode:
+                 return "Non-block VME address mode given";
+
             case MVLCErrorCode::TimerCountExceeded:
                  return "Timer count exceeded";
 
@@ -198,6 +201,7 @@ class MVLCErrorCategory: public std::error_category
             case MVLCErrorCode::NeedMoreData:
             case MVLCErrorCode::UDPPacketChannelOutOfRange:
             case MVLCErrorCode::UDPDataWordCountExceedsPacketSize:
+            case MVLCErrorCode::NonBlockAddressMode:
                 return ErrorType::ProtocolError;
 
             case MVLCErrorCode::NoVMEResponse:

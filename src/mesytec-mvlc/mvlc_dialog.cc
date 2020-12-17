@@ -28,6 +28,7 @@
 #include "mvlc_error.h"
 #include "mvlc_impl_usb.h"
 #include "util/io_util.h"
+#include "vme_constants.h"
 
 #define LOG_LEVEL_OFF     0
 #define LOG_LEVEL_WARN  100
@@ -659,6 +660,9 @@ std::error_code MVLCDialog::vmeRead(u32 address, u32 &value, u8 amod,
 std::error_code MVLCDialog::vmeBlockRead(u32 address, u8 amod, u16 maxTransfers,
                                          std::vector<u32> &dest)
 {
+    if (!vme_amods::is_block_mode(amod))
+        return make_error_code(MVLCErrorCode::NonBlockAddressMode);
+
     SuperCommandBuilder cmdList;
     cmdList.addReferenceWord(m_referenceWord++);
     cmdList.addVMEBlockRead(address, amod, maxTransfers);

@@ -43,6 +43,7 @@ enum class MVLCErrorCode
     StackSyntaxError,
     MirrorTransactionMaxWordsExceeded,
     InvalidStackHeader,
+    NonBlockAddressMode,
 
     // Readout setup releated (e.g. mvlc_daq.cc)
     TimerCountExceeded,
