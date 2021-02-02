@@ -217,11 +217,12 @@ std::error_code MVLC::connect()
 
     if (isConnected())
     {
-        u32 hardwareId = 0;
-        u32 firmwareRevision = 0;
-
         // Note: if resultCheck detects a ConnectionError it will update
         // d->isConnected.
+
+        // Read hardware id and firmware revision.
+        u32 hardwareId = 0;
+        u32 firmwareRevision = 0;
 
         if (auto ec = d->resultCheck(d->dialog.readRegister(
                     registers::hardware_id, hardwareId)))
@@ -233,6 +234,7 @@ std::error_code MVLC::connect()
 
         d->hardwareId = hardwareId;
         d->firmwareRevision = firmwareRevision;
+
     }
 
     return ec;
@@ -253,6 +255,7 @@ bool MVLC::isConnected() const
     cout << __PRETTY_FUNCTION__ << this << "both locks taken" << endl;
     return d->impl->isConnected();
 #else
+    // No locking needed as we just return local atomic state.
     return d->isConnected;
 #endif
 }
@@ -375,7 +378,8 @@ std::error_code MVLC::uploadStack(
     std::vector<u32> &responseDest)
 {
     auto guard = d->locks.lockCmd();
-    return d->resultCheck(d->dialog.uploadStack(stackOutputPipe, stackMemoryOffset, commands, responseDest));
+    return d->resultCheck(d->dialog.uploadStack(
+            stackOutputPipe, stackMemoryOffset, commands, responseDest));
 }
 
 std::error_code MVLC::execImmediateStack(
