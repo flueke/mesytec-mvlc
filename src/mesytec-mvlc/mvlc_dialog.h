@@ -70,23 +70,21 @@ class MESYTEC_MVLC_EXPORT MVLCDialog
         // Note: Stack0 is used for the VME commands and the stack is written
         // starting from offset 0 into stack memory.
 
-        std::error_code vmeRead(u32 address, u32 &value, u8 amod,
-                                      VMEDataWidth dataWidth);
+        std::error_code vmeRead(
+            u32 address, u32 &value, u8 amod, VMEDataWidth dataWidth);
 
-        std::error_code vmeWrite(u32 address, u32 value, u8 amod,
-                                       VMEDataWidth dataWidth);
+        std::error_code vmeWrite(
+            u32 address, u32 value, u8 amod, VMEDataWidth dataWidth);
 
         // Note: The data from the block read is currently returned as is
         // including the stack frame (0xF3), stack continuation (0xF9) and
-        // block frame (0xF5) headers.
-        // The flags of either of these headers are not interpreted by this
-        // method.
-        // FIXME: Blk2eSST is missing
-        std::error_code vmeBlockRead(u32 address, u8 amod, u16 maxTransfers,
-                                     std::vector<u32> &dest);
+        // block frame (0xF5) headers. The flags, except for the Continue flag,
+        // of any of these headers are not interpreted by this method.
+        std::error_code vmeBlockRead(
+            u32 address, u8 amod, u16 maxTransfers, std::vector<u32> &dest);
 
-        std::error_code vmeMBLTSwapped(u32 address, u16 maxTransfers,
-                                       std::vector<u32> &dest);
+        std::error_code vmeMBLTSwapped(
+            u32 address, u16 maxTransfers, std::vector<u32> &dest);
 
         // Command stack uploading
 
