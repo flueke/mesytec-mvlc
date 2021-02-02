@@ -65,7 +65,7 @@ class MVLCErrorCategory: public std::error_category
                 return "mirror check: mismatched mirror data";
 
             case MVLCErrorCode::MirrorMaxTriesExceeded:
-                return "mirror transaction: max retries exceeded";
+                return "mirror transaction: max retries exceeded (possibly network issue)";
 
             case MVLCErrorCode::InvalidBufferHeader:
                 return "invalid buffer header";
