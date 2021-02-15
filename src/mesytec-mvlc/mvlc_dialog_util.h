@@ -246,9 +246,9 @@ std::error_code setup_readout_triggers(
         if (stackId >= stacks::StackCount)
             return make_error_code(MVLCErrorCode::StackCountExceeded);
 
-        std::cerr << "stackId=" << static_cast<unsigned>(stackId)
-            << ", triggerVal=0x" << std::hex << triggerVal << std::dec
-            << std::endl;
+        //std::cerr << "stackId=" << static_cast<unsigned>(stackId)
+        //    << ", triggerVal=0x" << std::hex << triggerVal << std::dec
+        //    << std::endl;
 
         if (auto ec = write_stack_trigger_value(mvlc, stackId, triggerVal))
             return ec;
