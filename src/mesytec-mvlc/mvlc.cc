@@ -446,12 +446,5 @@ std::unique_lock<Mutex> MVLC::suspendStackErrorPolling()
     return std::unique_lock<Mutex>(d->errorPollerSuspendMutex);
 }
 
-std::unique_lock<Mutex> MVLC::trySuspendStackErrorPolling()
-{
-    // Take the mutex so that the poller is forced to block on its next
-    // iteration.
-    return std::unique_lock<Mutex>(d->errorPollerSuspendMutex, std::try_to_lock_t());
-}
-
 }
 }

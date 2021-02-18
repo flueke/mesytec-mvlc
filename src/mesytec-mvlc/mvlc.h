@@ -184,9 +184,6 @@ class MESYTEC_MVLC_EXPORT MVLC: public MVLCBasicInterface
         // poller won't slow down the command execution with reads that run
         // into timeouts.
         std::unique_lock<Mutex> suspendStackErrorPolling();
-        // Same as above but used std::try_to_lock_t when creating the
-        // unique_lock.
-        std::unique_lock<Mutex> trySuspendStackErrorPolling();
 
         //
         // Access to the low-level implementation and the mutexes.
