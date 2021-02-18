@@ -43,8 +43,6 @@
 #include "util/storage_sizes.h"
 
 #include <iostream>
-using std::cout;
-using std::endl;
 
 namespace mesytec
 {
@@ -74,7 +72,10 @@ void stack_error_poller(
 #define POLLER_DEBUG 0
 
 #if POLLER_DEBUG
+    using std::cout;
+    using std::endl;
     auto threadId = std::this_thread::get_id();
+
     std::cout << "stack_error_notification_poller " << threadId << " entering loop" << std::endl;
 #endif
 
@@ -469,12 +470,14 @@ std::unique_lock<Mutex> MVLC::suspendStackErrorPolling()
 
 void MVLC::stopStackErrorPolling()
 {
-    d->stopStackErrorPolling();
+    if (d)
+        d->stopStackErrorPolling();
 }
 
 void MVLC::startStackErrorPolling()
 {
-    d->startStackErrorPolling();
+    if (d)
+        d->startStackErrorPolling();
 }
 
 }
