@@ -350,11 +350,14 @@ std::error_code MVLCDialog::mirrorTransaction(const std::vector<u32> &cmdBuffer,
     if (cmdBuffer.size() > MirrorTransactionMaxWords)
         return make_error_code(MVLCErrorCode::MirrorTransactionMaxWordsExceeded);
 
+    std::error_code ret;
+
     for (unsigned tries = 0u; tries < MirrorMaxRetries; tries++)
     {
         // upload the stack
         if (auto ec = doWrite(cmdBuffer))
         {
+            ret = ec;
             LOG_WARN("write error: %s (attempt %u of %u)",
                      ec.message().c_str(),
                      tries+1, MirrorMaxRetries);
@@ -368,6 +371,7 @@ std::error_code MVLCDialog::mirrorTransaction(const std::vector<u32> &cmdBuffer,
         // read the mirror response
         if (auto ec = readResponse(is_super_buffer, dest))
         {
+            ret = ec;
             LOG_WARN("read error: %s (attempt %u of %u)",
                      ec.message().c_str(),
                      tries+1, MirrorMaxRetries);
@@ -383,7 +387,7 @@ std::error_code MVLCDialog::mirrorTransaction(const std::vector<u32> &cmdBuffer,
         return check_mirror(cmdBuffer, dest);
     }
 
-    return make_error_code(MVLCErrorCode::MirrorMaxTriesExceeded);
+    return ret;
 }
 
 std::error_code MVLCDialog::stackTransaction(const std::vector<u32> &stack,
