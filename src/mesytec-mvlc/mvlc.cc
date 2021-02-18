@@ -218,24 +218,24 @@ std::error_code MVLC::connect()
 
     if (isConnected())
     {
-        // Note: if resultCheck detects a ConnectionError it will update
-        // d->isConnected.
-
         // Read hardware id and firmware revision.
         u32 hardwareId = 0;
         u32 firmwareRevision = 0;
 
-        if (auto ec = d->resultCheck(d->dialog.readRegister(
-                    registers::hardware_id, hardwareId)))
+        if (auto ec = d->dialog.readRegister(registers::hardware_id, hardwareId))
+        {
+            d->isConnected = false;
             return ec;
+        }
 
-        if (auto ec = d->resultCheck(d->dialog.readRegister(
-                    registers::firmware_revision, firmwareRevision)))
+        if (auto ec = d->dialog.readRegister(registers::firmware_revision, firmwareRevision))
+        {
+            d->isConnected = false;
             return ec;
+        }
 
         d->hardwareId = hardwareId;
         d->firmwareRevision = firmwareRevision;
-
     }
 
     return ec;
