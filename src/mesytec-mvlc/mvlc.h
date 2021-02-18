@@ -185,6 +185,9 @@ class MESYTEC_MVLC_EXPORT MVLC: public MVLCBasicInterface
         // into timeouts.
         std::unique_lock<Mutex> suspendStackErrorPolling();
 
+        void stopStackErrorPolling();
+        void startStackErrorPolling();
+
         //
         // Access to the low-level implementation and the mutexes.
         //

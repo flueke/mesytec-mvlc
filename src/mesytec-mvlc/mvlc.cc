@@ -143,13 +143,7 @@ struct MVLC::Private
         , firmwareRevision(0)
         , errorPollerQuit(false)
     {
-        errorPollerThread = std::thread(
-            stack_error_poller,
-            std::ref(dialog),
-            std::ref(locks.cmdMutex()),
-            std::ref(dialog.getProtectedStackErrorCounters()),
-            std::ref(errorPollerSuspendMutex),
-            std::ref(errorPollerQuit));
+        startStackErrorPolling();
     }
 
     ~Private()
@@ -178,6 +172,30 @@ struct MVLC::Private
         if (ec == ErrorType::ConnectionError)
             this->isConnected = false;
         return ec;
+    }
+
+    void startStackErrorPolling()
+    {
+        if (!errorPollerThread.joinable())
+        {
+            errorPollerQuit = false;
+
+            errorPollerThread = std::thread(
+                stack_error_poller,
+                std::ref(dialog),
+                std::ref(locks.cmdMutex()),
+                std::ref(dialog.getProtectedStackErrorCounters()),
+                std::ref(errorPollerSuspendMutex),
+                std::ref(errorPollerQuit));
+        }
+    }
+
+    void stopStackErrorPolling()
+    {
+        errorPollerQuit = true;
+
+        if (errorPollerThread.joinable())
+            errorPollerThread.join();
     }
 };
 
@@ -447,6 +465,16 @@ std::unique_lock<Mutex> MVLC::suspendStackErrorPolling()
     // Take the mutex so that the poller is forced to block on its next
     // iteration.
     return std::unique_lock<Mutex>(d->errorPollerSuspendMutex);
+}
+
+void MVLC::stopStackErrorPolling()
+{
+    d->stopStackErrorPolling();
+}
+
+void MVLC::startStackErrorPolling()
+{
+    d->startStackErrorPolling();
 }
 
 }
