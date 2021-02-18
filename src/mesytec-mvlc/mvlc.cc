@@ -71,7 +71,7 @@ void stack_error_poller(
     buffer.reserve(util::Megabytes(1));
     std::error_code ec = {};
 
-#define POLLER_DEBUG 0
+#define POLLER_DEBUG 1
 
 #if POLLER_DEBUG
     auto threadId = std::this_thread::get_id();
@@ -80,7 +80,10 @@ void stack_error_poller(
 
     while (!quit)
     {
+#if POLLER_DEBUG
+        std::cout << "stack_error_notification_poller " << threadId << " waiting for suspendMutex" << std::endl;
         std::unique_lock<Mutex> suspendGuard(suspendMutex);
+#endif
 
 #if POLLER_DEBUG
         std::cout << "stack_error_notification_poller " << threadId << " begin read" << std::endl;
