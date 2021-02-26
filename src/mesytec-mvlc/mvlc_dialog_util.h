@@ -256,9 +256,6 @@ std::error_code setup_readout_triggers(
         ++stackId;
     }
 
-    if (auto ec = enable_daq_mode(mvlc))
-        return ec;
-
     return {};
 }
 

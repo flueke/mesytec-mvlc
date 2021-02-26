@@ -496,7 +496,12 @@ void ReadoutWorker::Private::loop(std::promise<std::error_code> promise)
     // Enable MVLC trigger processing.
     std::error_code ec = setup_readout_triggers(mvlc, stackTriggers);
 
-    // Set the promises value thus unblocking anyone waiting for the startup to complete.
+    // Enable DAQ mode (daq_start in the trigger io)
+    if (!ec)
+        ec = enable_daq_mode(mvlc);
+
+    // Set the promises value now to unblock anyone waiting for startup to
+    // complete.
     promise.set_value(ec);
 
     if (!ec)
@@ -563,6 +568,11 @@ void ReadoutWorker::Private::loop(std::promise<std::error_code> promise)
                 else if (state_ == State::Paused && desiredState == State::Running)
                 {
                     if ((ec = setup_readout_triggers(mvlc, stackTriggers)))
+                    {
+                        std::cout << "Error resuming MVLC readout: " << ec.message() << endl;
+                        break;
+                    }
+                    if ((ec = enable_daq_mode(mvlc)))
                     {
                         std::cout << "Error resuming MVLC readout: " << ec.message() << endl;
                         break;
