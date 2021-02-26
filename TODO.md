@@ -1,6 +1,11 @@
 TODO {#todo}
 ============
 
+* DAQ Start/Stop/Pause: add event multicast start and stop commands to the
+  CrateConfig and use these in the readout code.
+
+* Add (API) version info to CrateConfig and the yaml format.
+
 * abstraction for the trigger/io system. This needs to be flexible because the
   system is going to change with future firmware udpates.
 
