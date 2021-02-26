@@ -978,12 +978,10 @@ ParseResult parse_readout_buffer(
     }
     catch (const end_of_buffer &e)
     {
-        ++counters.parserExceptions;
         return ParseResult::UnexpectedEndOfBuffer;
     }
     catch (...)
     {
-        ++counters.parserExceptions;
         return ParseResult::UnhandledException;
     }
 
