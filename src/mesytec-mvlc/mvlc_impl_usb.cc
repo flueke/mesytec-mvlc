@@ -311,7 +311,7 @@ std::error_code post_connect_cleanup(mesytec::mvlc::usb::Impl &impl)
     {
         for (int try_ = 0; try_ < DisableTriggerRetryCount; try_++)
         {
-            if (auto ec = disable_all_triggers(dlg))
+            if (auto ec = disable_all_triggers_and_daq_mode(dlg))
             {
                 if (ec == ErrorType::ConnectionError)
                     return ec;

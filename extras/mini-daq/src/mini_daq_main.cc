@@ -478,7 +478,7 @@ int main(int argc, char *argv[])
 
         int retval = 0;
 
-        if (auto ec = disable_all_triggers(mvlc))
+        if (auto ec = disable_all_triggers_and_daq_mode(mvlc))
         {
             cerr << "Error disabling MVLC triggers: " << ec.message() << endl;
             retval = 1;

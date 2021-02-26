@@ -693,7 +693,7 @@ void ReadoutWorker::Private::terminateReadout()
 
             for (int try_ = 0; try_ < DisableTriggerRetryCount; try_++)
             {
-                if (auto ec = disable_all_triggers(this->mvlc))
+                if (auto ec = disable_all_triggers_and_daq_mode(this->mvlc))
                 {
                     if (ec == ErrorType::ConnectionError)
                         return ec;

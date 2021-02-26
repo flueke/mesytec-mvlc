@@ -990,7 +990,7 @@ std::error_code Impl::connect()
         {
             assert(disableTriggersOnConnect());
 
-            if (auto ec = disable_all_triggers(dlg))
+            if (auto ec = disable_all_triggers_and_daq_mode(dlg))
             {
                 LOG_WARN("MVLC is in use and mvme failed to disable triggers: %s", ec.message().c_str());
                 close_sockets();
