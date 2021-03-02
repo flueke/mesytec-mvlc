@@ -123,6 +123,12 @@ std::error_code disable_daq_mode(DIALOG_API &mvlc)
 }
 
 template<typename DIALOG_API>
+std::error_code read_daq_mode(DIALOG_API &mvlc, u32 &daqMode)
+{
+    return mvlc.readRegister(DAQModeEnableRegister, daqMode);
+}
+
+template<typename DIALOG_API>
 std::error_code disable_all_triggers_and_daq_mode(DIALOG_API &mvlc)
 {
     if (auto ec = disable_daq_mode(mvlc))

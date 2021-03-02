@@ -493,12 +493,35 @@ void ReadoutWorker::Private::loop(std::promise<std::error_code> promise)
     }
     auto tTimestamp = tStart;
 
-    // Enable MVLC trigger processing.
-    std::error_code ec = setup_readout_triggers(mvlc, stackTriggers);
+    std::error_code ec = {};
 
-    // Enable DAQ mode (daq_start in the trigger io)
-    if (!ec)
-        ec = enable_daq_mode(mvlc);
+    try
+    {
+        // FIXME: Hack using the daq mode register state to decide if the
+        // triggers have to be enabled or not. This was added after the mvme
+        // commit ac02a04e96416d3bad05f528292b85f5cc907c96 (update the DAQ
+        // start sequence for the MVLC).
+        u32 daqMode = 0;
+
+        if (auto ec = read_daq_mode(mvlc, daqMode))
+            throw ec;
+
+        if (!daqMode)
+        {
+            // Enable MVLC trigger processing.
+            if (auto ec = setup_readout_triggers(mvlc, stackTriggers))
+                throw ec;
+
+            // Enable DAQ mode (daq_start in the trigger io) if it is not currently
+            // enabled.
+            if (auto ec = enable_daq_mode(mvlc))
+                throw ec;
+        }
+    }
+    catch (const std::error_code &e)
+    {
+        ec = e;
+    }
 
     // Set the promises value now to unblock anyone waiting for startup to
     // complete.
