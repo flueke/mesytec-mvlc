@@ -12,6 +12,7 @@
 #include "mesytec-mvlc/mvlc_stack_executor.h"
 #include "mesytec-mvlc/readout_buffer_queues.h"
 #include "mesytec-mvlc/util/protected.h"
+#include "mvlc_constants.h"
 
 namespace mesytec
 {
@@ -27,6 +28,9 @@ struct MESYTEC_MVLC_EXPORT ReadoutInitResults
     GroupedStackResults triggerIO;
 };
 
+// Runs the MVLC and DAQ init sequence from the CrateConfig and uploads the
+// readout stacks:
+// 1) MVLC Trigger/IO, 2) initCommands, 3) upload stacks
 ReadoutInitResults MESYTEC_MVLC_EXPORT init_readout(
     MVLC &mvlc, const CrateConfig &crateConfig,
     const CommandExecOptions stackExecOptions = {});
@@ -147,12 +151,22 @@ class MESYTEC_MVLC_EXPORT ReadoutWorker
 
         ReadoutWorker(
             MVLC mvlc,
+            const std::array<u32, stacks::ReadoutStackCount> &stackTriggers,
+            ReadoutBufferQueues &snoopQueues,
+            listfile::WriteHandle *lfh
+            );
+
+        ReadoutWorker(
+            MVLC mvlc,
             const std::vector<u32> &stackTriggers,
             ReadoutBufferQueues &snoopQueues,
             listfile::WriteHandle *lfh
             );
 
         ~ReadoutWorker();
+
+        void setMcstDaqStartCommands(const StackCommandBuilder &commands);
+        void setMcstDaqStopCommands(const StackCommandBuilder &commands);
 
         State state() const;
         WaitableProtected<State> &waitableState();

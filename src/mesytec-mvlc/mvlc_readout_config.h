@@ -34,15 +34,20 @@ struct MESYTEC_MVLC_EXPORT CrateConfig
     // The trigger value for each of the command stacks.
     std::vector<u32> triggers;
 
+    // Dedicated command list for initializing the trigger/io system.
+    StackCommandBuilder initTriggerIO;
+
     // List of init commands to be run during DAQ startup.
     StackCommandBuilder initCommands;
 
     // List of stop commands to be run during DAQ shutdown.
     StackCommandBuilder stopCommands;
 
-    // Extra command list to be used for the Trigger/IO system.
-    // Will also be executed during the DAQ startup sequence.
-    StackCommandBuilder initTriggerIO;
+    // Multicast DAQ start commands
+    StackCommandBuilder mcstDaqStart;
+
+    // Multicast DAQ stop commands
+    StackCommandBuilder mcstDaqStop;
 
     bool operator==(const CrateConfig &o) const;
     inline bool operator!=(const CrateConfig &o) const { return !(*this == o); }

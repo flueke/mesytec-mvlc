@@ -78,6 +78,7 @@
 #include "mvlc_factory.h"
 #include "mvlc_listfile_util.h"
 #include "mvlc_usb_interface.h"
+#include "util/future_util.h"
 #include "util/io_util.h"
 #include "util/perf.h"
 #include "util/storage_sizes.h"
@@ -117,12 +118,33 @@ ReadoutInitResults MESYTEC_MVLC_EXPORT init_readout(
 {
     ReadoutInitResults ret;
 
-    ret.ec = mvlc.writeRegister(DAQModeEnableRegister, 0);
+    // Reset to a clean state
+    ret.ec = disable_all_triggers_and_daq_mode(mvlc);
 
     if (ret.ec)
         return ret;
 
-    // exec init_commands using all of the available stack memory
+    std::vector<u32> response;
+
+    // 1) trigger io
+    {
+        std::vector<u32> response;
+
+        auto errors = execute_stack(
+            mvlc, crateConfig.initTriggerIO,
+            stacks::StackMemoryWords, stackExecOptions,
+            response);
+
+        ret.triggerIO = parse_stack_exec_response(crateConfig.initTriggerIO, response, errors);
+
+        if (auto ec = get_first_error(ret.triggerIO))
+        {
+            cerr << "Error running init_trigger_io: " << ret.ec.message() << endl;
+            return ret;
+        }
+    }
+
+    // 2) init commands
     {
         std::vector<u32> response;
 
@@ -140,7 +162,7 @@ ReadoutInitResults MESYTEC_MVLC_EXPORT init_readout(
         }
     }
 
-    // upload the readout stacks
+    // 3) upload stacks
     {
         ret.ec = setup_readout_stacks(mvlc, crateConfig.stacks);
 
@@ -151,33 +173,12 @@ ReadoutInitResults MESYTEC_MVLC_EXPORT init_readout(
         }
     }
 
-    // Run the trigger_io init sequence after the stacks are in place.
-    // Uses only the immediate stack reserved stack memory area to not
-    // overwrite the readout stacks.
-    {
-        std::vector<u32> response;
-
-        auto errors = execute_stack(
-            mvlc, crateConfig.initTriggerIO,
-            stacks::ImmediateStackReservedWords, stackExecOptions,
-            response);
-
-        ret.triggerIO = parse_stack_exec_response(crateConfig.initTriggerIO, response, errors);
-
-        if (auto ec = get_first_error(ret.triggerIO))
-        {
-            cerr << "Error running init_trigger_io: " << ret.ec.message() << endl;
-            return ret;
-        }
-    }
-
+    // enable/disable eth jumbo frames
     if (mvlc.connectionType() == ConnectionType::ETH)
     {
         auto mvlcETH = dynamic_cast<eth::MVLC_ETH_Interface *>(mvlc.getImpl());
         mvlcETH->enableJumboFrames(crateConfig.ethJumboEnable);
     }
-
-    ret.ec = mvlc.writeRegister(DAQModeEnableRegister, 1);
 
     return ret;
 }
@@ -317,7 +318,9 @@ struct ReadoutWorker::Private
     eth::MVLC_ETH_Interface *mvlcETH = nullptr;
     usb::MVLC_USB_Interface *mvlcUSB = nullptr;
     ReadoutBufferQueues &snoopQueues;
-    std::vector<u32> stackTriggers;
+    std::array<u32, stacks::ReadoutStackCount> stackTriggers;
+    StackCommandBuilder mcstDaqStart;
+    StackCommandBuilder mcstDaqStop;
     std::chrono::seconds timeToRun;
     Protected<Counters> counters;
     std::thread readoutThread;
@@ -407,7 +410,7 @@ constexpr std::chrono::seconds ReadoutWorker::Private::ShutdownReadoutMaxWait;
 
 ReadoutWorker::ReadoutWorker(
     MVLC mvlc,
-    const std::vector<u32> &stackTriggers,
+    const std::array<u32, stacks::ReadoutStackCount> &stackTriggers,
     ReadoutBufferQueues &snoopQueues,
     listfile::WriteHandle *lfh
     )
@@ -417,6 +420,35 @@ ReadoutWorker::ReadoutWorker(
     d->desiredState = State::Idle;
     d->stackTriggers = stackTriggers;
     d->lfh = lfh;
+}
+
+ReadoutWorker::ReadoutWorker(
+    MVLC mvlc,
+    const std::vector<u32> &stackTriggers,
+    ReadoutBufferQueues &snoopQueues,
+    listfile::WriteHandle *lfh
+    )
+    : d(std::make_unique<Private>(mvlc, snoopQueues))
+{
+    d->state.access().ref() = State::Idle;
+    d->desiredState = State::Idle;
+
+    d->stackTriggers.fill(0u);
+    std::copy_n(std::begin(stackTriggers),
+                std::min(stackTriggers.size(), d->stackTriggers.size()),
+                std::begin(d->stackTriggers));
+
+    d->lfh = lfh;
+}
+
+void ReadoutWorker::setMcstDaqStartCommands(const StackCommandBuilder &commands)
+{
+    d->mcstDaqStart = commands;
+}
+
+void ReadoutWorker::setMcstDaqStopCommands(const StackCommandBuilder &commands)
+{
+    d->mcstDaqStop = commands;
 }
 
 // FIXME: exceptions
@@ -493,38 +525,36 @@ void ReadoutWorker::Private::loop(std::promise<std::error_code> promise)
     }
     auto tTimestamp = tStart;
 
-    std::error_code ec = {};
+    // Run the last part of the init sequence in parallel to entering the readout loop.
+    // The last part enables the stack triggers, runs the multicast daq start
+    // sequence and enables MVLC daq mode.
+    // In the case of USB this should happen parallel to starting to read from
+    // the data pipe as data can arrive immediately after enabling the stack
+    // triggers.
+    auto fStart = std::async(std::launch::async, [this] () -> std::error_code {
 
-    try
-    {
-        // FIXME: Hack using the daq mode register state to decide if the
-        // triggers have to be enabled or not. This was added after the mvme
-        // commit ac02a04e96416d3bad05f528292b85f5cc907c96 (update the DAQ
-        // start sequence for the MVLC).
-        u32 daqMode = 0;
+        // enable readout stacks
+        if (auto ec = setup_readout_triggers(mvlc, stackTriggers))
+            return ec;
 
-        if (auto ec = read_daq_mode(mvlc, daqMode))
-            throw ec;
+        // multicast daq start
+        std::vector<u32> responseBuffer;
+        auto errors = execute_stack(mvlc, mcstDaqStart, responseBuffer);
+        auto execResults = parse_stack_exec_response(mcstDaqStart, responseBuffer, errors);
 
-        if (!daqMode)
-        {
-            // Enable MVLC trigger processing.
-            if (auto ec = setup_readout_triggers(mvlc, stackTriggers))
-                throw ec;
+        cout << "Results from mcstDaqStart: " << execResults << endl;
 
-            // Enable DAQ mode (daq_start in the trigger io) if it is not currently
-            // enabled.
-            if (auto ec = enable_daq_mode(mvlc))
-                throw ec;
-        }
-    }
-    catch (const std::error_code &e)
-    {
-        ec = e;
-    }
+
+        if (auto ec = get_first_error(errors))
+            return ec;
+
+        // enable daq mode
+        return enable_daq_mode(mvlc);
+    });
 
     // Set the promises value now to unblock anyone waiting for startup to
     // complete.
+    std::error_code ec = {};
     promise.set_value(ec);
 
     if (!ec)
@@ -533,6 +563,18 @@ void ReadoutWorker::Private::loop(std::promise<std::error_code> promise)
         {
             while (ec != ErrorType::ConnectionError)
             {
+                // see if the async part of the start sequence has finished
+                if (fStart.valid() && is_ready(fStart))
+                {
+                    ec = fStart.get();
+
+                    if (ec == ErrorType::ConnectionError)
+                    {
+                        std::cout << "ConnectionError from the startup sequence" << std::endl;
+                        break;
+                    }
+                }
+
                 const auto now = std::chrono::steady_clock::now();
 
                 // check if timeToRun has elapsed
@@ -712,6 +754,18 @@ void ReadoutWorker::Private::terminateReadout()
         std::launch::async,
         [this] ()
         {
+            // disable daq mode
+            if (auto ec = disable_daq_mode(mvlc))
+                return ec;
+
+            // multicast daq stop
+            std::vector<u32> responseBuffer;
+            auto errors = execute_stack(mvlc, mcstDaqStop, responseBuffer);
+            auto execResults = parse_stack_exec_response(mcstDaqStop, responseBuffer, errors);
+            if (auto ec = get_first_error(errors))
+                return ec;
+
+            // disable readout stacks
             static const int DisableTriggerRetryCount = 5;
 
             for (int try_ = 0; try_ < DisableTriggerRetryCount; try_++)
@@ -747,7 +801,7 @@ void ReadoutWorker::Private::terminateReadout()
 
     if (auto ec = f.get())
     {
-        cerr << "terminateReadout: error disabling triggers: " << ec.message() << endl;
+        cerr << "terminateReadout: error running daq stop sequence: " << ec.message() << endl;
     }
 }
 

@@ -27,6 +27,7 @@
 #include "mvlc_command_builders.h"
 #include "mvlc_constants.h"
 #include "mvlc_error.h"
+#include "mvlc_util.h"
 
 namespace mesytec
 {
@@ -213,56 +214,60 @@ std::error_code write_stack_trigger_value(
     DIALOG_API &mvlc, u8 stackId, u32 triggerVal)
 {
     u16 triggerReg = stacks::get_trigger_register(stackId);
-
     return mvlc.writeRegister(triggerReg, triggerVal);
 }
 
-template<typename DIALOG_API>
-std::error_code setup_stack_trigger(
-    DIALOG_API &mvlc, u8 stackId,
-    stacks::TriggerType triggerType, u8 irqLevel = 0)
+inline u32 trigger_value(const StackTrigger &st)
 {
-    u32 triggerVal = triggerType << stacks::TriggerTypeShift;
-
-    if ((triggerType == stacks::TriggerType::IRQNoIACK
-         || triggerType == stacks::TriggerType::IRQWithIACK)
-        && irqLevel > 0)
-    {
-        triggerVal |= (irqLevel - 1) & stacks::TriggerBitsMask;
-    }
-
-    return write_stack_trigger_value(mvlc, stackId, triggerVal);
+    return trigger_value(st.triggerType, st.irqLevel); // in mvlc_util.h
 }
 
 template<typename DIALOG_API>
 std::error_code setup_stack_trigger(
     DIALOG_API &mvlc, u8 stackId, const StackTrigger &st)
 {
-    return setup_stack_trigger(mvlc, stackId, st.triggerType, st.irqLevel);
+    u32 triggerVal = trigger_value(st);
+    return write_stack_trigger_value(mvlc, stackId, triggerVal);
 }
 
+// Writes the stack trigger values using a single stack transaction.
 template<typename DIALOG_API>
 std::error_code setup_readout_triggers(
-    DIALOG_API &mvlc, const std::vector<u32> &readoutTriggers)
+    DIALOG_API &mvlc,
+    const std::array<u32, stacks::ReadoutStackCount> &triggerValues)
 {
+    SuperCommandBuilder sb;
     u8 stackId = stacks::ImmediateStackID + 1;
 
-    for (u32 triggerVal: readoutTriggers)
+    for (u32 triggerVal: triggerValues)
     {
-        if (stackId >= stacks::StackCount)
-            return make_error_code(MVLCErrorCode::StackCountExceeded);
-
         //std::cerr << "stackId=" << static_cast<unsigned>(stackId)
         //    << ", triggerVal=0x" << std::hex << triggerVal << std::dec
         //    << std::endl;
 
-        if (auto ec = write_stack_trigger_value(mvlc, stackId, triggerVal))
-            return ec;
-
+        u16 triggerReg = stacks::get_trigger_register(stackId);
+        sb.addWriteLocal(triggerReg, triggerVal);
         ++stackId;
     }
 
-    return {};
+    std::vector<u32> responseBuffer;
+
+    return mvlc.mirrorTransaction(make_command_buffer(sb), responseBuffer);
+}
+
+template<typename DIALOG_API>
+std::error_code setup_readout_triggers(
+    DIALOG_API &mvlc,
+    const std::array<StackTrigger, stacks::ReadoutStackCount> &triggers)
+{
+    std::array<u32, stacks::ReadoutStackCount> triggerValues;
+
+    std::transform(std::begin(triggers), std::end(triggers), std::begin(triggerValues),
+                   [] (const StackTrigger &st) {
+                       return trigger_value(st);
+                   });
+
+    return setup_readout_triggers(mvlc, triggerValues);
 }
 
 } // end namespace mvlc

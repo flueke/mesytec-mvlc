@@ -78,6 +78,24 @@ inline std::error_code get_first_error(const GroupedStackResults &groupResults)
     return {};
 }
 
+inline std::error_code get_first_error(const std::vector<Result> &results)
+{
+    for (const auto &result: results)
+        if (result.ec)
+            return result.ec;
+    return {};
+}
+
+template<typename C>
+std::error_code get_first_error(const C &errors)
+{
+    for (auto ec: errors)
+        if (ec)
+            return ec;
+
+    return {};
+}
+
 inline bool has_error(const GroupedStackResults &groupResults)
 {
     return !get_first_error(groupResults);
@@ -227,6 +245,17 @@ std::vector<std::error_code> execute_stack(
     std::vector<u32> &responseBuffer)
 {
     return execute_commands(mvlc, stack.getCommands(), immediateStackMaxSize, options, responseBuffer);
+}
+
+// Runs the stack using only the stack memory reserved for immediate stack
+// execution and the default CommandExecOptions.
+template<typename DIALOG_API>
+std::vector<std::error_code> execute_stack(
+    DIALOG_API &mvlc,
+    const StackCommandBuilder &stack,
+    std::vector<u32> &responseBuffer)
+{
+    return execute_stack(mvlc, stack, stacks::ImmediateStackReservedWords, CommandExecOptions{}, responseBuffer);
 }
 
 std::vector<Result> MESYTEC_MVLC_EXPORT parse_response_list(

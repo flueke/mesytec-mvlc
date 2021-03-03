@@ -299,7 +299,11 @@ namespace stacks
     static const u8 ImmediateStackID = 0;
     static const u16 ImmediateStackReservedWords = 128;
     static const u16 ImmediateStackReservedBytes = ImmediateStackReservedWords * 4;
+
+    // All stacks other than the one reserved for immediate execution can be
+    // used as readout stacks activated by IRQ or via the Trigger/IO system.
     static const u8 FirstReadoutStackID = 1;
+    static const u8 ReadoutStackCount = StackCount - 1u;
 
     enum TriggerType: u8
     {

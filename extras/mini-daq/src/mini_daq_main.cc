@@ -419,6 +419,8 @@ int main(int argc, char *argv[])
         // Create a ReadoutWorker and start the readout.
         //
         ReadoutWorker readoutWorker(mvlc, crateConfig.triggers, snoopQueues, lfh);
+        readoutWorker.setMcstDaqStartCommands(crateConfig.mcstDaqStart);
+        readoutWorker.setMcstDaqStopCommands(crateConfig.mcstDaqStop);
 
         cout << "Starting readout worker. Running for " << timeToRun.count() << " seconds." << endl;
 
@@ -502,11 +504,13 @@ int main(int argc, char *argv[])
         cerr << "mini-daq caught an exception: " << e.what() << endl;
         return 1;
     }
+    /*
     catch (...)
     {
         cerr << "mini-daq caught an unknown exception" << endl;
         return 1;
     }
+    */
 
     return 0;
 }

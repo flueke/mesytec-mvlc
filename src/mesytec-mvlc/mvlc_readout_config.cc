@@ -46,9 +46,11 @@ bool CrateConfig::operator==(const CrateConfig &o) const
         && ethHost == o.ethHost
         && stacks == o.stacks
         && triggers == o.triggers
+        && initTriggerIO == o.initTriggerIO
         && initCommands == o.initCommands
         && stopCommands == o.stopCommands
-        && initTriggerIO == o.initTriggerIO
+        && mcstDaqStart == o.mcstDaqStart
+        && mcstDaqStop == o.mcstDaqStop
         ;
 }
 
@@ -139,9 +141,11 @@ std::string to_yaml(const CrateConfig &crateConfig)
     out << YAML::EndSeq; // end readout_stacks
 
     out << YAML::Key << "stack_triggers" << YAML::Value << crateConfig.triggers;
+    out << YAML::Key << "init_trigger_io" << YAML::Value << crateConfig.initTriggerIO;
     out << YAML::Key << "init_commands" << YAML::Value << crateConfig.initCommands;
     out << YAML::Key << "stop_commands" << YAML::Value << crateConfig.stopCommands;
-    out << YAML::Key << "init_trigger_io" << YAML::Value << crateConfig.initTriggerIO;
+    out << YAML::Key << "mcst_daq_start" << YAML::Value << crateConfig.mcstDaqStart;
+    out << YAML::Key << "mcst_daq_stop" << YAML::Value << crateConfig.mcstDaqStop;
 
     out << YAML::EndMap; // end crate
 
@@ -195,9 +199,11 @@ CrateConfig crate_config_from_yaml(std::istream &input)
                 result.triggers.push_back(yTrig.as<u32>());
         }
 
+        result.initTriggerIO = stack_command_builder_from_yaml(yCrate["init_trigger_io"]);
         result.initCommands = stack_command_builder_from_yaml(yCrate["init_commands"]);
         result.stopCommands = stack_command_builder_from_yaml(yCrate["stop_commands"]);
-        result.initTriggerIO = stack_command_builder_from_yaml(yCrate["init_trigger_io"]);
+        result.mcstDaqStart = stack_command_builder_from_yaml(yCrate["mcst_daq_start"]);
+        result.mcstDaqStop = stack_command_builder_from_yaml(yCrate["mcst_daq_stop"]);
     }
 
     return result;
