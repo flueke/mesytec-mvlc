@@ -399,7 +399,8 @@ struct ReadoutWorker::Private
     }
 
     void loop(std::promise<std::error_code> promise);
-    void terminateReadout();
+    std::error_code startReadout();
+    std::error_code terminateReadout();
 
     std::error_code readout(size_t &bytesTransferred);
     std::error_code readout_usb(usb::MVLC_USB_Interface *mvlcUSB, size_t &bytesTransferred);
@@ -525,36 +526,10 @@ void ReadoutWorker::Private::loop(std::promise<std::error_code> promise)
     }
     auto tTimestamp = tStart;
 
-    // Run the last part of the init sequence in parallel to entering the readout loop.
-    // The last part enables the stack triggers, runs the multicast daq start
-    // sequence and enables MVLC daq mode.
-    // In the case of USB this should happen parallel to starting to read from
-    // the data pipe as data can arrive immediately after enabling the stack
-    // triggers.
-    auto fStart = std::async(std::launch::async, [this] () -> std::error_code {
-
-        // enable readout stacks
-        if (auto ec = setup_readout_triggers(mvlc, stackTriggers))
-            return ec;
-
-        // multicast daq start
-        std::vector<u32> responseBuffer;
-        auto errors = execute_stack(mvlc, mcstDaqStart, responseBuffer);
-        auto execResults = parse_stack_exec_response(mcstDaqStart, responseBuffer, errors);
-
-        cout << "Results from mcstDaqStart: " << execResults << endl;
-
-
-        if (auto ec = get_first_error(errors))
-            return ec;
-
-        // enable daq mode
-        return enable_daq_mode(mvlc);
-    });
+    std::error_code ec = startReadout();
 
     // Set the promises value now to unblock anyone waiting for startup to
     // complete.
-    std::error_code ec = {};
     promise.set_value(ec);
 
     if (!ec)
@@ -563,18 +538,6 @@ void ReadoutWorker::Private::loop(std::promise<std::error_code> promise)
         {
             while (ec != ErrorType::ConnectionError)
             {
-                // see if the async part of the start sequence has finished
-                if (fStart.valid() && is_ready(fStart))
-                {
-                    ec = fStart.get();
-
-                    if (ec == ErrorType::ConnectionError)
-                    {
-                        std::cout << "ConnectionError from the startup sequence" << std::endl;
-                        break;
-                    }
-                }
-
                 const auto now = std::chrono::steady_clock::now();
 
                 // check if timeToRun has elapsed
@@ -632,16 +595,7 @@ void ReadoutWorker::Private::loop(std::promise<std::error_code> promise)
                 // resume
                 else if (state_ == State::Paused && desiredState == State::Running)
                 {
-                    if ((ec = setup_readout_triggers(mvlc, stackTriggers)))
-                    {
-                        std::cout << "Error resuming MVLC readout: " << ec.message() << endl;
-                        break;
-                    }
-                    if ((ec = enable_daq_mode(mvlc)))
-                    {
-                        std::cout << "Error resuming MVLC readout: " << ec.message() << endl;
-                        break;
-                    }
+                    startReadout();
                     listfile::BufferWriteHandle wh(*getOutputBuffer());
                     listfile_write_timestamp_section(wh, system_event::subtype::Resume);
                     setState(State::Running);
@@ -742,13 +696,57 @@ void ReadoutWorker::Private::loop(std::promise<std::error_code> promise)
     setState(State::Idle);
 }
 
+// Start readout or resume after pause
+// Run the last part of the init sequence in parallel to reading from the data pipe.
+// The last part enables the stack triggers, runs the multicast daq start
+// sequence and enables MVLC daq mode.
+std::error_code ReadoutWorker::Private::startReadout()
+{
+    auto f = std::async(
+        std::launch::async,
+        [this] ()
+        {
+            // enable readout stacks
+            if (auto ec = setup_readout_triggers(mvlc, stackTriggers))
+                return ec;
+
+            // multicast daq start
+            std::vector<u32> responseBuffer;
+            auto errors = execute_stack(mvlc, mcstDaqStart, responseBuffer);
+            auto execResults = parse_stack_exec_response(mcstDaqStart, responseBuffer, errors);
+
+            cout << "Results from mcstDaqStart: " << execResults << endl;
+
+            if (auto ec = get_first_error(errors))
+                return ec;
+
+            // enable daq mode
+            return enable_daq_mode(mvlc);
+        });
+
+    while (f.valid() && !is_ready(f))
+    {
+        size_t bytesTransferred = 0u;
+        this->readout(bytesTransferred);
+    }
+
+    std::error_code ec = f.get();
+
+    if (ec)
+    {
+        cerr << "startReadout: error running daq start sequence: " << ec.message() << endl;
+    }
+
+    return ec;
+}
+
 // Cleanly end a running readout session. The code disables all triggers by
 // writing to the trigger registers via the command pipe while in parallel
 // reading and processing data from the data pipe until no more data
 // arrives. These things have to be done in parallel as otherwise in the
 // case of USB the data from the data pipe could clog the bus and no
 // replies could be received on the command pipe.
-void ReadoutWorker::Private::terminateReadout()
+std::error_code ReadoutWorker::Private::terminateReadout()
 {
     auto f = std::async(
         std::launch::async,
@@ -799,10 +797,14 @@ void ReadoutWorker::Private::terminateReadout()
 
     } while (bytesTransferred > 0);
 
-    if (auto ec = f.get())
+    std::error_code ec = f.get();
+
+    if (ec)
     {
         cerr << "terminateReadout: error running daq stop sequence: " << ec.message() << endl;
     }
+
+    return ec;
 }
 
 // Note: in addition to stack frames this includes SystemEvent frames. These
