@@ -202,8 +202,14 @@ CrateConfig crate_config_from_yaml(std::istream &input)
         result.initTriggerIO = stack_command_builder_from_yaml(yCrate["init_trigger_io"]);
         result.initCommands = stack_command_builder_from_yaml(yCrate["init_commands"]);
         result.stopCommands = stack_command_builder_from_yaml(yCrate["stop_commands"]);
-        result.mcstDaqStart = stack_command_builder_from_yaml(yCrate["mcst_daq_start"]);
-        result.mcstDaqStop = stack_command_builder_from_yaml(yCrate["mcst_daq_stop"]);
+
+        // The mcst nodes where not present initially. CrateConfigs generated
+        // by older versions do not contain them.
+        if (yCrate["mcst_daq_start"])
+            result.mcstDaqStart = stack_command_builder_from_yaml(yCrate["mcst_daq_start"]);
+
+        if (yCrate["mcst_daq_stop"])
+            result.mcstDaqStop = stack_command_builder_from_yaml(yCrate["mcst_daq_stop"]);
     }
 
     return result;
