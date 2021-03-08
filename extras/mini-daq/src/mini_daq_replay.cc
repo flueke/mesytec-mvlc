@@ -207,7 +207,7 @@ int main(int argc, char *argv[])
     // stop the readout parser
     if (parserThread.joinable())
     {
-        // TODO: simplify the readout_parser stop sequence. maybe use an
+        // TODO: simplify the readout_parser stop sequence. Maybe use an
         // atomic<bool> to tell the parser to quit.
         cout << "waiting for empty snoopQueue buffer" << endl;
         auto sentinel = snoopQueues.emptyBufferQueue().dequeue(std::chrono::seconds(1));
