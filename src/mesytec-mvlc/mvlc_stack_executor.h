@@ -266,6 +266,18 @@ GroupedStackResults MESYTEC_MVLC_EXPORT parse_stack_exec_response(
     const std::vector<u32> &responseBuffer,
     const std::vector<std::error_code> &execErrors);
 
+template<typename DIALOG_API>
+GroupedStackResults execute_stack_and_parse_results(
+    DIALOG_API &mvlc,
+    const StackCommandBuilder &stack,
+    u16 immediateStackMaxSize = stacks::ImmediateStackReservedWords,
+    const CommandExecOptions &options = {})
+{
+    std::vector<u32> responseBuffer;
+    auto errors = execute_stack(mvlc, stack, immediateStackMaxSize, options, responseBuffer);
+    return parse_stack_exec_response(stack, responseBuffer, errors);
+}
+
 template<typename Out>
 Out &operator<<(Out &out, const GroupedStackResults &groupedResults)
 {
