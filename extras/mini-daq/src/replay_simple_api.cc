@@ -5,6 +5,80 @@
 #include <mesytec-mvlc/mesytec-mvlc.h>
 #include <lyra/lyra.hpp>
 
+/*
+
+mini-daq-replay
+================================================
+open and init
+-------------
+
+ZipReader
+  open
+  find archive member
+  openEntry -> ReadHandle
+
+preamble = read_preamble(ReadHandle)
+ -> magic bytes, system events
+
+preamble file format check (magic bytes)
+
+build CrateConfig from preamble systemevent data
+
+
+prepare reading
+----------------
+
+parser callback setup
+snoopQueues
+thread(run_readout_parser)
+ReplayWorker <- does the actual reading from file
+connected via snoopQueues
+
+
+read
+-----------------
+replayWorker.start()
+replayWorker.waitableState().wait()
+
+
+----
+snoopqueues sentinel handling to terminate the readout parser
+
+
+simpler direct call interface
+=============================================
+
+handle = open_listfile(filename)
+
+if (!handle->isOpen())
+    print handle->errorCode, handle->errorString
+
+auto crateConfig = handle->getCrateConfig();
+
+while (auto data = read_next_event(handle))
+{
+    if (data->type == SystemEvent)
+    {
+        if (data->systemEvent->subtype == TimeTick)
+            print "got a timetick"
+    }
+    else if (data->type == EventData)
+    {
+        data->eventIndex
+        data->eventName
+        data->moduleCount
+        data->moduleNames
+        data->moduleData[moduleIndex].ptr;
+        data->moduleData[moduleIndex].size;
+    }
+
+    auto stats = handle->getStats()
+}
+
+close_listfile(handle);
+
+*/
+
 using std::cout;
 using std::cerr;
 using std::endl;
