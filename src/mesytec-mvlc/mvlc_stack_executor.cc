@@ -239,7 +239,7 @@ std::vector<Result> parse_response_list(
 
         response.remove_prefix(frameInfo.len);
 
-        while (frameInfo.flags & frame_flags::Continue)
+        while (response.size() > 0 && (frameInfo.flags & frame_flags::Continue))
         {
             stackFrameHeader = response[0];
 
