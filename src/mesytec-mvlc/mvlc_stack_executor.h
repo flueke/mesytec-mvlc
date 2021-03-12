@@ -108,7 +108,7 @@ struct CommandExecOptions
 
     // Set to true to disable the command batching logic. Commands will be run
     // one at a time.
-    bool noBatching  = false;
+    bool noBatching  = true;
 
     // If disabled command execution will be aborted when a VME bus error is
     // encountered.
