@@ -43,13 +43,15 @@ TEST(mvlc_stack_executor, SplitCommandsOptions)
     {
         const u16 StackReservedWords = 1;
         auto commands = stack.getCommands();
-        ASSERT_THROW(detail::split_commands(commands, {}, StackReservedWords), std::runtime_error);
+        CommandExecOptions options { .noBatching = false };
+        ASSERT_THROW(detail::split_commands(commands, options, StackReservedWords), std::runtime_error);
     }
 
     {
         const u16 StackReservedWords = stacks::ImmediateStackReservedWords;
         auto commands = stack.getCommands();
-        auto parts = detail::split_commands(commands, {}, StackReservedWords);
+        CommandExecOptions options { .ignoreDelays = false, .noBatching = false };
+        auto parts = detail::split_commands(commands, options, StackReservedWords);
         ASSERT_EQ(parts.size(), 3);
         ASSERT_EQ(parts[0][0].type, StackCommand::CommandType::VMERead);
         ASSERT_EQ(parts[0][1].type, StackCommand::CommandType::VMERead);
@@ -151,7 +153,8 @@ TEST(mvlc_stack_executor, SplitCommandsStackSizes)
 
     for (auto reservedWords: StackReservedWords)
     {
-        auto parts = detail::split_commands(commands, {}, reservedWords);
+        CommandExecOptions options { .noBatching = false };
+        auto parts = detail::split_commands(commands, options, reservedWords);
 
         //std::cout << "reservedWords=" << reservedWords
         //    << " -> partCount=" << parts.size() << std::endl;
