@@ -1,6 +1,23 @@
 TODO {#todo}
 ============
 
+* Enforce that the immediate stack is starting at an offset > 0 so that when
+  resetting others stacks offsets they do not point to the immediate stack.
+
+* Core API for reading listfiles and working with the data:
+  - Multiple views:
+    - linear readout data (does not need crate config)
+    - parsed readout data
+  - Single threaded
+  - Example:
+    auto lfh = open_listfile("my_run01.zip");
+    while (auto event = next_event(lfh))
+    {
+        event->index;
+        event->modules[0].data.begin;
+        event->modules[0].data.end;
+    }
+
 * DAQ Start/Stop/Pause: add event multicast start and stop commands to the
   CrateConfig and use these in the readout code.
 
