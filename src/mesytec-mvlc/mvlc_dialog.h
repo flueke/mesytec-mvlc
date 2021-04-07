@@ -174,7 +174,7 @@ class MESYTEC_MVLC_EXPORT MVLCDialog
         void logBuffer(const std::vector<u32> &buffer, const std::string &info);
 
         MVLCBasicInterface *m_mvlc = nullptr;
-        u32 m_referenceWord = 1;
+        u16 m_referenceWord = 1;
         std::vector<u32> m_responseBuffer;
         mutable Protected<StackErrorCounters> m_stackErrorCounters;
 };

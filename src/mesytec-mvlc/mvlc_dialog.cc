@@ -354,7 +354,7 @@ std::error_code MVLCDialog::mirrorTransaction(const std::vector<u32> &cmdBuffer,
 
     for (unsigned tries = 0u; tries < MirrorMaxRetries; tries++)
     {
-        // upload the stack
+        // write the contents of the command buffer
         if (auto ec = doWrite(cmdBuffer))
         {
             ret = ec;

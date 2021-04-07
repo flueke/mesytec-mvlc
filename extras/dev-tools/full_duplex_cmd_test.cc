@@ -30,8 +30,11 @@ struct ReaderContext: public BaseContext
 
 void writer(WriterContext &context)
 {
-    auto cmdBuffer = make_command_buffer(
-        SuperCommandBuilder().addWriteLocal(stacks::StackMemoryBegin, 0x87654321u));
+    SuperCommandBuilder scb;
+    scb.addReferenceWord(0x1337);
+    scb.addWriteLocal(stacks::StackMemoryBegin, 0x87654321u);
+    scb.addReadLocal(stacks::StackMemoryBegin);
+    auto cmdBuffer = make_command_buffer(scb);
     context.cmdBuffer = cmdBuffer;
 
     while (!context.quit)
@@ -64,7 +67,8 @@ void reader(ReaderContext &context)
     readBuffer.resize(1024);
 
     size_t bytesTransferred = 0u;
-    while (!context.quit)
+    //while (!context.quit)
+    while (true)
     {
 
         if (auto ec = context.mvlc->read(
@@ -76,8 +80,6 @@ void reader(ReaderContext &context)
             context.ec = ec;
 
             if (ec == ErrorType::Timeout)
-                ++context.timeouts;
-            else
                 break;
         }
 
@@ -90,7 +92,7 @@ int main(int argc, char *argv[])
 {
     std::string host;
     bool showHelp = false;
-    unsigned secondsToRun = 10;
+    unsigned secondsToRun = 2;
 
     auto cli
         = lyra::help(showHelp)
@@ -125,11 +127,19 @@ int main(int argc, char *argv[])
         WriterContext writerContext = {};
         writerContext.mvlc = mvlc.get();
         writerContext.quit = false;
+
+        WriterContext writerContext1 = {};
+        writerContext1.mvlc = mvlc.get();
+        writerContext1.quit = false;
+
+
         ReaderContext readerContext = {};
         readerContext.mvlc = mvlc.get();
         readerContext.quit = false;
 
         std::thread writerThread(writer, std::ref(writerContext));
+        //std::thread writerThread1(writer, std::ref(writerContext1));
+
         std::thread readerThread(reader, std::ref(readerContext));
 
         auto tStart = std::chrono::steady_clock::now();
@@ -154,11 +164,15 @@ int main(int argc, char *argv[])
             << ", bytesWritten=" << writerContext.bytesTransferred
             << ", timeouts=" << writerContext.timeouts
             << ", ec=" << writerContext.ec.message()
+            << ", bytesWritten/writes="
+            << (writerContext.bytesTransferred*1.0/writerContext.transferCount)
             << "\n"
             << "reads=" << readerContext.transferCount
             << ", bytesRead=" << readerContext.bytesTransferred
             << ", timeouts=" << writerContext.timeouts
             << ", ec=" << readerContext.ec.message()
+            << ", bytesRead/reads="
+            << (readerContext.bytesTransferred*1.0/readerContext.transferCount)
             << "\n";
 
         util::log_buffer(cout, writerContext.cmdBuffer, "writer cmd buffer",
