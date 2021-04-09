@@ -9,81 +9,195 @@
 using std::cout;
 using namespace mesytec::mvlc;
 
-#if 0
 
-struct Buffer
+struct PendingResponse
 {
-    std::unique_ptr<u32> mem;
-    size_t capacity;
-    size_t used;
-
-    u32 *begin() { return mem.get(); }
-    u32 *end() { return begin() + used; }
-};
-
-using Buffers = std::vector<Buffer>;
-
-struct PendingRequest
-{
-    enum Type { Super, Stack };
-    Type type;
-    u16 id;
     std::promise<std::error_code> promise;
-    std::vector<u32> &dest;
+    std::vector<u32> *dest = nullptr;
+    bool pending = false;
 };
 
-struct RequestQueue
+struct ReaderContext
 {
-    std::list<PendingRequest> queue;
-    std::mutex mutex;
-    std::atomic<u16> nextId;
-};
+    struct Counters
+    {
+        std::atomic<size_t> bytesRead;
+        std::atomic<size_t> timeouts;
+        std::atomic<size_t> invalidHeaders;
+        std::atomic<size_t> bytesSkipped;
 
-struct Context
-{
-    usb::Impl *mvlc;
+        Counters()
+            : bytesRead(0)
+            , timeouts(0)
+            , invalidHeaders(0)
+            , bytesSkipped(0)
+        {}
+    };
+
     std::atomic<bool> quit;
-
-    RequestQueue requestQueue;
+    MVLCBasicInterface *mvlc;
+    Protected<PendingResponse> pendingSuper;
+    Protected<PendingResponse> pendingStack;
+    Counters counters;
 };
 
-std::future<std::error_code> make_super_request(
-    MVLCBasicInterface &mvlc,
-    RequestQueue &requestQueue,
-    const std::vector<u32> &superBuffer,
-    std::vector<u32> &responseDest)
+bool fullfill_pending_response(
+    PendingResponse &pr,
+    const std::error_code &ec,
+    const std::vector<u32> &contents = {})
 {
-    assert(((superBuffer[1] >> super_commands::SuperCmdShift) & super_commands::SuperCmdMask)
-           == static_cast<u16>(super_commands::SuperCommandType::ReferenceWord));
+    if (pr.pending)
+    {
+        pr.pending = false;
 
-    std::future<std::error_code> result;
+        if (pr.dest)
+            *pr.dest = contents;
 
-    u16 id = requestQueue.nextId++;
+        pr.promise.set_value(ec);
+        return true;
+    }
 
+    return false;
+}
 
-
-
-    return result;
-};
-
-
-void requester(Context &context)
+void cmd_pipe_reader(ReaderContext &context)
 {
-    std::list<std::vector<u32 *>> responses;
+    struct Buffer
+    {
+        std::vector<u32> mem;
+        size_t start = 0;
+        size_t used = 0;
+
+        const u32 *begin() const { return mem.data() + start; }
+        u32 *begin() { return mem.data() + start; }
+
+        const u32 *end() const { return begin() + used; }
+        u32 *end() { return begin() + used; }
+
+        bool empty() const { return used == 0; }
+        size_t capacity() const { return mem.size(); }
+        size_t free() const
+        {
+            return (mem.data() + mem.size()) - (mem.data() + start + used);
+        }
+
+        u32 *writeBegin() { return end(); }
+        u32 *writeEnd() { return mem.data() + mem.size(); }
+
+
+        void consume(size_t nelements)
+        {
+            assert(used >= nelements);
+            start += nelements;
+            used -= nelements;
+        }
+
+        void use(size_t nelements)
+        {
+            assert(free() >= nelements);
+            used += nelements;
+        }
+
+        void pack()
+        {
+            if (start > 0)
+            {
+                size_t oldFree = free();
+                std::copy(begin(), end(), mem.data());
+                start = 0;
+                assert(free() > oldFree);
+            }
+        }
+
+        void resize(size_t size)
+        {
+            if (size > mem.size())
+            {
+                mem.resize(size);
+                pack();
+            }
+        };
+
+        void ensureFreeSpace(size_t size)
+        {
+            if (free() < size)
+            {
+                pack();
+
+                if (free() < size)
+                {
+                    mem.resize(mem.size() + size);
+                }
+            }
+        }
+
+        u32 operator[](size_t index) const
+        {
+            return mem[index + start];
+        };
+    };
+
+    auto is_good_header = [] (const u32 header) -> bool
+    {
+        return is_super_buffer(header)
+            || is_stack_buffer(header)
+            || is_stackerror_notification(header)
+            || is_dso_buffer(header);
+    };
+
+    auto contains_complete_frame = [=] (const u32 *begin, const u32 *end) -> bool
+    {
+        assert(end - begin > 0);
+        assert(is_good_header(*begin));
+        // TODO: handle continuations
+
+        if (is_dso_buffer(*begin))
+            return std::find_if(begin, end, 0xC0000000u) != end;
+
+
+    };
+
+    Buffer buffer;
+    buffer.mem.resize(util::Megabytes(1));
 
     while (!context.quit)
     {
-        u16 id = context.requestQueue.nextId++;
-        SuperCommandBuilder scb;
-        scb.addReferenceWord(id);
-        scb.addWriteLocal(stacks::StackMemoryBegin, 0x87654321u);
-        scb.addReadLocal(stacks::StackMemoryBegin);
-        auto cmdBuffer = make_command_buffer(scb);
+        while (buffer.used)
+        {
+            if (!is_good_header(buffer[0]))
+            {
+                // TODO: count error, seek to next known buffer start, count skipped bytes
+                throw std::runtime_error("bad header in buffer");
+            }
 
-        PendingRequest pr { PendingRequest::Stack, id, 
+            if (contains_complete_frame(buffer.begin(), buffer.end()))
+            {
+                // TODO: handle frame based on type
+            }
+            else
+                break;
+        }
+
+
+        // TODO: move remaining data to buffer front and ensure there's free
+        // space in the buffer
+
+        // TODO; read fixed size chunks instead of current buffer size which may grow.
+        // FIXME: start at an offset. parts of the buffer may be used
+        size_t bytesTransferred = 0;
+        auto ec = context.mvlc->read(
+            Pipe::Command,
+            reinterpret_cast<u8 *>(context.readBuffer.data()),
+            context.readBuffer.size() * sizeof(u32),
+            bytesTransferred);
+
+        // TODO: buffer bookkeeping
+
+        if (ec == ErrorType::ConnectionError)
+            context.quit = true;
     }
-};
 #endif
+}
 
 int main(int argc, char *argv[])
 {

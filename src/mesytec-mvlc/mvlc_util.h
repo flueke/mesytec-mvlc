@@ -68,6 +68,11 @@ inline bool has_error_flag_set(u8 frameFlags)
     return (frameFlags & frame_flags::AllErrorFlags) != 0u;
 }
 
+inline u32 get_frame_length(u32 header)
+{
+    return extract_frame_info(header).len;
+}
+
 MESYTEC_MVLC_EXPORT const char *get_frame_flag_shift_name(u8 flag);
 
 stacks::TimerBaseUnit MESYTEC_MVLC_EXPORT timer_base_unit_from_string(const std::string &str);
