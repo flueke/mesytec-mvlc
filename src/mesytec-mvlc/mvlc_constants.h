@@ -128,6 +128,7 @@ namespace frame_headers
                                     // The last F9 frame in a sequence has the Continue bit cleared.
         SystemEvent         = 0xFA, // Software generated frames used for transporting additional
                                     // information. See the system_event namespace below for details.
+        DSOBuffer           = 0x40, // Data from the Digital Storage Oscilloscope built into the trigger io system.
     };
 
     // Header: Type[7:0] Continue[0:0] ErrorFlags[2:0] StackNum[3:0] CtrlId[2:0] Length[12:0]
