@@ -9,6 +9,8 @@
 using std::cout;
 using namespace mesytec::mvlc;
 
+#if 0
+
 struct Buffer
 {
     std::unique_ptr<u32> mem;
@@ -81,6 +83,7 @@ void requester(Context &context)
         PendingRequest pr { PendingRequest::Stack, id, 
     }
 };
+#endif
 
 int main(int argc, char *argv[])
 {
