@@ -67,7 +67,6 @@ void reader(ReaderContext &context)
     readBuffer.resize(1024);
 
     size_t bytesTransferred = 0u;
-    //while (!context.quit)
     while (true)
     {
 
@@ -80,6 +79,12 @@ void reader(ReaderContext &context)
             context.ec = ec;
 
             if (ec == ErrorType::Timeout)
+            {
+                ++context.timeouts;
+                if (context.quit)
+                    break;
+            }
+            else
                 break;
         }
 
@@ -92,7 +97,7 @@ int main(int argc, char *argv[])
 {
     std::string host;
     bool showHelp = false;
-    unsigned secondsToRun = 2;
+    unsigned secondsToRun = 10;
 
     auto cli
         = lyra::help(showHelp)
@@ -138,7 +143,6 @@ int main(int argc, char *argv[])
         readerContext.quit = false;
 
         std::thread writerThread(writer, std::ref(writerContext));
-        //std::thread writerThread1(writer, std::ref(writerContext1));
 
         std::thread readerThread(reader, std::ref(readerContext));
 
@@ -169,7 +173,7 @@ int main(int argc, char *argv[])
             << "\n"
             << "reads=" << readerContext.transferCount
             << ", bytesRead=" << readerContext.bytesTransferred
-            << ", timeouts=" << writerContext.timeouts
+            << ", timeouts=" << readerContext.timeouts
             << ", ec=" << readerContext.ec.message()
             << ", bytesRead/reads="
             << (readerContext.bytesTransferred*1.0/readerContext.transferCount)
