@@ -5,8 +5,13 @@
 #include <lyra/lyra.hpp>
 #include <future>
 #include <list>
+#include <spdlog/spdlog.h>
+#ifndef __WIN32
+#include <sys/prctl.h>
+#endif
 
 using std::cout;
+using std::endl;
 using namespace mesytec::mvlc;
 
 
@@ -25,6 +30,8 @@ struct ReaderContext
         std::atomic<size_t> timeouts;
         std::atomic<size_t> invalidHeaders;
         std::atomic<size_t> bytesSkipped;
+        std::atomic<size_t> errorBuffers;
+        std::atomic<size_t> dsoBuffers;
 
         Counters()
             : bytesRead(0)
@@ -36,28 +43,72 @@ struct ReaderContext
 
     std::atomic<bool> quit;
     MVLCBasicInterface *mvlc;
-    Protected<PendingResponse> pendingSuper;
-    Protected<PendingResponse> pendingStack;
+    TicketMutex cmdLock;
+    WaitableProtected<PendingResponse> pendingSuper;
+    WaitableProtected<PendingResponse> pendingStack;
     Counters counters;
+
+    ReaderContext()
+        : mvlc(nullptr)
+        , pendingSuper({})
+        , pendingStack({})
+        {}
+
+    //WaitableProtected<std::vector<u32>> stackErrorBuffer;
+    //WaitableProtected<std::vector<u32>> dsoBuffer;
 };
 
 bool fullfill_pending_response(
     PendingResponse &pr,
     const std::error_code &ec,
-    const std::vector<u32> &contents = {})
+    const u32 *contents = nullptr, size_t len = 0)
 {
     if (pr.pending)
     {
         pr.pending = false;
 
-        if (pr.dest)
-            *pr.dest = contents;
+        if (pr.dest && contents && len)
+            std::copy(contents, contents+len, std::back_inserter(*pr.dest));
 
         pr.promise.set_value(ec);
         return true;
     }
 
     return false;
+}
+
+std::future<std::error_code> set_pending_super_response(
+    ReaderContext &readerContext,
+    std::vector<u32> &dest)
+{
+    auto pendingResponse = readerContext.pendingSuper.wait(
+        [] (const PendingResponse &pr) { return !pr.pending; });
+
+    assert(pendingResponse.ref().pending == false);
+
+    std::promise<std::error_code> promise;
+    auto result = promise.get_future();
+
+    pendingResponse.ref() = { std::move(promise), &dest, true };
+
+    return result;
+}
+
+std::future<std::error_code> set_pending_stack_response(
+    ReaderContext &readerContext,
+    std::vector<u32> &dest)
+{
+    auto pendingResponse = readerContext.pendingStack.wait(
+        [] (const PendingResponse &pr) { return !pr.pending; });
+
+    assert(pendingResponse.ref().pending == false);
+
+    std::promise<std::error_code> promise;
+    auto result = promise.get_future();
+
+    pendingResponse.ref() = { std::move(promise), &dest, true };
+
+    return result;
 }
 
 void cmd_pipe_reader(ReaderContext &context)
@@ -75,6 +126,7 @@ void cmd_pipe_reader(ReaderContext &context)
         u32 *end() { return begin() + used; }
 
         bool empty() const { return used == 0; }
+        size_t size() const { return used; }
         size_t capacity() const { return mem.size(); }
         size_t free() const
         {
@@ -131,7 +183,7 @@ void cmd_pipe_reader(ReaderContext &context)
             }
         }
 
-        u32 operator[](size_t index) const
+        const u32 &operator[](size_t index) const
         {
             return mem[index + start];
         };
@@ -152,18 +204,32 @@ void cmd_pipe_reader(ReaderContext &context)
         // TODO: handle continuations
 
         if (is_dso_buffer(*begin))
-            return std::find_if(begin, end, 0xC0000000u) != end;
+            return std::find_if(begin, end,
+                                [] (u32 word) { return word == 0xC0000000u; }) != end;
 
+        auto len = get_frame_length(*begin);
+
+        return end - begin > len + 1;
 
     };
 
+#ifndef __WIN32
+    prctl(PR_SET_NAME,"cmd_pipe_reader",0,0,0);
+#endif
+
+    SPDLOG_TRACE("cmd_pipe_reader starting");
+    spdlog::info("cmd_pipe_reader starting");
+
     Buffer buffer;
-    buffer.mem.resize(util::Megabytes(1));
 
     while (!context.quit)
     {
         while (buffer.used)
         {
+
+            util::log_buffer(cout, buffer, "cmd_pipe_reader buffer");
+
+
             if (!is_good_header(buffer[0]))
             {
                 // TODO: count error, seek to next known buffer start, count skipped bytes
@@ -172,31 +238,70 @@ void cmd_pipe_reader(ReaderContext &context)
 
             if (contains_complete_frame(buffer.begin(), buffer.end()))
             {
-                // TODO: handle frame based on type
+                if (is_stackerror_notification(buffer[0]))
+                {
+                    ++context.counters.errorBuffers;
+                    buffer.consume(get_frame_length(buffer[0]) + 1);
+                }
+                else if (is_dso_buffer(buffer[0]))
+                {
+                    ++context.counters.dsoBuffers;
+                    auto dsoEnd = std::find_if(buffer.begin(), buffer.end(),
+                                               [] (u32 word) { return word == 0xC0000000u; }) + 1;
+                    buffer.consume(dsoEnd - buffer.begin());
+                }
+                else if (is_super_buffer(buffer[0]))
+                {
+                    auto pendingResponse = context.pendingSuper.access();
+                    fullfill_pending_response(
+                        pendingResponse.ref(), {}, &buffer[1], get_frame_length(buffer[0]));
+                    buffer.consume(get_frame_length(buffer[0]) + 1);
+                }
+                else if (is_stack_buffer(buffer[0]))
+                {
+                    // TODO: handle stack continuations: copy parts together,
+                    // consuming parts from the buffer in the process.
+                    auto pendingResponse = context.pendingStack.access();
+                    fullfill_pending_response(
+                        pendingResponse.ref(), {}, &buffer[1], get_frame_length(buffer[0]));
+                    buffer.consume(get_frame_length(buffer[0]) + 1);
+                }
+
             }
             else
                 break;
         }
 
+        // Move remaining data to buffer front and ensure there's free space in
+        // the buffer.
+        buffer.pack();
+        buffer.ensureFreeSpace(util::Megabytes(1));
 
-        // TODO: move remaining data to buffer front and ensure there's free
-        // space in the buffer
-
-        // TODO; read fixed size chunks instead of current buffer size which may grow.
-        // FIXME: start at an offset. parts of the buffer may be used
         size_t bytesTransferred = 0;
         auto ec = context.mvlc->read(
             Pipe::Command,
-            reinterpret_cast<u8 *>(context.readBuffer.data()),
-            context.readBuffer.size() * sizeof(u32),
+            reinterpret_cast<u8 *>(buffer.writeBegin()),
+            util::Megabytes(1) / sizeof(u32),
             bytesTransferred);
 
-        // TODO: buffer bookkeeping
+        spdlog::info("received {} bytes", bytesTransferred);
+
+        buffer.used += bytesTransferred / sizeof(u32);
 
         if (ec == ErrorType::ConnectionError)
             context.quit = true;
     }
-#endif
+
+    fullfill_pending_response(
+        context.pendingSuper.access().ref(),
+        make_error_code(MVLCErrorCode::IsDisconnected));
+
+    fullfill_pending_response(
+        context.pendingStack.access().ref(),
+        make_error_code(MVLCErrorCode::IsDisconnected));
+
+    SPDLOG_TRACE("cmd_pipe_reader exiting");
+    spdlog::info("cmd_pipe_reader exiting");
 }
 
 int main(int argc, char *argv[])
@@ -234,6 +339,62 @@ int main(int argc, char *argv[])
     {
         if (auto ec = mvlc->connect())
             throw ec;
+
+        ReaderContext readerContext;
+        readerContext.mvlc = mvlc.get();
+        readerContext.quit = false;
+
+        std::thread readerThread(cmd_pipe_reader, std::ref(readerContext));
+
+        // --------------------------
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+
+
+        {
+            SuperCommandBuilder scb;
+            scb.addReferenceWord(0x1337);
+            scb.addWriteLocal(stacks::StackMemoryBegin, 0x87654321u);
+            scb.addReadLocal(stacks::StackMemoryBegin);
+            auto cmdBuffer = make_command_buffer(scb);
+            std::vector<u32> responseBuffer;
+
+            auto cmdGuard = std::unique_lock<TicketMutex>(readerContext.cmdLock);
+            auto rf = set_pending_super_response(readerContext, responseBuffer);
+
+            size_t bytesTransferred = 0;
+
+            auto ec = mvlc->write(
+                Pipe::Command,
+                reinterpret_cast<const u8 *>(cmdBuffer.data()),
+                cmdBuffer.size() * sizeof(u32),
+                bytesTransferred);
+
+            if (!ec)
+            {
+                // TODO: use wait_for with a timeout and use fullfill_pending_response()
+                // passing a timeout error code then return rf.get()
+                ec = rf.get();
+
+                if (responseBuffer.size())
+                    util::log_buffer(std::cout, responseBuffer, "responseBuffer");
+
+                if (ec)
+                    cout << "ec=" << ec.message() << endl;
+            }
+            else
+            {
+                cout << "write failed: ec=" << ec.message() << endl;
+            }
+        }
+
+
+
+
+
+        // --------------------------
+
+        readerContext.quit = true;
+        readerThread.join();
     }
     catch (const std::error_code &ec)
     {

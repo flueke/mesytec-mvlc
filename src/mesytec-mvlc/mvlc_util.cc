@@ -25,6 +25,7 @@
 #include <iostream>
 #include <sstream>
 
+#include "mvlc_constants.h"
 #include "util/string_util.h"
 
 using namespace mesytec::mvlc;
@@ -88,6 +89,10 @@ std::string decode_frame_header(u32 header)
         case frame_headers::SystemEvent:
             ss << "System Event (len=" << headerInfo.len;
             break;
+
+        case frame_headers::DSOBuffer:
+            ss << "DSO Buffer";
+            break;
     }
 
     switch (static_cast<frame_headers::FrameTypes>(headerInfo.type))
@@ -104,6 +109,7 @@ std::string decode_frame_header(u32 header)
 
         case frame_headers::SuperFrame:
         case frame_headers::SystemEvent:
+        case frame_headers::DSOBuffer:
             break;
     }
 

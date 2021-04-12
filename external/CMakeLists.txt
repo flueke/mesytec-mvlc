@@ -70,4 +70,4 @@ set_target_properties(fmt PROPERTIES POSITION_INDEPENDENT_CODE ON)
 add_subdirectory(Lyra)
 
 # spdlog
-#add_subdirectory(spdlog)
+add_subdirectory(spdlog)
