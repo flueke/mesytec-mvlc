@@ -158,6 +158,7 @@ void cmd_pipe_reader(ReaderContext &context)
                 std::copy(begin(), end(), mem.data());
                 start = 0;
                 assert(free() > oldFree);
+                assert(begin() == mem.data());
             }
         }
 
@@ -181,6 +182,8 @@ void cmd_pipe_reader(ReaderContext &context)
                     mem.resize(mem.size() + size);
                 }
             }
+
+            assert(free() >= size);
         }
 
         const u32 &operator[](size_t index) const
