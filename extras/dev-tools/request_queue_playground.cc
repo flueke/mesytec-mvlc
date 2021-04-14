@@ -224,6 +224,11 @@ void cmd_pipe_reader(ReaderContext &context)
 
     spdlog::info("cmd_pipe_reader starting");
 
+    auto mvlcUsb = dynamic_cast<usb::MVLC_USB_Interface *>(context.mvlc);
+    auto mvlcEth = dynamic_cast<eth::MVLC_ETH_Interface *>(context.mvlc);
+
+    assert(mvlcUsb || mvlcEth);
+
     Buffer buffer;
     // A bit misleading: this is 1M elements, not 1MB space.
     buffer.ensureFreeSpace(util::Megabytes(1));
@@ -285,13 +290,34 @@ void cmd_pipe_reader(ReaderContext &context)
         }
 
         size_t bytesTransferred = 0;
-        auto ec = context.mvlc->read(
+        std::error_code ec;
+
+        if (mvlcUsb)
+        {
+            ec = context.mvlc->read(
             Pipe::Command,
             reinterpret_cast<u8 *>(buffer.writeBegin()),
             std::min(buffer.free() * sizeof(u32), usb::USBSingleTransferMaxBytes),
             bytesTransferred);
 
-        buffer.used += bytesTransferred / sizeof(u32);
+            buffer.used += bytesTransferred / sizeof(u32);
+        }
+        else if (mvlcEth)
+        {
+            static std::array<u8, eth::JumboFrameMaxSize> packetBuffer;
+
+            auto packet = mvlcEth->read_packet(
+                Pipe::Command,
+                packetBuffer.data(),
+                packetBuffer.size());
+
+            ec = packet.ec;
+            bytesTransferred += packet.bytesTransferred; // This includes all eth overhead.
+
+            // Actual payload goes to the buffer.
+            std::copy(packet.payloadBegin(), packet.payloadEnd(), buffer.writeBegin());
+            buffer.used += packet.payloadEnd() - packet.payloadBegin();
+        }
 
         spdlog::trace("received {} bytes", bytesTransferred);
 
@@ -349,9 +375,15 @@ int main(int argc, char *argv[])
     std::unique_ptr<MVLCBasicInterface> mvlc;
 
     if (host.empty())
+    {
         mvlc = std::make_unique<usb::Impl>();
+        // Important setting! 0 means to read from the driver buffer space only.
+        mvlc->setReadTimeout(Pipe::Command, 0);
+    }
     else
+    {
         mvlc = std::make_unique<eth::Impl>(host);
+    }
 
     assert(mvlc);
 
@@ -370,7 +402,7 @@ int main(int argc, char *argv[])
         std::thread readerThread(cmd_pipe_reader, std::ref(readerContext));
 
         // for testing delay a bit so the reader does run into a few timeouts right away
-        std::this_thread::sleep_for(std::chrono::seconds(1));
+        //std::this_thread::sleep_for(std::chrono::seconds(1));
 
         auto tStart = std::chrono::steady_clock::now();
 
