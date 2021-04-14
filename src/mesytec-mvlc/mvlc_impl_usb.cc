@@ -476,10 +476,10 @@ std::error_code Impl::connect()
 
     FT_PIPE_TRANSFER_CONF &pipeConf = transferConf.pipe[FT_PIPE_DIR_IN];
 
-    pipeConf.fNonThreadSafeTransfer = false;
-    pipeConf.bURBCount = 8;
-    pipeConf.wURBBufferCount = 32;
-    pipeConf.dwURBBufferSize = 1024 * 1024;
+    pipeConf.fNonThreadSafeTransfer = true;
+    //pipeConf.bURBCount = 8;
+    //pipeConf.wURBBufferCount = 32;
+    //pipeConf.dwURBBufferSize = 1024 * 1024;
     // Total allocated buffer size is wURBBufferCount * dwURBBufferSize
 
     st = FT_SetTransferParams(&transferConf, get_fifo_id(Pipe::Data));
