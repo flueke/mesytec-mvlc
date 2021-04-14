@@ -63,6 +63,7 @@ do\
 #define LOG_TRACE(fmt, ...) DO_LOG(LOG_LEVEL_TRACE, "TRACE - mvlc_usb ", fmt, ##__VA_ARGS__)
 
 #define USB_WIN_USE_ASYNC 0
+// TODO: remove the non-ex code paths
 #define USB_WIN_USE_EX_FUNCTIONS 1 // Currently only implemented for the SYNC case.
 #define USB_WIN_USE_STREAMPIPE 1
 

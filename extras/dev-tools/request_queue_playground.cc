@@ -319,13 +319,17 @@ void cmd_pipe_reader(ReaderContext &context)
 
 int main(int argc, char *argv[])
 {
+    spdlog::set_level(spdlog::level::debug);
+
     std::string host;
     bool showHelp = false;
+    bool logTrace = false;
     unsigned secondsToRun = 2;
 
     auto cli
         = lyra::help(showHelp)
         | lyra::opt(host, "hostname")["--eth"]("mvlc hostname")
+        | lyra::opt(logTrace)["--trace"]("enable trace logging")
         | lyra::arg(secondsToRun, "secondsToRun")
         ;
     auto parseResult = cli.parse({ argc, argv});
@@ -338,6 +342,9 @@ int main(int argc, char *argv[])
         cout << cli << "\n";
         return 0;
     }
+
+    if (logTrace)
+        spdlog::set_level(spdlog::level::trace);
 
     std::unique_ptr<MVLCBasicInterface> mvlc;
 
@@ -464,8 +471,12 @@ int main(int argc, char *argv[])
                     throw superError;
                 }
 
-                //if (superResponse.size())
-                //    util::log_buffer(std::cout, superResponse, "vmeRead super response");
+                if (superResponse.size())
+                {
+                    std::ostringstream oss;
+                    util::log_buffer(oss, superResponse, "vmeRead super response");
+                    spdlog::trace(oss.str());
+                }
 
                 auto stackError = stackFuture.get();
 
@@ -475,8 +486,12 @@ int main(int argc, char *argv[])
                     throw ec;
                 }
 
-                //if (superResponse.size())
-                //    util::log_buffer(std::cout, stackResponse, "vmeRead stack response");
+                if (stackResponse.size())
+                {
+                    std::ostringstream oss;
+                    util::log_buffer(oss, stackResponse, "vmeRead stack response");
+                    spdlog::trace(oss.str());
+                }
 
                 ++stackTransactions;
             }
