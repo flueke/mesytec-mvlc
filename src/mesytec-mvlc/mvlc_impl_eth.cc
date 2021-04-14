@@ -1432,7 +1432,7 @@ std::error_code Impl::read(Pipe pipe_, u8 *buffer, size_t size,
     assert(receiveBuffer.available() == 0);
 
     size_t readCount = 0u;
-    const auto tStart = std::chrono::high_resolution_clock::now();
+    const auto tStart = std::chrono::steady_clock::now();
 
     while (size > 0)
     {
@@ -1458,7 +1458,7 @@ std::error_code Impl::read(Pipe pipe_, u8 *buffer, size_t size,
         // Copy to destination buffer
         copy_and_update();
 
-        auto tEnd = std::chrono::high_resolution_clock::now();
+        auto tEnd = std::chrono::steady_clock::now();
         auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(tEnd - tStart);
 
         //qDebug() << elapsed.count() << readTimeout(pipe_);
