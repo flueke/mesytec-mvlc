@@ -70,4 +70,5 @@ set_target_properties(fmt PROPERTIES POSITION_INDEPENDENT_CODE ON)
 add_subdirectory(Lyra)
 
 # spdlog
+option(SPDLOG_FMT_EXTERNAL "Use external fmt library instead of bundled" ON)
 add_subdirectory(spdlog)
