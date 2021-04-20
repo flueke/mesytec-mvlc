@@ -480,7 +480,9 @@ void ReadoutWorker::Private::loop(std::promise<std::error_code> promise)
                 static const std::array<u32, 2> EmptyRequest = { 0xF1000000, 0xF2000000 };
                 size_t bytesTransferred = 0;
 
-                if (auto ec = mvlc.write(
+                auto dataGuard = mvlc.getLocks().lockData();
+
+                if (auto ec = mvlc.getImpl()->write(
                         Pipe::Data,
                         reinterpret_cast<const u8 *>(EmptyRequest.data()),
                         EmptyRequest.size() * sizeof(u32),
@@ -502,7 +504,7 @@ void ReadoutWorker::Private::loop(std::promise<std::error_code> promise)
     assert(mvlcETH || mvlcUSB);
 
     // Reset the MVLC-wide stack error counters
-    mvlc.clearStackErrorCounters();
+    mvlc.resetStackErrorCounters();
 
     // listfile writer thread
     Protected<ListfileWriterCounters> writerCounters({});

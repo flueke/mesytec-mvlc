@@ -171,15 +171,14 @@ std::error_code setup_readout_stacks(
     u8 stackId = stacks::ImmediateStackID + 1;
 
     // 1 word gap between immediate stack and first readout stack
-    u16 uploadWordOffset = stacks::ImmediateStackReservedWords + 1;
-
-    std::vector<u32> responseBuffer;
+    u16 uploadWordOffset = stacks::ImmediateStackStartOffsetWords + stacks::ImmediateStackReservedWords + 1;
 
     for (const auto &stackBuilder: readoutStacks)
     {
         if (stackId >= stacks::StackCount)
             return make_error_code(MVLCErrorCode::StackCountExceeded);
 
+        // FIXME: need to convert to a buffer to determine the size
         auto stackBuffer = make_stack_buffer(stackBuilder);
 
         u16 uploadAddress = uploadWordOffset * AddressIncrement;
@@ -188,12 +187,7 @@ std::error_code setup_readout_stacks(
         if (endAddress >= stacks::StackMemoryEnd)
             return make_error_code(MVLCErrorCode::StackMemoryExceeded);
 
-        SuperCommandBuilder sb;
-        sb.addStackUpload(stackBuffer, DataPipe, uploadAddress);
-
-        auto uploadCommands = make_command_buffer(sb);
-
-        if (auto ec = mvlc.mirrorTransaction(uploadCommands, responseBuffer))
+        if (auto ec = mvlc.uploadStack(DataPipe, uploadAddress, stackBuilder))
             return ec;
 
         u16 offsetRegister = stacks::get_offset_register(stackId);
@@ -252,7 +246,7 @@ std::error_code setup_readout_triggers(
 
     std::vector<u32> responseBuffer;
 
-    return mvlc.mirrorTransaction(make_command_buffer(sb), responseBuffer);
+    return mvlc.superTransaction(sb, responseBuffer);
 }
 
 template<typename DIALOG_API>

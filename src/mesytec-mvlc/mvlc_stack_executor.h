@@ -123,10 +123,14 @@ template<typename DIALOG_API>
         DIALOG_API &mvlc, const std::vector<StackCommand> &commands,
         std::vector<u32> &responseDest)
 {
+#if 0
     if (auto ec = mvlc.uploadStack(CommandPipe, 0, commands, responseDest))
         return ec;
 
     return mvlc.execImmediateStack(0, responseDest);
+#else
+    return mvlc.stackTransaction(StackCommandBuilder(commands), responseDest);
+#endif
 }
 
 inline bool is_sw_delay (const StackCommand &cmd)

@@ -1,7 +1,8 @@
 #include "mvlc_apiv2.h"
 
 #include <future>
-#include <spdlog/sinks/stdout_sinks.h>
+#include <spdlog/spdlog.h>
+//#include <spdlog/sinks/stdout_sinks.h>
 
 #ifndef __WIN32
 #include <sys/prctl.h>
@@ -22,6 +23,7 @@ namespace mvlc
 namespace apiv2
 {
 
+#if 0
 static const std::string logger_name = "mvlc";
 
 std::shared_ptr<spdlog::logger> setup_logger(std::vector<spdlog::sink_ptr> sinks)
@@ -45,6 +47,7 @@ std::shared_ptr<spdlog::logger> setup_logger(std::vector<spdlog::sink_ptr> sinks
 
     return logger;
 }
+#endif
 
 namespace
 {
@@ -521,16 +524,16 @@ class CmdApi
             return result;
         }
 
-    private:
-        static constexpr std::chrono::milliseconds ResultWaitTimeout = std::chrono::milliseconds(100);
-
-        ReaderContext &readerContext_;
-
         std::error_code superTransaction(
             u16 ref, std::vector<u32> superBuffer, std::vector<u32> &responseBuffer);
 
         std::error_code stackTransaction(
             u32 stackRef, const StackCommandBuilder &stackBuilder, std::vector<u32> &stackResponse);
+
+    private:
+        static constexpr std::chrono::milliseconds ResultWaitTimeout = std::chrono::milliseconds(100);
+
+        ReaderContext &readerContext_;
 };
 
 constexpr std::chrono::milliseconds CmdApi::ResultWaitTimeout;
@@ -768,6 +771,9 @@ struct MVLC::Private
         : impl_(std::move(impl))
         , readerContext_(impl_.get())
         , cmdApi_(readerContext_)
+        , isConnected_(false)
+        , hardwareId_(0)
+        , firmwareRevision_(0)
     {
     }
 
@@ -798,6 +804,11 @@ struct MVLC::Private
     std::atomic<u32> hardwareId_;
     std::atomic<u32> firmwareRevision_;
 };
+
+MVLC::MVLC()
+    : d(nullptr)
+{
+}
 
 MVLC::MVLC(std::unique_ptr<MVLCBasicInterface> &&impl)
     : d(std::make_shared<Private>(std::move(impl)))
@@ -874,6 +885,16 @@ std::string MVLC::connectionInfo() const
     return d->impl_->connectionInfo();
 }
 
+u32 MVLC::hardwareId() const
+{
+    return d->hardwareId_;
+}
+
+u32 MVLC::firmwareRevision() const
+{
+    return d->firmwareRevision_;
+}
+
 void MVLC::setDisableTriggersOnConnect(bool b)
 {
     auto guards = d->locks_.lockBoth();
@@ -925,8 +946,6 @@ std::error_code MVLC::vmeMBLTSwapped(u32 address, u16 maxTransfers, std::vector<
     return d->resultCheck(d->cmdApi_.vmeMBLTSwapped(address, maxTransfers, dest));
 }
 
-
-// stack uploading
 std::error_code MVLC::uploadStack(
     u8 stackOutputPipe,
     u16 stackMemoryOffset,
@@ -951,6 +970,11 @@ void MVLC::resetStackErrorCounters()
     d->cmdApi_.resetStackErrorCounters();
 }
 
+WaitableProtected<std::deque<std::vector<u32>>> &MVLC::getDSOBuffers() const
+{
+    return d->readerContext_.dsoBuffers;
+}
+
 MVLCBasicInterface *MVLC::getImpl()
 {
     return d->impl_.get();
@@ -959,6 +983,40 @@ MVLCBasicInterface *MVLC::getImpl()
 Locks &MVLC::getLocks()
 {
     return d->locks_;
+}
+
+std::error_code MVLC::superTransaction(const SuperCommandBuilder &superBuilder, std::vector<u32> &dest)
+{
+    assert(!superBuilder.empty() && superBuilder[0].type == SuperCommandType::ReferenceWord);
+
+    if (superBuilder.empty())
+        return make_error_code(MVLCErrorCode::SuperFormatError);
+
+    if (superBuilder[0].type != SuperCommandType::ReferenceWord)
+        return make_error_code(MVLCErrorCode::SuperFormatError);
+
+    u16 superRef = superBuilder[0].value;
+
+    auto guard = d->locks_.lockCmd();
+    return d->resultCheck(d->cmdApi_.superTransaction(superRef, make_command_buffer(superBuilder), dest));
+}
+
+std::error_code MVLC::stackTransaction(const StackCommandBuilder &stackBuilder, std::vector<u32> &dest)
+{
+    using CommandType = StackCommand::CommandType;
+
+    assert(!stackBuilder.empty() && stackBuilder[0].type == CommandType::WriteMarker);
+
+    if (stackBuilder.empty())
+        return make_error_code(MVLCErrorCode::StackFormatError);
+
+    if (stackBuilder[0].type != CommandType::WriteMarker)
+        return make_error_code(MVLCErrorCode::StackFormatError);
+
+    u32 stackRef = stackBuilder[0].value;
+
+    auto guard = d->locks_.lockCmd();
+    return d->resultCheck(d->cmdApi_.stackTransaction(stackRef, stackBuilder, dest));
 }
 
 } // end namespace apiv2

@@ -27,6 +27,8 @@
  */
 
 #include "mvlc.h"
+
+#if not APIV2
 #include "mvlc_constants.h"
 
 #include <atomic>
@@ -482,3 +484,5 @@ void MVLC::startStackErrorPolling()
 
 }
 }
+
+#endif

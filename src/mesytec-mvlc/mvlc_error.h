@@ -66,6 +66,7 @@ enum class MVLCErrorCode
     CommandTimeout,
     ShortSuperFrame,
     SuperFormatError,
+    StackFormatError,
     SuperReferenceMismatch,
     StackReferenceMismatch,
 };

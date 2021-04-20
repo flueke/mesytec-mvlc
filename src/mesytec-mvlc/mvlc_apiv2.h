@@ -4,7 +4,7 @@
 #include <atomic>
 #include <deque>
 #include <memory>
-#include <spdlog/spdlog.h>
+//#include <spdlog/spdlog.h>
 
 #include "mvlc_basic_interface.h"
 #include "mvlc_command_builders.h"
@@ -19,7 +19,7 @@ namespace mvlc
 namespace apiv2
 {
 
-std::shared_ptr<spdlog::logger> setup_logger(std::vector<spdlog::sink_ptr> sinks = {});
+//std::shared_ptr<spdlog::logger> setup_logger(std::vector<spdlog::sink_ptr> sinks = {});
 
 struct CmdPipeCounters
 {
@@ -58,6 +58,14 @@ struct CmdPipeCounters
 class MVLC
 {
     public:
+        // Warning: the default constructor creates a MVLC object which is in
+        // an invalid state. Calling most methods will result in a crash
+        // because the internal Private pointer is set to nullptr.
+        // The constructor was added to allow creating an uninitialized MVLC
+        // object and later on copy/move a properly constructed MVLC object
+        // into it.
+        explicit MVLC();
+
         MVLC(std::unique_ptr<MVLCBasicInterface> &&impl);
         ~MVLC();
 
@@ -66,6 +74,14 @@ class MVLC
 
         MVLC(MVLC &&) = default;
         MVLC &operator=(MVLC &&) = default;
+
+        explicit operator bool() const { return d != nullptr; }
+        bool isValid() const { return static_cast<bool>(*this); }
+
+        // Contents of the hardware_id register (0x6008)
+        u32 hardwareId() const;
+        // Contents of the firmware_revision register (0x600e)
+        u32 firmwareRevision() const;
 
         // connection related
         std::error_code connect();
@@ -102,12 +118,16 @@ class MVLC
         StackErrorCounters getStackErrorCounters() const;
         void resetStackErrorCounters();
         WaitableProtected<std::deque<std::vector<u32>>> &getDSOBuffers() const;
-        //std::deque<std::vector<u32>> getDsoBuffers() const;
-        //std::vector<u32> getLatestDsoBuffer() const;
 
         // Low level implementation and per-pipe lock access.
         MVLCBasicInterface *getImpl();
         Locks &getLocks();
+
+        // Low level super and stack transactions. Note: both the super and
+        // stack command builders have to start with a reference or marker
+        // command respectively.
+        std::error_code superTransaction(const SuperCommandBuilder &superBuilder, std::vector<u32> &dest);
+        std::error_code stackTransaction(const StackCommandBuilder &stackBuilder, std::vector<u32> &dest);
 
     private:
         struct Private;

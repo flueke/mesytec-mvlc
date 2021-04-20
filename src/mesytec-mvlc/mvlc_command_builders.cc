@@ -92,7 +92,6 @@ SuperCommandBuilder &SuperCommandBuilder::addCommands(const std::vector<SuperCom
     return *this;
 }
 
-
 // Below are shortcut methods which internally create a stack using
 // outputPipe=CommandPipe(=0) and offset=0
 SuperCommandBuilder &SuperCommandBuilder::addVMERead(u32 address, u8 amod, VMEDataWidth dataWidth)

@@ -70,6 +70,10 @@ class MESYTEC_MVLC_EXPORT SuperCommandBuilder
 
         std::vector<SuperCommand> getCommands() const;
 
+        bool empty() const { return m_commands.empty(); };
+
+        const SuperCommand &operator[](size_t i) const { return m_commands[i]; }
+
     private:
         std::vector<SuperCommand> m_commands;
 };
@@ -145,6 +149,8 @@ class MESYTEC_MVLC_EXPORT StackCommandBuilder
             }
 
             bool operator!=(const Group &o) const { return !(*this == o); }
+
+            bool empty() const { return commands.empty(); }
         };
 
         StackCommandBuilder() {}
@@ -210,6 +216,19 @@ class MESYTEC_MVLC_EXPORT StackCommandBuilder
 
         std::string getName() const { return m_name; }
         StackCommandBuilder &setName(const std::string &name) { m_name = name; return *this; }
+
+        bool empty() const
+        {
+            return (m_groups.empty()
+                    || std::all_of(
+                        std::begin(m_groups), std::end(m_groups),
+                        [] (const auto &group) { return group.empty(); }));
+        }
+
+        const StackCommand operator[](size_t i) const
+        {
+            return getCommands()[i];
+        }
 
     private:
         std::string m_name;

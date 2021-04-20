@@ -161,6 +161,9 @@ class MVLCErrorCategory: public std::error_category
             case MVLCErrorCode::SuperFormatError:
                  return "SuperFormatError";
 
+            case MVLCErrorCode::StackFormatError:
+                 return "StackFormatError";
+
             case MVLCErrorCode::SuperReferenceMismatch:
                  return "SuperReferenceMismatch";
 
@@ -220,6 +223,7 @@ class MVLCErrorCategory: public std::error_category
             case MVLCErrorCode::NonBlockAddressMode:
             case MVLCErrorCode::ShortSuperFrame:
             case MVLCErrorCode::SuperFormatError:
+            case MVLCErrorCode::StackFormatError:
             case MVLCErrorCode::SuperReferenceMismatch:
             case MVLCErrorCode::StackReferenceMismatch:
                 return ErrorType::ProtocolError;

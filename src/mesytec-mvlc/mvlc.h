@@ -40,11 +40,18 @@
 #include "mvlc_stack_errors.h"
 #include "util/protected.h"
 
+#define APIV2 1
+
+#if APIV2
+#include "mvlc_apiv2.h"
+#endif
+
 namespace mesytec
 {
 namespace mvlc
 {
 
+#if not APIV2
 class MESYTEC_MVLC_EXPORT MVLC: public MVLCBasicInterface
 {
     public:
@@ -201,6 +208,9 @@ class MESYTEC_MVLC_EXPORT MVLC: public MVLCBasicInterface
         struct Private;
         std::shared_ptr<Private> d;
 };
+#else
+using MVLC = apiv2::MVLC;
+#endif
 
 }
 }
