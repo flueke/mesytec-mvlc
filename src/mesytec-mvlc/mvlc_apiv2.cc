@@ -856,14 +856,24 @@ std::error_code MVLC::connect()
 std::error_code MVLC::disconnect()
 {
     auto guards = d->locks_.lockBoth();
-    auto ec = d->impl_->disconnect();
-    d->isConnected_ = d->impl_->isConnected();
 
-    if (!isConnected() && d->readerThread_.joinable())
+    std::error_code ec;
+
+    if (d->impl_->isConnected())
     {
-        d->readerContext_.quit = true;
-        d->readerThread_.join();
+        assert(d->isConnected_); // check cache consistency
+
+        if (d->readerThread_.joinable())
+        {
+            d->readerContext_.quit = true;
+            d->readerThread_.join();
+        }
+
+        ec = d->impl_->disconnect();
+        d->isConnected_ = d->impl_->isConnected();
     }
+
+    assert(d->impl_->isConnected() == d->isConnected_);
 
     return ec;
 }

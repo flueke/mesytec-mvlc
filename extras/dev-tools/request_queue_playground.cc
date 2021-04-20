@@ -280,5 +280,7 @@ static constexpr int PARALLEL_VMEWRITE_TESTS = 2;
         cout << "Error: " << ec.message() << "\n";
         throw;
     }
+
+        spdlog::info("end of main()");
 }
 #endif
