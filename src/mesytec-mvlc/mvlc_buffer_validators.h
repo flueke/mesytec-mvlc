@@ -43,7 +43,7 @@ inline bool is_system_event(u32 header)
 
 inline bool is_dso_buffer(u32 header)
 {
-    return get_frame_type(header) == frame_headers::DSOBuffer;
+    return get_frame_type(header) == frame_headers::DSOBufferBegin;
 }
 
 inline bool is_known_frame_header(u32 header)
@@ -56,7 +56,7 @@ inline bool is_known_frame_header(u32 header)
             || type == frame_headers::StackError
             || type == frame_headers::StackContinuation
             || type == frame_headers::SystemEvent
-            || type == frame_headers::DSOBuffer
+            || type == frame_headers::DSOBufferBegin
             );
 }
 

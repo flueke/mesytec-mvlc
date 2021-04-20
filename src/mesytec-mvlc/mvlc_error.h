@@ -62,6 +62,12 @@ enum class MVLCErrorCode
     // USB specific error code to indicate that the FTDI chip configuration is
     // not correct.
     USBChipConfigError,
+
+    CommandTimeout,
+    ShortSuperFrame,
+    SuperFormatError,
+    SuperReferenceMismatch,
+    StackReferenceMismatch,
 };
 
 MESYTEC_MVLC_EXPORT std::error_code make_error_code(MVLCErrorCode error);

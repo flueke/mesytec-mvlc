@@ -90,7 +90,7 @@ std::string decode_frame_header(u32 header)
             ss << "System Event (len=" << headerInfo.len;
             break;
 
-        case frame_headers::DSOBuffer:
+        case frame_headers::DSOBufferBegin:
             ss << "DSO Buffer";
             break;
     }
@@ -109,7 +109,7 @@ std::string decode_frame_header(u32 header)
 
         case frame_headers::SuperFrame:
         case frame_headers::SystemEvent:
-        case frame_headers::DSOBuffer:
+        case frame_headers::DSOBufferBegin:
             break;
     }
 

@@ -35,6 +35,8 @@ add_library(mesytec-mvlc SHARED
     util/string_util.cc
     util/threadsafequeue.cc
     util/ticketmutex.cc
+
+    mvlc_apiv2.cc
     )
 
 target_include_directories(mesytec-mvlc
@@ -46,11 +48,11 @@ target_include_directories(mesytec-mvlc
 target_link_libraries(mesytec-mvlc
     PRIVATE lz4_static
     PRIVATE minizip
+    PRIVATE spdlog::spdlog
     PRIVATE yaml-cpp
     PUBLIC fmt::fmt
     PUBLIC Threads::Threads
     )
-
 
 if (UNIX AND NOT APPLE)
     target_link_libraries(mesytec-mvlc PRIVATE ftd3xx-static)
@@ -58,6 +60,9 @@ else()
     target_link_libraries(mesytec-mvlc PRIVATE ftd3xx)
 endif()
 
+set(MVLC_SPDLOG_ACTIVE_LEVEL "SPDLOG_LEVEL_WARN" CACHE STRING "Compile time spdlog level for the library")
+
+target_compile_definitions(mesytec-mvlc PRIVATE SPDLOG_ACTIVE_LEVEL=${MVLC_SPDLOG_ACTIVE_LEVEL})
 target_compile_options(mesytec-mvlc PRIVATE -Wall -Wextra)
 target_compile_features(mesytec-mvlc PUBLIC cxx_std_14)
 

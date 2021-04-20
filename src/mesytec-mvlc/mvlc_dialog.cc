@@ -606,8 +606,7 @@ std::error_code MVLCDialog::execImmediateStack(
     return {};
 }
 
-std::error_code MVLCDialog::vmeWrite(u32 address, u32 value, u8 amod,
-                                           VMEDataWidth dataWidth)
+std::error_code MVLCDialog::vmeWrite(u32 address, u32 value, u8 amod, VMEDataWidth dataWidth)
 {
     SuperCommandBuilder cmdList;
     cmdList.addReferenceWord(m_referenceWord++);

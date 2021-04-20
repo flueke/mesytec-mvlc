@@ -564,24 +564,6 @@ std::error_code Impl::connect()
     }
 #endif
 
-    // Apply the read and write timeouts.
-    for (auto pipe: { Pipe::Command, Pipe::Data })
-    {
-        if (auto ec = set_endpoint_timeout(m_handle, get_endpoint(pipe, EndpointDirection::Out),
-                                           writeTimeout(pipe)))
-        {
-            closeHandle();
-            return ec;
-        }
-
-        if (auto ec = set_endpoint_timeout(m_handle, get_endpoint(pipe, EndpointDirection::In),
-                                           readTimeout(pipe)))
-        {
-            closeHandle();
-            return ec;
-        }
-    }
-
 #ifdef __WIN32
 #if USB_WIN_USE_STREAMPIPE
     LOG_INFO("enabling streaming mode for all read pipes, size=%lu", USBStreamPipeReadSize);
@@ -608,6 +590,43 @@ std::error_code Impl::connect()
             return ec;
         }
     }
+
+    // XXX: Keep timeouts at their default value until post_connect_cleanup()
+    // is done, then set the read timeout of the command pipe to 0. Under linux
+    // this has the effect of only reading from the drivers user-space buffer.
+    // TODO: rework the timeout handling.
+    {
+        auto pipe = Pipe::Command;
+        auto p = static_cast<unsigned>(pipe);
+
+        m_readTimeouts[p] = 0;
+
+        if (auto ec = set_endpoint_timeout(m_handle, get_endpoint(pipe, EndpointDirection::In), 0))
+        {
+            closeHandle();
+            return ec;
+        }
+    }
+
+#if 0
+    // Apply the read and write timeouts.
+    for (auto pipe: { Pipe::Command, Pipe::Data })
+    {
+        if (auto ec = set_endpoint_timeout(m_handle, get_endpoint(pipe, EndpointDirection::Out),
+                                           writeTimeout(pipe)))
+        {
+            closeHandle();
+            return ec;
+        }
+
+        if (auto ec = set_endpoint_timeout(m_handle, get_endpoint(pipe, EndpointDirection::In),
+                                           readTimeout(pipe)))
+        {
+            closeHandle();
+            return ec;
+        }
+    }
+#endif
 
     LOG_INFO("connected to MVLC USB");
 

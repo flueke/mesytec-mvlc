@@ -1,10 +1,13 @@
 #include <chrono>
+#include <deque>
 #include <mesytec-mvlc/mesytec-mvlc.h>
 #include <mesytec-mvlc/mvlc_impl_usb.h>
 #include <mesytec-mvlc/mvlc_impl_eth.h>
+#include <mesytec-mvlc/mvlc_apiv2.h>
 #include <lyra/lyra.hpp>
 #include <future>
 #include <list>
+#include <ratio>
 #include <spdlog/spdlog.h>
 #ifndef __WIN32
 #include <sys/prctl.h>
@@ -14,347 +17,111 @@ using std::cout;
 using std::endl;
 using namespace mesytec::mvlc;
 
+#if 1
 
-struct PendingResponse
+// test some super commands
+void super_rw_test(apiv2::MVLC &mvlc, std::atomic<size_t> &superTransactions, std::atomic<bool> &quit)
 {
-    std::promise<std::error_code> promise;
-    std::vector<u32> *dest = nullptr;
-    bool pending = false;
-};
-
-struct ReaderContext
-{
-    struct Counters
-    {
-        std::atomic<size_t> reads;
-        std::atomic<size_t> bytesRead;
-        std::atomic<size_t> timeouts;
-        std::atomic<size_t> invalidHeaders;
-        std::atomic<size_t> bytesSkipped;
-        std::atomic<size_t> errorBuffers;
-        std::atomic<size_t> dsoBuffers;
-
-        Counters()
-            : reads(0)
-            , bytesRead(0)
-            , timeouts(0)
-            , invalidHeaders(0)
-            , bytesSkipped(0)
-        {}
-    };
-
-    std::atomic<bool> quit;
-    MVLCBasicInterface *mvlc;
-    TicketMutex cmdLock;
-    WaitableProtected<PendingResponse> pendingSuper;
-    WaitableProtected<PendingResponse> pendingStack;
-    Counters counters;
-
-    ReaderContext()
-        : mvlc(nullptr)
-        , pendingSuper({})
-        , pendingStack({})
-        {}
-
-    //WaitableProtected<std::vector<u32>> stackErrorBuffer;
-    //WaitableProtected<std::vector<u32>> dsoBuffer;
-};
-
-bool fullfill_pending_response(
-    PendingResponse &pr,
-    const std::error_code &ec,
-    const u32 *contents = nullptr, size_t len = 0)
-{
-    if (pr.pending)
-    {
-        pr.pending = false;
-
-        if (pr.dest && contents && len)
-            std::copy(contents, contents+len, std::back_inserter(*pr.dest));
-
-        pr.promise.set_value(ec);
-        return true;
-    }
-
-    return false;
-}
-
-std::future<std::error_code> set_pending_super_response(
-    ReaderContext &readerContext,
-    std::vector<u32> &dest)
-{
-    auto pendingResponse = readerContext.pendingSuper.wait(
-        [] (const PendingResponse &pr) { return !pr.pending; });
-
-    assert(pendingResponse.ref().pending == false);
-
-    std::promise<std::error_code> promise;
-    auto result = promise.get_future();
-
-    pendingResponse.ref() = { std::move(promise), &dest, true };
-
-    return result;
-}
-
-std::future<std::error_code> set_pending_stack_response(
-    ReaderContext &readerContext,
-    std::vector<u32> &dest)
-{
-    auto pendingResponse = readerContext.pendingStack.wait(
-        [] (const PendingResponse &pr) { return !pr.pending; });
-
-    assert(pendingResponse.ref().pending == false);
-
-    std::promise<std::error_code> promise;
-    auto result = promise.get_future();
-
-    pendingResponse.ref() = { std::move(promise), &dest, true };
-
-    return result;
-}
-
-void cmd_pipe_reader(ReaderContext &context)
-{
-    struct Buffer
-    {
-        std::vector<u32> mem;
-        size_t start = 0;
-        size_t used = 0;
-
-        const u32 *begin() const { return mem.data() + start; }
-        u32 *begin() { return mem.data() + start; }
-
-        const u32 *end() const { return begin() + used; }
-        u32 *end() { return begin() + used; }
-
-        bool empty() const { return used == 0; }
-        size_t size() const { return used; }
-        size_t capacity() const { return mem.size(); }
-        size_t free() const
-        {
-            return (mem.data() + mem.size()) - (mem.data() + start + used);
-        }
-
-        u32 *writeBegin() { return end(); }
-        u32 *writeEnd() { return mem.data() + mem.size(); }
-
-
-        void consume(size_t nelements)
-        {
-            assert(used >= nelements);
-            start += nelements;
-            used -= nelements;
-        }
-
-        void use(size_t nelements)
-        {
-            assert(free() >= nelements);
-            used += nelements;
-        }
-
-        void pack()
-        {
-            if (start > 0)
-            {
-                size_t oldFree = free();
-                std::copy(begin(), end(), mem.data());
-                start = 0;
-                assert(free() > oldFree);
-                assert(begin() == mem.data());
-            }
-        }
-
-        void resize(size_t size)
-        {
-            if (size > mem.size())
-            {
-                mem.resize(size);
-                pack();
-            }
-        };
-
-        void ensureFreeSpace(size_t size)
-        {
-            if (free() < size)
-            {
-                pack();
-
-                if (free() < size)
-                {
-                    mem.resize(mem.size() + size);
-                }
-            }
-
-            assert(free() >= size);
-        }
-
-        const u32 &operator[](size_t index) const
-        {
-            return mem[index + start];
-        };
-    };
-
-    auto is_good_header = [] (const u32 header) -> bool
-    {
-        return is_super_buffer(header)
-            || is_stack_buffer(header)
-            || is_stackerror_notification(header)
-            || is_dso_buffer(header);
-    };
-
-    auto contains_complete_frame = [=] (const u32 *begin, const u32 *end) -> bool
-    {
-        assert(end - begin > 0);
-        assert(is_good_header(*begin));
-        // TODO: handle continuations
-
-        if (is_dso_buffer(*begin))
-            return std::find_if(begin, end,
-                                [] (u32 word) { return word == 0xC0000000u; }) != end;
-
-        auto len = get_frame_length(*begin);
-        auto avail = end - begin;
-
-        return avail >= len + 1;
-    };
-
 #ifndef __WIN32
-    prctl(PR_SET_NAME,"cmd_pipe_reader",0,0,0);
+    prctl(PR_SET_NAME,"super_rw_test",0,0,0);
 #endif
 
-    spdlog::info("cmd_pipe_reader starting");
-
-    auto mvlcUsb = dynamic_cast<usb::MVLC_USB_Interface *>(context.mvlc);
-    auto mvlcEth = dynamic_cast<eth::MVLC_ETH_Interface *>(context.mvlc);
-
-    assert(mvlcUsb || mvlcEth);
-
-    Buffer buffer;
-    // A bit misleading: this is 1M elements, not 1MB space.
-    buffer.ensureFreeSpace(util::Megabytes(1));
-
-    while (!context.quit)
+    while (!quit)
     {
-        while (buffer.used)
+
+        if (auto ec = mvlc.writeRegister(stacks::StackMemoryBegin, 0x87654321u))
         {
-
-            //util::log_buffer(cout, buffer, "cmd_pipe_reader buffer");
-
-
-            if (!is_good_header(buffer[0]))
-            {
-                // TODO: count error, seek to next known buffer start, count skipped bytes
-                throw std::runtime_error("bad header in buffer");
-            }
-
-            if (contains_complete_frame(buffer.begin(), buffer.end()))
-            {
-                if (is_stackerror_notification(buffer[0]))
-                {
-                    ++context.counters.errorBuffers;
-                    buffer.consume(get_frame_length(buffer[0]) + 1);
-                }
-                else if (is_dso_buffer(buffer[0]))
-                {
-                    ++context.counters.dsoBuffers;
-                    auto dsoEnd = std::find_if(buffer.begin(), buffer.end(),
-                                               [] (u32 word) { return word == 0xC0000000u; }) + 1;
-                    buffer.consume(dsoEnd - buffer.begin());
-                }
-                else if (is_super_buffer(buffer[0]))
-                {
-                    auto pendingResponse = context.pendingSuper.access();
-                    fullfill_pending_response(
-                        pendingResponse.ref(), {}, &buffer[0], get_frame_length(buffer[0] + 1));
-                    buffer.consume(get_frame_length(buffer[0]) + 1);
-                }
-                else if (is_stack_buffer(buffer[0]))
-                {
-                    // TODO: handle stack continuations: copy parts together,
-                    // consuming parts from the buffer in the process.
-                    auto pendingResponse = context.pendingStack.access();
-                    fullfill_pending_response(
-                        pendingResponse.ref(), {}, &buffer[0], get_frame_length(buffer[0] + 1));
-                    buffer.consume(get_frame_length(buffer[0]) + 1);
-                }
-            }
-            else
-            {
-                // Move remaining data to buffer front and ensure there's free space in
-                // the buffer.
-                buffer.pack();
-                // A bit misleading: this is 1M elements, not 1MB space.
-                buffer.ensureFreeSpace(util::Megabytes(1));
-                break;
-            }
+            spdlog::warn("writeRegister, ec={}", ec.message());
+            throw ec;
         }
 
-        size_t bytesTransferred = 0;
-        std::error_code ec;
+        ++superTransactions;
 
-        if (mvlcUsb)
+        u32 value = 0;
+
+        if (auto ec = mvlc.readRegister(stacks::StackMemoryBegin, value))
         {
-            ec = context.mvlc->read(
-            Pipe::Command,
-            reinterpret_cast<u8 *>(buffer.writeBegin()),
-            std::min(buffer.free() * sizeof(u32), usb::USBSingleTransferMaxBytes),
-            bytesTransferred);
-
-            buffer.used += bytesTransferred / sizeof(u32);
-        }
-        else if (mvlcEth)
-        {
-            static std::array<u8, eth::JumboFrameMaxSize> packetBuffer;
-
-            auto packet = mvlcEth->read_packet(
-                Pipe::Command,
-                packetBuffer.data(),
-                packetBuffer.size());
-
-            ec = packet.ec;
-            bytesTransferred += packet.bytesTransferred; // This includes all eth overhead.
-
-            // Actual payload goes to the buffer.
-            std::copy(packet.payloadBegin(), packet.payloadEnd(), buffer.writeBegin());
-            buffer.used += packet.payloadEnd() - packet.payloadBegin();
+            spdlog::warn("readRegister, ec={}", ec.message());
+            throw ec;
         }
 
-        spdlog::trace("received {} bytes", bytesTransferred);
+        if (value != 0x87654321u)
+            spdlog::warn("writeRegister/readRegister, value=0x{0:x}", value);
 
-        ++context.counters.reads;
-        context.counters.bytesRead += bytesTransferred;
-        if (ec == ErrorType::Timeout)
-            ++context.counters.timeouts;
+        assert(value == 0x87654321u);
 
+        ++superTransactions;
 
-        if (ec == ErrorType::ConnectionError)
-            context.quit = true;
+        spdlog::trace("writeRegister/readRegister, value=0x{0:x}", value);
     }
-
-    fullfill_pending_response(
-        context.pendingSuper.access().ref(),
-        make_error_code(MVLCErrorCode::IsDisconnected));
-
-    fullfill_pending_response(
-        context.pendingStack.access().ref(),
-        make_error_code(MVLCErrorCode::IsDisconnected));
-
-    SPDLOG_TRACE("cmd_pipe_reader exiting");
-    spdlog::info("cmd_pipe_reader exiting");
 }
 
+// Test a vme read
+void vmeread_test(apiv2::MVLC &mvlc, std::atomic<size_t> &stackTransactions, std::atomic<bool> &quit)
+{
+#ifndef __WIN32
+    prctl(PR_SET_NAME,"vmeread_test",0,0,0);
+#endif
+
+    while (!quit)
+    {
+        u32 value = 0;
+        if (auto ec = mvlc.vmeRead(0x00006008, value, vme_amods::A32, VMEDataWidth::D16))
+        {
+            spdlog::warn("vmeRead, ec={}", ec.message());
+            if (ec != ErrorType::VMEError)
+                throw ec;
+        }
+
+        spdlog::trace("vmeRead, value=0x{0:x}", value);
+
+        ++stackTransactions;
+    }
+}
+
+// Test a vme write
+void vmewrite_test(apiv2::MVLC &mvlc, std::atomic<size_t> &stackTransactions, std::atomic<bool> &quit)
+{
+#ifndef __WIN32
+    prctl(PR_SET_NAME,"vmewrite_test",0,0,0);
+#endif
+
+    while (!quit)
+    {
+        if (auto ec = mvlc.vmeWrite(0x00006008, 1, vme_amods::A32, VMEDataWidth::D16))
+        {
+            spdlog::warn("vmeWrite, ec={}", ec.message());
+            if (ec != ErrorType::VMEError)
+                throw ec;
+        }
+
+        ++stackTransactions;
+    }
+}
+#endif
+
+#if 1
 int main(int argc, char *argv[])
 {
-    spdlog::set_level(spdlog::level::debug);
+    //{
+    //    auto logger = apiv2::setup_logger();
+    //    spdlog::register_logger(logger);
+    //}
+
+    //SPDLOG_TRACE("SPDLOG_TRACE");
+    //SPDLOG_DEBUG("SPDLOG_INFO");
+    //SPDLOG_INFO("SPDLOG_INFO");
 
     std::string host;
     bool showHelp = false;
+    bool logDebug = false;
     bool logTrace = false;
     unsigned secondsToRun = 2;
 
     auto cli
         = lyra::help(showHelp)
         | lyra::opt(host, "hostname")["--eth"]("mvlc hostname")
+        | lyra::opt(logDebug)["--debug"]("enable debug logging")
         | lyra::opt(logTrace)["--trace"]("enable trace logging")
         | lyra::arg(secondsToRun, "secondsToRun")
         ;
@@ -369,178 +136,110 @@ int main(int argc, char *argv[])
         return 0;
     }
 
+    if (logDebug)
+        spdlog::set_level(spdlog::level::debug);
+
     if (logTrace)
         spdlog::set_level(spdlog::level::trace);
 
-    std::unique_ptr<MVLCBasicInterface> mvlc;
+    std::unique_ptr<MVLCBasicInterface> impl;
 
     if (host.empty())
     {
-        mvlc = std::make_unique<usb::Impl>();
-        // Important setting! 0 means to read from the driver buffer space only.
-        mvlc->setReadTimeout(Pipe::Command, 0);
+        impl = std::make_unique<usb::Impl>();
     }
     else
     {
-        mvlc = std::make_unique<eth::Impl>(host);
+        impl = std::make_unique<eth::Impl>(host);
     }
 
-    assert(mvlc);
+    assert(impl);
+
+    apiv2::MVLC mvlc(std::move(impl));
+
+
+    // FIXME: disabling triggers via the old dialog does not work because the
+    // pipes read timeout is now set to 0. This causes the dialog code to
+    // return a timeout error immediately. The responses will still be
+    // available on the next reads which will be done by the cmd_pipe_reader.
+    // It would be good if the reader skipped over the ref mismatches buffers
+    // without immediately fullfilling the pending response. Instead the caller
+    // could use a timed wait for the future and cancel with a timeout.
+    mvlc.setDisableTriggersOnConnect(true);
 
     try
     {
-        if (auto ec = mvlc->connect())
+        if (auto ec = mvlc.connect())
             throw ec;
 
-        ReaderContext readerContext;
-        readerContext.mvlc = mvlc.get();
-        readerContext.quit = false;
+        spdlog::info("connected to mvlc");
 
-        size_t superTransactions = 0;
-        size_t stackTransactions = 0;
 
-        std::thread readerThread(cmd_pipe_reader, std::ref(readerContext));
-
-        // for testing delay a bit so the reader does run into a few timeouts right away
-        //std::this_thread::sleep_for(std::chrono::seconds(1));
+        std::atomic<size_t> superTransactions(0);
+        std::atomic<size_t> stackTransactions(0);
 
         auto tStart = std::chrono::steady_clock::now();
 
+static constexpr int SECONDS_TO_RUN = 4;
+static constexpr int PARALLEL_SUPER_TESTS = 2;
+static constexpr int PARALLEL_VMEREAD_TESTS = 2;
+static constexpr int PARALLEL_VMEWRITE_TESTS = 2;
+
+        std::vector<std::thread> testThreads;
+        std::atomic<bool> quitTests(false);
+
+        for (auto i=0; i < PARALLEL_SUPER_TESTS; ++i)
+        {
+            testThreads.emplace_back(std::thread(
+                    super_rw_test, std::ref(mvlc),
+                    std::ref(superTransactions), std::ref(quitTests)));
+        }
+
+        for (auto i=0; i < PARALLEL_VMEREAD_TESTS; ++i)
+        {
+            testThreads.emplace_back(std::thread(
+                    vmeread_test, std::ref(mvlc),
+                    std::ref(stackTransactions), std::ref(quitTests)));
+        }
+
+        for (auto i=0; i < PARALLEL_VMEWRITE_TESTS; ++i)
+        {
+            testThreads.emplace_back(std::thread(
+                    vmewrite_test, std::ref(mvlc),
+                    std::ref(stackTransactions), std::ref(quitTests)));
+        }
+
+        u16 address = 0x4400;
+        u32 value = 0;
+
+        if (auto ec = mvlc.readRegister(address, value))
+            throw ec;
+
+        spdlog::info("own_ip_low={}", value);
+
         while (true)
         {
-#define RUN_SUPER_TEST 1
-#if RUN_SUPER_TEST
-            // test some super commands
-            {
-                spdlog::trace("sending writeLocal+readLocal super cmds");
-                SuperCommandBuilder scb;
-                scb.addReferenceWord(0x1337);
-                scb.addWriteLocal(stacks::StackMemoryBegin, 0x87654321u);
-                scb.addReadLocal(stacks::StackMemoryBegin);
-                auto cmdBuffer = make_command_buffer(scb);
-                std::vector<u32> responseBuffer;
-
-                auto cmdGuard = std::unique_lock<TicketMutex>(readerContext.cmdLock);
-                auto rf = set_pending_super_response(readerContext, responseBuffer);
-
-                size_t bytesWritten = 0;
-
-                auto ec = mvlc->write(
-                    Pipe::Command,
-                    reinterpret_cast<const u8 *>(cmdBuffer.data()),
-                    cmdBuffer.size() * sizeof(u32),
-                    bytesWritten);
-
-                if (ec)
-                {
-                    cout << "write failed: ec=" << ec.message() << endl;
-                    throw ec;
-                }
-
-                // TODO: use wait_for with a timeout and use fullfill_pending_response()
-                // passing a timeout error code then return rf.get()
-                ec = rf.get();
-
-                //if (responseBuffer.size())
-                //    util::log_buffer(std::cout, responseBuffer,
-                //                     "writeLocal+readLocal responseBuffer");
-
-                if (ec)
-                {
-                    cout << "super test response error: ec=" << ec.message() << endl;
-                    throw ec;
-                }
-
-                ++superTransactions;
-            }
-#endif // RUN_SUPER_TEST
-
-#define RUN_STACK_TEST 1
-#if RUN_STACK_TEST
-            // Test a vme read
-            {
-                spdlog::trace("performing vmeRead");
-
-                StackCommandBuilder stackBuilder;
-                stackBuilder.addWriteMarker(0xdeadbeef);
-                stackBuilder.addVMERead(0xffff6008, vme_amods::A32, VMEDataWidth::D16);
-
-
-                SuperCommandBuilder superBuilder;
-                superBuilder.addReferenceWord(0x1338);
-                u16 cmdStackOffset = 1;
-                superBuilder.addStackUpload(stackBuilder, CommandPipe, cmdStackOffset);
-                superBuilder.addWriteLocal(stacks::Stack0OffsetRegister, cmdStackOffset);
-                superBuilder.addWriteLocal(stacks::Stack0TriggerRegister, 1u << stacks::ImmediateShift);
-                auto cmdBuffer = make_command_buffer(superBuilder);
-                std::vector<u32> superResponse, stackResponse;
-
-                auto cmdGuard = std::unique_lock<TicketMutex>(readerContext.cmdLock);
-                auto superFuture = set_pending_super_response(readerContext, superResponse);
-                auto stackFuture = set_pending_stack_response(readerContext, stackResponse);
-
-                size_t bytesWritten = 0;
-
-                auto ec = mvlc->write(
-                    Pipe::Command,
-                    reinterpret_cast<const u8 *>(cmdBuffer.data()),
-                    cmdBuffer.size() * sizeof(u32),
-                    bytesWritten);
-
-                if (ec)
-                {
-                    cout << "write failed: ec=" << ec.message() << endl;
-                    throw ec;
-                }
-
-                // TODO: use wait_for with a timeout and use fullfill_pending_response()
-                // passing a timeout error code then return rf.get()
-                auto superError = superFuture.get();
-
-                if (superError)
-                {
-                    spdlog::warn("vmeRead super error: {}", superError.message());
-                    throw superError;
-                }
-
-                if (superResponse.size())
-                {
-                    std::ostringstream oss;
-                    util::log_buffer(oss, superResponse, "vmeRead super response");
-                    spdlog::trace(oss.str());
-                }
-
-                auto stackError = stackFuture.get();
-
-                if (stackError)
-                {
-                    spdlog::warn("vmeRead stack error: {}", stackError.message());
-                    throw ec;
-                }
-
-                if (stackResponse.size())
-                {
-                    std::ostringstream oss;
-                    util::log_buffer(oss, stackResponse, "vmeRead stack response");
-                    spdlog::trace(oss.str());
-                }
-
-                ++stackTransactions;
-            }
-#endif // RUN_STACK_TEST
-
             auto tElapsed = std::chrono::steady_clock::now() - tStart;
 
-            if (tElapsed >= std::chrono::seconds(10))
+            if (tElapsed >= std::chrono::seconds(SECONDS_TO_RUN))
                 break;
+
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
         }
+
+        quitTests = true;
+
+        for (auto &t: testThreads)
+            t.join();
+
+        spdlog::info("all test threads joined");
 
         auto tElapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
             std::chrono::steady_clock::now() - tStart);
 
         // quit --------------------------
-        readerContext.quit = true;
-        readerThread.join();
+        if (auto ec = mvlc.disconnect())
+            throw ec;
 
         // --------------------------------
 
@@ -553,16 +252,33 @@ int main(int argc, char *argv[])
         spdlog::info("loop done, elapsed={}ms, stackTransactions={}, stackRate={}",
                      tElapsed.count(), stackTransactions, stackRate);
 
+        auto &counters = mvlc.getCmdPipeCounters();
+
         spdlog::info("total reads={}, read timeouts={}, timeouts/reads={}",
-                     readerContext.counters.reads,
-                     readerContext.counters.timeouts,
-                     (float)readerContext.counters.timeouts / readerContext.counters.reads
+                     counters.reads,
+                     counters.timeouts,
+                     (float)counters.timeouts / counters.reads
                     );
 
+        spdlog::info("reader buffer counts: supers={}, stacks={}, dso={}, errors={}",
+                     counters.superBuffers,
+                     counters.stackBuffers,
+                     counters.dsoBuffers,
+                     counters.errorBuffers);
+
+        spdlog::info("reader error counts: invalidHeaders={}, superFormatErrors={}"
+                     ", superRefMismatches={}, stackRefMismatches={}, shortSuperBuffers={}",
+                     counters.invalidHeaders,
+                     counters.superFormatErrors,
+                     counters.superRefMismatches,
+                     counters.stackRefMismatches,
+                     counters.shortSuperBuffers
+                     );
     }
     catch (const std::error_code &ec)
     {
         cout << "Error: " << ec.message() << "\n";
-        return 1;
+        throw;
     }
 }
+#endif
