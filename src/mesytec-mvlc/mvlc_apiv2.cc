@@ -869,8 +869,6 @@ std::error_code MVLC::disconnect()
 
     if (d->impl_->isConnected())
     {
-        assert(d->isConnected_); // check cache consistency
-
         if (d->readerThread_.joinable())
         {
             d->readerContext_.quit = true;
