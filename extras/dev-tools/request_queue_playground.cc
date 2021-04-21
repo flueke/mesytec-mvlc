@@ -238,6 +238,26 @@ static constexpr int PARALLEL_VMEWRITE_TESTS = 2;
 
         spdlog::info("own_ip_low={}", value);
 
+        for (int i =0; i<10; ++i)
+        {
+            std::vector<u32> dsoDest;
+
+            if (auto ec = mvlc.vmeBlockRead(
+                    SelfVMEAddress + 4,
+                    vme_amods::MBLT64,
+                    std::numeric_limits<u16>::max(),
+                    dsoDest))
+                throw ec;
+
+            {
+                std::ostringstream out;
+                util::log_buffer(out, dsoDest, "dso buffer");
+                spdlog::info("result from dso block read: {}",
+                             out.str());
+            }
+        }
+
+
         while (true)
         {
             auto tElapsed = std::chrono::steady_clock::now() - tStart;
