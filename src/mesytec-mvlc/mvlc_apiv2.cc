@@ -397,8 +397,8 @@ void cmd_pipe_reader(ReaderContext &context)
                     while (frameInfo.flags & frame_flags::Continue)
                     {
                         header += frameInfo.len + 1;
-                        toConsume += frameInfo.len + 1;
                         frameInfo = extract_frame_info(*header);
+                        toConsume += frameInfo.len + 1;
                     }
 
                     if (ec)
