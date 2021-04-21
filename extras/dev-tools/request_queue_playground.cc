@@ -215,6 +215,27 @@ static constexpr int PARALLEL_VMEWRITE_TESTS = 2;
         if (auto ec = mvlc.readRegister(address, value))
             throw ec;
 
+        //
+        // DSO
+        //
+
+        auto self_write_throw = [] (apiv2::MVLC &mvlc, u32 address, u16 value)
+        {
+            if (auto ec = mvlc.vmeWrite(
+                    SelfVMEAddress + address, value,
+                    vme_amods::A32, VMEDataWidth::D16))
+                throw ec;
+        };
+
+        static const unsigned UnitNumber = 48;
+        self_write_throw(mvlc, 0x0200, UnitNumber); // select DSO unit
+        self_write_throw(mvlc, 0x0300, 1000); // pre trigger time
+        self_write_throw(mvlc, 0x0302, 1000); // post trigger time
+        self_write_throw(mvlc, 0x0304, 0xffff); // nim triggers
+        self_write_throw(mvlc, 0x0308, 0xffff); // irq triggers
+        self_write_throw(mvlc, 0x030A, 0xffff); // util triggers
+        self_write_throw(mvlc, 0x0306, 1); // start capturing
+
         spdlog::info("own_ip_low={}", value);
 
         while (true)
@@ -252,7 +273,7 @@ static constexpr int PARALLEL_VMEWRITE_TESTS = 2;
         spdlog::info("loop done, elapsed={}ms, stackTransactions={}, stackRate={}",
                      tElapsed.count(), stackTransactions, stackRate);
 
-        auto &counters = mvlc.getCmdPipeCounters();
+        auto counters = mvlc.getCmdPipeCounters();
 
         spdlog::info("total reads={}, read timeouts={}, timeouts/reads={}",
                      counters.reads,

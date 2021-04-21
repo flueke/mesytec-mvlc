@@ -68,6 +68,7 @@
 #include <exception>
 #include <iostream>
 #include <fmt/format.h>
+#include <spdlog/spdlog.h>
 
 #ifndef __WIN32
 #include <sys/prctl.h>
@@ -130,14 +131,21 @@ ReadoutInitResults MESYTEC_MVLC_EXPORT init_readout(
     {
         std::vector<u32> response;
 
+#if 0
         auto errors = execute_stack(
             mvlc, crateConfig.initTriggerIO,
             stacks::StackMemoryWords, stackExecOptions,
             response);
 
-        ret.triggerIO = parse_stack_exec_response(crateConfig.initTriggerIO, response, errors);
+        ret.triggerIo = parse_stack_exec_response(crateConfig.initTriggerIO, response, errors);
+#else
+        ret.triggerIo = run_commands(
+            mvlc,
+            crateConfig.initTriggerIO,
+            stackExecOptions);
+#endif
 
-        if (auto ec = get_first_error(ret.triggerIO))
+        if (auto ec = get_first_error(ret.triggerIo))
         {
             cerr << "Error running init_trigger_io: " << ret.ec.message() << endl;
             return ret;
@@ -148,12 +156,19 @@ ReadoutInitResults MESYTEC_MVLC_EXPORT init_readout(
     {
         std::vector<u32> response;
 
+#if 0
         auto errors = execute_stack(
             mvlc, crateConfig.initCommands,
             stacks::StackMemoryWords, stackExecOptions,
             response);
 
         ret.init = parse_stack_exec_response(crateConfig.initCommands, response, errors);
+#else
+        ret.init = run_commands(
+            mvlc,
+            crateConfig.initCommands,
+            stackExecOptions);
+#endif
 
         if (auto ec = get_first_error(ret.init))
         {
@@ -176,8 +191,13 @@ ReadoutInitResults MESYTEC_MVLC_EXPORT init_readout(
     // enable/disable eth jumbo frames
     if (mvlc.connectionType() == ConnectionType::ETH)
     {
-        auto mvlcETH = dynamic_cast<eth::MVLC_ETH_Interface *>(mvlc.getImpl());
-        mvlcETH->enableJumboFrames(crateConfig.ethJumboEnable);
+        if ((ret.ec = mvlc.enableJumboFrames(crateConfig.ethJumboEnable)))
+        {
+            spdlog::error(
+                "Error {} jumbo frames: {}",
+                crateConfig.ethJumboEnable ? "enabling" : "disabling",
+                ret.ec.message());
+        }
     }
 
     return ret;
@@ -713,13 +733,11 @@ std::error_code ReadoutWorker::Private::startReadout()
                 return ec;
 
             // multicast daq start
-            std::vector<u32> responseBuffer;
-            auto errors = execute_stack(mvlc, mcstDaqStart, responseBuffer);
-            auto execResults = parse_stack_exec_response(mcstDaqStart, responseBuffer, errors);
+            auto execResults = run_commands(mvlc, mcstDaqStart);
 
-            cout << "Results from mcstDaqStart: " << execResults << endl;
+            //cout << "Results from mcstDaqStart: " << execResults << endl;
 
-            if (auto ec = get_first_error(errors))
+            if (auto ec = get_first_error(execResults))
                 return ec;
 
             // enable daq mode
@@ -759,10 +777,9 @@ std::error_code ReadoutWorker::Private::terminateReadout()
                 return ec;
 
             // multicast daq stop
-            std::vector<u32> responseBuffer;
-            auto errors = execute_stack(mvlc, mcstDaqStop, responseBuffer);
-            auto execResults = parse_stack_exec_response(mcstDaqStop, responseBuffer, errors);
-            if (auto ec = get_first_error(errors))
+            auto execResults = run_commands(mvlc, mcstDaqStop);
+
+            if (auto ec = get_first_error(execResults))
                 return ec;
 
             // disable readout stacks

@@ -43,7 +43,7 @@ namespace mvlc
 
 std::error_code check_mirror(const std::vector<u32> &request, const std::vector<u32> &response);
 
-class MESYTEC_MVLC_EXPORT MVLCDialog
+class MESYTEC_MVLC_EXPORT MVLCDialog_internal
 {
     public:
         // Maximum time spent in readResponse() until a non-error-notification
@@ -56,7 +56,7 @@ class MESYTEC_MVLC_EXPORT MVLCDialog
         // transaction is retried a maximum of MirrorMaxRetries times.
         constexpr static unsigned MirrorMaxRetries = 3;
 
-        explicit MVLCDialog(MVLCBasicInterface *mvlc);
+        explicit MVLCDialog_internal(MVLCBasicInterface *mvlc);
 
         // MVLC register access
         std::error_code readRegister(u16 address, u32 &value);

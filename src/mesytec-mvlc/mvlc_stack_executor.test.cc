@@ -28,6 +28,7 @@ Out &log_buffer(Out &out, const std::vector<u32> &buffer, const std::string &hea
 }
 
 
+#if 0
 
 TEST(mvlc_stack_executor, SplitCommandsOptions)
 {
@@ -191,3 +192,4 @@ TEST(mvlc_stack_executor, SplitCommandsSoftwareDelays)
     ASSERT_EQ(parts[0][0].type, StackCommand::CommandType::SoftwareDelay);
     ASSERT_EQ(parts[1][0].type, StackCommand::CommandType::SoftwareDelay);
 }
+#endif

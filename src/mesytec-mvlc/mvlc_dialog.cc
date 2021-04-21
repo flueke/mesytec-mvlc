@@ -91,16 +91,16 @@ std::error_code check_mirror(const std::vector<u32> &request, const std::vector<
     return {};
 }
 
-constexpr std::chrono::milliseconds MVLCDialog::ReadResponseMaxWait;
+constexpr std::chrono::milliseconds MVLCDialog_internal::ReadResponseMaxWait;
 
-MVLCDialog::MVLCDialog(MVLCBasicInterface *mvlc)
+MVLCDialog_internal::MVLCDialog_internal(MVLCBasicInterface *mvlc)
     : m_mvlc(mvlc)
     , m_stackErrorCounters({})
 {
     assert(m_mvlc);
 }
 
-std::error_code MVLCDialog::doWrite(const std::vector<u32> &buffer)
+std::error_code MVLCDialog_internal::doWrite(const std::vector<u32> &buffer)
 {
     size_t bytesTransferred = 0u;
     const size_t bytesToTransfer = buffer.size() * sizeof(u32);
@@ -119,7 +119,7 @@ std::error_code MVLCDialog::doWrite(const std::vector<u32> &buffer)
 
 // Returns MVLCErrorCode::ShortRead in case less than the desired amount of
 // words could be read.
-std::error_code MVLCDialog::readWords(u32 *dest, size_t count, size_t &wordsTransferred)
+std::error_code MVLCDialog_internal::readWords(u32 *dest, size_t count, size_t &wordsTransferred)
 {
     if (count == 0)
     {
@@ -185,7 +185,7 @@ std::error_code MVLCDialog::readWords(u32 *dest, size_t count, size_t &wordsTran
     return ec;
 }
 
-std::error_code MVLCDialog::readKnownBuffer(std::vector<u32> &dest)
+std::error_code MVLCDialog_internal::readKnownBuffer(std::vector<u32> &dest)
 {
     dest.resize(0);
 
@@ -218,7 +218,7 @@ std::error_code MVLCDialog::readKnownBuffer(std::vector<u32> &dest)
     return ec;
 }
 
-std::error_code MVLCDialog::readResponse(BufferHeaderValidator bhv, std::vector<u32> &dest)
+std::error_code MVLCDialog_internal::readResponse(BufferHeaderValidator bhv, std::vector<u32> &dest)
 {
     assert(bhv);
 
@@ -263,7 +263,7 @@ std::error_code MVLCDialog::readResponse(BufferHeaderValidator bhv, std::vector<
     return {};
 }
 
-std::error_code MVLCDialog::readRegister(u16 address, u32 &value)
+std::error_code MVLCDialog_internal::readRegister(u16 address, u32 &value)
 {
     SuperCommandBuilder cmdList;
     cmdList.addReferenceWord(m_referenceWord++);
@@ -285,7 +285,7 @@ std::error_code MVLCDialog::readRegister(u16 address, u32 &value)
 }
 
 #if 0
-std::error_code MVLCDialog::readRegisterBlock(u16 address, u16 words,
+std::error_code MVLCDialog_internal::readRegisterBlock(u16 address, u16 words,
                                               std::vector<u32> &dest)
 {
     if (words > ReadLocalBlockMaxWords)
@@ -323,7 +323,7 @@ std::error_code MVLCDialog::readRegisterBlock(u16 address, u16 words,
 }
 #endif
 
-std::error_code MVLCDialog::writeRegister(u16 address, u32 value)
+std::error_code MVLCDialog_internal::writeRegister(u16 address, u32 value)
 {
     SuperCommandBuilder cmdList;
     cmdList.addReferenceWord(m_referenceWord++);
@@ -344,7 +344,7 @@ std::error_code MVLCDialog::writeRegister(u16 address, u32 value)
     return {};
 }
 
-std::error_code MVLCDialog::mirrorTransaction(const std::vector<u32> &cmdBuffer,
+std::error_code MVLCDialog_internal::mirrorTransaction(const std::vector<u32> &cmdBuffer,
                                               std::vector<u32> &dest)
 {
     if (cmdBuffer.size() > MirrorTransactionMaxWords)
@@ -390,7 +390,7 @@ std::error_code MVLCDialog::mirrorTransaction(const std::vector<u32> &cmdBuffer,
     return ret;
 }
 
-std::error_code MVLCDialog::stackTransaction(const std::vector<u32> &stack,
+std::error_code MVLCDialog_internal::stackTransaction(const std::vector<u32> &stack,
                                              std::vector<u32> &dest)
 {
     //DebugTimer timer;
@@ -471,7 +471,7 @@ std::error_code MVLCDialog::stackTransaction(const std::vector<u32> &stack,
     return {};
 }
 
-std::error_code MVLCDialog::uploadStack(
+std::error_code MVLCDialog_internal::uploadStack(
     u8 stackOutputPipe,
     u16 stackMemoryOffset,
     const std::vector<StackCommand> &commands,
@@ -531,7 +531,7 @@ std::error_code MVLCDialog::uploadStack(
     return {};
 }
 
-std::error_code MVLCDialog::execImmediateStack(
+std::error_code MVLCDialog_internal::execImmediateStack(
     u16 stackMemoryOffset, std::vector<u32> &dest)
 {
     //DebugTimer timer;
@@ -606,7 +606,7 @@ std::error_code MVLCDialog::execImmediateStack(
     return {};
 }
 
-std::error_code MVLCDialog::vmeWrite(u32 address, u32 value, u8 amod, VMEDataWidth dataWidth)
+std::error_code MVLCDialog_internal::vmeWrite(u32 address, u32 value, u8 amod, VMEDataWidth dataWidth)
 {
     SuperCommandBuilder cmdList;
     cmdList.addReferenceWord(m_referenceWord++);
@@ -630,7 +630,7 @@ std::error_code MVLCDialog::vmeWrite(u32 address, u32 value, u8 amod, VMEDataWid
     return ec;
 }
 
-std::error_code MVLCDialog::vmeRead(u32 address, u32 &value, u8 amod,
+std::error_code MVLCDialog_internal::vmeRead(u32 address, u32 &value, u8 amod,
                                           VMEDataWidth dataWidth)
 {
     SuperCommandBuilder cmdList;
@@ -659,7 +659,7 @@ std::error_code MVLCDialog::vmeRead(u32 address, u32 &value, u8 amod,
     return ec;
 }
 
-std::error_code MVLCDialog::vmeBlockRead(u32 address, u8 amod, u16 maxTransfers,
+std::error_code MVLCDialog_internal::vmeBlockRead(u32 address, u8 amod, u16 maxTransfers,
                                          std::vector<u32> &dest)
 {
     if (!vme_amods::is_block_mode(amod))
@@ -678,7 +678,7 @@ std::error_code MVLCDialog::vmeBlockRead(u32 address, u8 amod, u16 maxTransfers,
     return ec;
 }
 
-std::error_code MVLCDialog::vmeMBLTSwapped(u32 address, u16 maxTransfers,
+std::error_code MVLCDialog_internal::vmeMBLTSwapped(u32 address, u16 maxTransfers,
                                            std::vector<u32> &dest)
 {
     SuperCommandBuilder cmdList;
@@ -694,11 +694,11 @@ std::error_code MVLCDialog::vmeMBLTSwapped(u32 address, u16 maxTransfers,
     return ec;
 }
 
-void MVLCDialog::logBuffer(const std::vector<u32> &buffer, const std::string &info)
+void MVLCDialog_internal::logBuffer(const std::vector<u32> &buffer, const std::string &info)
 {
     if (LOG_LEVEL_SETTING >= LOG_LEVEL_TRACE)
     {
-        util::log_buffer(std::cerr, buffer.data(), buffer.size(), "MVLCDialog::" + info);
+        util::log_buffer(std::cerr, buffer.data(), buffer.size(), "MVLCDialog_internal::" + info);
     }
 }
 

@@ -2,6 +2,7 @@
 #define __MESYTEC_MVLC_MVLC_READOUT_H__
 
 #include <future>
+#include <vector>
 
 #include "mesytec-mvlc/mesytec-mvlc_export.h"
 #include "mesytec-mvlc/mvlc_eth_interface.h"
@@ -21,11 +22,12 @@ namespace mvlc
 
 MVLC MESYTEC_MVLC_EXPORT make_mvlc(const CrateConfig &crateConfig);
 
+
 struct MESYTEC_MVLC_EXPORT ReadoutInitResults
 {
     std::error_code ec;
-    GroupedStackResults init;
-    GroupedStackResults triggerIO;
+    std::vector<CommandExecResult> init;
+    std::vector<CommandExecResult> triggerIo;
 };
 
 // Runs the MVLC and DAQ init sequence from the CrateConfig and uploads the

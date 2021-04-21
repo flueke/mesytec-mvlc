@@ -12,6 +12,7 @@
 
 #include <mesytec-mvlc/mesytec-mvlc.h>
 #include <lyra/lyra.hpp>
+#include <spdlog/spdlog.h>
 
 using std::cout;
 using std::cerr;
@@ -178,6 +179,8 @@ int main(int argc, char *argv[])
     bool opt_noPeriodicCounterDumps = false;
 
     bool opt_showHelp = false;
+    bool opt_logDebug = false;
+    bool opt_logTrace = false;
 
     auto cli
         = lyra::help(opt_showHelp)
@@ -222,6 +225,10 @@ int main(int argc, char *argv[])
         | lyra::opt(opt_noPeriodicCounterDumps)
             ["--no-periodic-counter-dumps"]("do not periodcally print readout and parser counters to stdout")
 
+        // logging
+        | lyra::opt(opt_logDebug)["--debug"]("enable debug logging")
+        | lyra::opt(opt_logTrace)["--trace"]("enable trace logging")
+
         // positional args
         | lyra::arg(opt_crateConfig, "crateConfig")
             ("crate config yaml file").required()
@@ -253,6 +260,13 @@ int main(int argc, char *argv[])
             << endl;
         return 0;
     }
+
+    if (opt_logDebug)
+        spdlog::set_level(spdlog::level::debug);
+
+    if (opt_logTrace)
+        spdlog::set_level(spdlog::level::trace);
+
 
     std::ifstream inConfig(opt_crateConfig);
 
@@ -308,13 +322,15 @@ int main(int argc, char *argv[])
         {
             auto initResults = init_readout(mvlc, crateConfig, initOptions);
 
-            cout << "Results from init_commands:" << endl << initResults.init << endl;
+            //cout << "Results from init_commands:" << endl << initResults.init << endl;
 
             if (initResults.ec)
             {
-                cerr << "Error running readout init sequence: " << initResults.ec.message() << endl;
+                spdlog::error("Error running readout init sequence: {}", initResults.ec.message());
                 return 1;
             }
+
+            spdlog::info("readout init sequence done");
         }
 
         //
@@ -496,6 +512,29 @@ int main(int argc, char *argv[])
             mvlc.getStackErrorCounters(),
             readoutWorker.counters(),
             parserCounters.copy());
+
+
+        auto cmdPipeCounters = mvlc.getCmdPipeCounters();
+
+        spdlog::debug("CmdPipeCounters:\n"
+                      "    reads={}, bytesRead={}, timeouts={}, invalidHeaders={}, wordsSkipped={}\n"
+                      "    errorBuffers={}, superBuffer={}, stackBuffers={}, dsoBuffers={}\n"
+                      "    shortSupers={}, superFormatErrors={}, superRefMismatches={}, stackRefMismatches={}",
+
+                      cmdPipeCounters.reads,
+                      cmdPipeCounters.bytesRead,
+                      cmdPipeCounters.timeouts,
+                      cmdPipeCounters.invalidHeaders,
+                      cmdPipeCounters.wordsSkipped,
+                      cmdPipeCounters.errorBuffers,
+                      cmdPipeCounters.superBuffers,
+                      cmdPipeCounters.stackBuffers,
+                      cmdPipeCounters.dsoBuffers,
+
+                      cmdPipeCounters.shortSuperBuffers,
+                      cmdPipeCounters.superFormatErrors,
+                      cmdPipeCounters.superRefMismatches,
+                      cmdPipeCounters.stackRefMismatches);
 
         return retval;
     }

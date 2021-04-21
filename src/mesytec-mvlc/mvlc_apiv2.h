@@ -23,36 +23,20 @@ namespace apiv2
 
 struct CmdPipeCounters
 {
-    std::atomic<size_t> reads;
-    std::atomic<size_t> bytesRead;
-    std::atomic<size_t> timeouts;
-    std::atomic<size_t> invalidHeaders;
-    std::atomic<size_t> wordsSkipped;
-    std::atomic<size_t> errorBuffers;
-    std::atomic<size_t> superBuffers;
-    std::atomic<size_t> stackBuffers;
-    std::atomic<size_t> dsoBuffers;
+    size_t reads;
+    size_t bytesRead;
+    size_t timeouts;
+    size_t invalidHeaders;
+    size_t wordsSkipped;
+    size_t errorBuffers;
+    size_t superBuffers;
+    size_t stackBuffers;
+    size_t dsoBuffers;
 
-    std::atomic<size_t> shortSuperBuffers;
-    std::atomic<size_t> superFormatErrors;
-    std::atomic<size_t> superRefMismatches;
-    std::atomic<size_t> stackRefMismatches;
-
-    CmdPipeCounters()
-        : reads(0)
-        , bytesRead(0)
-        , timeouts(0)
-        , invalidHeaders(0)
-        , wordsSkipped(0)
-        , errorBuffers(0)
-        , superBuffers(0)
-        , stackBuffers(0)
-        , dsoBuffers(0)
-        , shortSuperBuffers(0)
-        , superFormatErrors(0)
-        , superRefMismatches(0)
-        , stackRefMismatches(0)
-    {}
+    size_t shortSuperBuffers;
+    size_t superFormatErrors;
+    size_t superRefMismatches;
+    size_t stackRefMismatches;
 };
 
 class MVLC
@@ -112,7 +96,7 @@ class MVLC
             return uploadStack(stackOutputPipe, stackMemoryOffset, stack.getCommands());
         }
 
-        const CmdPipeCounters &getCmdPipeCounters() const;
+        CmdPipeCounters getCmdPipeCounters() const;
 
         // access to push data: stack error counters and dso buffers
         StackErrorCounters getStackErrorCounters() const;
@@ -128,6 +112,10 @@ class MVLC
         // command respectively.
         std::error_code superTransaction(const SuperCommandBuilder &superBuilder, std::vector<u32> &dest);
         std::error_code stackTransaction(const StackCommandBuilder &stackBuilder, std::vector<u32> &dest);
+
+        // Eth specific
+        std::error_code enableJumboFrames(bool b);
+        std::pair<bool, std::error_code> jumboFramesEnabled();
 
     private:
         struct Private;

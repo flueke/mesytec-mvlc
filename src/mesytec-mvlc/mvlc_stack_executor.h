@@ -11,6 +11,7 @@
 #include <thread>
 #include <iomanip>
 
+#include "mvlc.h"
 #include "mvlc_buffer_validators.h"
 #include "mvlc_command_builders.h"
 #include "mvlc_constants.h"
@@ -29,6 +30,62 @@ namespace mesytec
 {
 namespace mvlc
 {
+
+#if 1 // apiv2 changes
+struct CommandExecResult
+{
+    StackCommand cmd;
+    std::error_code ec;
+    std::vector<u32> response;
+};
+
+struct CommandExecOptions
+{
+    // Set to true to ignore any SoftwareDelay commands.
+    bool ignoreDelays = false;
+
+    // Set to true to disable the command batching logic. Commands will be run
+    // one at a time.
+    bool noBatching  = true;
+
+    // If disabled command execution will be aborted when a VME bus error is
+    // encountered.
+    bool continueOnVMEError = false;
+};
+
+CommandExecResult run_command(
+    MVLC &mvlc,
+    const StackCommand &cmd,
+    const CommandExecOptions &options = {});
+
+std::vector<CommandExecResult> run_commands(
+    MVLC &mvlc,
+    const std::vector<StackCommand> &commands,
+    const CommandExecOptions &options = {});
+
+
+inline std::vector<CommandExecResult> run_commands(
+    MVLC &mvlc,
+    const StackCommandBuilder &stackBuilder,
+    const CommandExecOptions &options = {})
+{
+    return run_commands(mvlc, stackBuilder.getCommands(), options);
+}
+
+
+inline std::error_code get_first_error(const std::vector<CommandExecResult> results)
+{
+    auto it = std::find_if(
+        std::begin(results), std::end(results),
+        [] (const auto &result) { return static_cast<bool>(result.ec); });
+
+    if (it != std::end(results))
+        return it->ec;
+
+    return {};
+}
+
+#else // old batched stack executor code
 
 using namespace nonstd;
 
@@ -123,7 +180,7 @@ template<typename DIALOG_API>
         DIALOG_API &mvlc, const std::vector<StackCommand> &commands,
         std::vector<u32> &responseDest)
 {
-#if 0
+#if 1
     if (auto ec = mvlc.uploadStack(CommandPipe, 0, commands, responseDest))
         return ec;
 
@@ -322,6 +379,7 @@ Out &operator<<(Out &out, const GroupedStackResults &groupedResults)
 
     return out;
 }
+#endif
 
 } // end namespace mvlc
 } // end namespace mesytec

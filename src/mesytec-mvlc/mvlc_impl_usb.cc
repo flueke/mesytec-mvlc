@@ -299,7 +299,7 @@ std::error_code post_connect_cleanup(mesytec::mvlc::usb::Impl &impl)
     static const size_t DataBufferSize = usb::USBStreamPipeReadSize;
     static const auto ReadDataPipeMaxWait = std::chrono::seconds(10);
 
-    mesytec::mvlc::MVLCDialog dlg(&impl);
+    mesytec::mvlc::MVLCDialog_internal dlg(&impl);
 
     // Disable the triggers. There may be timeouts due to the data pipe being
     // full and no command responses arriving on the command pipe. Also

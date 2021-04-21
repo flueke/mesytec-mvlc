@@ -231,6 +231,7 @@ std::error_code setup_readout_triggers(
     const std::array<u32, stacks::ReadoutStackCount> &triggerValues)
 {
     SuperCommandBuilder sb;
+    sb.addReferenceWord(0x1337);
     u8 stackId = stacks::ImmediateStackID + 1;
 
     for (u32 triggerVal: triggerValues)

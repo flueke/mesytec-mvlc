@@ -72,8 +72,7 @@ struct ReaderContext
 
     Protected<StackErrorCounters> stackErrors;
     WaitableProtected<std::deque<std::vector<u32>>> dsoBuffers;
-
-    CmdPipeCounters counters;
+    Protected<CmdPipeCounters> counters;
 
     explicit ReaderContext(MVLCBasicInterface *mvlc_)
         : mvlc(mvlc_)
@@ -84,6 +83,7 @@ struct ReaderContext
         , pendingStack({})
         , stackErrors({})
         , dsoBuffers({})
+        , counters({})
         {}
 };
 
@@ -267,6 +267,9 @@ void cmd_pipe_reader(ReaderContext &context)
 
     while (!context.quit)
     {
+        auto countersAccess = context.counters.access();
+        auto &counters = countersAccess.ref();
+
         while (buffer.used)
         {
 
@@ -276,8 +279,8 @@ void cmd_pipe_reader(ReaderContext &context)
             {
                 buffer.consume(1);
                 // FIXME: these variables are only incremented here
-                ++context.counters.invalidHeaders;
-                ++context.counters.wordsSkipped;
+                ++counters.invalidHeaders;
+                ++counters.wordsSkipped;
             }
 
             if (buffer.empty())
@@ -287,7 +290,7 @@ void cmd_pipe_reader(ReaderContext &context)
             {
                 if (is_stackerror_notification(buffer[0]))
                 {
-                    ++context.counters.errorBuffers;
+                    ++counters.errorBuffers;
 
                     auto frameBegin = buffer.begin();
                     auto frameEnd = buffer.begin() + get_frame_length(buffer[0]) + 1;
@@ -300,7 +303,7 @@ void cmd_pipe_reader(ReaderContext &context)
                 }
                 else if (is_dso_buffer(buffer[0]))
                 {
-                    ++context.counters.dsoBuffers;
+                    ++counters.dsoBuffers;
 
                     auto dsoEnd = std::find_if(
                         buffer.begin(), buffer.end(),
@@ -319,14 +322,14 @@ void cmd_pipe_reader(ReaderContext &context)
                 // super buffers
                 else if (is_super_buffer(buffer[0]))
                 {
-                    ++context.counters.superBuffers;
+                    ++counters.superBuffers;
                     auto pendingResponse = context.pendingSuper.access();
                     std::error_code ec;
 
                     if (get_frame_length(buffer[0]) == 0)
                     {
                         ec = make_error_code(MVLCErrorCode::ShortSuperFrame);
-                        ++context.counters.shortSuperBuffers;
+                        ++counters.shortSuperBuffers;
                         buffer.consume(1);
                     }
                     else
@@ -338,7 +341,7 @@ void cmd_pipe_reader(ReaderContext &context)
                         {
                             spdlog::warn("cmd_pipe_reader: super buffer does not start with ref command");
                             ec = make_error_code(MVLCErrorCode::SuperFormatError);
-                            ++context.counters.superFormatErrors;
+                            ++counters.superFormatErrors;
                             buffer.consume(get_frame_length(buffer[0]) + 1);
                         }
                         else
@@ -350,7 +353,7 @@ void cmd_pipe_reader(ReaderContext &context)
                                 spdlog::warn("cmd_pipe_reader: super ref mismatch, wanted={}, got={}",
                                              pendingResponse->reference, ref);
                                 ec = make_error_code(MVLCErrorCode::SuperReferenceMismatch);
-                                ++context.counters.superRefMismatches;
+                                ++counters.superRefMismatches;
                             }
                             else
                             {
@@ -365,7 +368,7 @@ void cmd_pipe_reader(ReaderContext &context)
                 // stack buffers
                 else if (is_stack_buffer(buffer[0]))
                 {
-                    ++context.counters.stackBuffers;
+                    ++counters.stackBuffers;
 
                     auto pendingResponse = context.pendingStack.access();
                     size_t toConsume = 1;
@@ -384,7 +387,7 @@ void cmd_pipe_reader(ReaderContext &context)
                         if (stackRef != pendingResponse->reference)
                         {
                             ec = make_error_code(MVLCErrorCode::StackReferenceMismatch);
-                            ++context.counters.stackRefMismatches;
+                            ++counters.stackRefMismatches;
                         }
                     }
 
@@ -453,10 +456,10 @@ void cmd_pipe_reader(ReaderContext &context)
         if (bytesTransferred > 0)
             spdlog::trace("received {} bytes", bytesTransferred);
 
-        ++context.counters.reads;
-        context.counters.bytesRead += bytesTransferred;
+        ++counters.reads;
+        counters.bytesRead += bytesTransferred;
         if (ec == ErrorType::Timeout)
-            ++context.counters.timeouts;
+            ++counters.timeouts;
 
 
         if (ec == ErrorType::ConnectionError)
@@ -828,7 +831,12 @@ std::error_code MVLC::connect()
     if (isConnected())
     {
         if (!d->readerThread_.joinable())
+        {
+            d->readerContext_.stackErrors.access().ref() = {};
+            d->readerContext_.dsoBuffers.access()->clear();
+            d->readerContext_.counters.access().ref() = {};
             d->readerThread_ = std::thread(cmd_pipe_reader, std::ref(d->readerContext_));
+        }
 
         // Read hardware id and firmware revision.
         u32 hardwareId = 0;
@@ -965,9 +973,9 @@ std::error_code MVLC::uploadStack(
     return d->resultCheck(d->cmdApi_.uploadStack(stackOutputPipe, stackMemoryOffset, commands));
 }
 
-const CmdPipeCounters &MVLC::getCmdPipeCounters() const
+CmdPipeCounters MVLC::getCmdPipeCounters() const
 {
-    return d->readerContext_.counters;
+    return d->readerContext_.counters.copy();
 }
 
 StackErrorCounters MVLC::getStackErrorCounters() const
@@ -1027,6 +1035,25 @@ std::error_code MVLC::stackTransaction(const StackCommandBuilder &stackBuilder, 
 
     auto guard = d->locks_.lockCmd();
     return d->resultCheck(d->cmdApi_.stackTransaction(stackRef, stackBuilder, dest));
+}
+
+std::error_code MVLC::enableJumboFrames(bool b)
+{
+    if (!isConnected())
+        return make_error_code(MVLCErrorCode::IsDisconnected);
+
+    return writeRegister(registers::jumbo_frame_enable, static_cast<u32>(b));
+}
+
+std::pair<bool, std::error_code> MVLC::jumboFramesEnabled()
+{
+    if (!isConnected())
+        return std::make_pair(false, make_error_code(MVLCErrorCode::IsDisconnected));
+
+    u32 value = 0u;
+    auto ec = readRegister(registers::jumbo_frame_enable, value);
+
+    return std::make_pair(static_cast<bool>(value), ec);
 }
 
 } // end namespace apiv2
