@@ -61,8 +61,6 @@ struct PendingResponse
 
 struct ReaderContext
 {
-    static const size_t DSOMaxBuffers = 10;
-
     MVLCBasicInterface *mvlc;
     std::atomic<bool> quit;
     std::atomic<u16> nextSuperReference;
@@ -71,7 +69,6 @@ struct ReaderContext
     WaitableProtected<PendingResponse> pendingStack;
 
     Protected<StackErrorCounters> stackErrors;
-    WaitableProtected<std::deque<std::vector<u32>>> dsoBuffers;
     Protected<CmdPipeCounters> counters;
 
     explicit ReaderContext(MVLCBasicInterface *mvlc_)
@@ -82,7 +79,6 @@ struct ReaderContext
         , pendingSuper({})
         , pendingStack({})
         , stackErrors({})
-        , dsoBuffers({})
         , counters({})
         {}
 };
@@ -216,8 +212,7 @@ void cmd_pipe_reader(ReaderContext &context)
     {
         return is_super_buffer(header)
             || is_stack_buffer(header)
-            || is_stackerror_notification(header)
-            || is_dso_buffer(header);
+            || is_stackerror_notification(header);
     };
 
     auto contains_complete_frame = [=] (const u32 *begin, const u32 *end) -> bool
@@ -227,9 +222,6 @@ void cmd_pipe_reader(ReaderContext &context)
 
         assert(end - begin > 0);
         assert(is_good_header(*begin));
-
-        if (is_dso_buffer(*begin))
-            return (std::find_if(begin, end, [] (u32 word) { return word == DSOBufferEnd; }) != end);
 
         auto frameInfo = extract_frame_info(*begin);
         auto avail = end - begin;
@@ -300,24 +292,6 @@ void cmd_pipe_reader(ReaderContext &context)
                         basic_string_view<u32>(frameBegin, frameEnd-frameBegin));
 
                     buffer.consume(get_frame_length(buffer[0]) + 1);
-                }
-                else if (is_dso_buffer(buffer[0]))
-                {
-                    ++counters.dsoBuffers;
-
-                    auto dsoEnd = std::find_if(
-                        buffer.begin(), buffer.end(),
-                        [] (u32 word) { return word == DSOBufferEnd; }) + 1;
-
-                    assert(dsoEnd != buffer.end());
-
-                    std::vector<u32> dsoBuffer(buffer.begin(), dsoEnd);
-                    auto buffers = context.dsoBuffers.access();
-                    buffers->emplace_back(dsoBuffer);
-                    while (buffers->size() > ReaderContext::DSOMaxBuffers)
-                        buffers->pop_front();
-
-                    buffer.consume(dsoEnd - buffer.begin());
                 }
                 // super buffers
                 else if (is_super_buffer(buffer[0]))
@@ -508,23 +482,6 @@ class CmdApi
         void resetStackErrorCounters()
         {
             readerContext_.stackErrors.access().ref() = {};
-        }
-
-        std::deque<std::vector<u32>> getDsoBuffers() const
-        {
-            return readerContext_.dsoBuffers.copy();
-        }
-
-        std::vector<u32> getLatestDsoBuffer() const
-        {
-            std::vector<u32> result;
-
-            auto buffers = readerContext_.dsoBuffers.access();
-
-            if (!buffers->empty())
-                result = buffers->front();
-
-            return result;
         }
 
         std::error_code superTransaction(
@@ -833,7 +790,6 @@ std::error_code MVLC::connect()
         if (!d->readerThread_.joinable())
         {
             d->readerContext_.stackErrors.access().ref() = {};
-            d->readerContext_.dsoBuffers.access()->clear();
             d->readerContext_.counters.access().ref() = {};
             d->readerThread_ = std::thread(cmd_pipe_reader, std::ref(d->readerContext_));
         }
@@ -984,11 +940,6 @@ StackErrorCounters MVLC::getStackErrorCounters() const
 void MVLC::resetStackErrorCounters()
 {
     d->cmdApi_.resetStackErrorCounters();
-}
-
-WaitableProtected<std::deque<std::vector<u32>>> &MVLC::getDSOBuffers() const
-{
-    return d->readerContext_.dsoBuffers;
 }
 
 MVLCBasicInterface *MVLC::getImpl()

@@ -98,10 +98,9 @@ class MVLC
 
         CmdPipeCounters getCmdPipeCounters() const;
 
-        // access to push data: stack error counters and dso buffers
+        // Access to accumulated stack error notification data
         StackErrorCounters getStackErrorCounters() const;
         void resetStackErrorCounters();
-        WaitableProtected<std::deque<std::vector<u32>>> &getDSOBuffers() const;
 
         // Low level implementation and per-pipe lock access.
         MVLCBasicInterface *getImpl();
