@@ -1,6 +1,8 @@
 TODO {#todo}
 ============
 
+* Better mvlc factory to create an mvlc based on a connection string
+
 * Enforce that the immediate stack is starting at an offset > 0 so that when
   resetting others stacks offsets they do not point to the immediate stack.
 

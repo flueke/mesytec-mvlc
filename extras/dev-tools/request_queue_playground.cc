@@ -100,7 +100,6 @@ void vmewrite_test(apiv2::MVLC &mvlc, std::atomic<size_t> &stackTransactions, st
 }
 #endif
 
-#if 1
 int main(int argc, char *argv[])
 {
     //{
@@ -322,6 +321,5 @@ static constexpr int PARALLEL_VMEWRITE_TESTS = 2;
         throw;
     }
 
-        spdlog::info("end of main()");
+    spdlog::info("end of main()");
 }
-#endif

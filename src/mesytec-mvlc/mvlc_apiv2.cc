@@ -773,6 +773,7 @@ MVLC::MVLC()
 MVLC::MVLC(std::unique_ptr<MVLCBasicInterface> &&impl)
     : d(std::make_shared<Private>(std::move(impl)))
 {
+        spdlog::set_level(spdlog::level::trace);
 }
 
 MVLC::~MVLC()
@@ -785,8 +786,18 @@ std::error_code MVLC::connect()
     auto ec = d->impl_->connect();
     d->isConnected_ = d->impl_->isConnected();
 
-    if (isConnected())
+    if (!isConnected())
     {
+        assert(!d->readerThread_.joinable());
+
+        if (d->readerThread_.joinable())
+        {
+            d->readerContext_.quit = true;
+            d->readerThread_.join();
+        }
+
+        assert(!d->readerThread_.joinable());
+
         if (!d->readerThread_.joinable())
         {
             d->readerContext_.stackErrors.access().ref() = {};

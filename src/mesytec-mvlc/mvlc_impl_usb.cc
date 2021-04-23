@@ -477,10 +477,6 @@ std::error_code Impl::connect()
     FT_PIPE_TRANSFER_CONF &pipeConf = transferConf.pipe[FT_PIPE_DIR_IN];
 
     pipeConf.fNonThreadSafeTransfer = true;
-    //pipeConf.bURBCount = 8;
-    //pipeConf.wURBBufferCount = 32;
-    //pipeConf.dwURBBufferSize = 1024 * 1024;
-    // Total allocated buffer size is wURBBufferCount * dwURBBufferSize
 
     st = FT_SetTransferParams(&transferConf, get_fifo_id(Pipe::Data));
 
@@ -549,6 +545,21 @@ std::error_code Impl::connect()
         return ec;
     }
 
+    // XXX: set command pipe read timeout to a value that works for the old dialog layer.
+    // It's set back to 0 at the end of connect()
+    {
+        auto pipe = Pipe::Command;
+        auto p = static_cast<unsigned>(pipe);
+
+        m_readTimeouts[p] = 500;
+
+        if (auto ec = set_endpoint_timeout(m_handle, get_endpoint(pipe, EndpointDirection::In), 0))
+        {
+            closeHandle();
+            return ec;
+        }
+    }
+
 #ifdef __WIN32
     // clean up the pipes
     for (auto pipe: { Pipe::Command, Pipe::Data })
@@ -594,7 +605,6 @@ std::error_code Impl::connect()
     // XXX: Keep timeouts at their default value until post_connect_cleanup()
     // is done, then set the read timeout of the command pipe to 0. Under linux
     // this has the effect of only reading from the drivers user-space buffer.
-    // TODO: rework the timeout handling.
     {
         auto pipe = Pipe::Command;
         auto p = static_cast<unsigned>(pipe);
@@ -607,26 +617,6 @@ std::error_code Impl::connect()
             return ec;
         }
     }
-
-#if 0
-    // Apply the read and write timeouts.
-    for (auto pipe: { Pipe::Command, Pipe::Data })
-    {
-        if (auto ec = set_endpoint_timeout(m_handle, get_endpoint(pipe, EndpointDirection::Out),
-                                           writeTimeout(pipe)))
-        {
-            closeHandle();
-            return ec;
-        }
-
-        if (auto ec = set_endpoint_timeout(m_handle, get_endpoint(pipe, EndpointDirection::In),
-                                           readTimeout(pipe)))
-        {
-            closeHandle();
-            return ec;
-        }
-    }
-#endif
 
     LOG_INFO("connected to MVLC USB");
 
