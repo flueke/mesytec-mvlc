@@ -783,8 +783,8 @@ MVLC::~MVLC()
 std::error_code MVLC::connect()
 {
     auto guards = d->locks_.lockBoth();
-    auto ec = d->impl_->connect();
     d->isConnected_ = d->impl_->isConnected();
+    std::error_code ec;
 
     if (!isConnected())
     {
@@ -797,6 +797,15 @@ std::error_code MVLC::connect()
         }
 
         assert(!d->readerThread_.joinable());
+
+        ec = d->impl_->connect();
+        d->isConnected_ = d->impl_->isConnected();
+
+        if (ec)
+        {
+            spdlog::debug("MVLC::connect(): impl::connect() returned {}", ec.message());
+            return ec;
+        }
 
         if (!d->readerThread_.joinable())
         {
@@ -823,6 +832,10 @@ std::error_code MVLC::connect()
 
         d->hardwareId_ = hardwareId;
         d->firmwareRevision_ = firmwareRevision;
+    }
+    else
+    {
+        return make_error_code(MVLCErrorCode::IsConnected);
     }
 
     return ec;
