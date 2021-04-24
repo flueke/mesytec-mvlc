@@ -6,6 +6,8 @@
 #include <memory>
 //#include <spdlog/spdlog.h>
 
+#include "mesytec-mvlc/mesytec-mvlc_export.h"
+
 #include "mvlc_basic_interface.h"
 #include "mvlc_command_builders.h"
 #include "mvlc_stack_errors.h"
@@ -39,7 +41,7 @@ struct CmdPipeCounters
     size_t stackRefMismatches;
 };
 
-class MVLC
+class MESYTEC_MVLC_EXPORT MVLC
 {
     public:
         // Warning: the default constructor creates a MVLC object which is in
