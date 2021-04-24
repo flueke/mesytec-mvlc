@@ -132,18 +132,19 @@ std::error_code read_daq_mode(DIALOG_API &mvlc, u32 &daqMode)
 template<typename DIALOG_API>
 std::error_code disable_all_triggers_and_daq_mode(DIALOG_API &mvlc)
 {
-    if (auto ec = disable_daq_mode(mvlc))
-        return ec;
+    SuperCommandBuilder sb;
+    sb.addReferenceWord(0x1338);
+
+    sb.addWriteLocal(DAQModeEnableRegister, 0);
 
     for (u8 stackId = 0; stackId < stacks::StackCount; stackId++)
     {
         u16 addr = stacks::get_trigger_register(stackId);
-
-        if (auto ec = mvlc.writeRegister(addr, stacks::NoTrigger))
-            return ec;
+        sb.addWriteLocal(addr, stacks::NoTrigger);
     }
 
-    return {};
+    std::vector<u32> responseBuffer;
+    return mvlc.superTransaction(sb, responseBuffer);
 }
 
 template<typename DIALOG_API>
