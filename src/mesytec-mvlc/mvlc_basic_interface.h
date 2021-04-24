@@ -54,14 +54,6 @@ class MVLCBasicInterface
         virtual std::error_code read(Pipe pipe, u8 *buffer, size_t size,
                                      size_t &bytesTransferred) = 0;
 
-        // Note: changes to the timeout values only have to be applied when
-        // (re)connecting to the MVLC.
-        virtual std::error_code setWriteTimeout(Pipe pipe, unsigned ms) = 0;
-        virtual std::error_code setReadTimeout(Pipe pipe, unsigned ms) = 0;
-
-        virtual unsigned writeTimeout(Pipe pipe) const = 0;
-        virtual unsigned readTimeout(Pipe pipe) const = 0;
-
         // If enabled the implementation must try to disable all trigger
         // processing while (in the case of USB) reading and discarding all
         // buffered readout data.

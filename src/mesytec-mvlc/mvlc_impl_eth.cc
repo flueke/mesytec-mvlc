@@ -75,6 +75,10 @@ namespace
 {
 using namespace mesytec::mvlc;
 
+static const unsigned DefaultWriteTimeout_ms = 500;
+static const unsigned DefaultReadTimeout_ms  = 500;
+
+
 // Does IPv4 host lookup for a UDP socket. On success the resulting struct
 // sockaddr_in is copied to dest.
 std::error_code lookup(const std::string &host, u16 port, sockaddr_in &dest)
@@ -873,7 +877,7 @@ std::error_code Impl::connect()
 
     for (auto pipe: { Pipe::Command, Pipe::Data })
     {
-        if (auto ec = set_socket_write_timeout(getSocket(pipe), writeTimeout(pipe)))
+        if (auto ec = set_socket_write_timeout(getSocket(pipe), DefaultWriteTimeout_ms))
         {
             LOG_TRACE("set_socket_write_timeout failed: %s, socket=%d",
                       ec.message().c_str(),
@@ -881,7 +885,7 @@ std::error_code Impl::connect()
             return ec;
         }
 
-        if (auto ec = set_socket_read_timeout(getSocket(pipe), readTimeout(pipe)))
+        if (auto ec = set_socket_read_timeout(getSocket(pipe), DefaultReadTimeout_ms))
         {
             LOG_TRACE("set_socket_read_timeout failed: %s", ec.message().c_str());
             return ec;
@@ -1079,42 +1083,6 @@ bool Impl::isConnected() const
     return m_cmdSock >= 0 && m_dataSock >= 0 && m_delaySock >= 0;
 }
 
-std::error_code Impl::setWriteTimeout(Pipe pipe, unsigned ms)
-{
-    auto p = static_cast<unsigned>(pipe);
-
-    if (p >= PipeCount)
-        return make_error_code(MVLCErrorCode::InvalidPipe);
-
-    m_writeTimeouts[p] = ms;
-
-    return {};
-}
-
-std::error_code Impl::setReadTimeout(Pipe pipe, unsigned ms)
-{
-    auto p = static_cast<unsigned>(pipe);
-
-    if (p >= PipeCount)
-        return make_error_code(MVLCErrorCode::InvalidPipe);
-
-    m_readTimeouts[p] = ms;
-
-    return {};
-}
-
-unsigned Impl::writeTimeout(Pipe pipe) const
-{
-    if (static_cast<unsigned>(pipe) >= PipeCount) return 0u;
-    return m_writeTimeouts[static_cast<unsigned>(pipe)];
-}
-
-unsigned Impl::readTimeout(Pipe pipe) const
-{
-    if (static_cast<unsigned>(pipe) >= PipeCount) return 0u;
-    return m_readTimeouts[static_cast<unsigned>(pipe)];
-}
-
 std::error_code Impl::write(Pipe pipe, const u8 *buffer, size_t size,
                             size_t &bytesTransferred)
 {
@@ -1224,7 +1192,7 @@ PacketReadResult Impl::read_packet(Pipe pipe_, u8 *buffer, size_t size)
 
     res.ec = receive_one_packet(getSocket(pipe_), buffer, size,
                                 res.bytesTransferred,
-                                readTimeout(pipe_));
+                                DefaultReadTimeout_ms);
     res.buffer = buffer;
 
     if (res.ec && res.bytesTransferred == 0)
@@ -1461,9 +1429,7 @@ std::error_code Impl::read(Pipe pipe_, u8 *buffer, size_t size,
         auto tEnd = std::chrono::steady_clock::now();
         auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(tEnd - tStart);
 
-        //qDebug() << elapsed.count() << readTimeout(pipe_);
-
-        if (elapsed.count() >= readTimeout(pipe_))
+        if (elapsed.count() >= DefaultReadTimeout_ms)
         {
             LOG_TRACE("  pipe=%u, read of size=%zu completes with %zu bytes and timeout"
                       " after %zu reads, remaining bytes in buffer=%zu",

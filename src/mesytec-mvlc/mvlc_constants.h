@@ -497,11 +497,6 @@ enum class Pipe: u8
     Data = DataPipe,
 };
 
-// Note: The write timeout applies to USB only. When using ethernet the sockets
-// are set to blocking mode in the outgoing direction.
-static const unsigned DefaultWriteTimeout_ms = 500;
-static const unsigned DefaultReadTimeout_ms  = 500;
-
 enum class ConnectionType
 {
     USB,

@@ -464,7 +464,7 @@ std::error_code Impl::closeHandle()
 
 std::error_code Impl::connect()
 {
-        spdlog::set_level(spdlog::level::trace);
+    //spdlog::set_level(spdlog::level::trace);
     spdlog::trace("begin {}", __PRETTY_FUNCTION__);
 
     if (isConnected())
@@ -555,18 +555,13 @@ std::error_code Impl::connect()
 
     // XXX: set command pipe read timeout to a value that works for the old dialog layer.
     // Under linux it's set back to 0 at the end of connect()
+    if (auto ec = set_endpoint_timeout(m_handle, get_endpoint(Pipe::Command, EndpointDirection::In), 100))
     {
-        auto pipe = Pipe::Command;
-        auto p = static_cast<unsigned>(pipe);
-
-        if (auto ec = set_endpoint_timeout(m_handle, get_endpoint(pipe, EndpointDirection::In), 100))
-        {
-            closeHandle();
-            return ec;
-        }
-
-        spdlog::trace("set CommandPipe timeout done");
+        closeHandle();
+        return ec;
     }
+
+    spdlog::trace("set CommandPipe timeout done");
 
 #ifdef __WIN32
     // clean up the pipes
@@ -618,18 +613,13 @@ std::error_code Impl::connect()
     // XXX: Keep timeouts at their default value until post_connect_cleanup()
     // is done, then set the read timeout of the command pipe to 0. Under linux
     // this has the effect of only reading from the drivers user-space buffer.
+    if (auto ec = set_endpoint_timeout(m_handle, get_endpoint(Pipe::Command, EndpointDirection::In), 0))
     {
-        auto pipe = Pipe::Command;
-        auto p = static_cast<unsigned>(pipe);
-
-        if (auto ec = set_endpoint_timeout(m_handle, get_endpoint(pipe, EndpointDirection::In), 0))
-        {
-            closeHandle();
-            return ec;
-        }
-
-        spdlog::trace("linux: CommandPipe timeout set to 0");
+        closeHandle();
+        return ec;
     }
+
+    spdlog::trace("linux: CommandPipe timeout set to 0");
 #endif
 
     LOG_INFO("connected to MVLC USB");
@@ -654,50 +644,6 @@ std::error_code Impl::disconnect()
 bool Impl::isConnected() const
 {
     return m_handle != nullptr;
-}
-
-std::error_code Impl::setWriteTimeout(Pipe pipe, unsigned ms)
-{
-    auto p = static_cast<unsigned>(pipe);
-
-    if (p >= PipeCount)
-        return make_error_code(MVLCErrorCode::InvalidPipe);
-
-    LOG_WARN("setWriteTimeout(pipe=%u, ms=%u)", p, ms);
-
-    m_writeTimeouts[p] = ms;
-
-    return {};
-}
-
-std::error_code Impl::setReadTimeout(Pipe pipe, unsigned ms)
-{
-    auto p = static_cast<unsigned>(pipe);
-
-    if (p >= PipeCount)
-        return make_error_code(MVLCErrorCode::InvalidPipe);
-
-    LOG_WARN("setReadTimeout(pipe=%u, ms=%u)", p, ms);
-
-    m_readTimeouts[p] = ms;
-
-    return {};
-}
-
-unsigned Impl::writeTimeout(Pipe pipe) const
-{
-    auto up = static_cast<unsigned>(pipe);
-    assert(up < PipeCount);
-    if (up >= PipeCount) return 0u;
-    return m_writeTimeouts[up];
-}
-
-unsigned Impl::readTimeout(Pipe pipe) const
-{
-    auto up = static_cast<unsigned>(pipe);
-    assert(up < PipeCount);
-    if (up >= PipeCount) return 0u;
-    return m_readTimeouts[up];
 }
 
 #ifdef __WIN32 // windows

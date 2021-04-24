@@ -89,12 +89,6 @@ class MESYTEC_MVLC_EXPORT Impl: public MVLCBasicInterface, public MVLC_ETH_Inter
         std::error_code disconnect() override;
         bool isConnected() const override;
 
-        std::error_code setWriteTimeout(Pipe pipe, unsigned ms) override;
-        std::error_code setReadTimeout(Pipe pipe, unsigned ms) override;
-
-        unsigned writeTimeout(Pipe pipe) const override;
-        unsigned readTimeout(Pipe pipe) const override;
-
         std::error_code write(Pipe pipe, const u8 *buffer, size_t size,
                               size_t &bytesTransferred) override;
 
@@ -145,14 +139,6 @@ class MESYTEC_MVLC_EXPORT Impl: public MVLCBasicInterface, public MVLC_ETH_Inter
         struct sockaddr_in m_cmdAddr = {};
         struct sockaddr_in m_dataAddr = {};
         struct sockaddr_in m_delayAddr = {};
-
-        std::array<unsigned, PipeCount> m_writeTimeouts = {
-            DefaultWriteTimeout_ms, DefaultWriteTimeout_ms
-        };
-
-        std::array<unsigned, PipeCount> m_readTimeouts = {
-            DefaultReadTimeout_ms, DefaultReadTimeout_ms
-        };
 
         // Used internally for buffering in read()
         struct ReceiveBuffer
