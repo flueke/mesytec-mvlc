@@ -553,12 +553,17 @@ std::error_code Impl::connect()
 
     spdlog::trace("check_chip_configuration done");
 
-    // XXX: set command pipe read timeout to a value that works for the old dialog layer.
-    // Under linux it's set back to 0 at the end of connect()
-    if (auto ec = set_endpoint_timeout(m_handle, get_endpoint(Pipe::Command, EndpointDirection::In), 100))
+    // Set actual read timeouts on the command and data pipes. Note that for
+    // linux the command pipe read timeout is set to 0 later on. This initial
+    // non-zero timeout is used to make the MVLCDialog operations in
+    // post_connect_cleanup() work.
+    for (auto pipe: { Pipe::Command, Pipe::Data})
     {
-        closeHandle();
-        return ec;
+        if (auto ec = set_endpoint_timeout(m_handle, get_endpoint(pipe, EndpointDirection::In), 100))
+        {
+            closeHandle();
+            return ec;
+        }
     }
 
     spdlog::trace("set CommandPipe timeout done");
@@ -610,9 +615,9 @@ std::error_code Impl::connect()
     }
 
 #ifndef __WIN32
-    // XXX: Keep timeouts at their default value until post_connect_cleanup()
-    // is done, then set the read timeout of the command pipe to 0. Under linux
-    // this has the effect of only reading from the drivers user-space buffer.
+    // Linux only: after post_connect_cleanup() is done set the command pipes
+    // read timeout to 0 which has the effect of only reading from the FTDI
+    // libray buffer.
     if (auto ec = set_endpoint_timeout(m_handle, get_endpoint(Pipe::Command, EndpointDirection::In), 0))
     {
         closeHandle();
