@@ -773,7 +773,7 @@ MVLC::MVLC()
 MVLC::MVLC(std::unique_ptr<MVLCBasicInterface> &&impl)
     : d(std::make_shared<Private>(std::move(impl)))
 {
-        spdlog::set_level(spdlog::level::trace);
+        //spdlog::set_level(spdlog::level::trace);
 }
 
 MVLC::~MVLC()
@@ -809,6 +809,7 @@ std::error_code MVLC::connect()
 
         if (!d->readerThread_.joinable())
         {
+            d->readerContext_.quit = false;
             d->readerContext_.stackErrors.access().ref() = {};
             d->readerContext_.counters.access().ref() = {};
             d->readerThread_ = std::thread(cmd_pipe_reader, std::ref(d->readerContext_));
