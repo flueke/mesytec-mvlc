@@ -168,6 +168,8 @@ int main(int argc, char *argv[])
 
     try
     {
+        spdlog::info("connecting to mvlc");
+
         if (auto ec = mvlc.connect())
             throw ec;
 
@@ -180,9 +182,9 @@ int main(int argc, char *argv[])
         auto tStart = std::chrono::steady_clock::now();
 
 static constexpr int SECONDS_TO_RUN = 4;
-static constexpr int PARALLEL_SUPER_TESTS = 2;
-static constexpr int PARALLEL_VMEREAD_TESTS = 2;
-static constexpr int PARALLEL_VMEWRITE_TESTS = 2;
+static constexpr int PARALLEL_SUPER_TESTS = 0;
+static constexpr int PARALLEL_VMEREAD_TESTS = 0;
+static constexpr int PARALLEL_VMEWRITE_TESTS = 0;
 
         std::vector<std::thread> testThreads;
         std::atomic<bool> quitTests(false);
@@ -251,8 +253,8 @@ static constexpr int PARALLEL_VMEWRITE_TESTS = 2;
             {
                 std::ostringstream out;
                 util::log_buffer(out, dsoDest, "dso buffer");
-                spdlog::info("result from dso block read: {}",
-                             out.str());
+                //spdlog::info("result from dso block read: {}",
+                //             out.str());
             }
         }
 

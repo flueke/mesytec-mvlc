@@ -27,6 +27,7 @@
 #include <iomanip>
 #include <numeric>
 #include <regex>
+#include <spdlog/spdlog.h>
 
 #include <ftd3xx.h>
 
@@ -463,6 +464,9 @@ std::error_code Impl::closeHandle()
 
 std::error_code Impl::connect()
 {
+        spdlog::set_level(spdlog::level::trace);
+    spdlog::trace("begin {}", __PRETTY_FUNCTION__);
+
     if (isConnected())
         return make_error_code(MVLCErrorCode::IsConnected);
 
@@ -534,6 +538,8 @@ std::error_code Impl::connect()
             break;
     }
 
+    spdlog::trace("FT_Create done");
+
     if (auto ec = make_error_code(st))
         return ec;
 
@@ -545,19 +551,21 @@ std::error_code Impl::connect()
         return ec;
     }
 
+    spdlog::trace("check_chip_configuration done");
+
     // XXX: set command pipe read timeout to a value that works for the old dialog layer.
-    // It's set back to 0 at the end of connect()
+    // Under linux it's set back to 0 at the end of connect()
     {
         auto pipe = Pipe::Command;
         auto p = static_cast<unsigned>(pipe);
 
-        m_readTimeouts[p] = 500;
-
-        if (auto ec = set_endpoint_timeout(m_handle, get_endpoint(pipe, EndpointDirection::In), 0))
+        if (auto ec = set_endpoint_timeout(m_handle, get_endpoint(pipe, EndpointDirection::In), 100))
         {
             closeHandle();
             return ec;
         }
+
+        spdlog::trace("set CommandPipe timeout done");
     }
 
 #ifdef __WIN32
@@ -573,6 +581,7 @@ std::error_code Impl::connect()
             }
         }
     }
+    spdlog::trace("win32 pipe cleanup done");
 #endif
 
 #ifdef __WIN32
@@ -588,6 +597,7 @@ std::error_code Impl::connect()
         closeHandle();
         return ec;
     }
+    spdlog::trace("win32 streampipe mode enabled");
 #endif // USB_WIN_USE_STREAMPIPE
 #endif // __WIN32
 
@@ -600,8 +610,11 @@ std::error_code Impl::connect()
             LOG_WARN("error from USB post connect cleanup: %s", ec.message().c_str());
             return ec;
         }
+
+        spdlog::trace("post_connect_cleanup() done");
     }
 
+#ifndef __WIN32
     // XXX: Keep timeouts at their default value until post_connect_cleanup()
     // is done, then set the read timeout of the command pipe to 0. Under linux
     // this has the effect of only reading from the drivers user-space buffer.
@@ -609,16 +622,18 @@ std::error_code Impl::connect()
         auto pipe = Pipe::Command;
         auto p = static_cast<unsigned>(pipe);
 
-        m_readTimeouts[p] = 0;
-
         if (auto ec = set_endpoint_timeout(m_handle, get_endpoint(pipe, EndpointDirection::In), 0))
         {
             closeHandle();
             return ec;
         }
+
+        spdlog::trace("linux: CommandPipe timeout set to 0");
     }
+#endif
 
     LOG_INFO("connected to MVLC USB");
+    spdlog::trace("end {}", __PRETTY_FUNCTION__);
 
     return {};
 
