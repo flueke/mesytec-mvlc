@@ -50,7 +50,7 @@ class MESYTEC_MVLC_EXPORT MVLCDialog_internal
         // response buffer is received.
         constexpr static auto ReadResponseMaxWait = std::chrono::milliseconds(60000);
 
-        // Max number of retries for mirrorTransaction() in case of
+        // Max number of retries for superTransaction() in case of
         // SocketReadTimeout or SocketWriteTimeout errors.
         // When running into one of the above timeout cases the whole
         // transaction is retried a maximum of MirrorMaxRetries times.
@@ -125,8 +125,14 @@ class MESYTEC_MVLC_EXPORT MVLCDialog_internal
         // Sends the given cmdBuffer to the MVLC then reads and verifies the
         // mirror response. The buffer must start with CmdBufferStart and end
         // with CmdBufferEnd, otherwise the MVLC cannot interpret it.
-        std::error_code mirrorTransaction(
+        std::error_code superTransaction(
             const std::vector<u32> &cmdBuffer, std::vector<u32> &responseDest);
+
+        std::error_code superTransaction(
+            const SuperCommandBuilder &superBuilder, std::vector<u32> &dest)
+        {
+            return superTransaction(make_command_buffer(superBuilder), dest);
+        }
 
         // Sends the given stack data (which must include upload commands),
         // reads and verifies the mirror response, and executes the stack.

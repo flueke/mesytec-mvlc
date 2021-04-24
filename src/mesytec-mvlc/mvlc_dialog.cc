@@ -272,7 +272,7 @@ std::error_code MVLCDialog_internal::readRegister(u16 address, u32 &value)
     auto request = make_command_buffer(cmdList);
     logBuffer(request, "readRegister >>>");
 
-    auto ec = mirrorTransaction(request, m_responseBuffer);
+    auto ec = superTransaction(request, m_responseBuffer);
     logBuffer(m_responseBuffer, "readRegister <<<");
     if (ec) return ec;
 
@@ -332,7 +332,7 @@ std::error_code MVLCDialog_internal::writeRegister(u16 address, u32 value)
     auto request = make_command_buffer(cmdList);
     logBuffer(request, "writeRegister >>>");
 
-    auto ec = mirrorTransaction(request, m_responseBuffer);
+    auto ec = superTransaction(request, m_responseBuffer);
     logBuffer(m_responseBuffer, "writeRegister <<<");
 
     if (ec)
@@ -344,7 +344,7 @@ std::error_code MVLCDialog_internal::writeRegister(u16 address, u32 value)
     return {};
 }
 
-std::error_code MVLCDialog_internal::mirrorTransaction(const std::vector<u32> &cmdBuffer,
+std::error_code MVLCDialog_internal::superTransaction(const std::vector<u32> &cmdBuffer,
                                               std::vector<u32> &dest)
 {
     if (cmdBuffer.size() > MirrorTransactionMaxWords)
@@ -396,7 +396,7 @@ std::error_code MVLCDialog_internal::stackTransaction(const std::vector<u32> &st
     //DebugTimer timer;
 
     // upload, read mirror, verify mirror
-    if (auto ec = mirrorTransaction(stack, dest))
+    if (auto ec = superTransaction(stack, dest))
         return ec;
 
     //auto dt_mirror = timer.restart();
@@ -517,7 +517,7 @@ std::error_code MVLCDialog_internal::uploadStack(
         assert(request.size() >= 2u); // CmdBufferStart and CmdBufferEnd
         assert(request.size() <= MirrorTransactionMaxWords);
 
-        if (auto ec = mirrorTransaction(request, responseDest))
+        if (auto ec = superTransaction(request, responseDest))
             return ec;
 
         ++partCount;
