@@ -77,6 +77,9 @@ namespace
 {
 using namespace mesytec::mvlc;
 
+static const unsigned DefaultWriteTimeout_ms = 500;
+static const unsigned DefaultReadTimeout_ms  = 500;
+
 class FTErrorCategory: public std::error_category
 {
     const char *name() const noexcept override
@@ -754,7 +757,7 @@ std::error_code Impl::write(Pipe pipe, const u8 *buffer, size_t size,
     FT_STATUS st = FT_WritePipeEx(m_handle, get_fifo_id(pipe),
                                   const_cast<u8 *>(buffer), size,
                                   &transferred,
-                                  m_writeTimeouts[static_cast<unsigned>(pipe)]);
+                                  DefaultWriteTimeout_ms);
 
     bytesTransferred = transferred;
 
@@ -950,7 +953,7 @@ std::error_code Impl::read(Pipe pipe, u8 *buffer, size_t size,
     FT_STATUS st = FT_ReadPipeEx(m_handle, get_fifo_id(pipe),
                                  buffer, size,
                                  &transferred,
-                                 m_readTimeouts[static_cast<unsigned>(pipe)]);
+                                 DefaultReadTimeout_ms);
 
     bytesTransferred = transferred;
 
@@ -1047,7 +1050,7 @@ std::error_code Impl::read_unbuffered(Pipe pipe, u8 *buffer, size_t size,
     FT_STATUS st = FT_ReadPipeEx(m_handle, get_fifo_id(pipe),
                                  buffer, size,
                                  &transferred,
-                                 m_readTimeouts[static_cast<unsigned>(pipe)]);
+                                 DefaultReadTimeout_ms);
 #endif
 
     bytesTransferred = transferred;
