@@ -127,7 +127,10 @@ int main(int argc, char *argv[])
     auto parseResult = cli.parse({ argc, argv});
 
     if (!parseResult)
+    {
+        cout << parseResult.errorMessage() << endl;
         return 1;
+    }
 
     if (showHelp)
     {
@@ -182,9 +185,9 @@ int main(int argc, char *argv[])
         auto tStart = std::chrono::steady_clock::now();
 
 static constexpr int SECONDS_TO_RUN = 4;
-static constexpr int PARALLEL_SUPER_TESTS = 0;
-static constexpr int PARALLEL_VMEREAD_TESTS = 0;
-static constexpr int PARALLEL_VMEWRITE_TESTS = 0;
+static constexpr int PARALLEL_SUPER_TESTS = 2;
+static constexpr int PARALLEL_VMEREAD_TESTS = 2;
+static constexpr int PARALLEL_VMEWRITE_TESTS = 2;
 
         std::vector<std::thread> testThreads;
         std::atomic<bool> quitTests(false);

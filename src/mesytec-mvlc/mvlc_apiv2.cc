@@ -819,12 +819,14 @@ std::error_code MVLC::connect()
         u32 hardwareId = 0;
         u32 firmwareRevision = 0;
 
+        spdlog::trace("reading hardware_id register");
         if (auto ec = d->cmdApi_.readRegister(registers::hardware_id, hardwareId))
         {
             d->isConnected_ = false;
             return ec;
         }
 
+        spdlog::trace("reading firmware_revision register");
         if (auto ec = d->cmdApi_.readRegister(registers::firmware_revision, firmwareRevision))
         {
             d->isConnected_ = false;
