@@ -9,6 +9,7 @@
 #include <limits>
 #include <sstream>
 #include <system_error>
+#include <spdlog/spdlog.h>
 
 #ifndef __WIN32
     #include <netdb.h>
@@ -743,6 +744,9 @@ Impl::~Impl()
 //   currently sending its data output.
 std::error_code Impl::connect()
 {
+    //spdlog::set_level(spdlog::level::trace);
+    spdlog::trace("begin {}", __PRETTY_FUNCTION__);
+
     auto close_sockets = [this] ()
     {
         if (m_cmdSock >= 0)
@@ -1055,6 +1059,8 @@ std::error_code Impl::connect()
         mvlc_eth_throttler,
         std::ref(m_throttleContext),
         std::ref(m_throttleCounters));
+
+    spdlog::trace("end {}", __PRETTY_FUNCTION__);
 
     return {};
 }
