@@ -627,7 +627,7 @@ std::error_code Impl::connect()
         return ec;
     }
 
-    spdlog::trace("linux: CommandPipe timeout set to 0");
+    spdlog::trace("linux: CommandPipe read timeout set to 0");
 #endif
 
     LOG_INFO("connected to MVLC USB");
@@ -950,10 +950,12 @@ std::error_code Impl::read(Pipe pipe, u8 *buffer, size_t size,
 
     ULONG transferred = 0; // FT API wants a ULONG* parameter
 
-    FT_STATUS st = FT_ReadPipeEx(m_handle, get_fifo_id(pipe),
-                                 buffer, size,
-                                 &transferred,
-                                 DefaultReadTimeout_ms);
+    FT_STATUS st = FT_ReadPipe(
+        m_handle,
+        get_endpoint(pipe, EndpointDirection::In),
+        buffer, size,
+        &transferred,
+        nullptr);
 
     bytesTransferred = transferred;
 
@@ -1047,10 +1049,11 @@ std::error_code Impl::read_unbuffered(Pipe pipe, u8 *buffer, size_t size,
         abortPipe(pipe, EndpointDirection::In);
 
 #else // linux
-    FT_STATUS st = FT_ReadPipeEx(m_handle, get_fifo_id(pipe),
-                                 buffer, size,
-                                 &transferred,
-                                 DefaultReadTimeout_ms);
+    FT_STATUS st = FT_ReadPipe(
+        m_handle, get_endpoint(pipe, EndpointDirection::In),
+        buffer, size,
+        &transferred,
+        nullptr);
 #endif
 
     bytesTransferred = transferred;
