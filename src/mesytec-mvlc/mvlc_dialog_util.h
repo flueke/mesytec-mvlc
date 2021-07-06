@@ -179,7 +179,7 @@ std::error_code setup_readout_stacks(
         if (stackId >= stacks::StackCount)
             return make_error_code(MVLCErrorCode::StackCountExceeded);
 
-        // FIXME: need to convert to a buffer to determine the size
+        // need to convert to a buffer to determine the size
         auto stackBuffer = make_stack_buffer(stackBuilder);
 
         u16 uploadAddress = uploadWordOffset * AddressIncrement;
@@ -188,7 +188,9 @@ std::error_code setup_readout_stacks(
         if (endAddress >= stacks::StackMemoryEnd)
             return make_error_code(MVLCErrorCode::StackMemoryExceeded);
 
-        if (auto ec = mvlc.uploadStack(DataPipe, uploadAddress, stackBuilder))
+        u8 stackOutputPipe = stackBuilder.suppressPipeOutput() ? SuppressPipeOutput : DataPipe;
+
+        if (auto ec = mvlc.uploadStack(stackOutputPipe, uploadAddress, stackBuilder))
             return ec;
 
         u16 offsetRegister = stacks::get_offset_register(stackId);

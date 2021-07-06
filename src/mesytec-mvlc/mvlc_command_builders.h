@@ -87,18 +87,20 @@ struct MESYTEC_MVLC_EXPORT StackCommand
     // A crude way of extending the StackCommandType enum.
     enum class CommandType: u8
     {
-        Invalid         = static_cast<u8>(0x0u),
+        Invalid             = static_cast<u8>(0x0u),
 
-        StackStart      = static_cast<u8>(StackCommandType::StackStart),
-        StackEnd        = static_cast<u8>(StackCommandType::StackEnd),
-        VMERead         = static_cast<u8>(StackCommandType::VMERead),
-        VMEWrite        = static_cast<u8>(StackCommandType::VMEWrite),
-        VMEMBLTSwapped  = static_cast<u8>(StackCommandType::VMEMBLTSwapped),
-        WriteMarker     = static_cast<u8>(StackCommandType::WriteMarker),
-        WriteSpecial    = static_cast<u8>(StackCommandType::WriteSpecial),
+        StackStart          = static_cast<u8>(StackCommandType::StackStart),
+        StackEnd            = static_cast<u8>(StackCommandType::StackEnd),
+        VMERead             = static_cast<u8>(StackCommandType::VMERead),
+        VMEWrite            = static_cast<u8>(StackCommandType::VMEWrite),
+        VMEMBLTSwapped      = static_cast<u8>(StackCommandType::VMEMBLTSwapped),
+        SignallingVMERead   = static_cast<u8>(StackCommandType::SignallingVMERead),
+        WriteMarker         = static_cast<u8>(StackCommandType::WriteMarker),
+        WriteSpecial        = static_cast<u8>(StackCommandType::WriteSpecial),
+        WriteSignalWord     = static_cast<u8>(StackCommandType::WriteSignalWord),
         // A value not in use by the MVLC protocol is used for the
         // SoftwareDelay command.
-        SoftwareDelay   = static_cast<u8>(0xEDu),
+        SoftwareDelay       = static_cast<u8>(0xEDu),
     };
 
     CommandType type = CommandType::Invalid;
@@ -165,12 +167,14 @@ class MESYTEC_MVLC_EXPORT StackCommandBuilder
         // If there exists no open group a new group with an empty name will be
         // created.
         StackCommandBuilder &addVMERead(u32 address, u8 amod, VMEDataWidth dataWidth);
+        StackCommandBuilder &addSignallingVMERead(u32 address, u8 amod, VMEDataWidth dataWidth);
         StackCommandBuilder &addVMEBlockRead(u32 address, u8 amod, u16 maxTransfers);
         StackCommandBuilder &addVMEMBLTSwapped(u32 address, u8 amod, u16 maxTransfers);
         // Overload of addVMEMBLTSwapped() using vme_amods::MBLT64 as the VME address modifier.
         StackCommandBuilder &addVMEMBLTSwapped(u32 address, u16 maxTransfers);
         StackCommandBuilder &addVMEWrite(u32 address, u32 value, u8 amod, VMEDataWidth dataWidth);
         StackCommandBuilder &addWriteMarker(u32 value);
+        StackCommandBuilder &addWriteSignalWord(u32 value);
 
         // Intended for direct stack execution. Suspends further command
         // execution for the given duration.
@@ -217,6 +221,9 @@ class MESYTEC_MVLC_EXPORT StackCommandBuilder
         std::string getName() const { return m_name; }
         StackCommandBuilder &setName(const std::string &name) { m_name = name; return *this; }
 
+        bool suppressPipeOutput() const { return m_suppressPipeOutput; }
+        StackCommandBuilder &setSuppressPipeOutput(bool suppress) { m_suppressPipeOutput = suppress; return *this; }
+
         bool empty() const
         {
             return (m_groups.empty()
@@ -233,6 +240,7 @@ class MESYTEC_MVLC_EXPORT StackCommandBuilder
     private:
         std::string m_name;
         std::vector<Group> m_groups;
+        bool m_suppressPipeOutput = false;
 };
 
 bool MESYTEC_MVLC_EXPORT produces_output(const StackCommand &cmd);

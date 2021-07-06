@@ -31,6 +31,7 @@ CommandExecResult run_command(
         case CT::StackEnd:
         case CT::WriteMarker:
         case CT::WriteSpecial:
+        case CT::WriteSignalWord:
             return result;
 
         case CT::SoftwareDelay:
@@ -60,6 +61,29 @@ CommandExecResult run_command(
                     cmd.address, cmd.amod, cmd.transfers, result.response);
             }
             break;
+
+        case CT::SignallingVMERead:
+            assert(!vme_amods::is_block_mode(cmd.amod));
+
+            if (!vme_amods::is_block_mode(cmd.amod))
+            {
+                u32 value = 0;
+
+                result.ec = mvlc.vmeSignallingRead(
+                    cmd.address, value, cmd.amod, cmd.dataWidth);
+
+                if (cmd.dataWidth == VMEDataWidth::D16)
+                    value &= 0xffffu;
+
+                result.response.push_back(value);
+            }
+            else
+            {
+                result.ec = mvlc.vmeBlockRead(
+                    cmd.address, cmd.amod, cmd.transfers, result.response);
+            }
+            break;
+
 
         case CT::VMEMBLTSwapped:
             result.ec = mvlc.vmeMBLTSwapped(
