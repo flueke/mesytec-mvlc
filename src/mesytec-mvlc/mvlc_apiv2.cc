@@ -170,7 +170,7 @@ void cmd_pipe_reader(ReaderContext &context)
         {
             if (start > 0)
             {
-                size_t oldFree = free();
+                size_t oldFree = free(); (void) oldFree;
                 std::copy(begin(), end(), mem.data());
                 start = 0;
                 assert(free() > oldFree);
