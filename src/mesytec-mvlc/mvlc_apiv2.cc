@@ -15,6 +15,10 @@
 #include "util/storage_sizes.h"
 #include "vme_constants.h"
 
+#ifndef NDEBUG
+#include <iostream>
+#include "util/io_util.h"
+#endif
 
 namespace mesytec
 {
@@ -659,6 +663,10 @@ std::error_code CmdApi::vmeRead(
     if (auto ec = stackTransaction(stackRef, stackBuilder, stackResponse))
         return ec;
 
+#ifndef NDEBUG
+    util::log_buffer(std::cerr, stackResponse, "vmeRead(): stackResponse");
+#endif
+
     if (stackResponse.size() != 3)
         return make_error_code(MVLCErrorCode::UnexpectedResponseSize);
 
@@ -685,6 +693,10 @@ std::error_code CmdApi::vmeSignallingRead(
 
     if (auto ec = stackTransaction(stackRef, stackBuilder, stackResponse))
         return ec;
+
+#ifndef NDEBUG
+    util::log_buffer(std::cerr, stackResponse, "vmeSignallingRead(): stackResponse");
+#endif
 
     if (stackResponse.size() != 3)
         return make_error_code(MVLCErrorCode::UnexpectedResponseSize);
@@ -713,6 +725,10 @@ std::error_code CmdApi::vmeWrite(
     if (auto ec = stackTransaction(stackRef, stackBuilder, stackResponse))
         return ec;
 
+#ifndef NDEBUG
+    util::log_buffer(std::cerr, stackResponse, "vmeWrite(): stackResponse");
+#endif
+
     if (stackResponse.size() != 2)
         return make_error_code(MVLCErrorCode::UnexpectedResponseSize);
 
@@ -734,7 +750,14 @@ std::error_code CmdApi::vmeBlockRead(
     stackBuilder.addWriteMarker(stackRef);
     stackBuilder.addVMEBlockRead(address, amod, maxTransfers);
 
-    return stackTransaction(stackRef, stackBuilder, dest);
+    if (auto ec = stackTransaction(stackRef, stackBuilder, dest))
+        return ec;
+
+#ifndef NDEBUG
+    util::log_buffer(std::cerr, dest, "vmeBlockRead(): stackResponse");
+#endif
+
+    return {};
 }
 
 std::error_code CmdApi::vmeMBLTSwapped(
@@ -745,6 +768,13 @@ std::error_code CmdApi::vmeMBLTSwapped(
     StackCommandBuilder stackBuilder;
     stackBuilder.addWriteMarker(stackRef);
     stackBuilder.addVMEMBLTSwapped(address, maxTransfers);
+
+    if (auto ec = stackTransaction(stackRef, stackBuilder, dest))
+        return ec;
+
+#ifndef NDEBUG
+    util::log_buffer(std::cerr, dest, "vmeMBLTSwapped(): stackResponse");
+#endif
 
     return stackTransaction(stackRef, stackBuilder, dest);
 }
