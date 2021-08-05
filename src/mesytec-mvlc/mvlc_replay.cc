@@ -3,6 +3,7 @@
 #include <chrono>
 #include <cstring>
 #include <iostream>
+#include <thread>
 
 #ifndef __WIN32
 #include <sys/prctl.h>
