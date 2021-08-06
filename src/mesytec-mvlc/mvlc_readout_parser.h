@@ -28,6 +28,7 @@
 #ifndef __MESYTEC_MVLC_MVLC_READOUT_PARSER_H__
 #define __MESYTEC_MVLC_MVLC_READOUT_PARSER_H__
 
+#include <array>
 #include <functional>
 #include <limits>
 #include <unordered_map>

@@ -5,7 +5,7 @@
 #include <iostream>
 #include <thread>
 
-#ifndef __WIN32
+#if __linux__
 #include <sys/prctl.h>
 #endif
 
@@ -237,7 +237,7 @@ ReplayWorker::ReplayWorker(
 
 void ReplayWorker::Private::loop(std::promise<std::error_code> promise)
 {
-#ifndef __WIN32
+#if __linux__
     prctl(PR_SET_NAME,"replay_worker",0,0,0);
 #endif
 

@@ -13,13 +13,13 @@
 
 #ifndef __WIN32
     #include <netdb.h>
-    #include <sys/prctl.h>
     #include <sys/stat.h>
     #include <sys/socket.h>
     #include <sys/types.h>
     #include <unistd.h>
 
     #ifdef __linux__
+        #include <sys/prctl.h>
         #include <linux/netlink.h>
         #include <linux/rtnetlink.h>
         #include <linux/inet_diag.h>
@@ -386,7 +386,7 @@ using ThrottleFunc = u16 (*)(eth::EthThrottleContext &ctx,  const ReceiveBufferS
 
 static ThrottleFunc theThrottleFunc = throttle_exponential;
 
-#ifndef __WIN32
+#ifdef __linux__
 void mvlc_eth_throttler(
     Protected<eth::EthThrottleContext> &ctx,
     Protected<eth::EthThrottleCounters> &counters)
@@ -564,7 +564,9 @@ void mvlc_eth_throttler(
         return {};
     };
 
+#ifdef __linux__
     prctl(PR_SET_NAME,"eth_throttler",0,0,0);
+#endif
 
     int diagSocket = socket(AF_NETLINK, SOCK_RAW | SOCK_CLOEXEC, NETLINK_SOCK_DIAG);
 
@@ -616,7 +618,7 @@ void mvlc_eth_throttler(
 
     LOG_DEBUG("mvlc_eth_throttler leaving loop");
 }
-#else // __WIN32
+#elif defined(__WIN32)
 void mvlc_eth_throttler(
     Protected<eth::EthThrottleContext> &ctx,
     Protected<eth::EthThrottleCounters> &counters)
@@ -1055,10 +1057,12 @@ std::error_code Impl::connect()
 
     m_throttleCounters.access().ref() = {};
 
+#ifdef __linux__
     m_throttleThread = std::thread(
         mvlc_eth_throttler,
         std::ref(m_throttleContext),
         std::ref(m_throttleCounters));
+#endif
 
     spdlog::trace("end {}", __PRETTY_FUNCTION__);
 

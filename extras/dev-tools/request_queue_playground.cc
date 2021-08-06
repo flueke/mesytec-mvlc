@@ -9,7 +9,7 @@
 #include <list>
 #include <ratio>
 #include <spdlog/spdlog.h>
-#ifndef __WIN32
+#ifdef __linux__
 #include <sys/prctl.h>
 #endif
 
@@ -22,7 +22,7 @@ using namespace mesytec::mvlc;
 // test some super commands
 void super_rw_test(apiv2::MVLC &mvlc, std::atomic<size_t> &superTransactions, std::atomic<bool> &quit)
 {
-#ifndef __WIN32
+#ifdef __linux__
     prctl(PR_SET_NAME,"super_rw_test",0,0,0);
 #endif
 
@@ -59,7 +59,7 @@ void super_rw_test(apiv2::MVLC &mvlc, std::atomic<size_t> &superTransactions, st
 // Test a vme read
 void vmeread_test(apiv2::MVLC &mvlc, std::atomic<size_t> &stackTransactions, std::atomic<bool> &quit)
 {
-#ifndef __WIN32
+#ifdef __linux__
     prctl(PR_SET_NAME,"vmeread_test",0,0,0);
 #endif
 
@@ -82,7 +82,7 @@ void vmeread_test(apiv2::MVLC &mvlc, std::atomic<size_t> &stackTransactions, std
 // Test a vme write
 void vmewrite_test(apiv2::MVLC &mvlc, std::atomic<size_t> &stackTransactions, std::atomic<bool> &quit)
 {
-#ifndef __WIN32
+#ifdef __linux__
     prctl(PR_SET_NAME,"vmewrite_test",0,0,0);
 #endif
 

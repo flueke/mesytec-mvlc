@@ -4,7 +4,7 @@
 #include <spdlog/spdlog.h>
 //#include <spdlog/sinks/stdout_sinks.h>
 
-#ifndef __WIN32
+#ifdef __linux__
 #include <sys/prctl.h>
 #endif
 
@@ -246,7 +246,7 @@ void cmd_pipe_reader(ReaderContext &context)
         return true;
     };
 
-#ifndef __WIN32
+#ifdef __linux__
     prctl(PR_SET_NAME,"cmd_pipe_reader",0,0,0);
 #endif
 

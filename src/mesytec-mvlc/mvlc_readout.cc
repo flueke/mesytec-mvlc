@@ -70,7 +70,7 @@
 #include <fmt/format.h>
 #include <spdlog/spdlog.h>
 
-#ifndef __WIN32
+#ifdef __linux__
 #include <sys/prctl.h>
 #endif
 
@@ -208,7 +208,7 @@ void MESYTEC_MVLC_EXPORT listfile_buffer_writer(
     ReadoutBufferQueues &bufferQueues,
     Protected<ListfileWriterCounters> &protectedState)
 {
-#ifndef __WIN32
+#ifdef __linux__
     prctl(PR_SET_NAME,"listfile_writer",0,0,0);
 #endif
 
@@ -475,7 +475,7 @@ void ReadoutWorker::setMcstDaqStopCommands(const StackCommandBuilder &commands)
 // FIXME: exceptions
 void ReadoutWorker::Private::loop(std::promise<std::error_code> promise)
 {
-#ifndef __WIN32
+#ifdef __linux__
     prctl(PR_SET_NAME,"readout_worker",0,0,0);
 #endif
 

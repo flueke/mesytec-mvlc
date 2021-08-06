@@ -1,6 +1,6 @@
 #include "mvlc_readout_parser_util.h"
 
-#ifndef __WIN32
+#ifdef __linux__
 #include <sys/prctl.h>
 #endif
 
@@ -23,7 +23,7 @@ void run_readout_parser(
     ReadoutBufferQueues &snoopQueues,
     readout_parser::ReadoutParserCallbacks &parserCallbacks)
 {
-#ifndef __WIN32
+#ifdef __linux__
     prctl(PR_SET_NAME,"readout_parser",0,0,0);
 #endif
 

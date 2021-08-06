@@ -28,6 +28,7 @@
 #ifndef __MESYTEC_MVLC_MVLC_STACK_ERRORS_H__
 #define __MESYTEC_MVLC_MVLC_STACK_ERRORS_H__
 
+#include <array>
 #include <cassert>
 #include <unordered_map>
 #include "mvlc_constants.h"
