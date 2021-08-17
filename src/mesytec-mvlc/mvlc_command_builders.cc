@@ -203,10 +203,12 @@ std::string to_string(const StackCommand &cmd)
                 "vme_block_read {:#04x} {} {:#010x}",
                 cmd.amod, cmd.transfers, cmd.address);
 
+#if 0 // fw19
         case CT::SignallingVMERead:
                 return fmt::format(
                     "vme_signal_read {:#04x} {} {:#010x}",
                     cmd.amod, to_string(cmd.dataWidth), cmd.address);
+#endif
 
         case CT::VMEMBLTSwapped:
             return fmt::format(
@@ -224,8 +226,10 @@ std::string to_string(const StackCommand &cmd)
         case CT::WriteSpecial:
             return fmt::format("write_special {}", cmd.value);
 
+#if 0 // fw19
         case CT::WriteSignalWord:
             return fmt::format("write_signal_word {}", cmd.value);
+#endif
 
         case CT::SoftwareDelay:
             return fmt::format("software_delay {}", cmd.value);
@@ -258,6 +262,7 @@ StackCommand stack_command_from_string(const std::string &str)
         iss >> arg; result.dataWidth = vme_data_width_from_string(arg);
         iss >> arg; result.address = std::stoul(arg, nullptr, 0);
     }
+#if 0 // fw 19
     else if (name == "vme_signal_read")
     {
         result.type = CT::SignallingVMERead;
@@ -265,6 +270,7 @@ StackCommand stack_command_from_string(const std::string &str)
         iss >> arg; result.dataWidth = vme_data_width_from_string(arg);
         iss >> arg; result.address = std::stoul(arg, nullptr, 0);
     }
+#endif
     else if (name == "vme_block_read")
     {
         // FIXME: Blk2eSST is missing
@@ -298,11 +304,13 @@ StackCommand stack_command_from_string(const std::string &str)
         result.type = CT::WriteSpecial;
         iss >> arg; result.value = std::stoul(arg, nullptr, 0);
     }
+#if 0 // fw 19
     else if (name == "write_signal_word")
     {
         result.type = CT::WriteSignalWord;
         iss >> arg; result.value = std::stoul(arg, nullptr, 0);
     }
+#endif
     else if (name == "software_delay")
     {
         result.type = CT::SoftwareDelay;
@@ -348,19 +356,6 @@ StackCommandBuilder &StackCommandBuilder::addVMERead(u32 address, u8 amod, VMEDa
 {
     StackCommand cmd = {};
     cmd.type = CommandType::VMERead;
-    cmd.address = address;
-    cmd.amod = amod;
-    cmd.dataWidth = dataWidth;
-
-    addCommand(cmd);
-
-    return *this;
-}
-
-StackCommandBuilder &StackCommandBuilder::addSignallingVMERead(u32 address, u8 amod, VMEDataWidth dataWidth)
-{
-    StackCommand cmd = {};
-    cmd.type = CommandType::SignallingVMERead;
     cmd.address = address;
     cmd.amod = amod;
     cmd.dataWidth = dataWidth;
@@ -420,17 +415,6 @@ StackCommandBuilder &StackCommandBuilder::addWriteMarker(u32 value)
 {
     StackCommand cmd = {};
     cmd.type = CommandType::WriteMarker;
-    cmd.value = value;
-
-    addCommand(cmd);
-
-    return *this;
-}
-
-StackCommandBuilder &StackCommandBuilder::addWriteSignalWord(u32 value)
-{
-    StackCommand cmd = {};
-    cmd.type = CommandType::WriteSignalWord;
     cmd.value = value;
 
     addCommand(cmd);
@@ -608,14 +592,12 @@ size_t get_encoded_size(const StackCommand::CommandType &type)
 
         case StackCT::VMERead:
         case StackCT::VMEMBLTSwapped:
-        case StackCT::SignallingVMERead:
             return 2;
 
         case StackCT::VMEWrite:
             return 3;
 
         case StackCT::WriteMarker:
-        case StackCT::WriteSignalWord:
             return 2;
 
         case StackCT::WriteSpecial:
@@ -786,7 +768,6 @@ std::vector<u32> make_stack_buffer(const std::vector<StackCommand> &stack)
         {
             case CommandType::VMERead:
             case CommandType::VMEMBLTSwapped:
-            case CommandType::SignallingVMERead:
                 if (!vme_amods::is_block_mode(cmd.amod))
                 {
                     cmdWord |= cmd.amod << stack_commands::CmdArg0Shift;
@@ -825,7 +806,6 @@ std::vector<u32> make_stack_buffer(const std::vector<StackCommand> &stack)
                 break;
 
             case CommandType::WriteMarker:
-            case CommandType::WriteSignalWord:
                 result.push_back(cmdWord);
                 result.push_back(cmd.value);
 
@@ -888,7 +868,6 @@ std::vector<StackCommand> stack_commands_from_buffer(const std::vector<u32> &buf
 
             case StackCT::VMERead:
             case StackCT::VMEMBLTSwapped:
-            case StackCT::SignallingVMERead:
                 cmd.amod = arg0;
 
                 if (!vme_amods::is_block_mode(cmd.amod))
@@ -927,7 +906,6 @@ std::vector<StackCommand> stack_commands_from_buffer(const std::vector<u32> &buf
                 break;
 
             case StackCT::WriteMarker:
-            case StackCT::WriteSignalWord:
                 if (++it != buffer.end()) // TODO: else error
                     cmd.value = *it;
 

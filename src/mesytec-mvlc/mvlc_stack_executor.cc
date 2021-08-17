@@ -33,7 +33,6 @@ CommandExecResult run_command(
         case CT::StackEnd:
         case CT::WriteMarker:
         case CT::WriteSpecial:
-        case CT::WriteSignalWord:
             return result;
 
         case CT::SoftwareDelay:
@@ -64,6 +63,7 @@ CommandExecResult run_command(
             }
             break;
 
+#if 0 // fw 19
         case CT::SignallingVMERead:
             assert(!vme_amods::is_block_mode(cmd.amod));
 
@@ -85,6 +85,7 @@ CommandExecResult run_command(
                     cmd.address, cmd.amod, cmd.transfers, result.response);
             }
             break;
+#endif
 
 
         case CT::VMEMBLTSwapped:

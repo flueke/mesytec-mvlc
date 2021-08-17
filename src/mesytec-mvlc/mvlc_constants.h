@@ -104,14 +104,20 @@ namespace stack_commands
                                     // words in each received 64-bit word. Argument wise it's the same as
                                     // the VMERead command but should only be used with the MBLT64 address
                                     // modifier.
-        SignallingVMERead   = 0x16, // Like VMERead but puts the lower 16 bits
-                                    // of the read value into an MVLC-internal signal array.
+                                    //
         VMEWrite            = 0x23, // VME write requests.
         WriteMarker         = 0xC2, // Writes a 32-bit marker value into the output data stream.
         WriteSpecial        = 0xC1, // Write a special value into the output data stream (not implemented).
-        WriteSignalWord     = 0xC6, // Constant data word used to activate the interal Signal array.
-    // TODO: ScanDataRead, ReadDataLoop and masks/enums
-    //static const u32 ScanDataRead      = 0x34;
+
+        AddressIncMode      = 0xC3, // Address increment for block reads: 0=FIFO read, 1=memory read
+        Wait                = 0xC4, // Delay in units of MVLC clocks. The number of clocks to delay is
+                                    // specified as a 24-bit number.
+
+        SignalAccu          = 0xC6, // Constant data word used to activate the interal signal array.
+        MaskShiftAccu       = 0xC5, // first mask is applied, then the left rotation
+        SetAccu             = 0xC8, // Set the accumulator to a specific 32 bit value.
+        ReadToAccu          = 0x14, // Single register VME read into the accumulator.
+        CompareLoopAccu     = 0xC7, // CompareMode, 0=eq, 1=lt, 2=gt. Loops to previous command if false.
     };
 }
 

@@ -94,10 +94,16 @@ struct MESYTEC_MVLC_EXPORT StackCommand
         VMERead             = static_cast<u8>(StackCommandType::VMERead),
         VMEWrite            = static_cast<u8>(StackCommandType::VMEWrite),
         VMEMBLTSwapped      = static_cast<u8>(StackCommandType::VMEMBLTSwapped),
-        SignallingVMERead   = static_cast<u8>(StackCommandType::SignallingVMERead),
         WriteMarker         = static_cast<u8>(StackCommandType::WriteMarker),
         WriteSpecial        = static_cast<u8>(StackCommandType::WriteSpecial),
-        WriteSignalWord     = static_cast<u8>(StackCommandType::WriteSignalWord),
+        AddressIncMode      = static_cast<u8>(StackCommandType::AddressIncMode),
+        Wait                = static_cast<u8>(StackCommandType::Wait),
+        SignalAccu          = static_cast<u8>(StackCommandType::SignalAccu),
+        MaskShiftAccu       = static_cast<u8>(StackCommandType::MaskShiftAccu),
+        SetAccu             = static_cast<u8>(StackCommandType::SetAccu),
+        ReadToAccu          = static_cast<u8>(StackCommandType::ReadToAccu),
+        CompareLoopAccu     = static_cast<u8>(StackCommandType::CompareLoopAccu),
+
         // A value not in use by the MVLC protocol is used for the
         // SoftwareDelay command.
         SoftwareDelay       = static_cast<u8>(0xEDu),
@@ -167,14 +173,12 @@ class MESYTEC_MVLC_EXPORT StackCommandBuilder
         // If there exists no open group a new group with an empty name will be
         // created.
         StackCommandBuilder &addVMERead(u32 address, u8 amod, VMEDataWidth dataWidth);
-        StackCommandBuilder &addSignallingVMERead(u32 address, u8 amod, VMEDataWidth dataWidth);
         StackCommandBuilder &addVMEBlockRead(u32 address, u8 amod, u16 maxTransfers);
         StackCommandBuilder &addVMEMBLTSwapped(u32 address, u8 amod, u16 maxTransfers);
         // Overload of addVMEMBLTSwapped() using vme_amods::MBLT64 as the VME address modifier.
         StackCommandBuilder &addVMEMBLTSwapped(u32 address, u16 maxTransfers);
         StackCommandBuilder &addVMEWrite(u32 address, u32 value, u8 amod, VMEDataWidth dataWidth);
         StackCommandBuilder &addWriteMarker(u32 value);
-        StackCommandBuilder &addWriteSignalWord(u32 value);
 
         // Intended for direct stack execution. Suspends further command
         // execution for the given duration.

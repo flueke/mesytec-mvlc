@@ -680,37 +680,6 @@ std::error_code CmdApi::vmeRead(
     return {};
 }
 
-std::error_code CmdApi::vmeSignallingRead(
-    u32 address, u32 &value, u8 amod, VMEDataWidth dataWidth)
-{
-    u32 stackRef = readerContext_.nextStackReference++;
-
-    StackCommandBuilder stackBuilder;
-    stackBuilder.addWriteMarker(stackRef);
-    stackBuilder.addSignallingVMERead(address, amod, dataWidth);
-
-    std::vector<u32> stackResponse;
-
-    if (auto ec = stackTransaction(stackRef, stackBuilder, stackResponse))
-        return ec;
-
-#ifndef NDEBUG
-    util::log_buffer(std::cerr, stackResponse, "vmeSignallingRead(): stackResponse");
-#endif
-
-    if (stackResponse.size() != 3)
-        return make_error_code(MVLCErrorCode::UnexpectedResponseSize);
-
-    if (extract_frame_info(stackResponse[0]).flags & frame_flags::Timeout)
-        return MVLCErrorCode::NoVMEResponse;
-
-    const u32 Mask = (dataWidth == VMEDataWidth::D16 ? 0x0000FFFF : 0xFFFFFFFF);
-
-    value = stackResponse[2] & Mask;
-
-    return {};
-}
-
 std::error_code CmdApi::vmeWrite(
     u32 address, u32 value, u8 amod, VMEDataWidth dataWidth)
 {
@@ -982,12 +951,6 @@ std::error_code MVLC::vmeRead(u32 address, u32 &value, u8 amod, VMEDataWidth dat
 {
     auto guard = d->locks_.lockCmd();
     return d->resultCheck(d->cmdApi_.vmeRead(address, value, amod, dataWidth));
-}
-
-std::error_code MVLC::vmeSignallingRead(u32 address, u32 &value, u8 amod, VMEDataWidth dataWidth)
-{
-    auto guard = d->locks_.lockCmd();
-    return d->resultCheck(d->cmdApi_.vmeSignallingRead(address, value, amod, dataWidth));
 }
 
 std::error_code MVLC::vmeWrite(u32 address, u32 value, u8 amod, VMEDataWidth dataWidth)
