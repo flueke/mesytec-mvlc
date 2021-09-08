@@ -119,7 +119,25 @@ namespace
                     case Dynamic:
                         throw std::runtime_error("multiple block reads in module readout");
                     case Suffix:
-                        throw std::runtime_error("block read the suffix part in module readout");
+                        throw std::runtime_error("block read inside the suffix part in module readout");
+                }
+            }
+            else if (cmd.type == StackCT::Custom)
+            {
+                // Note: cmd.transfers contains the number of data words
+                // produced by the custom stack command.
+                switch (state)
+                {
+                    case Prefix:
+                        modParts.prefixLen += cmd.transfers;
+                        break;
+                    case Dynamic:
+                        modParts.suffixLen += cmd.transfers;
+                        state = Suffix;
+                        break;
+                    case Suffix:
+                        modParts.suffixLen += cmd.transfers;
+                        break;
                 }
             }
         }

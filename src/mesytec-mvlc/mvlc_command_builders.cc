@@ -203,13 +203,6 @@ std::string to_string(const StackCommand &cmd)
                 "vme_block_read {:#04x} {} {:#010x}",
                 cmd.amod, cmd.transfers, cmd.address);
 
-#if 0 // fw19
-        case CT::SignallingVMERead:
-                return fmt::format(
-                    "vme_signal_read {:#04x} {} {:#010x}",
-                    cmd.amod, to_string(cmd.dataWidth), cmd.address);
-#endif
-
         case CT::VMEMBLTSwapped:
             return fmt::format(
                 "vme_mblt_swapped {:#04x} {} {:#010x}",
@@ -226,13 +219,32 @@ std::string to_string(const StackCommand &cmd)
         case CT::WriteSpecial:
             return fmt::format("write_special {}", cmd.value);
 
-#if 0 // fw19
-        case CT::WriteSignalWord:
-            return fmt::format("write_signal_word {}", cmd.value);
-#endif
+        case CT::AddressIncMode:
+                return fmt::format("address_inc_mode {}", cmd.value);
+
+        case CT::Wait:
+                return fmt::format("wait {}", cmd.value);
+
+        case CT::SignalAccu:
+                return fmt::format("signal_accu");
+
+        case CT::MaskShiftAccu:
+                return fmt::format("mask_shift_accu");
+
+        case CT::SetAccu:
+                return fmt::format("set_accu");
+
+        case CT::ReadToAccu:
+                return fmt::format("read_to_accu");
+
+        case CT::CompareLoopAccu:
+                return fmt::format("compare_loop_accu");
 
         case CT::SoftwareDelay:
             return fmt::format("software_delay {}", cmd.value);
+
+        case CT::Custom:
+            return fmt::format("custom_cmd");
     }
 
     return {};
@@ -588,10 +600,18 @@ size_t get_encoded_size(const StackCommand::CommandType &type)
     {
         case StackCT::StackStart:
         case StackCT::StackEnd:
+        case StackCT::AddressIncMode:
+        case StackCT::Wait:
+        case StackCT::SignalAccu:
+        case StackCT::Custom:
             return 1;
 
         case StackCT::VMERead:
         case StackCT::VMEMBLTSwapped:
+        case StackCT::MaskShiftAccu:
+        case StackCT::SetAccu:
+        case StackCT::ReadToAccu:
+        case StackCT::CompareLoopAccu:
             return 2;
 
         case StackCT::VMEWrite:
@@ -828,6 +848,10 @@ std::vector<u32> make_stack_buffer(const std::vector<StackCommand> &stack)
 
             case CommandType::Invalid:
                 throw std::runtime_error("unsupported stack buffer command: Invalid");
+
+            case CommandType::Custom:
+                result.push_back(cmd.value);
+                break;
         }
     }
 
