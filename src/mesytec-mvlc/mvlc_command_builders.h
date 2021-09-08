@@ -120,6 +120,7 @@ struct MESYTEC_MVLC_EXPORT StackCommand
     VMEDataWidth dataWidth = VMEDataWidth::D16;
     u16 transfers; // max number of transfers for block read commands / number of produced data words for custom commands
     Blk2eSSTRate rate;
+    std::vector<u32> customValues;
 
     bool operator==(const StackCommand &o) const noexcept
     {
