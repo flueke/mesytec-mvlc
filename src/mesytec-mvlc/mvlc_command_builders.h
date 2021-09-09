@@ -107,6 +107,10 @@ struct MESYTEC_MVLC_EXPORT StackCommand
         // A value not in use by the MVLC protocol is used for the
         // SoftwareDelay command.
         SoftwareDelay       = static_cast<u8>(0xEDu),
+
+        // Special value for custom (binary) stack data. The stack data word is
+        // stored in the 'value' member.
+        Custom              = static_cast<u8>(0xEEu),
     };
 
     CommandType type = CommandType::Invalid;
@@ -114,8 +118,9 @@ struct MESYTEC_MVLC_EXPORT StackCommand
     u32 value;
     u8 amod;
     VMEDataWidth dataWidth = VMEDataWidth::D16;
-    u16 transfers;
+    u16 transfers; // max number of transfers for block read commands / number of produced data words for custom commands
     Blk2eSSTRate rate;
+    std::vector<u32> customValues;
 
     bool operator==(const StackCommand &o) const noexcept
     {
@@ -278,6 +283,7 @@ MESYTEC_MVLC_EXPORT SuperCommandBuilder super_builder_from_buffer(const std::vec
 MESYTEC_MVLC_EXPORT std::vector<u32> make_stack_buffer(const StackCommandBuilder &builder);
 MESYTEC_MVLC_EXPORT std::vector<u32> make_stack_buffer(const std::vector<StackCommand> &stack);
 
+// Note: these do not work if the stack contains custom/arbitrary data.
 MESYTEC_MVLC_EXPORT StackCommandBuilder stack_builder_from_buffer(const std::vector<u32> &buffer);
 MESYTEC_MVLC_EXPORT std::vector<StackCommand> stack_commands_from_buffer(const std::vector<u32> &buffer);
 
