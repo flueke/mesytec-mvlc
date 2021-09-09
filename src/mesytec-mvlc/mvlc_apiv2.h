@@ -89,6 +89,10 @@ class MESYTEC_MVLC_EXPORT MVLC
         std::error_code vmeMBLTSwapped(u32 address, u16 maxTransfers, std::vector<u32> &dest);
 
         // stack uploading
+
+        std::error_code uploadStack(
+            u8 stackOutputPipe, u16 stackMemoryOffset, const std::vector<u32> &stackContents);
+
         std::error_code uploadStack(
             u8 stackOutputPipe, u16 stackMemoryOffset, const std::vector<StackCommand> &commands);
 
