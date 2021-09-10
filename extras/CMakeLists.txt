@@ -7,6 +7,7 @@
 add_subdirectory(mini-daq)
 add_subdirectory(mvlc-ctrl-tests)
 add_subdirectory(dev-tools)
+add_subdirectory(mvlc-c-wrapper)
 
 if (UNIX AND NOT APPLE)
     add_executable(netlink-test netlink-socket-mem-monitoring/netlink-test.cc)
