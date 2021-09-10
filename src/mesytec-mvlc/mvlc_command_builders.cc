@@ -850,7 +850,8 @@ std::vector<u32> make_stack_buffer(const std::vector<StackCommand> &stack)
                 throw std::runtime_error("unsupported stack buffer command: Invalid");
 
             case CommandType::Custom:
-                result.push_back(cmd.value);
+                for (u32 customValue: cmd.customValues)
+                    result.push_back(customValue);
                 break;
         }
     }
