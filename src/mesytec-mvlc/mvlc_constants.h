@@ -245,7 +245,7 @@ namespace system_event
         static const u8 EndOfFile       = 0x77;
 
         static const u8 SubtypeMax      = SubtypeMask;
-    };
+    }
 
     inline u8 extract_subtype(u32 header)
     {
