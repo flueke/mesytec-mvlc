@@ -100,6 +100,7 @@ if (MVLC_BUILD_TESTS)
 endif (MVLC_BUILD_TESTS)
 
 option(MVLC_BUILD_CONTROLLER_TESTS "Build online MVLC controller tests" OFF)
+option(MVLC_BUILD_C_WRAPPER "Build C-wrapper for the MVLC library" OFF)
 
 set(not-msvc $<NOT:$<CXX_COMPILER_ID:MSVC>>)
 
