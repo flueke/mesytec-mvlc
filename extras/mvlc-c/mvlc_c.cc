@@ -33,7 +33,7 @@ struct mvlc_ctrl
     MVLC instance;
 };
 
-mvlc_ctrl_t *mvlc_ctrl_create_usb()
+mvlc_ctrl_t *mvlc_ctrl_create_usb(void)
 {
     auto ret = std::make_unique<mvlc_ctrl_t>();
     ret->instance = make_mvlc_usb();
@@ -124,13 +124,13 @@ mvlc_err_t mvlc_ctrl_write_register(mvlc_ctrl_t *mvlc, u16 address, u32 value)
     return make_mvlc_error(ec);
 }
 
-mvlc_err_t mvlc_ctrl_vme_read(mvlc_ctrl_t *mvlc, u32 address, u32 *value, u8 amod, ::VMEDataWidth dataWidth)
+mvlc_err_t mvlc_ctrl_vme_read(mvlc_ctrl_t *mvlc, u32 address, u32 *value, u8 amod, MVLC_VMEDataWidth dataWidth)
 {
     auto ec = mvlc->instance.vmeRead(address, *value, amod, static_cast<mesytec::mvlc::VMEDataWidth>(dataWidth));
     return make_mvlc_error(ec);
 }
 
-mvlc_err_t mvlc_ctrl_vme_write(mvlc_ctrl_t *mvlc, u32 address, u32 value, u8 amod, ::VMEDataWidth dataWidth)
+mvlc_err_t mvlc_ctrl_vme_write(mvlc_ctrl_t *mvlc, u32 address, u32 value, u8 amod, MVLC_VMEDataWidth dataWidth)
 {
     auto ec = mvlc->instance.vmeWrite(address, value, amod, static_cast<mesytec::mvlc::VMEDataWidth>(dataWidth));
     return make_mvlc_error(ec);
@@ -197,3 +197,66 @@ mvlc_err_t mvlc_ctrl_vme_mblt_swapped_buffer(mvlc_ctrl_t *mvlc, u32 address, u16
     *bufsize = toCopy;
     return make_mvlc_error(ec);
 }
+
+struct mvlc_crateconfig
+{
+    CrateConfig cfg;
+};
+
+mvlc_crateconfig_t *mvlc_read_crateconfig_from_file(const char *filename)
+{
+    std::ifstream in(filename);
+
+    if (!in.is_open())
+        return nullptr;
+
+    auto ret = std::make_unique<mvlc_crateconfig_t>();
+    ret->cfg = crate_config_from_yaml(in);
+    return ret.release();
+}
+
+mvlc_crateconfig_t *mvlc_read_crateconfig_from_string(const char *str)
+{
+    std::string in(str);
+
+    auto ret = std::make_unique<mvlc_crateconfig_t>();
+    ret->cfg = crate_config_from_yaml(in);
+    return ret.release();
+}
+
+void mvlc_crateconfig_destroy(mvlc_crateconfig_t *cfg)
+{
+    delete cfg;
+}
+
+mvlc_ctrl_t *mvlc_ctrl_create_from_crateconfig(mvlc_crateconfig_t *cfg)
+{
+    auto ret = std::make_unique<mvlc_ctrl_t>();
+    ret->instance = make_mvlc(cfg->cfg);
+    return ret.release();
+}
+
+struct mvlc_readout
+{
+    mvlc_ctrl_t *mvlc;
+    mvlc_crateconfig *crateconfig;
+    mvlc_listfile_write_handle *listfile_handle;
+    readout_parser_callbacks_t parser_callbacks;
+};
+
+mvlc_readout_t *mvlc_readout_create(
+    mvlc_ctrl_t *mvlc,
+    mvlc_crateconfig_t *crateconfig,
+    mvlc_listfile_write_handle *listfile_handle,
+    readout_parser_callbacks_t parser_callbacks)
+{
+    auto ret = std::make_unique<mvlc_readout_t>();
+
+    ret->mvlc = mvlc;
+    ret->crateconfig = crateconfig;
+    ret->listfile_handle = listfile_handle;
+    ret->parser_callbacks = parser_callbacks;
+
+    return ret.release();
+}
+

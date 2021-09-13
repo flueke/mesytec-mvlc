@@ -7,6 +7,9 @@
 
 void run_some_mvlc_functions(mvlc_ctrl_t *mvlc)
 {
+    static const size_t errbufsize = 1024;
+    char errbuf[errbufsize];
+
     printf("Running a few of the MVLC functions..\n");
 
     printf("\tisConnected: %d\n", mvlc_ctrl_is_connected(mvlc));
@@ -18,13 +21,12 @@ void run_some_mvlc_functions(mvlc_ctrl_t *mvlc)
 
     u32 readVal = 0;
     mvlc_err_t err = mvlc_ctrl_read_register(mvlc, 0x600e, &readVal);
+
     if (!mvlc_is_error(err))
         printf("\tregister 0x600e: 0x%04x\n", readVal);
     else
     {
-        static const size_t bufsize = 1024;
-        char buf[bufsize];
-        printf("Error reading MVLC register: %s\n", mvlc_format_error(err, buf, bufsize));
+        printf("Error reading MVLC register: %s\n", mvlc_format_error(err, errbuf, errbufsize));
         return;
     }
 
@@ -33,27 +35,23 @@ void run_some_mvlc_functions(mvlc_ctrl_t *mvlc)
     static const u32 fwReg = 0x600e;
     static const u8 amod = 0x09;
 
-    err = mvlc_ctrl_vme_read(mvlc, modBase + hwReg, &readVal, amod, VMEDataWidth_D16);
+    err = mvlc_ctrl_vme_read(mvlc, modBase + hwReg, &readVal, amod, MVLC_VMEDataWidth_D16);
 
     if (!mvlc_is_error(err))
         printf("\tVME module hwReg: 0x%04x\n", readVal);
     else
     {
-        static const size_t bufsize = 1024;
-        char buf[bufsize];
-        printf("Error reading VME module register: %s\n", mvlc_format_error(err, buf, bufsize));
+        printf("Error reading VME module register: %s\n", mvlc_format_error(err, errbuf, errbufsize));
         return;
     }
 
-    err = mvlc_ctrl_vme_read(mvlc, modBase + fwReg, &readVal, amod, VMEDataWidth_D16);
+    err = mvlc_ctrl_vme_read(mvlc, modBase + fwReg, &readVal, amod, MVLC_VMEDataWidth_D16);
 
     if (!mvlc_is_error(err))
         printf("\tVME module fwReg: 0x%04x\n", readVal);
     else
     {
-        static const size_t bufsize = 1024;
-        char buf[bufsize];
-        printf("Error reading VME module register: %s\n", mvlc_format_error(err, buf, bufsize));
+        printf("Error reading VME module register: %s\n", mvlc_format_error(err, errbuf, errbufsize));
         return;
     }
 }
@@ -91,6 +89,9 @@ int main(int argc, char *argv[])
         }
     }
 
+    static const size_t errbufsize = 1024;
+    char errbuf[errbufsize];
+
     // USB
     printf("Creating MVLC_USB instance..\n");
     mvlc_ctrl_t *mvlc = mvlc_ctrl_create_usb();
@@ -104,9 +105,7 @@ int main(int argc, char *argv[])
     }
     else
     {
-        static const size_t bufsize = 1024;
-        char buf[bufsize];
-        printf("Error connecting to MVLC_USB: %s\n", mvlc_format_error(err, buf, bufsize));
+        printf("Error connecting to MVLC_USB: %s\n", mvlc_format_error(err, errbuf, errbufsize));
     }
 
     run_some_mvlc_functions(mvlc);
@@ -120,9 +119,7 @@ int main(int argc, char *argv[])
     }
     else
     {
-        static const size_t bufsize = 1024;
-        char buf[bufsize];
-        printf("Error disconnecting from MVLC_USB: %s\n", mvlc_format_error(err, buf, bufsize));
+        printf("Error disconnecting from MVLC_USB: %s\n", mvlc_format_error(err, errbuf, errbufsize));
     }
 
     mvlc_ctrl_destroy(mvlc);
@@ -142,9 +139,7 @@ int main(int argc, char *argv[])
         }
         else
         {
-            static const size_t bufsize = 1024;
-            char buf[bufsize];
-            printf("Error connecting to MVLC_ETH: %s\n", mvlc_format_error(err, buf, bufsize));
+            printf("Error connecting to MVLC_ETH: %s\n", mvlc_format_error(err, errbuf, errbufsize));
         }
 
         run_some_mvlc_functions(mvlc);
@@ -158,9 +153,7 @@ int main(int argc, char *argv[])
         }
         else
         {
-            static const size_t bufsize = 1024;
-            char buf[bufsize];
-            printf("Error disconnecting from MVLC_ETH: %s\n", mvlc_format_error(err, buf, bufsize));
+            printf("Error disconnecting from MVLC_ETH: %s\n", mvlc_format_error(err, errbuf, errbufsize));
         }
 
         mvlc_ctrl_destroy(mvlc);
