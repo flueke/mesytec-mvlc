@@ -214,10 +214,6 @@ int main(int argc, char *argv[])
         | lyra::opt(opt_listfileCompressionLevel, "level")
             ["--listfile-compression-level"] ("compression level to use (for zip 0 means no compression)")
 
-        // init options
-        | lyra::opt(initOptions.noBatching)
-            ["--init-no-batching"] ("disables command batching during the MVLC init phase")
-
         // logging
         | lyra::opt(opt_printReadoutData)
             ["--print-readout-data"]("log each word of readout data (very verbose!)")
