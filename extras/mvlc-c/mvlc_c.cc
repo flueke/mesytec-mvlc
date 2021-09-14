@@ -236,26 +236,72 @@ mvlc_ctrl_t *mvlc_ctrl_create_from_crateconfig(mvlc_crateconfig_t *cfg)
     return ret.release();
 }
 
+struct ListfileWriteHandleWrapper: public listfile::WriteHandle
+{
+    ListfileWriteHandleWrapper(mvlc_listfile_write_handle listfile_handle)
+        : listfile_handle(listfile_handle)
+    {
+    }
+
+    size_t write(const u8 *data, size_t size) override
+    {
+        ssize_t res = listfile_handle(data, size);
+        if (res < 0)
+            throw res;
+        return res;
+    }
+
+    mvlc_listfile_write_handle listfile_handle;
+};
+
 struct mvlc_readout
 {
-    mvlc_ctrl_t *mvlc;
-    mvlc_crateconfig *crateconfig;
-    mvlc_listfile_write_handle *listfile_handle;
-    readout_parser_callbacks_t parser_callbacks;
+    std::unique_ptr<MVLCReadout> rdo;
+    std::unique_ptr<ListfileWriteHandleWrapper> lfWrap;
 };
 
 mvlc_readout_t *mvlc_readout_create(
     mvlc_ctrl_t *mvlc,
     mvlc_crateconfig_t *crateconfig,
-    mvlc_listfile_write_handle *listfile_handle,
+    mvlc_listfile_write_handle listfile_handle,
     readout_parser_callbacks_t parser_callbacks)
 {
-    auto ret = std::make_unique<mvlc_readout_t>();
+    readout_parser::ReadoutParserCallbacks parserCallbacks;
 
-    ret->mvlc = mvlc;
-    ret->crateconfig = crateconfig;
-    ret->listfile_handle = listfile_handle;
-    ret->parser_callbacks = parser_callbacks;
+    parserCallbacks.eventData = [parser_callbacks] (
+        int eventIndex,
+        const readout_parser::ModuleData *modulesDataCpp,
+        unsigned moduleCount)
+    {
+        static const size_t MaxVMEModulesPerEvent = 20;
+        std::array<readout_moduledata, MaxVMEModulesPerEvent> modulesDataC;
+
+        assert(moduleCount <= modulesDataC.size());
+
+        for (size_t i=0; i<moduleCount; ++i)
+        {
+            modulesDataC[i].prefix = { modulesDataCpp[i].prefix.data, modulesDataCpp[i].prefix.size };
+            modulesDataC[i].dynamic = { modulesDataCpp[i].dynamic.data, modulesDataCpp[i].dynamic.size };
+            modulesDataC[i].suffix = { modulesDataCpp[i].suffix.data, modulesDataCpp[i].suffix.size };
+        }
+
+        parser_callbacks.event_data(eventIndex, modulesDataC.begin(), moduleCount);
+    };
+
+    parserCallbacks.systemEvent = [parser_callbacks] (const u32 *header, u32 size)
+    {
+        parser_callbacks.system_event(header, size);
+    };
+
+    auto ret = std::make_unique<mvlc_readout>();
+
+    ret->lfWrap = std::make_unique<ListfileWriteHandleWrapper>(listfile_handle);
+
+    ret->rdo = std::make_unique<MVLCReadout>(make_mvlc_readout(
+            mvlc->instance,
+            crateconfig->cfg,
+            ret->lfWrap.get(),
+            parserCallbacks));
 
     return ret.release();
 }

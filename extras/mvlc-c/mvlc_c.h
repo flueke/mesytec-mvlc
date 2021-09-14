@@ -125,9 +125,9 @@ mvlc_ctrl_t *mvlc_ctrl_create_from_crateconfig(mvlc_crateconfig_t *cfg);
 
 // Listfile write handle function. Must return the number of bytes written or a
 // negative value in case of an error.
-typedef ssize_t (mvlc_listfile_write_handle) (const u8 *data, size_t size);
+typedef ssize_t (*mvlc_listfile_write_handle) (const u8 *data, size_t size);
 
-// Readout object combining readout worker and readout parser.
+// Readout data structures and parser callbacks
 typedef struct readout_datablock
 {
     const u32 *data;
@@ -153,6 +153,11 @@ typedef struct readout_parser_callbacks
     rdo_system_event_callback system_event;
 } readout_parser_callbacks_t;
 
+// Readout object combining
+// - mvlc
+// - crateconfig
+// - listfile write handle
+// - readout parser callbacks
 typedef struct mvlc_readout mvlc_readout_t;
 
 mvlc_readout_t *mvlc_readout_create(
@@ -167,7 +172,13 @@ mvlc_err_t readout_start(mvlc_readout_t *rdo);
 mvlc_err_t readout_stop(mvlc_readout_t *rdo);
 mvlc_err_t readout_pause(mvlc_readout_t *rdo);
 mvlc_err_t readout_resume(mvlc_readout_t *rdo);
-mvlc_err_t readout_state(mvlc_readout_t *rdo);
+
+typedef enum
+{
+    Idle, Starting, Running, Paused, Stopping
+} MVLC_ReadoutState;
+
+MVLC_ReadoutState get_readout_state(mvlc_readout_t *rdo);
 
 #ifdef __cplusplus
 }
