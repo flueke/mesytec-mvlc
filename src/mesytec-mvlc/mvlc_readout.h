@@ -22,23 +22,23 @@ struct ListfileParams
 {
     enum class Compression { LZ4, ZIP };
 
-    Compression compression = Compression::LZ4;
+    bool writeListfile = true;
     std::string filepath = "./run_001.zip";
-    std::string runname = "run_001";
+    std::string listfilename = "listfile";
     bool overwrite = false;
+    Compression compression = Compression::LZ4;
     int compressionLevel = 0;
 };
 
 class MVLCReadout
 {
     public:
-        MVLCReadout(MVLCReadout &&other) = default;
-        MVLCReadout &operator=(MVLCReadout &&other) = default;
+        MVLCReadout(MVLCReadout &&other);
+        MVLCReadout &operator=(MVLCReadout &&other);
 
         MVLCReadout(MVLCReadout &other) = delete;
         MVLCReadout &operator=(MVLCReadout &other) = delete;
 
-        MVLCReadout();
         ~MVLCReadout();
 
         std::error_code start(const std::chrono::seconds &timeToRun = {});
@@ -49,8 +49,11 @@ class MVLCReadout
         ReadoutWorker::State state() const;
         WaitableProtected<ReadoutWorker::State> &waitableState();
         ReadoutWorker::Counters workerCounters();
+        readout_parser::ReadoutParserCounters parserCounters();
 
     private:
+        MVLCReadout();
+
         struct Private;
         std::unique_ptr<Private> d;
 

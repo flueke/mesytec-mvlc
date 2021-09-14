@@ -2,6 +2,7 @@
 
 #include <memory>
 
+#include "mvlc_dialog_util.h"
 #include "mvlc_listfile.h"
 #include "mvlc_listfile_zip.h"
 #include "mvlc_readout_parser.h"
@@ -30,6 +31,8 @@ struct MVLCReadout::Private
 
     std::unique_ptr<ReadoutWorker> readoutWorker;
 
+    ReadoutInitResults initResults;
+
     Private()
         : parserCounters({})
         , parserQuit(false)
@@ -43,16 +46,53 @@ MVLCReadout::MVLCReadout()
 
 MVLCReadout::~MVLCReadout()
 {
+    if (d->parserThread.joinable())
+    {
+        d->parserQuit = true;
+        d->parserThread.join();
+    }
+}
+
+MVLCReadout::MVLCReadout(MVLCReadout &&other)
+{
+    d = std::move(other.d);
+}
+
+MVLCReadout &MVLCReadout::operator=(MVLCReadout &&other)
+{
+    d = std::move(other.d);
+    return *this;
 }
 
 std::error_code MVLCReadout::start(const std::chrono::seconds &timeToRun)
 {
+    d->initResults = init_readout(d->mvlc, d->crateConfig, {});
+
+    if (d->initResults.ec)
+        return d->initResults.ec;
+
+    if (d->lfh)
+        listfile::listfile_write_preamble(*d->lfh, d->crateConfig);
+
     return d->readoutWorker->start(timeToRun).get(); // blocks
 }
 
 std::error_code MVLCReadout::stop()
 {
-    return d->readoutWorker->stop();
+    if (auto ec = d->readoutWorker->stop())
+        return ec;
+
+    while (state() != ReadoutWorker::State::Idle)
+    {
+        waitableState().wait_for(
+            std::chrono::milliseconds(1000),
+            [] (const ReadoutWorker::State &state)
+            {
+                return state == ReadoutWorker::State::Idle;
+            });
+    }
+
+    return disable_all_triggers_and_daq_mode(d->mvlc);
 }
 
 std::error_code MVLCReadout::pause()
@@ -80,27 +120,34 @@ ReadoutWorker::Counters MVLCReadout::workerCounters()
     return d->readoutWorker->counters();
 }
 
+readout_parser::ReadoutParserCounters MVLCReadout::parserCounters()
+{
+    return d->parserCounters.copy();
+}
+
 namespace
 {
     listfile::WriteHandle *setup_listfile(listfile::ZipCreator &lfZip, const ListfileParams &lfParams)
     {
-        lfZip.createArchive(
-            lfParams.filepath,
-            lfParams.overwrite ? listfile::ZipCreator::Overwrite : listfile::ZipCreator::DontOverwrite);
-
-        switch (lfParams.compression)
+        if (lfParams.writeListfile)
         {
-            case ListfileParams::Compression::LZ4:
-                return lfZip.createLZ4Entry(lfParams.runname + ".mvlclst", lfParams.compressionLevel);
+            lfZip.createArchive(
+                lfParams.filepath,
+                lfParams.overwrite ? listfile::ZipCreator::Overwrite : listfile::ZipCreator::DontOverwrite);
 
-            case ListfileParams::Compression::ZIP:
-                return lfZip.createZIPEntry(lfParams.runname + ".mvlclst", lfParams.compressionLevel);
-                break;
+            switch (lfParams.compression)
+            {
+                case ListfileParams::Compression::LZ4:
+                    return lfZip.createLZ4Entry(lfParams.listfilename + ".mvlclst", lfParams.compressionLevel);
+
+                case ListfileParams::Compression::ZIP:
+                    return lfZip.createZIPEntry(lfParams.listfilename + ".mvlclst", lfParams.compressionLevel);
+                    break;
+            }
         }
 
         return nullptr;
     }
-
 }
 
 void init_common(MVLCReadout &r)

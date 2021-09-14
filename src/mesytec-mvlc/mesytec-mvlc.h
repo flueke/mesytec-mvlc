@@ -38,6 +38,7 @@
 #include "mvlc.h"
 #include "mvlc_listfile.h"
 #include "mvlc_listfile_zip.h"
+#include "mvlc_readout.h"
 #include "mvlc_readout_worker.h"
 #include "mvlc_readout_parser.h"
 #include "mvlc_readout_parser_util.h"
