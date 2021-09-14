@@ -21,7 +21,8 @@ void run_readout_parser(
     readout_parser::ReadoutParserState &state,
     Protected<readout_parser::ReadoutParserCounters> &counters,
     ReadoutBufferQueues &snoopQueues,
-    readout_parser::ReadoutParserCallbacks &parserCallbacks)
+    readout_parser::ReadoutParserCallbacks &parserCallbacks,
+    std::atomic<bool> &quit)
 {
 #ifdef __linux__
     prctl(PR_SET_NAME,"readout_parser",0,0,0);
@@ -34,13 +35,11 @@ void run_readout_parser(
         auto &filled = snoopQueues.filledBufferQueue();
         auto &empty = snoopQueues.emptyBufferQueue();
 
-        while (true)
+        while (!quit)
         {
             auto buffer = filled.dequeue(std::chrono::milliseconds(100));
 
-            if (buffer && buffer->empty()) // sentinel
-                break;
-            else if (!buffer)
+            if (!buffer || buffer->empty())
                 continue;
 
             try
@@ -71,7 +70,7 @@ void run_readout_parser(
     {
         {
             //auto state = protectedState.access();
-            //state->eptr = std::current_exception();
+            state.eptr = std::current_exception();
         }
 
         cerr << "readout_parser caught a std::runtime_error: " << e.what() << endl;
@@ -80,7 +79,7 @@ void run_readout_parser(
     {
         {
             //auto state = protectedState.access();
-            //state->eptr = std::current_exception();
+            state.eptr = std::current_exception();
         }
 
         cerr << "readout_parser caught an unknown exception." << endl;

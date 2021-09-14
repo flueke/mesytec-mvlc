@@ -1,6 +1,7 @@
 #ifndef __MESYTEC_MVLC_MVLC_READOUT_PARSER_UTIL_H__
 #define __MESYTEC_MVLC_MVLC_READOUT_PARSER_UTIL_H__
 
+#include <atomic>
 #include <ostream>
 
 #include "mesytec-mvlc/mesytec-mvlc_export.h"
@@ -33,7 +34,8 @@ void MESYTEC_MVLC_EXPORT run_readout_parser(
     readout_parser::ReadoutParserState &state,
     Protected<readout_parser::ReadoutParserCounters> &counters,
     ReadoutBufferQueues &snoopQueues,
-    readout_parser::ReadoutParserCallbacks &parserCallbacks);
+    readout_parser::ReadoutParserCallbacks &parserCallbacks,
+    std::atomic<bool> &quit);
 
 MESYTEC_MVLC_EXPORT std::ostream &print_counters(
     std::ostream &out, const ReadoutParserCounters &counters);
