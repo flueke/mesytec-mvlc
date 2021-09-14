@@ -5,6 +5,13 @@ target_link_libraries(mvlc-mini-daq
     PRIVATE spdlog::spdlog
     )
 
+add_executable(mvlc-mini-daq2 mini_daq_main2.cc)
+target_link_libraries(mvlc-mini-daq2
+    PRIVATE mesytec-mvlc
+    PRIVATE BFG::Lyra
+    PRIVATE spdlog::spdlog
+    )
+
 add_executable(mvlc-mini-daq-replay mini_daq_replay.cc)
 target_link_libraries(mvlc-mini-daq-replay
     PRIVATE mesytec-mvlc
