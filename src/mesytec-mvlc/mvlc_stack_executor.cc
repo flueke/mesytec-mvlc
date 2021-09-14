@@ -25,6 +25,7 @@ CommandExecResult run_command(
 
     using CT = StackCommand::CommandType;
 
+    // TODO: add the new fw0019 commands
     switch (cmd.type)
     {
         case CT::Invalid:

@@ -784,6 +784,7 @@ std::vector<u32> make_stack_buffer(const std::vector<StackCommand> &stack)
     {
         u32 cmdWord = static_cast<u32>(cmd.type) << stack_commands::CmdShift;
 
+        // TODO: add the new fw0019 commands
         switch (cmd.type)
         {
             case CommandType::VMERead:
@@ -883,6 +884,7 @@ std::vector<StackCommand> stack_commands_from_buffer(const std::vector<u32> &buf
         StackCommand cmd = {};
         cmd.type = static_cast<StackCT>(sct);
 
+        // TODO: add the new fw0019 commands
         switch (cmd.type)
         {
             case StackCT::StackStart:
