@@ -1,5 +1,5 @@
-#ifndef __MESYTEC_MVLC_MVLC_READOUT_H__
-#define __MESYTEC_MVLC_MVLC_READOUT_H__
+#ifndef __MESYTEC_MVLC_MVLC_READOUT_WORKER_H__
+#define __MESYTEC_MVLC_MVLC_READOUT_WORKER_H__
 
 #include <future>
 #include <vector>
@@ -198,4 +198,4 @@ MESYTEC_MVLC_EXPORT const char *readout_worker_state_to_string(const ReadoutWork
 } // end namespace mvlc
 } // end namespace mesytec
 
-#endif /* __MESYTEC_MVLC_MVLC_READOUT_H__ */
+#endif /* __MESYTEC_MVLC_MVLC_READOUT_WORKER_H__ */

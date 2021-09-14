@@ -300,6 +300,8 @@ struct MESYTEC_MVLC_EXPORT ReadoutParserState
     // ETH parsing only. The transmitted packet number type is u16. Using an
     // s32 here to represent the "no previous packet" case by storing a -1.
     s32 lastPacketNumber = -1;
+
+    std::exception_ptr eptr;
 };
 
 // Create a readout parser from a list of readout stack defintions.

@@ -125,6 +125,7 @@ class Handle
         ReadoutParserState parserState_;
         Protected<readout_parser::ReadoutParserCounters> parserCounters_;
         std::thread parserThread_;
+        std::atomic<bool> parserQuit_;
 
         // reader
         listfile::ZipReader zr_;
@@ -145,12 +146,7 @@ class Handle
 
             if (parserThread_.joinable())
             {
-                if (auto sentinel = snoopQueues_.emptyBufferQueue().dequeue(std::chrono::seconds(1)))
-                {
-                    sentinel->clear();
-                    snoopQueues_.filledBufferQueue().enqueue(sentinel);
-                }
-
+                parserQuit_ = true;
                 parserThread_.join();
             }
 
@@ -161,6 +157,7 @@ class Handle
         Handle(const std::string &filename)
             : replayDone_(false)
             , parserCounters_({})
+            , parserQuit_(false)
             , snoopQueues_(BufferSize, BufferCount)
         {
             // open listfile
@@ -239,7 +236,9 @@ class Handle
                 std::ref(parserState_),
                 std::ref(parserCounters_),
                 std::ref(snoopQueues_),
-                std::ref(parserCallbacks_));
+                std::ref(parserCallbacks_),
+                std::ref(parserQuit_)
+                );
 
             // reader/replayWorker
             replayWorker_ = std::make_unique<ReplayWorker>(snoopQueues_, rh_);

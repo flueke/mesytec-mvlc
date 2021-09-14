@@ -419,13 +419,16 @@ int main(int argc, char *argv[])
         Protected<readout_parser::ReadoutParserCounters> parserCounters({});
 
         std::thread parserThread;
+        std::atomic<bool> parserQuit(false);
 
         parserThread = std::thread(
             readout_parser::run_readout_parser,
             std::ref(parserState),
             std::ref(parserCounters),
             std::ref(snoopQueues),
-            std::ref(parserCallbacks));
+            std::ref(parserCallbacks),
+            std::ref(parserQuit)
+            );
 
         //
         // Create a ReadoutWorker and start the readout.
@@ -470,23 +473,7 @@ int main(int argc, char *argv[])
         // stop the readout parser
         if (parserThread.joinable())
         {
-            // TODO: simplify the readout_parser stop sequence. maybe use an
-            // atomic<bool> to tell the parser to quit.
-            cout << "waiting for empty snoopQueue buffer" << endl;
-            auto sentinel = snoopQueues.emptyBufferQueue().dequeue(std::chrono::seconds(1));
-
-            if (sentinel)
-            {
-                cout << "got a sentinel buffer for the readout parser" << endl;
-                sentinel->clear();
-                snoopQueues.filledBufferQueue().enqueue(sentinel);
-                cout << "enqueued the sentinel buffer for the readout parser" << endl;
-            }
-            else
-            {
-                cout << "did not get an empty buffer from the snoopQueues" << endl;
-            }
-
+            parserQuit = true;
             parserThread.join();
         }
 
