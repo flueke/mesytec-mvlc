@@ -35,12 +35,16 @@ void run_readout_parser(
         auto &filled = snoopQueues.filledBufferQueue();
         auto &empty = snoopQueues.emptyBufferQueue();
 
-        while (!quit)
+        while (true)
         {
             auto buffer = filled.dequeue(std::chrono::milliseconds(100));
 
             if (!buffer || buffer->empty())
+            {
+                if (quit)
+                    break;
                 continue;
+            }
 
             try
             {
