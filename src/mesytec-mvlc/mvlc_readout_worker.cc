@@ -59,7 +59,7 @@
 // Note: max amount to copy is the max length of a frame. That's 2^13 words
 // (32k bytes) for readout frames.
 
-#include "mvlc_readout.h"
+#include "mvlc_readout_worker.h"
 #include "mvlc_constants.h"
 #include "mvlc_listfile.h"
 
