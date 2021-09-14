@@ -246,7 +246,7 @@ int main(int argc, char *argv[])
         cout << cli << endl;
 
         cout
-            << "The mini-daq utility is a command-line program for running an"
+            << "The mini-daq utility is a command-line program for running a"
             << " MVLC based DAQ." << endl << endl
             << "Configuration data has to be supplied in a YAML 'CrateConfig' file." << endl
             << "Such a config file can be generated from an mvme setup using the" << endl
