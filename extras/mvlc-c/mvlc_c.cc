@@ -260,3 +260,7 @@ mvlc_readout_t *mvlc_readout_create(
     return ret.release();
 }
 
+void mvlc_readout_destroy(mvlc_readout_t *rdo)
+{
+    delete rdo;
+}
