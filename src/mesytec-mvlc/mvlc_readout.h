@@ -23,10 +23,15 @@ struct ListfileParams
     enum class Compression { LZ4, ZIP };
 
     bool writeListfile = true;
+    // name of the listfile zip archive
     std::string filepath = "./run_001.zip";
+    // name of the listfile inside the zip archive
     std::string listfilename = "listfile";
+    // if true overwrite existing archives
     bool overwrite = false;
+    // compression for the listfile inside the zip archive
     Compression compression = Compression::LZ4;
+    // compression level, the higher the better compression but also the slower
     int compressionLevel = 0;
 };
 
