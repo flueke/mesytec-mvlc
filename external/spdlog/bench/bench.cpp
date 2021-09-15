@@ -12,6 +12,12 @@
 #include "spdlog/sinks/null_sink.h"
 #include "spdlog/sinks/rotating_file_sink.h"
 
+#ifdef SPDLOG_FMT_EXTERNAL
+#    include <fmt/locale.h>
+#else
+#    include "spdlog/fmt/bundled/format.h"
+#endif
+
 #include "utils.h"
 #include <atomic>
 #include <cstdlib> // EXIT_FAILURE
@@ -32,7 +38,7 @@ static const int max_threads = 1000;
 void bench_threaded_logging(size_t threads, int iters)
 {
     spdlog::info("**************************************************************");
-    spdlog::info("Multi threaded: {:n} threads, {:n} messages", threads, iters);
+    spdlog::info(fmt::format(std::locale("en_US.UTF-8"), "Multi threaded: {:L} threads, {:L} messages", threads, iters));
     spdlog::info("**************************************************************");
 
     auto basic_mt = spdlog::basic_logger_mt("basic_mt", "logs/basic_mt.log", true);
@@ -68,7 +74,7 @@ void bench_threaded_logging(size_t threads, int iters)
 void bench_single_threaded(int iters)
 {
     spdlog::info("**************************************************************");
-    spdlog::info("Single threaded: {:n} messages", iters);
+    spdlog::info(fmt::format(std::locale("en_US.UTF-8"), "Single threaded: {} messages", iters));
     spdlog::info("**************************************************************");
 
     auto basic_st = spdlog::basic_logger_st("basic_st", "logs/basic_st.log", true);
@@ -122,7 +128,7 @@ int main(int argc, char *argv[])
 
         if (threads > max_threads)
         {
-            throw std::runtime_error(fmt::format("Number of threads exceeds maximum({}})", max_threads));
+            throw std::runtime_error(fmt::format("Number of threads exceeds maximum({})", max_threads));
         }
 
         bench_single_threaded(iters);
@@ -152,7 +158,8 @@ void bench(int howmany, std::shared_ptr<spdlog::logger> log)
     auto delta = high_resolution_clock::now() - start;
     auto delta_d = duration_cast<duration<double>>(delta).count();
 
-    spdlog::info("{:<30} Elapsed: {:0.2f} secs {:>16n}/sec", log->name(), delta_d, int(howmany / delta_d));
+    spdlog::info(
+        fmt::format(std::locale("en_US.UTF-8"), "{:<30} Elapsed: {:0.2f} secs {:>16L}/sec", log->name(), delta_d, int(howmany / delta_d)));
     spdlog::drop(log->name());
 }
 
@@ -182,7 +189,8 @@ void bench_mt(int howmany, std::shared_ptr<spdlog::logger> log, size_t thread_co
 
     auto delta = high_resolution_clock::now() - start;
     auto delta_d = duration_cast<duration<double>>(delta).count();
-    spdlog::info("{:<30} Elapsed: {:0.2f} secs {:>16n}/sec", log->name(), delta_d, int(howmany / delta_d));
+    spdlog::info(
+        fmt::format(std::locale("en_US.UTF-8"), "{:<30} Elapsed: {:0.2f} secs {:>16L}/sec", log->name(), delta_d, int(howmany / delta_d)));
     spdlog::drop(log->name());
 }
 
@@ -205,7 +213,7 @@ void bench_default_api(int howmany, std::shared_ptr<spdlog::logger> log)
     auto delta_d = duration_cast<duration<double>>(delta).count();
     spdlog::drop(log->name());
     spdlog::set_default_logger(std::move(orig_default));
-    spdlog::info("{:<30} Elapsed: {:0.2f} secs {:>16n}/sec", log->name(), delta_d, int(howmany / delta_d));
+    spdlog::info("{:<30} Elapsed: {:0.2f} secs {:>16}/sec", log->name(), delta_d, int(howmany / delta_d));
 }
 
 void bench_c_string(int howmany, std::shared_ptr<spdlog::logger> log)
@@ -232,7 +240,7 @@ void bench_c_string(int howmany, std::shared_ptr<spdlog::logger> log)
     auto delta_d = duration_cast<duration<double>>(delta).count();
     spdlog::drop(log->name());
     spdlog::set_default_logger(std::move(orig_default));
-    spdlog::info("{:<30} Elapsed: {:0.2f} secs {:>16n}/sec", log->name(), delta_d, int(howmany / delta_d));
+    spdlog::info("{:<30} Elapsed: {:0.2f} secs {:>16}/sec", log->name(), delta_d, int(howmany / delta_d));
 }
 
 */

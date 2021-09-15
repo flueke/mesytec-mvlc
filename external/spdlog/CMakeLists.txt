@@ -1,14 +1,6 @@
 # Copyright(c) 2019 spdlog authors Distributed under the MIT License (http://opensource.org/licenses/MIT)
 
-cmake_minimum_required(VERSION 3.2)
-
-if(${CMAKE_VERSION} VERSION_LESS 3.11)
-    cmake_policy(VERSION ${CMAKE_MAJOR_VERSION}.${CMAKE_MINOR_VERSION})
-else()
-    cmake_policy(VERSION 3.11)
-endif()
-
-enable_language(C)
+cmake_minimum_required(VERSION 3.10)
 
 # ---------------------------------------------------------------------------------------
 # Start spdlog project
@@ -22,6 +14,13 @@ project(spdlog VERSION ${SPDLOG_VERSION} LANGUAGES CXX)
 message(STATUS "Build spdlog: ${SPDLOG_VERSION}")
 
 include(GNUInstallDirs)
+
+# ---------------------------------------------------------------------------------------
+# Set CMake policies to support later version behaviour
+# ---------------------------------------------------------------------------------------
+if(POLICY CMP0077)
+    cmake_policy(SET CMP0077 NEW) # option() honors variables already set
+endif()
 
 # ---------------------------------------------------------------------------------------
 # Set default build to release
@@ -38,9 +37,14 @@ if(NOT CMAKE_CXX_STANDARD)
     set(CMAKE_CXX_STANDARD_REQUIRED ON)
 endif()
 
+# make sure __cplusplus is defined when using msvc and enable parallel build
+if(MSVC)
+    string(APPEND CMAKE_CXX_FLAGS " /Zc:__cplusplus /MP")
+endif()
+
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-if(CMAKE_SYSTEM_NAME MATCHES "CYGWIN")
+if(CMAKE_SYSTEM_NAME MATCHES "CYGWIN" OR CMAKE_SYSTEM_NAME MATCHES "MSYS")
     set(CMAKE_CXX_EXTENSIONS ON)
 endif()
 
@@ -95,10 +99,15 @@ endif()
 if(WIN32)
     option(SPDLOG_WCHAR_SUPPORT "Support wchar api" OFF)
     option(SPDLOG_WCHAR_FILENAMES "Support wchar filenames" OFF)
+else()
+    set(SPDLOG_WCHAR_SUPPORT OFF CACHE BOOL "non supported option" FORCE)
+    set(SPDLOG_WCHAR_FILENAMES OFF CACHE BOOL "non supported option" FORCE)
 endif()
+
 if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
-    option(SPDLOG_CLOCK_COARSE
-           "Use the much faster (but much less accurate) CLOCK_REALTIME_COARSE instead of the regular clock," OFF)
+    option(SPDLOG_CLOCK_COARSE "Use CLOCK_REALTIME_COARSE instead of the regular clock," OFF)
+else()
+    set(SPDLOG_CLOCK_COARSE OFF CACHE BOOL "non supported option" FORCE)
 endif()
 
 option(SPDLOG_PREVENT_CHILD_FD "Prevent from child processes to inherit log file descriptors" OFF)
@@ -108,6 +117,7 @@ option(
     SPDLOG_NO_ATOMIC_LEVELS
     "prevent spdlog from using of std::atomic log levels (use only if your code never modifies log levels concurrently"
     OFF)
+option(SPDLOG_DISABLE_DEFAULT_LOGGER "Disable default logger creation" OFF)
 
 # clang-tidy
 if(${CMAKE_VERSION} VERSION_GREATER "3.5")
@@ -131,7 +141,7 @@ if(NOT SPDLOG_FMT_EXTERNAL AND NOT SPDLOG_FMT_EXTERNAL_HO)
     list(APPEND SPDLOG_SRCS src/fmt.cpp)
 endif()
 
-if(SPDLOG_BUILD_SHARED)
+if(SPDLOG_BUILD_SHARED OR BUILD_SHARED_LIBS)
     if(WIN32)
         configure_file(${CMAKE_CURRENT_SOURCE_DIR}/cmake/version.rc.in ${CMAKE_CURRENT_BINARY_DIR}/version.rc @ONLY)
         list(APPEND SPDLOG_SRCS ${CMAKE_CURRENT_BINARY_DIR}/version.rc)
@@ -139,7 +149,8 @@ if(SPDLOG_BUILD_SHARED)
     add_library(spdlog SHARED ${SPDLOG_SRCS} ${SPDLOG_ALL_HEADERS})
     target_compile_definitions(spdlog PUBLIC SPDLOG_SHARED_LIB)
     if(MSVC)
-        target_compile_options(spdlog PUBLIC /wd4251 /wd4275)
+        target_compile_options(spdlog PUBLIC $<$<AND:$<CXX_COMPILER_ID:MSVC>,$<NOT:$<COMPILE_LANGUAGE:CUDA>>>:/wd4251
+                                             /wd4275>)
     endif()
     if(NOT SPDLOG_FMT_EXTERNAL AND NOT SPDLOG_FMT_EXTERNAL_HO)
         target_compile_definitions(spdlog PRIVATE FMT_EXPORT PUBLIC FMT_SHARED)
@@ -179,7 +190,7 @@ target_link_libraries(spdlog_header_only INTERFACE Threads::Threads)
 # ---------------------------------------------------------------------------------------
 if(SPDLOG_FMT_EXTERNAL OR SPDLOG_FMT_EXTERNAL_HO)
     if(NOT TARGET fmt::fmt)
-        find_package(fmt 5.3.0 REQUIRED)
+        find_package(fmt CONFIG REQUIRED)
     endif()
     target_compile_definitions(spdlog PUBLIC SPDLOG_FMT_EXTERNAL)
     target_compile_definitions(spdlog_header_only INTERFACE SPDLOG_FMT_EXTERNAL)
@@ -197,10 +208,19 @@ if(SPDLOG_FMT_EXTERNAL OR SPDLOG_FMT_EXTERNAL_HO)
 endif()
 
 # ---------------------------------------------------------------------------------------
+# Add required libraries for Android CMake build
+# ---------------------------------------------------------------------------------------
+if(ANDROID)
+    target_link_libraries(spdlog PUBLIC log)
+    target_link_libraries(spdlog_header_only INTERFACE log)
+endif()
+
+# ---------------------------------------------------------------------------------------
 # Misc definitions according to tweak options
 # ---------------------------------------------------------------------------------------
 set(SPDLOG_WCHAR_TO_UTF8_SUPPORT ${SPDLOG_WCHAR_SUPPORT})
-foreach(SPDLOG_OPTION
+foreach(
+    SPDLOG_OPTION
     SPDLOG_WCHAR_TO_UTF8_SUPPORT
     SPDLOG_WCHAR_FILENAMES
     SPDLOG_NO_EXCEPTIONS
@@ -209,7 +229,7 @@ foreach(SPDLOG_OPTION
     SPDLOG_NO_THREAD_ID
     SPDLOG_NO_TLS
     SPDLOG_NO_ATOMIC_LEVELS
-)
+    SPDLOG_DISABLE_DEFAULT_LOGGER)
     if(${SPDLOG_OPTION})
         target_compile_definitions(spdlog PUBLIC ${SPDLOG_OPTION})
         target_compile_definitions(spdlog_header_only INTERFACE ${SPDLOG_OPTION})
@@ -287,7 +307,8 @@ if(SPDLOG_INSTALL)
     install(EXPORT spdlog DESTINATION ${export_dest_dir} NAMESPACE spdlog:: FILE ${config_targets_file})
 
     include(CMakePackageConfigHelpers)
-    configure_file("${project_config_in}" "${project_config_out}" @ONLY)
+    configure_package_config_file("${project_config_in}" "${project_config_out}"
+        INSTALL_DESTINATION ${export_dest_dir})
 
     write_basic_package_version_file("${version_config_file}" COMPATIBILITY SameMajorVersion)
     install(FILES "${project_config_out}" "${version_config_file}" DESTINATION "${export_dest_dir}")

@@ -13,6 +13,7 @@ void rotating_example();
 void daily_example();
 void async_example();
 void binary_example();
+void stopwatch_example();
 void trace_example();
 void multi_sink_example();
 void user_defined_example();
@@ -21,7 +22,8 @@ void syslog_example();
 void custom_flags_example();
 
 #include "spdlog/spdlog.h"
-#include "spdlog/cfg/env.h" // for loading levels from the environment variable
+#include "spdlog/cfg/env.h"  // support for loading levels from the environment variable
+#include "spdlog/fmt/ostr.h" // support for user defined types
 
 int main(int, char *[])
 {
@@ -71,6 +73,7 @@ int main(int, char *[])
         user_defined_example();
         err_handler_example();
         trace_example();
+        stopwatch_example();
         custom_flags_example();
 
         // Flush all *registered* loggers using a worker thread every 3 seconds.
@@ -127,7 +130,7 @@ void daily_example()
 #include "spdlog/cfg/env.h"
 void load_levels_example()
 {
-    // Set the log level to "info" and mylogger to to "trace":
+    // Set the log level to "info" and mylogger to "trace":
     // SPDLOG_LEVEL=info,mylogger=trace && ./example
     spdlog::cfg::load_env_levels();
     // or from command line:
@@ -192,6 +195,16 @@ void trace_example()
     SPDLOG_LOGGER_TRACE(logger, "another trace message");
 }
 
+// stopwatch example
+#include "spdlog/stopwatch.h"
+#include <thread>
+void stopwatch_example()
+{
+    spdlog::stopwatch sw;
+    std::this_thread::sleep_for(std::chrono::milliseconds(123));
+    spdlog::info("Stopwatch: {} seconds", sw);
+}
+
 // A logger with multiple sinks (stdout and file) - each with a different format and log level.
 void multi_sink_example()
 {
@@ -209,7 +222,6 @@ void multi_sink_example()
 }
 
 // User defined types logging by implementing operator<<
-#include "spdlog/fmt/ostr.h" // must be included
 struct my_type
 {
     int i;
@@ -234,7 +246,7 @@ void err_handler_example()
 
 // syslog example (linux/osx/freebsd)
 #ifndef _WIN32
-#include "spdlog/sinks/syslog_sink.h"
+#    include "spdlog/sinks/syslog_sink.h"
 void syslog_example()
 {
     std::string ident = "spdlog-example";
@@ -245,7 +257,7 @@ void syslog_example()
 
 // Android example.
 #if defined(__ANDROID__)
-#include "spdlog/sinks/android_sink.h"
+#    include "spdlog/sinks/android_sink.h"
 void android_example()
 {
     std::string tag = "spdlog-android";
