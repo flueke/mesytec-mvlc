@@ -46,7 +46,7 @@ MVLCReadout::MVLCReadout()
 
 MVLCReadout::~MVLCReadout()
 {
-    if (d->parserThread.joinable())
+    if (d && d->parserThread.joinable())
     {
         d->parserQuit = true;
         d->parserThread.join();
