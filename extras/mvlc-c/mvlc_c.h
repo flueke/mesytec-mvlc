@@ -153,6 +153,21 @@ typedef struct readout_parser_callbacks
     rdo_system_event_callback system_event;
 } readout_parser_callbacks_t;
 
+// Listfile params
+typedef enum { LZ4, ZIP } MVLC_ListfileCompression;
+
+typedef struct mvlc_listfile_params
+{
+    bool writeListfile;
+    const char *filepath;
+    const char *listfilename;
+    bool overwrite;
+    MVLC_ListfileCompression compression;
+    int compressionLevel;
+} mvlc_listfile_params_t;
+
+mvlc_listfile_params_t make_default_listfile_params();
+
 // Readout object combining
 // - mvlc
 // - crateconfig
@@ -166,16 +181,26 @@ mvlc_readout_t *mvlc_readout_create(
     mvlc_listfile_write_handle lfh,
     readout_parser_callbacks_t callbacks);
 
+mvlc_readout_t *mvlc_readout_create2(
+    mvlc_ctrl_t *mvlc,
+    mvlc_crateconfig_t *cfg,
+    mvlc_listfile_params_t listfileParams,
+    readout_parser_callbacks_t callbacks);
+
 void mvlc_readout_destroy(mvlc_readout_t *rdo);
 
-mvlc_err_t readout_start(mvlc_readout_t *rdo);
-mvlc_err_t readout_stop(mvlc_readout_t *rdo);
-mvlc_err_t readout_pause(mvlc_readout_t *rdo);
-mvlc_err_t readout_resume(mvlc_readout_t *rdo);
+mvlc_err_t mvlc_readout_start(mvlc_readout_t *rdo, int timeToRun_s);
+mvlc_err_t mvlc_readout_stop(mvlc_readout_t *rdo);
+mvlc_err_t mvlc_readout_pause(mvlc_readout_t *rdo);
+mvlc_err_t mvlc_readout_resume(mvlc_readout_t *rdo);
 
 typedef enum
 {
-    Idle, Starting, Running, Paused, Stopping
+    ReadoutState_Idle,
+    ReadoutState_Starting,
+    ReadoutState_Running,
+    ReadoutState_Paused,
+    ReadoutState_Stopping
 } MVLC_ReadoutState;
 
 MVLC_ReadoutState get_readout_state(mvlc_readout_t *rdo);

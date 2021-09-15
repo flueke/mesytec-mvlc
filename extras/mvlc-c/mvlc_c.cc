@@ -236,6 +236,9 @@ mvlc_ctrl_t *mvlc_ctrl_create_from_crateconfig(mvlc_crateconfig_t *cfg)
     return ret.release();
 }
 
+// Wraps the C-layer mvlc_listfile_write_handle function in the required C++
+// WriteHandle subclass. Negative return values from the C-layer (indicating a write error) are
+// thrown as std::runtime_errors.
 struct ListfileWriteHandleWrapper: public listfile::WriteHandle
 {
     ListfileWriteHandleWrapper(mvlc_listfile_write_handle listfile_handle)
@@ -247,12 +250,24 @@ struct ListfileWriteHandleWrapper: public listfile::WriteHandle
     {
         ssize_t res = listfile_handle(data, size);
         if (res < 0)
-            throw res;
+            throw std::runtime_error("wrapped listfile write failed: " + std::to_string(res));
         return res;
     }
 
     mvlc_listfile_write_handle listfile_handle;
 };
+
+mvlc_listfile_params_t make_default_listfile_params()
+{
+    mvlc_listfile_params_t ret;
+    ret.writeListfile = true;
+    ret.filepath = "./run_001.zip";
+    ret.listfilename = "listfile";
+    ret.overwrite = false;
+    ret.compression = MVLC_ListfileCompression::LZ4;
+    ret.compressionLevel = 0;
+    return ret;
+}
 
 struct mvlc_readout
 {
@@ -260,48 +275,89 @@ struct mvlc_readout
     std::unique_ptr<ListfileWriteHandleWrapper> lfWrap;
 };
 
+namespace
+{
+    // Creates C++ ReadoutParserCallbacks which internally call the C-style
+    // parser_callbacks functions..
+    readout_parser::ReadoutParserCallbacks wrap_parser_callbacks(
+        readout_parser_callbacks_t parser_callbacks)
+    {
+        readout_parser::ReadoutParserCallbacks parserCallbacks;
+
+        parserCallbacks.eventData = [parser_callbacks] (
+            int eventIndex,
+            const readout_parser::ModuleData *modulesDataCpp,
+            unsigned moduleCount)
+        {
+            static const size_t MaxVMEModulesPerEvent = 20;
+            std::array<readout_moduledata, MaxVMEModulesPerEvent> modulesDataC;
+
+            assert(moduleCount <= modulesDataC.size());
+
+            for (size_t i=0; i<moduleCount; ++i)
+            {
+                modulesDataC[i].prefix = { modulesDataCpp[i].prefix.data, modulesDataCpp[i].prefix.size };
+                modulesDataC[i].dynamic = { modulesDataCpp[i].dynamic.data, modulesDataCpp[i].dynamic.size };
+                modulesDataC[i].suffix = { modulesDataCpp[i].suffix.data, modulesDataCpp[i].suffix.size };
+            }
+
+            if (parser_callbacks.event_data)
+                parser_callbacks.event_data(eventIndex, modulesDataC.begin(), moduleCount);
+        };
+
+        parserCallbacks.systemEvent = [parser_callbacks] (const u32 *header, u32 size)
+        {
+            if (parser_callbacks.system_event)
+                parser_callbacks.system_event(header, size);
+        };
+
+        return parserCallbacks;
+    }
+}
+
 mvlc_readout_t *mvlc_readout_create(
     mvlc_ctrl_t *mvlc,
     mvlc_crateconfig_t *crateconfig,
     mvlc_listfile_write_handle listfile_handle,
     readout_parser_callbacks_t parser_callbacks)
 {
-    readout_parser::ReadoutParserCallbacks parserCallbacks;
+    auto lfWrap = std::make_unique<ListfileWriteHandleWrapper>(listfile_handle);
 
-    parserCallbacks.eventData = [parser_callbacks] (
-        int eventIndex,
-        const readout_parser::ModuleData *modulesDataCpp,
-        unsigned moduleCount)
-    {
-        static const size_t MaxVMEModulesPerEvent = 20;
-        std::array<readout_moduledata, MaxVMEModulesPerEvent> modulesDataC;
-
-        assert(moduleCount <= modulesDataC.size());
-
-        for (size_t i=0; i<moduleCount; ++i)
-        {
-            modulesDataC[i].prefix = { modulesDataCpp[i].prefix.data, modulesDataCpp[i].prefix.size };
-            modulesDataC[i].dynamic = { modulesDataCpp[i].dynamic.data, modulesDataCpp[i].dynamic.size };
-            modulesDataC[i].suffix = { modulesDataCpp[i].suffix.data, modulesDataCpp[i].suffix.size };
-        }
-
-        parser_callbacks.event_data(eventIndex, modulesDataC.begin(), moduleCount);
-    };
-
-    parserCallbacks.systemEvent = [parser_callbacks] (const u32 *header, u32 size)
-    {
-        parser_callbacks.system_event(header, size);
-    };
+    auto rdo = make_mvlc_readout(
+        mvlc->instance,
+        crateconfig->cfg,
+        lfWrap.get(),
+        wrap_parser_callbacks(parser_callbacks));
 
     auto ret = std::make_unique<mvlc_readout>();
+    ret->rdo = std::make_unique<MVLCReadout>(std::move(rdo));
+    ret->lfWrap = std::move(lfWrap);
 
-    ret->lfWrap = std::make_unique<ListfileWriteHandleWrapper>(listfile_handle);
+    return ret.release();
+}
 
-    ret->rdo = std::make_unique<MVLCReadout>(make_mvlc_readout(
-            mvlc->instance,
-            crateconfig->cfg,
-            ret->lfWrap.get(),
-            parserCallbacks));
+mvlc_readout_t *mvlc_readout_create2(
+    mvlc_ctrl_t *mvlc,
+    mvlc_crateconfig_t *crateconfig,
+    mvlc_listfile_params_t lfParamsC,
+    readout_parser_callbacks_t parser_callbacks)
+{
+    ListfileParams lfParamsCpp;
+    lfParamsCpp.writeListfile = lfParamsC.writeListfile;
+    lfParamsCpp.filepath = lfParamsC.filepath;
+    lfParamsCpp.listfilename = lfParamsC.listfilename;
+    lfParamsCpp.overwrite = lfParamsC.overwrite;
+    lfParamsCpp.compression = static_cast<ListfileParams::Compression>(lfParamsC.compression);
+    lfParamsCpp.compressionLevel = lfParamsC.compressionLevel;
+
+    auto rdo = make_mvlc_readout(
+        mvlc->instance,
+        crateconfig->cfg,
+        lfParamsCpp,
+        wrap_parser_callbacks(parser_callbacks));
+
+    auto ret = std::make_unique<mvlc_readout>();
+    ret->rdo = std::make_unique<MVLCReadout>(std::move(rdo));
 
     return ret.release();
 }
@@ -309,4 +365,34 @@ mvlc_readout_t *mvlc_readout_create(
 void mvlc_readout_destroy(mvlc_readout_t *rdo)
 {
     delete rdo;
+}
+
+mvlc_err_t mvlc_readout_start(mvlc_readout_t *rdo, int timeToRun_s)
+{
+    auto ec = rdo->rdo->start(std::chrono::seconds(timeToRun_s));
+    return make_mvlc_error(ec);
+}
+
+mvlc_err_t mvlc_readout_stop(mvlc_readout_t *rdo)
+{
+    auto ec = rdo->rdo->stop();
+    return make_mvlc_error(ec);
+}
+
+mvlc_err_t mvlc_readout_pause(mvlc_readout_t *rdo)
+{
+    auto ec = rdo->rdo->pause();
+    return make_mvlc_error(ec);
+}
+
+mvlc_err_t mvlc_readout_resume(mvlc_readout_t *rdo)
+{
+    auto ec = rdo->rdo->resume();
+    return make_mvlc_error(ec);
+}
+
+MVLC_ReadoutState get_readout_state(mvlc_readout_t *rdo)
+{
+    auto cppState = rdo->rdo->state();
+    return static_cast<MVLC_ReadoutState>(cppState);
 }
