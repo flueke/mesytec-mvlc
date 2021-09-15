@@ -159,7 +159,7 @@ void ZipCreator::createArchive(
     const OverwriteMode &mode)
 {
     if (mode == OverwriteMode::DontOverwrite && util::file_exists(zipFilename))
-        throw std::runtime_error("archive file exists");
+        throw std::runtime_error("output archive file exists");
 
     s32 mzMode = MZ_OPEN_MODE_WRITE | MZ_OPEN_MODE_CREATE;
 
