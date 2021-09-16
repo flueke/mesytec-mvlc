@@ -599,6 +599,8 @@ void mvlc_eth_throttler(
     Protected<eth::EthThrottleContext> &ctx,
     Protected<eth::EthThrottleCounters> &counters)
 {
+    auto logger = spdlog::get("mvlc_eth");
+
     int dataSocket = ctx.access()->dataSocket;
     ReceiveBufferSnapshot rbs = { 0u, static_cast<u32>(ctx.access()->dataSocketReceiveBufferSize) };
 
