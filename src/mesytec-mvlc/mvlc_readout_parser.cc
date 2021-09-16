@@ -30,6 +30,7 @@
 #include <cassert>
 #include <iostream>
 
+#include "logging.h"
 #include "mvlc_buffer_validators.h"
 #include "mvlc_constants.h"
 #include "mvlc_impl_eth.h"
@@ -38,35 +39,7 @@
 #include "util/string_view.hpp"
 #include "vme_constants.h"
 
-#define LOG_LEVEL_OFF     0
-#define LOG_LEVEL_WARN  100
-#define LOG_LEVEL_INFO  200
-#define LOG_LEVEL_DEBUG 300
-#define LOG_LEVEL_TRACE 400
-
-#ifndef MVLC_READOUT_PARSER_LOG_LEVEL
-#define MVLC_READOUT_PARSER_LOG_LEVEL LOG_LEVEL_WARN
-#endif
-
-#define LOG_LEVEL_SETTING MVLC_READOUT_PARSER_LOG_LEVEL
-
-#define DO_LOG(level, prefix, fmt, ...)\
-do\
-{\
-    if (LOG_LEVEL_SETTING >= level)\
-    {\
-        fprintf(stderr, prefix "%s(): " fmt "\n", __FUNCTION__, ##__VA_ARGS__);\
-    }\
-} while (0);
-
-#define LOG_WARN(fmt, ...)  DO_LOG(LOG_LEVEL_WARN,  "WARN - mvlc_rdo_parser ", fmt, ##__VA_ARGS__)
-#define LOG_INFO(fmt, ...)  DO_LOG(LOG_LEVEL_INFO,  "INFO - mvlc_rdo_parser ", fmt, ##__VA_ARGS__)
-#define LOG_DEBUG(fmt, ...) DO_LOG(LOG_LEVEL_DEBUG, "DEBUG - mvlc_rdo_parser ", fmt, ##__VA_ARGS__)
-#define LOG_TRACE(fmt, ...) DO_LOG(LOG_LEVEL_TRACE, "TRACE - mvlc_rdo_parser ", fmt, ##__VA_ARGS__)
-
 using namespace nonstd;
-using std::cout;
-using std::endl;
 
 namespace mesytec
 {
@@ -319,7 +292,8 @@ inline ParseResult parser_begin_event(ReadoutParserState &state, u32 frameHeader
 
     if (frameInfo.type != frame_headers::StackFrame)
     {
-        LOG_WARN("NotAStackFrame: 0x%08x", frameHeader);
+        auto logger = spdlog::get("readout_parser");
+        logger->warn("NotAStackFrame: 0x{:008x}", frameHeader);
         return ParseResult::NotAStackFrame;
     }
 
@@ -445,6 +419,8 @@ ParseResult parse_readout_contents(
     bool is_eth,
     u32 bufferNumber)
 {
+    auto logger = spdlog::get("readout_parser");
+
     auto originalInputView = input;
 
     try
@@ -490,11 +466,11 @@ ParseResult parse_readout_contents(
 
                     if (frameInfo.type != frame_headers::StackContinuation)
                     {
-                        LOG_TRACE("NotAStackContinuation:"
-                                 " curStackFrame.wordsLeft=%u"
-                                 " , curBlockFrame.wordsLeft=%u"
-                                 ", eventIndex=%d, moduleIndex=%d"
-                                 ", inputOffset=%lu",
+                        logger->trace("NotAStackContinuation:"
+                                 " curStackFrame.wordsLeft={}"
+                                 " , curBlockFrame.wordsLeft={}"
+                                 ", eventIndex={}, moduleIndex={}"
+                                 ", inputOffset={}",
                                  state.curStackFrame.wordsLeft,
                                  state.curBlockFrame.wordsLeft,
                                  state.eventIndex,
@@ -510,7 +486,7 @@ ParseResult parse_readout_contents(
                     // The stack frame is ok and can now be extracted from the
                     // buffer.
                     state.curStackFrame = ReadoutParserState::FrameParseState{ input[0] };
-                    LOG_TRACE("new curStackFrame: 0x%08x", state.curStackFrame.header);
+                    logger->trace("new curStackFrame: 0x{:008x}", state.curStackFrame.header);
                     input.remove_prefix(1);
 
                     if (state.curStackFrame.wordsLeft == 0)
@@ -527,7 +503,7 @@ ParseResult parse_readout_contents(
                         // is set. To avoid this the block frame is cleared
                         // here.
                         //cout << "Hello empty stackFrame!" << endl;
-                        LOG_WARN("got an empty stack frame: 0x%08x",
+                        logger->warn("got an empty stack frame: 0x{:008x}",
                                  state.curStackFrame.header);
                         ++counters.emptyStackFrames;
                         state.curBlockFrame = ReadoutParserState::FrameParseState{};
@@ -552,15 +528,16 @@ ParseResult parse_readout_contents(
                     assert(input.data() == nextStackFrame);
 
                     auto stackFrameOffset = nextStackFrame - prevIterPtr;
-                    LOG_TRACE("found next StackFrame: @%p 0x%08x (searchOffset=%lu)",
-                              nextStackFrame, *nextStackFrame, stackFrameOffset);
+                    logger->trace("found next StackFrame: @{} 0x{:008x} (searchOffset={})",
+                              reinterpret_cast<const void *>(nextStackFrame),
+                              *nextStackFrame, stackFrameOffset);
 
                     auto unusedWords = nextStackFrame - prevIterPtr;
 
                     counters.unusedBytes += unusedWords * sizeof(u32);
 
                     if (unusedWords)
-                        LOG_DEBUG("skipped over %lu words while searching for the next"
+                        logger->debug("skipped over {} words while searching for the next"
                                   " stack frame header", unusedWords);
 
                     if (input.empty())
@@ -570,7 +547,7 @@ ParseResult parse_readout_contents(
 
                     if (pr != ParseResult::Ok)
                     {
-                        LOG_WARN("error from parser_begin_event, iter offset=%ld, bufferNumber=%u",
+                        logger->warn("error from parser_begin_event, iter offset={}, bufferNumber={}",
                                  nextStackFrame - inputBegin,
                                  bufferNumber);
                         return pr;
@@ -598,12 +575,12 @@ ParseResult parse_readout_contents(
                 auto fi = extract_frame_info(state.curStackFrame.header);
                 if (fi.len != 0u)
                 {
-                    LOG_WARN("No modules in event %d but got a non-empty "
-                             "stack frame of len %u (header=0x%08x)",
+                    logger->warn("No modules in event {} but got a non-empty "
+                             "stack frame of len {} (header=0x{:008x})",
                              state.eventIndex, fi.len, state.curStackFrame.header);
                 }
 
-                LOG_TRACE("parser_clear_event_state because moduleReadoutInfos.empty(), eventIndex=%d",
+                logger->trace("parser_clear_event_state because moduleReadoutInfos.empty(), eventIndex={}",
                           state.eventIndex);
                 parser_clear_event_state(state);
                 return ParseResult::Ok;
@@ -686,7 +663,7 @@ ParseResult parse_readout_contents(
                                 // Peek the potential block frame header
                                 state.curBlockFrame = ReadoutParserState::FrameParseState{ input[0] };
 
-                                LOG_TRACE("state.curBlockFrame.header=0x%x", state.curBlockFrame.header);
+                                logger->trace("state.curBlockFrame.header=0x{:x}", state.curBlockFrame.header);
 
                                 if (state.curBlockFrame.info().type != frame_headers::BlockRead)
                                 {
@@ -707,7 +684,7 @@ ParseResult parse_readout_contents(
                                     //std::terminate();
 #endif
 
-                                    LOG_WARN("NotABlockFrame: type=0x%x, frameHeader=0x%08x",
+                                    logger->warn("NotABlockFrame: type=0x{:x}, frameHeader=0x{:008x}",
                                               state.curBlockFrame.info().type,
                                               state.curBlockFrame.header);
 
@@ -858,7 +835,7 @@ ParseResult parse_readout_contents(
 
                 ++counters.eventHits[state.eventIndex];
 
-                LOG_TRACE("parser_clear_event_state because event is done, eventIndex=%d",
+                logger->trace("parser_clear_event_state because event is done, eventIndex={}",
                           state.eventIndex);
 
                 parser_clear_event_state(state);
@@ -872,9 +849,8 @@ ParseResult parse_readout_contents(
     }
     catch (const end_of_buffer &e)
     {
-        LOG_DEBUG("caught end_of_buffer: %s", e.what());
-        if (LOG_LEVEL_SETTING >= LOG_LEVEL_TRACE)
-            util::log_buffer(std::cout, originalInputView, "originalInputView");
+        logger->debug("caught end_of_buffer: {}", e.what());
+        log_buffer(logger, spdlog::level::trace, originalInputView, "originalInputView");
         throw;
     }
 
@@ -896,12 +872,14 @@ ParseResult parse_eth_packet(
     basic_string_view<u32> input,
     u32 bufferNumber)
 {
+    auto logger = spdlog::get("readout_parser");
+
     if (input.size() < eth::HeaderWords)
         throw end_of_buffer("ETH header words");
 
     eth::PayloadHeaderInfo ethHdrs{ input[0], input[1] };
 
-    LOG_TRACE("begin parsing packet %u, dataWords=%u, packetLen=%lu bytes",
+    logger->trace("begin parsing packet {}, dataWords={}, packetLen={} bytes",
               ethHdrs.packetNumber(), ethHdrs.dataWordCount(), input.size() * sizeof(u32));
 
     // Skip to the first payload contents word, right after the two ETH
@@ -933,7 +911,7 @@ ParseResult parse_eth_packet(
         counters.unusedBytes += ethHdrs.nextHeaderPointer() * sizeof(u32);
 
         if (ethHdrs.nextHeaderPointer() > 0)
-            LOG_DEBUG("skipped %u words (%lu bytes) of eth packet data to jump to the next header",
+            logger->debug("skipped {} words ({} bytes) of eth packet data to jump to the next header",
                       ethHdrs.nextHeaderPointer(),
                       ethHdrs.nextHeaderPointer() * sizeof(u32));
     }
@@ -950,7 +928,7 @@ ParseResult parse_eth_packet(
             if (pr != ParseResult::Ok)
                 return pr;
 
-            LOG_TRACE("end parsing packet %u, dataWords=%u",
+            logger->trace("end parsing packet {}, dataWords={}",
                       ethHdrs.packetNumber(), ethHdrs.dataWordCount());
 
             if (input.data() == lastInputPosition)
@@ -959,7 +937,7 @@ ParseResult parse_eth_packet(
     }
     catch (const std::exception &e)
     {
-        LOG_DEBUG("end parsing packet %u, dataWords=%u, exception=%s",
+        logger->debug("end parsing packet {}, dataWords={}, exception={}",
                   ethHdrs.packetNumber(), ethHdrs.dataWordCount(),
                   e.what());
         throw;
@@ -975,8 +953,10 @@ ParseResult parse_readout_buffer(
     ReadoutParserCounters &counters,
     u32 bufferNumber, const u32 *buffer, size_t bufferWords)
 {
-    LOG_TRACE("begin: bufferNumber=%u, buffer=%p, bufferWords=%lu",
-              bufferNumber, buffer, bufferWords);
+    auto logger = spdlog::get("readout_parser");
+
+    logger->trace("begin: bufferNumber={}, buffer={}, bufferWords={}",
+              bufferNumber, reinterpret_cast<const void *>(buffer), bufferWords);
     ParseResult result = {};
 
     try
@@ -1003,8 +983,9 @@ ParseResult parse_readout_buffer(
         return ParseResult::UnhandledException;
     }
 
-    LOG_TRACE("end: bufferNumber=%u, buffer=%p, bufferWords=%lu, result=%s",
-              bufferNumber, buffer, bufferWords, get_parse_result_name(result));
+    logger->trace("end: bufferNumber={}, buffer={}, bufferWords={}, result={}",
+              bufferNumber, reinterpret_cast<const void *>(buffer),
+              bufferWords, get_parse_result_name(result));
 
     return result;
 }
@@ -1017,7 +998,9 @@ ParseResult parse_readout_buffer_eth(
 {
     const size_t bufferBytes = bufferWords * sizeof(u32);
 
-    LOG_TRACE("begin parsing ETH buffer %u, size=%lu bytes", bufferNumber, bufferBytes);
+    auto logger = spdlog::get("readout_parser");
+
+    logger->trace("begin parsing ETH buffer {}, size={} bytes", bufferNumber, bufferBytes);
 
     s64 bufferLoss = calc_buffer_loss(bufferNumber, state.lastBufferNumber);
     state.lastBufferNumber = bufferNumber;
@@ -1086,7 +1069,7 @@ ParseResult parse_readout_buffer_eth(
                 {
                     parser_clear_event_state(state);
                     counters.ethPacketLoss += loss;
-                    LOG_DEBUG("packet loss detected: lastPacketNumber=%d, packetNumber=%d, loss=%d",
+                    logger->debug("packet loss detected: lastPacketNumber={}, packetNumber={}, loss={}",
                              state.lastPacketNumber,
                              ethHdrs.packetNumber(),
                              loss);
@@ -1179,7 +1162,7 @@ ParseResult parse_readout_buffer_eth(
                 {
                     input.remove_prefix(packetWords);
 
-                    LOG_DEBUG("skipping %lu words of eth packet data due to an error result from the parser",
+                    logger->debug("skipping {} words of eth packet data due to an error result from the parser",
                              packetWords);
                 }
 
@@ -1188,7 +1171,7 @@ ParseResult parse_readout_buffer_eth(
 
             ++counters.ethPacketsProcessed;
 
-            LOG_TRACE("parse_packet result: %d\n", (int)pr);
+            logger->trace("parse_packet result: {}", (int)pr);
 
             // Skip over the packet ending up either on the next SystemEvent
             // frame or on the next packets header0.
@@ -1200,7 +1183,7 @@ ParseResult parse_readout_buffer_eth(
     }
     catch (const std::exception &e)
     {
-        LOG_WARN("end parsing ETH buffer %u, size=%lu bytes, exception=%s",
+        logger->warn("end parsing ETH buffer {}, size={} bytes, exception={}",
                  bufferNumber, bufferBytes, e.what());
 
         parser_clear_event_state(state);
@@ -1210,7 +1193,7 @@ ParseResult parse_readout_buffer_eth(
     }
     catch (...)
     {
-        LOG_WARN("end parsing ETH buffer %u, size=%lu bytes, unknown exception",
+        logger->warn("end parsing ETH buffer {}, size={} bytes, unknown exception",
                  bufferNumber, bufferBytes);
 
         parser_clear_event_state(state);
@@ -1223,7 +1206,7 @@ ParseResult parse_readout_buffer_eth(
     auto unusedBytes = input.size() * sizeof(u32);
     counters.unusedBytes += unusedBytes;
 
-    LOG_TRACE("end parsing ETH buffer %u, size=%lu bytes, unused bytes=%lu",
+    logger->trace("end parsing ETH buffer {}, size={} bytes, unused bytes={}",
               bufferNumber, bufferBytes, unusedBytes);
 
     return {};
@@ -1237,7 +1220,9 @@ ParseResult parse_readout_buffer_usb(
 {
     const size_t bufferBytes = bufferWords * sizeof(u32);
 
-    LOG_TRACE("begin parsing USB buffer %u, size=%lu bytes", bufferNumber, bufferBytes);
+    auto logger = spdlog::get("readout_parser");
+
+    logger->trace("begin parsing USB buffer {}, size={} bytes", bufferNumber, bufferBytes);
 
     s64 bufferLoss = calc_buffer_loss(bufferNumber, state.lastBufferNumber);
     state.lastBufferNumber = bufferNumber;
@@ -1269,7 +1254,7 @@ ParseResult parse_readout_buffer_usb(
     }
     catch (const std::exception &e)
     {
-        LOG_WARN("end parsing USB buffer %u, size=%lu bytes, exception=%s",
+        logger->warn("end parsing USB buffer {}, size={} bytes, exception={}",
                  bufferNumber, bufferBytes, e.what());
 
         parser_clear_event_state(state);
@@ -1279,7 +1264,7 @@ ParseResult parse_readout_buffer_usb(
     }
     catch (...)
     {
-        LOG_WARN("end parsing USB buffer %u, size=%lu bytes, unknown exception",
+        logger->warn("end parsing USB buffer {}, size={} bytes, unknown exception",
                  bufferNumber, bufferBytes);
 
         parser_clear_event_state(state);
@@ -1290,7 +1275,7 @@ ParseResult parse_readout_buffer_usb(
 
     ++counters.buffersProcessed;
     counters.unusedBytes += input.size() * sizeof(u32);
-    LOG_TRACE("end parsing USB buffer %u, size=%lu bytes", bufferNumber, bufferBytes);
+    logger->trace("end parsing USB buffer {}, size={} bytes", bufferNumber, bufferBytes);
 
     return {};
 }

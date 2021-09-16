@@ -7,11 +7,12 @@ namespace
     static const auto LoggerNames =
     {
         "cmd_pipe_reader",
+        "listfile",
         "mvlc",
         "mvlc_eth",
         "mvlc_usb",
+        "readout",
         "readout_parser",
-        "readout_worker",
     };
 };
 

@@ -117,6 +117,8 @@ ReadoutInitResults MESYTEC_MVLC_EXPORT init_readout(
     MVLC &mvlc, const CrateConfig &crateConfig,
     const CommandExecOptions stackExecOptions)
 {
+    auto logger = spdlog::get("readout");
+
     ReadoutInitResults ret;
 
     // Reset to a clean state
@@ -147,7 +149,7 @@ ReadoutInitResults MESYTEC_MVLC_EXPORT init_readout(
 
         if (auto ec = get_first_error(ret.triggerIo))
         {
-            cerr << "Error running init_trigger_io: " << ret.ec.message() << endl;
+            logger->error("Error running init_trigger_io: {}", ec.message());
             return ret;
         }
     }
@@ -172,7 +174,7 @@ ReadoutInitResults MESYTEC_MVLC_EXPORT init_readout(
 
         if (auto ec = get_first_error(ret.init))
         {
-            cerr << "Error running init_commands: " << ec.message() << endl;
+            logger->error("Error running init_commands: {}", ec.message());
             return ret;
         }
     }
@@ -183,7 +185,7 @@ ReadoutInitResults MESYTEC_MVLC_EXPORT init_readout(
 
         if (ret.ec)
         {
-            cerr << "Error uploading readout stacks: " << ret.ec.message() << endl;
+            logger->error("Error uploading readout stacks: {}", ret.ec.message());
             return ret;
         }
     }
@@ -193,10 +195,9 @@ ReadoutInitResults MESYTEC_MVLC_EXPORT init_readout(
     {
         if ((ret.ec = mvlc.enableJumboFrames(crateConfig.ethJumboEnable)))
         {
-            spdlog::error(
-                "Error {} jumbo frames: {}",
-                crateConfig.ethJumboEnable ? "enabling" : "disabling",
-                ret.ec.message());
+            logger->error("Error {} jumbo frames: {}",
+                          crateConfig.ethJumboEnable ? "enabling" : "disabling",
+                          ret.ec.message());
         }
     }
 
@@ -212,10 +213,12 @@ void MESYTEC_MVLC_EXPORT listfile_buffer_writer(
     prctl(PR_SET_NAME,"listfile_writer",0,0,0);
 #endif
 
+    auto logger = spdlog::get("listfile");
+
     auto &filled = bufferQueues.filledBufferQueue();
     auto &empty = bufferQueues.emptyBufferQueue();
 
-    cerr << "listfile_writer entering write loop" << endl;
+    logger->info("listfile_writer entering write loop");
 
     size_t bytesWritten = 0u;
     size_t writes = 0u;
@@ -273,7 +276,7 @@ void MESYTEC_MVLC_EXPORT listfile_buffer_writer(
             state->eptr = std::current_exception();
         }
 
-        cerr << "listfile_writer caught a std::runtime_error: " << e.what() << endl;
+        logger->error("listfile_writer caught a std::runtime_error: {}", e.what());
     }
     catch (...)
     {
@@ -282,7 +285,7 @@ void MESYTEC_MVLC_EXPORT listfile_buffer_writer(
             state->eptr = std::current_exception();
         }
 
-        cerr << "listfile_writer caught an unknown exception." << endl;
+        logger->error("listfile_writer caught an unknown exception.");
     }
 
     {
@@ -291,7 +294,8 @@ void MESYTEC_MVLC_EXPORT listfile_buffer_writer(
         state->tEnd = ListfileWriterCounters::Clock::now();
     }
 
-    cerr << "listfile_writer left write loop, writes=" << writes << ", bytesWritten=" << bytesWritten << endl;
+    logger->info("listfile_writer left write loop, #writes={}, bytesWritten={}",
+                 writes, bytesWritten);
 }
 
 namespace
@@ -351,6 +355,8 @@ struct ReadoutWorker::Private
     ReadoutBuffer *outputBuffer_ = nullptr;
     u32 nextOutputBufferNumber = 1u;
 
+    std::shared_ptr<spdlog::logger> logger;
+
     Private(MVLC &mvlc_, ReadoutBufferQueues &snoopQueues_)
         : state({})
         , mvlc(mvlc_)
@@ -359,6 +365,7 @@ struct ReadoutWorker::Private
         , listfileQueues(ListfileWriterBufferSize, ListfileWriterBufferCount)
         , localBuffer(ListfileWriterBufferSize)
         , previousData(ListfileWriterBufferSize)
+        , logger(spdlog::get("readout"))
     {}
 
     ~Private()
@@ -479,7 +486,7 @@ void ReadoutWorker::Private::loop(std::promise<std::error_code> promise)
     prctl(PR_SET_NAME,"readout_worker",0,0,0);
 #endif
 
-    std::cout << "readout_worker thread starting" << std::endl;
+    logger->debug("readout_worker thread starting");
 
     counters.access().ref() = {}; // reset the readout counters
 
@@ -568,7 +575,7 @@ void ReadoutWorker::Private::loop(std::promise<std::error_code> promise)
 
                     if (timeToRun.count() != 0 && totalElapsed >= timeToRun)
                     {
-                        std::cout << "MVLC readout timeToRun reached" << std::endl;
+                        logger->debug("MVLC readout timeToRun reached");
                         break;
                     }
                 }
@@ -599,8 +606,8 @@ void ReadoutWorker::Private::loop(std::promise<std::error_code> promise)
 
                     if (ec == ErrorType::ConnectionError)
                     {
-                        std::cout << "Lost connection to MVLC, leaving readout loop. Error="
-                            << ec.message() << std::endl;
+                        logger->error("Lost connection to MVLC, leaving readout loop. Error={}",
+                                      ec.message());
                         this->mvlc.disconnect();
                         break;
                     }
@@ -612,7 +619,7 @@ void ReadoutWorker::Private::loop(std::promise<std::error_code> promise)
                     listfile::BufferWriteHandle wh(*getOutputBuffer());
                     listfile_write_timestamp_section(wh, system_event::subtype::Pause);
                     setState(State::Paused);
-                    std::cout << "MVLC readout paused" << std::endl;
+                    logger->debug("MVLC readout paused");
                 }
                 // resume
                 else if (state_ == State::Paused && desiredState == State::Running)
@@ -621,18 +628,18 @@ void ReadoutWorker::Private::loop(std::promise<std::error_code> promise)
                     listfile::BufferWriteHandle wh(*getOutputBuffer());
                     listfile_write_timestamp_section(wh, system_event::subtype::Resume);
                     setState(State::Running);
-                    std::cout << "MVLC readout resumed" << std::endl;
+                    logger->debug("MVLC readout resumed");
                 }
                 // stop
                 else if (desiredState == State::Stopping)
                 {
-                    std::cout << "MVLC readout requested to stop" << std::endl;
+                    logger->debug("MVLC readout requested to stop");
                     break;
                 }
                 // paused
                 else if (state_ == State::Paused)
                 {
-                    //std::cout << "MVLC readout paused" << std::endl;
+                    logger->debug("MVLC readout paused");
                     constexpr auto PauseSleepDuration = std::chrono::milliseconds(100);
                     std::this_thread::sleep_for(PauseSleepDuration);
                 }
@@ -658,7 +665,7 @@ void ReadoutWorker::Private::loop(std::promise<std::error_code> promise)
     }
 
     // DAQ stop/termination sequence
-    std::cout << "MVLC readout stopping" << std::endl;
+    logger->debug("MVLC readout stopping");
     setState(State::Stopping);
 
     auto tTerminateStart = std::chrono::steady_clock::now();
@@ -674,8 +681,7 @@ void ReadoutWorker::Private::loop(std::promise<std::error_code> promise)
         c->tTerminateEnd = tTerminateEnd;
     }
 
-    std::cout << "terminateReadout() took " << terminateDuration.count()
-        << " ms to complete" << std::endl;
+    logger->debug("terminateReadout() took {}ms to complete", terminateDuration.count());
 
     // Write EndRun and EndOfFile system event sections into a ReadoutBuffer
     // and immediately flush the buffer.
@@ -735,8 +741,6 @@ std::error_code ReadoutWorker::Private::startReadout()
             // multicast daq start
             auto execResults = run_commands(mvlc, mcstDaqStart);
 
-            //cout << "Results from mcstDaqStart: " << execResults << endl;
-
             if (auto ec = get_first_error(execResults))
                 return ec;
 
@@ -754,7 +758,7 @@ std::error_code ReadoutWorker::Private::startReadout()
 
     if (ec)
     {
-        cerr << "startReadout: error running daq start sequence: " << ec.message() << endl;
+        logger->error("startReadout: error running daq start sequence: {}", ec.message());
     }
 
     return ec;
@@ -820,7 +824,7 @@ std::error_code ReadoutWorker::Private::terminateReadout()
 
     if (ec)
     {
-        cerr << "terminateReadout: error running daq stop sequence: " << ec.message() << endl;
+        logger->error("terminateReadout: error running daq stop sequence: {}", ec.message());
     }
 
     return ec;
@@ -891,6 +895,7 @@ inline void fixup_usb_buffer(
 
             if (!is_valid_readout_frame(frameInfo))
             {
+                auto logger = spdlog::get("readout");
                 cout << fmt::format("non valid readout frame: frameHeader=0x{:08x}", frameHeader) << endl;
 
                 // The above loop was not able to find a valid readout frame.
@@ -1018,7 +1023,7 @@ std::error_code ReadoutWorker::Private::readout_usb(
 
         if (ec == ErrorType::ConnectionError)
         {
-            //cerr << "connection error from usb::Impl::read_unbuffered(): " << ec.message() << endl;
+            logger->error("connection error from usb::Impl::read_unbuffered(): {}", ec.message());
             break;
         }
 
@@ -1026,7 +1031,7 @@ std::error_code ReadoutWorker::Private::readout_usb(
 
         if (elapsed >= FlushBufferTimeout)
         {
-            //cerr << "flush buffer timeout reached, leaving reaodut_usb()" << endl;
+            logger->trace("flush buffer timeout reached, leaving readout_usb()");
             break;
         }
     }

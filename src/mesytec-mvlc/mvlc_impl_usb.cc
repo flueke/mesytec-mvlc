@@ -924,8 +924,8 @@ std::error_code Impl::read(Pipe pipe, u8 *buffer, size_t size,
     if (static_cast<unsigned>(pipe) >= PipeCount)
         return make_error_code(MVLCErrorCode::InvalidPipe);
 
-    logger->trace("begin read: pipe={}, size={} bytes",
-              static_cast<unsigned>(pipe), size);
+    //logger->trace("begin read: pipe={}, size={} bytes",
+    //          static_cast<unsigned>(pipe), size);
 
     ULONG transferred = 0; // FT API wants a ULONG* parameter
 
@@ -963,8 +963,8 @@ std::error_code Impl::read_unbuffered(Pipe pipe, u8 *buffer, size_t size,
     if (static_cast<unsigned>(pipe) >= PipeCount)
         return make_error_code(MVLCErrorCode::InvalidPipe);
 
-    logger->trace("begin unbuffered read: pipe={}, size={} bytes",
-              static_cast<unsigned>(pipe), size);
+    //logger->trace("begin unbuffered read: pipe={}, size={} bytes",
+    //          static_cast<unsigned>(pipe), size);
 
     ULONG transferred = 0; // FT API wants a ULONG* parameter
     std::error_code ec = {};
