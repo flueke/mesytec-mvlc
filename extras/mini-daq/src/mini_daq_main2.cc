@@ -256,6 +256,9 @@ int main(int argc, char *argv[])
         return 0;
     }
 
+    // logging setup
+    auto libLoggers = mesytec::mvlc::setup_loggers();
+
     if (opt_logDebug)
         spdlog::set_level(spdlog::level::debug);
 
@@ -309,7 +312,7 @@ int main(int argc, char *argv[])
             return 1;
         }
 
-        cout << "Connected to MVLC " << mvlc.connectionInfo() << endl;
+        //cout << "Connected to MVLC " << mvlc.connectionInfo() << endl;
 
         //
         // Listfile setup
