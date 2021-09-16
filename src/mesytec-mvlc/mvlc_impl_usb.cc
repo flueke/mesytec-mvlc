@@ -36,33 +36,6 @@
 #include "mvlc_error.h"
 #include "mvlc_util.h"
 
-
-#define LOG_LEVEL_OFF     0
-#define LOG_LEVEL_WARN  100
-#define LOG_LEVEL_INFO  200
-#define LOG_LEVEL_DEBUG 300
-#define LOG_LEVEL_TRACE 400
-
-#ifndef MVLC_USB_LOG_LEVEL
-#define MVLC_USB_LOG_LEVEL LOG_LEVEL_OFF
-#endif
-
-#define LOG_LEVEL_SETTING MVLC_USB_LOG_LEVEL
-
-#define DO_LOG(level, prefix, fmt, ...)\
-do\
-{\
-    if (LOG_LEVEL_SETTING >= level)\
-    {\
-        fprintf(stderr, prefix "%s(): " fmt "\n", __FUNCTION__, ##__VA_ARGS__);\
-    }\
-} while (0);
-
-#define LOG_WARN(fmt, ...)  DO_LOG(LOG_LEVEL_WARN,  "WARN - mvlc_usb ", fmt, ##__VA_ARGS__)
-#define LOG_INFO(fmt, ...)  DO_LOG(LOG_LEVEL_INFO,  "INFO - mvlc_usb ", fmt, ##__VA_ARGS__)
-#define LOG_DEBUG(fmt, ...) DO_LOG(LOG_LEVEL_DEBUG, "DEBUG - mvlc_usb ", fmt, ##__VA_ARGS__)
-#define LOG_TRACE(fmt, ...) DO_LOG(LOG_LEVEL_TRACE, "TRACE - mvlc_usb ", fmt, ##__VA_ARGS__)
-
 #define USB_WIN_USE_ASYNC 0
 // TODO: remove the non-ex code paths
 #define USB_WIN_USE_EX_FUNCTIONS 1 // Currently only implemented for the SYNC case.
@@ -297,7 +270,8 @@ mesytec::mvlc::usb::DeviceInfoList make_device_info_list()
 // - Do a register read to check that communication is ok now.
 std::error_code post_connect_cleanup(mesytec::mvlc::usb::Impl &impl)
 {
-    LOG_INFO("begin");
+    auto logger = spdlog::get("mvlc_usb");
+    logger->debug("begin post_connect_cleanup");
 
     static const int DisableTriggerRetryCount = 5;
     static const size_t DataBufferSize = usb::USBStreamPipeReadSize;
@@ -356,7 +330,7 @@ std::error_code post_connect_cleanup(mesytec::mvlc::usb::Impl &impl)
 
     ec = f.get(); // wait here for disable_all_triggers() to complete
 
-    LOG_INFO("end, totalBytesTransferred=%lu, ec=%s" ,
+    logger->info("end post_connect_cleanup, totalBytesTransferred={}, ec={}" ,
              totalBytesTransferred, ec.message().c_str());
 
     return ec;
@@ -467,8 +441,8 @@ std::error_code Impl::closeHandle()
 
 std::error_code Impl::connect()
 {
-    //spdlog::set_level(spdlog::level::trace);
-    spdlog::trace("begin {}", __PRETTY_FUNCTION__);
+    auto logger = spdlog::get("mvlc_usb");
+    logger->trace("begin {}", __PRETTY_FUNCTION__);
 
     if (isConnected())
         return make_error_code(MVLCErrorCode::IsConnected);
@@ -541,7 +515,7 @@ std::error_code Impl::connect()
             break;
     }
 
-    spdlog::trace("FT_Create done");
+    logger->trace("FT_Create done");
 
     if (auto ec = make_error_code(st))
         return ec;
@@ -554,7 +528,7 @@ std::error_code Impl::connect()
         return ec;
     }
 
-    spdlog::trace("check_chip_configuration done");
+    logger->trace("check_chip_configuration done");
 
     // Set actual read timeouts on the command and data pipes. Note that for
     // linux the command pipe read timeout is set to 0 later on. This initial
@@ -569,7 +543,7 @@ std::error_code Impl::connect()
         }
     }
 
-    spdlog::trace("set CommandPipe timeout done");
+    logger->trace("set CommandPipe timeout done");
 
 #ifdef __WIN32
     // clean up the pipes
@@ -584,37 +558,37 @@ std::error_code Impl::connect()
             }
         }
     }
-    spdlog::trace("win32 pipe cleanup done");
+    logger->trace("win32 pipe cleanup done");
 #endif
 
 #ifdef __WIN32
 #if USB_WIN_USE_STREAMPIPE
-    LOG_INFO("enabling streaming mode for all read pipes, size=%lu", USBStreamPipeReadSize);
+    logger->trace("enabling streaming mode for all read pipes, size=%lu", USBStreamPipeReadSize);
     // FT_SetStreamPipe(handle, allWritePipes, allReadPipes, pipeID, streamSize)
     st = FT_SetStreamPipe(m_handle, false, true, 0, USBStreamPipeReadSize);
 
     if (auto ec = make_error_code(st))
     {
-        fprintf(stderr, "%s: FT_SetStreamPipe failed: %s",
-                __PRETTY_FUNCTION__, ec.message().c_str());
+        logger->error("FT_SetStreamPipe failed: {}", ec.message());
         closeHandle();
         return ec;
     }
-    spdlog::trace("win32 streampipe mode enabled");
+
+    logger->trace("win32 streampipe mode enabled");
 #endif // USB_WIN_USE_STREAMPIPE
 #endif // __WIN32
 
-    LOG_INFO("opened USB device");
+    logger->info("opened USB device");
 
     if (disableTriggersOnConnect())
     {
         if (auto ec = post_connect_cleanup(*this))
         {
-            LOG_WARN("error from USB post connect cleanup: %s", ec.message().c_str());
+            logger->warn("error from USB post connect cleanup: {}", ec.message());
             return ec;
         }
 
-        spdlog::trace("post_connect_cleanup() done");
+        logger->trace("post_connect_cleanup() done");
     }
 
 #ifndef __WIN32
@@ -627,11 +601,10 @@ std::error_code Impl::connect()
         return ec;
     }
 
-    spdlog::trace("linux: CommandPipe read timeout set to 0");
+    logger->trace("linux: CommandPipe read timeout set to 0");
 #endif
 
-    LOG_INFO("connected to MVLC USB");
-    spdlog::trace("end {}", __PRETTY_FUNCTION__);
+    logger->trace("end {}", __PRETTY_FUNCTION__);
 
     return {};
 
@@ -643,8 +616,6 @@ std::error_code Impl::disconnect()
         return make_error_code(MVLCErrorCode::IsDisconnected);
 
     auto ec = closeHandle();
-
-    LOG_INFO("disconnected");
 
     return ec;
 }
@@ -658,6 +629,8 @@ bool Impl::isConnected() const
 std::error_code Impl::write(Pipe pipe, const u8 *buffer, size_t size,
                             size_t &bytesTransferred)
 {
+    auto logger = spdlog::get("mvlc_usb");
+
     assert(buffer);
     assert(size <= USBSingleTransferMaxBytes);
     assert(static_cast<unsigned>(pipe) < PipeCount);
@@ -667,12 +640,12 @@ std::error_code Impl::write(Pipe pipe, const u8 *buffer, size_t size,
 
     ULONG transferred = 0; // FT API needs a ULONG*
 
-    LOG_TRACE("pipe=%u, size=%u", static_cast<unsigned>(pipe), size);
+    logger->trace("pipe={}, size={}", static_cast<unsigned>(pipe), size);
 
 #if !USB_WIN_USE_ASYNC
 
 #if USB_WIN_USE_EX_FUNCTIONS
-    LOG_TRACE("sync write (Ex variant)");
+    logger->trace("sync write (Ex variant)");
 
     FT_STATUS st = FT_WritePipeEx(
         m_handle, get_endpoint(pipe, EndpointDirection::Out),
@@ -680,7 +653,7 @@ std::error_code Impl::write(Pipe pipe, const u8 *buffer, size_t size,
         &transferred,
         nullptr);
 #else // !USB_WIN_USE_EX_FUNCTIONS
-    LOG_TRACE("sync write");
+    logger->trace("sync write");
     FT_STATUS st = FT_WritePipe(
         m_handle, get_endpoint(pipe, EndpointDirection::Out),
         const_cast<u8 *>(buffer), size,
@@ -691,7 +664,7 @@ std::error_code Impl::write(Pipe pipe, const u8 *buffer, size_t size,
 #else // USB_WIN_USE_ASYNC
     FT_STATUS st = FT_OK;
     {
-        LOG_TRACE("async write");
+        logger->trace("async write");
         OVERLAPPED vOverlapped = {};
         std::memset(&vOverlapped, 0, sizeof(vOverlapped));
         vOverlapped.hEvent = CreateEvent(nullptr, false, false, nullptr);
@@ -702,7 +675,7 @@ std::error_code Impl::write(Pipe pipe, const u8 *buffer, size_t size,
 
         //if (auto ec = make_error_code(st))
         //{
-        //    LOG_WARN("pipe=%u, FT_InitializeOverlapped failed: ec=%s",
+        //    logger->warn("pipe=%u, FT_InitializeOverlapped failed: ec=%s",
         //             static_cast<unsigned>(pipe), ec.message().c_str());
         //    return ec;
         //}
@@ -731,7 +704,7 @@ std::error_code Impl::write(Pipe pipe, const u8 *buffer, size_t size,
 
     if (ec)
     {
-        LOG_WARN("pipe=%u, wrote %lu of %lu bytes, result=%s",
+        logger->warn("pipe={}, wrote {} of {} bytes, result={}",
                  static_cast<unsigned>(pipe),
                  bytesTransferred, size,
                  ec.message().c_str());
@@ -745,6 +718,8 @@ std::error_code Impl::write(Pipe pipe, const u8 *buffer, size_t size,
 std::error_code Impl::write(Pipe pipe, const u8 *buffer, size_t size,
                             size_t &bytesTransferred)
 {
+    auto logger = spdlog::get("mvlc_usb");
+
     assert(buffer);
     assert(size <= USBSingleTransferMaxBytes);
     assert(static_cast<unsigned>(pipe) < PipeCount);
@@ -765,7 +740,7 @@ std::error_code Impl::write(Pipe pipe, const u8 *buffer, size_t size,
 
     if (ec)
     {
-        LOG_WARN("pipe=%u, wrote %lu of %lu bytes, result=%s",
+        logger->warn("pipe={}, wrote {} of {} bytes, result={}",
                  static_cast<unsigned>(pipe),
                  bytesTransferred, size,
                  ec.message().c_str());
@@ -796,6 +771,8 @@ std::error_code Impl::write(Pipe pipe, const u8 *buffer, size_t size,
 std::error_code Impl::read(Pipe pipe, u8 *buffer, size_t size,
                            size_t &bytesTransferred)
 {
+    auto logger = spdlog::get("mvlc_usb");
+
     assert(buffer);
     assert(size <= USBSingleTransferMaxBytes);
     assert(static_cast<unsigned>(pipe) < PipeCount);
@@ -822,14 +799,14 @@ std::error_code Impl::read(Pipe pipe, u8 *buffer, size_t size,
         }
     };
 
-    LOG_TRACE("pipe=%u, size=%u, bufferSize=%u",
+    logger->trace("pipe={}, size={}, bufferSize={}",
               static_cast<unsigned>(pipe), requestedSize, readBuffer.size());
 
     copy_and_update();
 
     if (size == 0)
     {
-        LOG_TRACE("pipe=%u, size=%u, read request satisfied from buffer, new buffer size=%u",
+        logger->trace("pipe={}, size={}, read request satisfied from buffer, new buffer size={}",
                   static_cast<unsigned>(pipe), requestedSize, readBuffer.size());
         return {};
     }
@@ -838,7 +815,7 @@ std::error_code Impl::read(Pipe pipe, u8 *buffer, size_t size,
     // It's time to issue an actual read request.
     assert(readBuffer.size() == 0);
 
-    LOG_TRACE("pipe=%u, requestedSize=%u, remainingSize=%u, reading from MVLC...",
+    logger->trace("pipe={}, requestedSize={}, remainingSize={}, reading from MVLC...",
               static_cast<unsigned>(pipe), requestedSize, size);
 
     ULONG transferred = 0; // FT API wants a ULONG* parameter
@@ -851,7 +828,7 @@ std::error_code Impl::read(Pipe pipe, u8 *buffer, size_t size,
 #endif
 
 #if USB_WIN_USE_EX_FUNCTIONS
-    LOG_TRACE("sync read (Ex variant)");
+    logger->trace("sync read (Ex variant)");
 
     FT_STATUS st = FT_ReadPipeEx(
         m_handle, get_endpoint(pipe, EndpointDirection::In),
@@ -860,7 +837,7 @@ std::error_code Impl::read(Pipe pipe, u8 *buffer, size_t size,
         &transferred,
         nullptr);
 #else // !USB_WIN_USE_EX_FUNCTIONS
-    LOG_TRACE("sync read");
+    logger->trace("sync read");
 
     FT_STATUS st = FT_ReadPipe(
         m_handle, get_endpoint(pipe, EndpointDirection::In),
@@ -873,7 +850,7 @@ std::error_code Impl::read(Pipe pipe, u8 *buffer, size_t size,
 #else // USB_WIN_USE_ASYNC
     FT_STATUS st = FT_OK;
     {
-        LOG_TRACE("async read");
+        logger->trace("async read");
         OVERLAPPED vOverlapped = {};
         std::memset(&vOverlapped, 0, sizeof(vOverlapped));
         vOverlapped.hEvent = CreateEvent(nullptr, false, false, nullptr);
@@ -881,7 +858,7 @@ std::error_code Impl::read(Pipe pipe, u8 *buffer, size_t size,
 
         //if (auto ec = make_error_code(st))
         //{
-        //    LOG_WARN("pipe=%u, FT_InitializeOverlapped failed: ec=%s",
+        //    logger->warn("pipe=%u, FT_InitializeOverlapped failed: ec=%s",
         //             static_cast<unsigned>(pipe), ec.message().c_str());
         //    return ec;
         //}
@@ -906,7 +883,7 @@ std::error_code Impl::read(Pipe pipe, u8 *buffer, size_t size,
 
     auto ec = make_error_code(st);
 
-    LOG_TRACE("pipe=%u, requestedSize=%u, remainingSize=%u, read result: ec=%s, transferred=%u",
+    logger->trace("pipe={}, requestedSize={}, remainingSize={}, read result: ec={}, transferred={}",
               static_cast<unsigned>(pipe), requestedSize, size,
               ec.message().c_str(), transferred);
 
@@ -921,15 +898,15 @@ std::error_code Impl::read(Pipe pipe, u8 *buffer, size_t size,
 
     if (size > 0)
     {
-        LOG_DEBUG("pipe=%u, requestedSize=%u, remainingSize=%u after read from MVLC, "
-                  "returning FT_TIMEOUT (original ec=%s)",
+        logger->debug("pipe={}, requestedSize={}, remainingSize={} after read from MVLC, "
+                  "returning FT_TIMEOUT (original ec={})",
                   static_cast<unsigned>(pipe), requestedSize, size,
                   ec.message().c_str());
 
         return make_error_code(FT_TIMEOUT);
     }
 
-    LOG_TRACE("pipe=%u, size=%u, read request satisfied after read from MVLC. new buffer size=%u",
+    logger->trace("pipe={}, size={}, read request satisfied after read from MVLC. new buffer size={}",
               static_cast<unsigned>(pipe), requestedSize, readBuffer.size());
 
     return {};
@@ -938,6 +915,8 @@ std::error_code Impl::read(Pipe pipe, u8 *buffer, size_t size,
 std::error_code Impl::read(Pipe pipe, u8 *buffer, size_t size,
                            size_t &bytesTransferred)
 {
+    auto logger = spdlog::get("mvlc_usb");
+
     assert(buffer);
     assert(size <= USBSingleTransferMaxBytes);
     assert(static_cast<unsigned>(pipe) < PipeCount);
@@ -945,7 +924,7 @@ std::error_code Impl::read(Pipe pipe, u8 *buffer, size_t size,
     if (static_cast<unsigned>(pipe) >= PipeCount)
         return make_error_code(MVLCErrorCode::InvalidPipe);
 
-    LOG_TRACE("begin read: pipe=%u, size=%lu bytes",
+    logger->trace("begin read: pipe={}, size={} bytes",
               static_cast<unsigned>(pipe), size);
 
     ULONG transferred = 0; // FT API wants a ULONG* parameter
@@ -963,7 +942,7 @@ std::error_code Impl::read(Pipe pipe, u8 *buffer, size_t size,
 
     if (ec && ec != ErrorType::Timeout)
     {
-        LOG_WARN("pipe=%u, read %lu of %lu bytes, result=%s",
+        logger->warn("pipe={}, read {} of {} bytes, result={}",
                  static_cast<unsigned>(pipe),
                  bytesTransferred, size,
                  ec.message().c_str());
@@ -976,13 +955,15 @@ std::error_code Impl::read(Pipe pipe, u8 *buffer, size_t size,
 std::error_code Impl::read_unbuffered(Pipe pipe, u8 *buffer, size_t size,
                                       size_t &bytesTransferred)
 {
+    auto logger = spdlog::get("mvlc_usb");
+
     assert(buffer);
     assert(static_cast<unsigned>(pipe) < PipeCount);
 
     if (static_cast<unsigned>(pipe) >= PipeCount)
         return make_error_code(MVLCErrorCode::InvalidPipe);
 
-    LOG_TRACE("begin unbuffered read: pipe=%u, size=%lu bytes",
+    logger->trace("begin unbuffered read: pipe={}, size={} bytes",
               static_cast<unsigned>(pipe), size);
 
     ULONG transferred = 0; // FT API wants a ULONG* parameter
@@ -992,7 +973,7 @@ std::error_code Impl::read_unbuffered(Pipe pipe, u8 *buffer, size_t size,
 #if !USB_WIN_USE_ASYNC
 
 #if USB_WIN_USE_STREAMPIPE
-    //LOG_INFO("streampipe check");
+    //logger->info("streampipe check");
     if (size != usb::USBSingleTransferMaxBytes)
         throw std::runtime_error("Read size does not equal stream pipe size");
 #endif
@@ -1014,7 +995,7 @@ std::error_code Impl::read_unbuffered(Pipe pipe, u8 *buffer, size_t size,
 #else // USB_WIN_USE_ASYNC
     FT_STATUS st = FT_OK;
     {
-        //LOG_WARN("async read_unbuffered");
+        //logger->warn("async read_unbuffered");
         OVERLAPPED vOverlapped = {};
         std::memset(&vOverlapped, 0, sizeof(vOverlapped));
         vOverlapped.hEvent = CreateEvent(nullptr, false, false, nullptr);
@@ -1022,7 +1003,7 @@ std::error_code Impl::read_unbuffered(Pipe pipe, u8 *buffer, size_t size,
 
         //if ((ec = make_error_code(st)))
         //{
-        //    LOG_WARN("pipe=%u, FT_InitializeOverlapped failed: ec=%s",
+        //    logger->warn("pipe=%u, FT_InitializeOverlapped failed: ec=%s",
         //             static_cast<unsigned>(pipe), ec.message().c_str());
         //    return ec;
         //}
@@ -1042,7 +1023,7 @@ std::error_code Impl::read_unbuffered(Pipe pipe, u8 *buffer, size_t size,
 
 #endif // USB_WIN_USE_ASYNC
 
-    LOG_TRACE("result from unbuffered read: pipe=%u, size=%lu bytes, ec=%s",
+    logger->trace("result from unbuffered read: pipe={}, size={} bytes, ec={}",
               static_cast<unsigned>(pipe), size, make_error_code(st).message().c_str());
 
     if (st != FT_OK && st != FT_IO_PENDING)
@@ -1059,7 +1040,7 @@ std::error_code Impl::read_unbuffered(Pipe pipe, u8 *buffer, size_t size,
     bytesTransferred = transferred;
     ec = make_error_code(st);
 
-    LOG_TRACE("end unbuffered read: pipe=%u, size=%lu bytes, transferred=%lu bytes, ec=%s",
+    logger->trace("end unbuffered read: pipe={}, size={} bytes, transferred={} bytes, ec={}",
               static_cast<unsigned>(pipe), size, bytesTransferred, ec.message().c_str());
 
     return ec;
@@ -1068,7 +1049,9 @@ std::error_code Impl::read_unbuffered(Pipe pipe, u8 *buffer, size_t size,
 std::error_code Impl::abortPipe(Pipe pipe, EndpointDirection dir)
 {
 #ifdef __WIN32
-    LOG_WARN("FT_AbortPipe on pipe=%u, dir=%u",
+    auto logger = spdlog::get("mvlc_usb");
+
+    logger->warn("FT_AbortPipe on pipe={}, dir={}",
               static_cast<unsigned>(pipe),
               static_cast<unsigned>(dir));
 
@@ -1076,11 +1059,10 @@ std::error_code Impl::abortPipe(Pipe pipe, EndpointDirection dir)
 
     if (auto ec = make_error_code(st))
     {
-        LOG_TRACE("FT_AbortPipe on pipe=%u, dir=%u returned an error: %s",
+        logger->trace("FT_AbortPipe on pipe={}, dir={} returned an error: {}",
                   static_cast<unsigned>(pipe),
                   static_cast<unsigned>(dir),
-                  ec.message().c_str()
-                  );
+                  ec.message().c_str());
         return ec;
     }
 #else // !__WIN32
