@@ -4,6 +4,7 @@ configure_file("git_version.cc.in" "git_version.cc" @ONLY)
 
 add_library(mesytec-mvlc SHARED
     "${CMAKE_CURRENT_BINARY_DIR}/git_version.cc"
+    logging.cc
     mvlc_basic_interface.cc
     mvlc.cc
     mvlc_command_builders.cc
@@ -49,7 +50,7 @@ target_include_directories(mesytec-mvlc
 target_link_libraries(mesytec-mvlc
     PRIVATE lz4_static
     PRIVATE minizip
-    PRIVATE spdlog::spdlog
+    PUBLIC spdlog::spdlog
     PRIVATE yaml-cpp
     PUBLIC fmt::fmt
     PUBLIC Threads::Threads
@@ -91,7 +92,7 @@ configure_package_config_file(
     ${project_config}
     INSTALL_DESTINATION lib/cmake/mesytec-mvlc)
 
-set(INSTALL_TARGETS mesytec-mvlc)
+set(INSTALL_TARGETS mesytec-mvlc spdlog)
 export(TARGETS ${INSTALL_TARGETS} NAMESPACE mesytec-mvlc::
     FILE ${PROJECT_BINARY_DIR}/${targets_export_name}.cmake)
 
