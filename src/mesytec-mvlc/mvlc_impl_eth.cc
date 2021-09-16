@@ -44,32 +44,6 @@
 #include "util/io_util.h"
 #include "util/string_view.hpp"
 
-#define LOG_LEVEL_OFF   0
-#define LOG_LEVEL_WARN  100
-#define LOG_LEVEL_INFO  200
-#define LOG_LEVEL_DEBUG 300
-#define LOG_LEVEL_TRACE 400
-
-#ifndef MVLC_ETH_LOG_LEVEL
-#define MVLC_ETH_LOG_LEVEL LOG_LEVEL_WARN
-#endif
-
-#define LOG_LEVEL_SETTING MVLC_ETH_LOG_LEVEL
-
-#define DO_LOG(level, prefix, fmt, ...)\
-do\
-{\
-    if (LOG_LEVEL_SETTING >= level)\
-    {\
-        fprintf(stderr, prefix "%s(): " fmt "\n", __FUNCTION__, ##__VA_ARGS__);\
-    }\
-} while (0);
-
-#define LOG_WARN(fmt, ...)  DO_LOG(LOG_LEVEL_WARN,  "WARN - mvlc_eth ", fmt, ##__VA_ARGS__)
-#define LOG_INFO(fmt, ...)  DO_LOG(LOG_LEVEL_INFO,  "INFO - mvlc_eth ", fmt, ##__VA_ARGS__)
-#define LOG_DEBUG(fmt, ...) DO_LOG(LOG_LEVEL_DEBUG, "DEBUG - mvlc_eth ", fmt, ##__VA_ARGS__)
-#define LOG_TRACE(fmt, ...) DO_LOG(LOG_LEVEL_TRACE, "TRACE - mvlc_eth ", fmt, ##__VA_ARGS__)
-
 #define MVLC_ETH_THROTTLE_WRITE_DEBUG_FILE 0
 
 namespace
@@ -391,7 +365,9 @@ void mvlc_eth_throttler(
     Protected<eth::EthThrottleContext> &ctx,
     Protected<eth::EthThrottleCounters> &counters)
 {
-    auto send_query = [] (int netlinkSock)
+    auto logger = spdlog::get("mvlc_eth");
+
+    auto send_query = [&logger] (int netlinkSock)
     {
         struct sockaddr_nl nladdr = {};
         nladdr.nl_family = AF_NETLINK;
@@ -432,7 +408,7 @@ void mvlc_eth_throttler(
                 if (errno == EINTR)
                     continue;
 
-                LOG_WARN("mvlc_eth_throttler: sendmsg failed: %s", strerror(errno));
+                logger->warn("mvlc_eth_throttler: sendmsg failed: {}", strerror(errno));
                 return -1;
             }
 
@@ -440,20 +416,20 @@ void mvlc_eth_throttler(
         }
     };
 
-    auto get_buffer_snapshot = [] (const inet_diag_msg *diag, unsigned len)
+    auto get_buffer_snapshot = [&logger] (const inet_diag_msg *diag, unsigned len)
         -> std::pair<ReceiveBufferSnapshot, bool>
     {
         std::pair<ReceiveBufferSnapshot, bool> ret = {};
 
         if (len < NLMSG_LENGTH(sizeof(*diag)))
         {
-            LOG_WARN("mvlc_eth_throttler: NLMSG_LENGTH");
+            logger->warn("mvlc_eth_throttler: NLMSG_LENGTH");
             return ret;
         }
 
         if (diag->idiag_family != AF_INET)
         {
-            LOG_WARN("mvlc_eth_throttler: idiag_family != AF_INET");
+            logger->warn("mvlc_eth_throttler: idiag_family != AF_INET");
             return ret;
         }
 
@@ -480,11 +456,11 @@ void mvlc_eth_throttler(
             }
         }
 
-        LOG_WARN("mvlc_eth_throttler: defaulted return in get_buffer_snapshot()");
+        logger->warn("mvlc_eth_throttler: defaulted return in get_buffer_snapshot()");
         return ret;
     };
 
-    auto receive_response = [&get_buffer_snapshot] (int netlinkSock, u32 dataSocketInode)
+    auto receive_response = [&get_buffer_snapshot, &logger] (int netlinkSock, u32 dataSocketInode)
         -> std::pair<ReceiveBufferSnapshot, bool>
     {
         long buf[8192 / sizeof(long)];
@@ -512,7 +488,7 @@ void mvlc_eth_throttler(
                 if (errno == EINTR)
                     continue;
 
-                LOG_WARN("mvlc_eth_throttler: recvmsg failed: %s",
+                logger->warn("mvlc_eth_throttler: recvmsg failed: {}",
                          strerror(errno));
 
                 return {};
@@ -520,7 +496,7 @@ void mvlc_eth_throttler(
 
             if (ret == 0)
             {
-                LOG_WARN("mvlc_eth_throttler: empty netlink response");
+                logger->warn("mvlc_eth_throttler: empty netlink response");
                 return {};
             }
 
@@ -528,28 +504,28 @@ void mvlc_eth_throttler(
 
             if (!NLMSG_OK(h, ret))
             {
-                LOG_WARN("mvlc_eth_throttler: netlink header not ok");
+                logger->warn("mvlc_eth_throttler: netlink header not ok");
                 return {};
             }
 
             for (; NLMSG_OK(h, ret); h = NLMSG_NEXT(h, ret)) {
                 if (h->nlmsg_type == NLMSG_DONE)
                 {
-                    LOG_TRACE("mvlc_eth_throttler: NLMSG_DONE");
+                    //logger->trace("mvlc_eth_throttler: NLMSG_DONE");
                     return result;
                 }
 
                 if (h->nlmsg_type == NLMSG_ERROR)
                 {
                     auto err = reinterpret_cast<const nlmsgerr *>(NLMSG_DATA(h));
-                    LOG_WARN("mvlc_eth_throttler: NLMSG_ERROR error=%d (%s)",
+                    logger->warn("mvlc_eth_throttler: NLMSG_ERROR error={} ({})",
                              err->error, strerror(-err->error));
                     return {};
                 }
 
                 if (h->nlmsg_type != SOCK_DIAG_BY_FAMILY)
                 {
-                    LOG_WARN("mvlc_eth_throttler: not SOCK_DIAG_BY_FAMILY");
+                    logger->warn("mvlc_eth_throttler: not SOCK_DIAG_BY_FAMILY");
                     return {};
                 }
 
@@ -572,14 +548,14 @@ void mvlc_eth_throttler(
 
     if (diagSocket < 0)
     {
-        LOG_WARN("mvlc_eth_throttler: could not create netlink diag socket: %s",
+        logger->warn("mvlc_eth_throttler: could not create netlink diag socket: {}",
                  strerror(errno));
         return;
     }
 
     u32 dataSocketInode = ctx.access()->dataSocketInode;
 
-    LOG_DEBUG("mvlc_eth_throttler entering loop");
+    logger->info("mvlc_eth_throttler entering loop");
 
     while (!ctx.access()->quit)
     {
@@ -616,7 +592,7 @@ void mvlc_eth_throttler(
 
     close_socket(diagSocket);
 
-    LOG_DEBUG("mvlc_eth_throttler leaving loop");
+    logger->info("mvlc_eth_throttler leaving loop");
 }
 #elif defined(__WIN32)
 void mvlc_eth_throttler(
@@ -630,7 +606,7 @@ void mvlc_eth_throttler(
     static const unsigned Win32TimePeriod = 1;
     timeBeginPeriod(Win32TimePeriod);
 
-    LOG_DEBUG("mvlc_eth_throttler entering loop");
+    logger->info("mvlc_eth_throttler entering loop");
 
     while (!ctx.access()->quit)
     {
@@ -671,7 +647,7 @@ void mvlc_eth_throttler(
         }
         else
         {
-            LOG_WARN("WSAIoctl failed: %d", WSAGetLastError());
+            logger->warn("WSAIoctl failed: {}", WSAGetLastError());
         }
 
         auto tDelayDone = std::chrono::steady_clock::now();
@@ -682,13 +658,13 @@ void mvlc_eth_throttler(
         auto dtSleep = std::chrono::duration_cast<std::chrono::microseconds>(tSleepDone - tDelayDone);
         auto dtTotal = std::chrono::duration_cast<std::chrono::microseconds>(tSleepDone - tStart);
 
-        //LOG_DEBUG("mvlc_eth_throttler: dtDelay=%d us, dtSleep=%d us, dtTotal=%d us",
+        //logger->debug("mvlc_eth_throttler: dtDelay=%d us, dtSleep=%d us, dtTotal=%d us",
         //          dtDelay.count(), dtSleep.count(), dtTotal.count());
     }
 
     timeEndPeriod(Win32TimePeriod);
 
-    LOG_DEBUG("mvlc_eth_throttler leaving loop");
+    logger->info("mvlc_eth_throttler leaving loop");
 }
 #endif
 
@@ -746,8 +722,8 @@ Impl::~Impl()
 //   currently sending its data output.
 std::error_code Impl::connect()
 {
-    //spdlog::set_level(spdlog::level::trace);
-    spdlog::trace("begin {}", __PRETTY_FUNCTION__);
+    auto logger = spdlog::get("mvlc_eth");
+    logger->trace("begin {}", __PRETTY_FUNCTION__);
 
     auto close_sockets = [this] ()
     {
@@ -772,11 +748,11 @@ std::error_code Impl::connect()
 
     resetPipeAndChannelStats();
 
-    LOG_TRACE("looking up host %s...", m_host.c_str());
+    logger->trace("looking up host {}...", m_host.c_str());
 
     if (auto ec = lookup(m_host, CommandPort, m_cmdAddr))
     {
-        LOG_TRACE("host lookup failed for host %s: %s",
+        logger->error("host lookup failed for host {}: {}",
                   m_host.c_str(), ec.message().c_str());
         return ec;
     }
@@ -796,14 +772,14 @@ std::error_code Impl::connect()
     //
     // Now create the IPv4 UDP sockets and bind them.
 
-    LOG_TRACE("creating sockets...");
+    logger->trace("creating sockets...");
 
     m_cmdSock = socket(AF_INET, SOCK_DGRAM, 0);
 
     if (m_cmdSock < 0)
     {
         auto ec = std::error_code(errno, std::system_category());
-        LOG_TRACE("socket() failed for command pipe: %s", ec.message().c_str());
+        logger->error("socket() failed for command pipe: {}", ec.message().c_str());
         return ec;
     }
 
@@ -812,7 +788,7 @@ std::error_code Impl::connect()
     if (m_dataSock < 0)
     {
         auto ec = std::error_code(errno, std::system_category());
-        LOG_TRACE("socket() failed for data pipe: %s", ec.message().c_str());
+        logger->error("socket() failed for data pipe: {}", ec.message().c_str());
         close_sockets();
         return ec;
     }
@@ -822,14 +798,14 @@ std::error_code Impl::connect()
     if (m_delaySock < 0)
     {
         auto ec = std::error_code(errno, std::system_category());
-        LOG_TRACE("socket() failed for delay port: %s", ec.message().c_str());
+        logger->error("socket() failed for delay port: {}", ec.message().c_str());
         close_sockets();
         return ec;
     }
 
     assert(m_cmdSock >= 0 && m_dataSock >= 0 && m_delaySock >= 0);
 
-    LOG_TRACE("binding sockets...");
+    logger->trace("binding sockets...");
 
     {
         struct sockaddr_in localAddr = {};
@@ -847,7 +823,7 @@ std::error_code Impl::connect()
         }
     }
 
-    LOG_TRACE("connecting sockets...");
+    logger->trace("connecting sockets...");
 
     // Call connect on the sockets so that we receive only datagrams
     // originating from the MVLC.
@@ -855,7 +831,7 @@ std::error_code Impl::connect()
                             sizeof(m_cmdAddr)))
     {
         auto ec = std::error_code(errno, std::system_category());
-        LOG_TRACE("connect() failed for command socket: %s", ec.message().c_str());
+        logger->error("connect() failed for command socket: {}", ec.message().c_str());
         close_sockets();
         return ec;
     }
@@ -864,7 +840,7 @@ std::error_code Impl::connect()
                             sizeof(m_dataAddr)))
     {
         auto ec = std::error_code(errno, std::system_category());
-        LOG_TRACE("connect() failed for data socket: %s", ec.message().c_str());
+        logger->error("connect() failed for data socket: {}", ec.message().c_str());
         close_sockets();
         return ec;
     }
@@ -873,19 +849,19 @@ std::error_code Impl::connect()
                             sizeof(m_delayAddr)))
     {
         auto ec = std::error_code(errno, std::system_category());
-        LOG_TRACE("connect() failed for delay socket: %s", ec.message().c_str());
+        logger->error("connect() failed for delay socket: {}", ec.message().c_str());
         close_sockets();
         return ec;
     }
 
     // Set read and write timeouts for the command and data ports.
-    LOG_TRACE("setting socket timeouts...");
+    logger->trace("setting socket timeouts...");
 
     for (auto pipe: { Pipe::Command, Pipe::Data })
     {
         if (auto ec = set_socket_write_timeout(getSocket(pipe), DefaultWriteTimeout_ms))
         {
-            LOG_TRACE("set_socket_write_timeout failed: %s, socket=%d",
+            logger->error("set_socket_write_timeout failed: {}, socket={}",
                       ec.message().c_str(),
                       getSocket(pipe));
             return ec;
@@ -893,7 +869,7 @@ std::error_code Impl::connect()
 
         if (auto ec = set_socket_read_timeout(getSocket(pipe), DefaultReadTimeout_ms))
         {
-            LOG_TRACE("set_socket_read_timeout failed: %s", ec.message().c_str());
+            logger->error("set_socket_read_timeout failed: {}", ec.message().c_str());
             return ec;
         }
     }
@@ -901,12 +877,12 @@ std::error_code Impl::connect()
     // Set the write timeout for the delay socket
     if (auto ec = set_socket_write_timeout(m_delaySock, DefaultWriteTimeout_ms))
     {
-        LOG_TRACE("set_socket_write_timeout failed: %s", ec.message().c_str());
+        logger->error("set_socket_write_timeout failed: {}", ec.message().c_str());
         return ec;
     }
 
     // Set socket receive buffer size
-    LOG_TRACE("setting socket receive buffer sizes...");
+    logger->trace("setting socket receive buffer sizes...");
 
 #ifdef __WIN32
     int dataSocketReceiveBufferSize = 0;
@@ -926,7 +902,7 @@ std::error_code Impl::connect()
         if (res != 0)
         {
             auto ec = std::error_code(errno, std::system_category());
-            LOG_WARN("setting socket buffer size failed: %s", ec.message().c_str());
+            logger->error("setting socket buffer size failed: {}", ec.message().c_str());
         }
 
         {
@@ -945,11 +921,11 @@ std::error_code Impl::connect()
             if (res != 0)
                 return std::error_code(errno, std::system_category());
 
-            LOG_INFO("pipe=%u, SO_RCVBUF=%d", static_cast<unsigned>(pipe), actualBufferSize);
+            logger->info("pipe={}, SO_RCVBUF={}", static_cast<unsigned>(pipe), actualBufferSize);
 
             if (actualBufferSize < DesiredSocketReceiveBufferSize)
             {
-                LOG_INFO("pipe=%u, requested SO_RCVBUF of %d bytes, got %d bytes",
+                logger->info("pipe={}, requested SO_RCVBUF of {} bytes, got {} bytes",
                          static_cast<unsigned>(pipe), DesiredSocketReceiveBufferSize, actualBufferSize);
             }
 
@@ -967,7 +943,7 @@ std::error_code Impl::connect()
     // disableTriggersOnConnect flag is set try to disable the triggers,
     // otherwise return MVLCErrorCode::InUse.
     {
-        LOG_TRACE("reading MVLC trigger registers...");
+        logger->trace("reading MVLC trigger registers...");
 
         MVLCDialog_internal dlg(this);
         bool inUse = false;
@@ -992,7 +968,7 @@ std::error_code Impl::connect()
 
         if (inUse && !disableTriggersOnConnect())
         {
-            LOG_WARN("MVLC is in use");
+            logger->warn("MVLC is in use");
             close_sockets();
             return make_error_code(MVLCErrorCode::InUse);
         }
@@ -1002,7 +978,7 @@ std::error_code Impl::connect()
 
             if (auto ec = disable_all_triggers_and_daq_mode(dlg))
             {
-                LOG_WARN("MVLC is in use and mvme failed to disable triggers: %s", ec.message().c_str());
+                logger->error("MVLC is in use and mvme failed to disable triggers: {}", ec.message().c_str());
                 close_sockets();
                 return ec;
             }
@@ -1012,7 +988,7 @@ std::error_code Impl::connect()
     // Send an initial empty frame to the UDP data pipe port so that
     // the MVLC knows where to send the readout data.
     {
-        LOG_TRACE("Sending initial empty request to the UDP data port");
+        logger->trace("Sending initial empty request to the UDP data port");
 
         static const std::array<u32, 2> EmptyRequest = { 0xF1000000, 0xF2000000 };
         size_t bytesTransferred = 0;
@@ -1023,13 +999,13 @@ std::error_code Impl::connect()
                 EmptyRequest.size() * sizeof(u32),
                 bytesTransferred))
         {
-            LOG_WARN("Error sending initial empty request to the UDP data port: %s", ec.message().c_str());
+            logger->error("Error sending initial empty request to the UDP data port: {}", ec.message().c_str());
             close_sockets();
             return ec;
         }
     }
 
-    LOG_TRACE("ETH connect sequence finished");
+    logger->trace("ETH connect sequence finished");
 
     assert(m_cmdSock >= 0 && m_dataSock >= 0 && m_delaySock >= 0);
 
@@ -1129,7 +1105,7 @@ static inline std::error_code receive_one_packet(int sockfd, u8 *dest, size_t si
 
     ssize_t res = ::recv(sockfd, reinterpret_cast<char *>(dest), size, 0);
 
-    LOG_TRACE("::recv res=%lld", res);
+    //logger->trace("::recv res={}", res);
 
     if (res == SOCKET_ERROR)
     {
@@ -1141,7 +1117,7 @@ static inline std::error_code receive_one_packet(int sockfd, u8 *dest, size_t si
         return make_error_code(MVLCErrorCode::SocketError);
     }
 
-#if LOG_LEVEL_SETTING >= LOG_LEVEL_TRACE
+#if 0
     if (res >= static_cast<ssize_t>(sizeof(u32)))
     {
         util::log_buffer(
@@ -1178,6 +1154,8 @@ static inline std::error_code receive_one_packet(int sockfd, u8 *dest, size_t si
 
 PacketReadResult Impl::read_packet(Pipe pipe_, u8 *buffer, size_t size)
 {
+    auto logger = spdlog::get("mvlc_eth");
+
     PacketReadResult res = {};
 
     unsigned pipe = static_cast<unsigned>(pipe_);
@@ -1215,24 +1193,24 @@ PacketReadResult Impl::read_packet(Pipe pipe_, u8 *buffer, size_t size)
         ++pipeStats.packetSizes[res.bytesTransferred];
     }
 
-    LOG_TRACE("  pipe=%u, res.bytesTransferred=%u", pipe, res.bytesTransferred);
+    logger->trace("read_packet: pipe={}, res.bytesTransferred={}", pipe, res.bytesTransferred);
 
     if (!res.hasHeaders())
     {
         UniqueLock guard(m_statsMutex);
         ++pipeStats.shortPackets;
-        LOG_WARN("  pipe=%u, received data is smaller than the MVLC UDP header size", pipe);
+        logger->warn("read_packet: pipe={}, received data is smaller than the MVLC UDP header size", pipe);
         res.ec = make_error_code(MVLCErrorCode::ShortRead);
         return res;
     }
 
-    LOG_TRACE("  pipe=%u, header0=0x%08x -> packetChannel=%u, packetNumber=%u, wordCount=%u",
+    logger->trace("read_packet: pipe={}, header0=0x{:008x} -> packetChannel={}, packetNumber={}, wordCount={}",
               pipe, res.header0(), res.packetChannel(), res.packetNumber(), res.dataWordCount());
 
-    LOG_TRACE("  pipe=%u, header1=0x%08x -> udpTimestamp=%u, nextHeaderPointer=%u",
+    logger->trace("read_packet: pipe={}, header1=0x{:008x} -> udpTimestamp={}, nextHeaderPointer={}",
               pipe, res.header1(), res.udpTimestamp(), res.nextHeaderPointer());
 
-    LOG_TRACE("  pipe=%u, calculated available data words = %u, leftover bytes = %u",
+    logger->trace("read_packet: pipe={}, calculated available data words = {}, leftover bytes = {}",
               pipe, res.availablePayloadWords(), res.leftoverBytes());
 
     if (res.dataWordCount() > res.availablePayloadWords())
@@ -1248,13 +1226,13 @@ PacketReadResult Impl::read_packet(Pipe pipe_, u8 *buffer, size_t size)
     // packet header0.
     if (res.availablePayloadWords() > res.dataWordCount())
     {
-        //LOG_WARN("Win10 Build 2004 UDP length hack code path reached!");
+        //logger->warn("Win10 Build 2004 UDP length hack code path reached!");
         res.bytesTransferred = res.dataWordCount() * sizeof(u32) + eth::HeaderBytes;
     }
 
     if (res.leftoverBytes() > 0)
     {
-        LOG_WARN("  pipe=%u, %u leftover bytes in received packet",
+        logger->warn("read_packet: pipe={}, {} leftover bytes in received packet",
                  pipe, res.leftoverBytes());
         UniqueLock guard(m_statsMutex);
         ++pipeStats.packetsWithResidue;
@@ -1262,7 +1240,7 @@ PacketReadResult Impl::read_packet(Pipe pipe_, u8 *buffer, size_t size)
 
     if (res.packetChannel() >= NumPacketChannels)
     {
-        LOG_WARN("  pipe=%u, packet channel number out of range: %u", pipe, res.packetChannel());
+        logger->warn("read_packet: pipe={}, packet channel number out of range: {}", pipe, res.packetChannel());
         UniqueLock guard(m_statsMutex);
         ++pipeStats.packetChannelOutOfRange;
         res.ec = make_error_code(MVLCErrorCode::UDPPacketChannelOutOfRange);
@@ -1279,7 +1257,7 @@ PacketReadResult Impl::read_packet(Pipe pipe_, u8 *buffer, size_t size)
     {
         auto &lastPacketNumber = m_lastPacketNumbers[res.packetChannel()];
 
-        LOG_TRACE("  pipe=%u, packetChannel=%u, packetNumber=%u, lastPacketNumber=%d",
+        logger->trace("read_packet: pipe={}, packetChannel={}, packetNumber={}, lastPacketNumber={}",
                   pipe, res.packetChannel(), res.packetNumber(), lastPacketNumber);
 
         // Packet loss calculation. The initial lastPacketNumber value is -1.
@@ -1289,8 +1267,8 @@ PacketReadResult Impl::read_packet(Pipe pipe_, u8 *buffer, size_t size)
 
             if (loss > 0)
             {
-                LOG_DEBUG("  pipe=%u, packetChannel=%u, lastPacketNumber=%u,"
-                          " packetNumber=%u, loss=%d",
+                logger->debug("read_packet: pipe={}, packetChannel={}, lastPacketNumber={},"
+                          " packetNumber={}, loss={}",
                           pipe, res.packetChannel(), lastPacketNumber, res.packetNumber(), loss);
             }
 
@@ -1321,15 +1299,15 @@ PacketReadResult Impl::read_packet(Pipe pipe_, u8 *buffer, size_t size)
             ++pipeStats.headerOutOfRange;
             ++channelStats.headerOutOfRange;
 
-            LOG_INFO("  pipe=%u, nextHeaderPointer out of range: nHPtr=%u, "
-                     "availDataWords=%u, pktChan=%u, pktNum=%d, pktSize=%u bytes",
+            logger->info("read_packet: pipe={}, nextHeaderPointer out of range: nHPtr={}, "
+                     "availDataWords={}, pktChan={}, pktNum={}, pktSize={} bytes",
                      pipe, res.nextHeaderPointer(), res.availablePayloadWords(),
                      res.packetChannel(), res.packetNumber(), res.bytesTransferred);
         }
         else
         {
             u32 header = *headerp;
-            LOG_TRACE("  pipe=%u, nextHeaderPointer=%u -> header=0x%08x",
+            logger->trace("read_packet: pipe={}, nextHeaderPointer={} -> header=0x{:008x}",
                       pipe, res.nextHeaderPointer(), header);
             u32 type = get_frame_type(header);
             UniqueLock guard(m_statsMutex);
@@ -1339,7 +1317,7 @@ PacketReadResult Impl::read_packet(Pipe pipe_, u8 *buffer, size_t size)
     }
     else
     {
-        LOG_TRACE("  pipe=%u, NoHeaderPointerPresent, eth header1=0x%08x",
+        logger->trace("read_packet: pipe={}, NoHeaderPointerPresent, eth header1=0x{:008x}",
                   pipe, res.header1());
         UniqueLock guard(m_statsMutex);
         ++pipeStats.noHeader;
@@ -1364,6 +1342,8 @@ PacketReadResult Impl::read_packet(Pipe pipe_, u8 *buffer, size_t size)
 std::error_code Impl::read(Pipe pipe_, u8 *buffer, size_t size,
                            size_t &bytesTransferred)
 {
+    auto logger = spdlog::get("mvlc_eth");
+
     unsigned pipe = static_cast<unsigned>(pipe_);
 
     assert(buffer);
@@ -1394,13 +1374,13 @@ std::error_code Impl::read(Pipe pipe_, u8 *buffer, size_t size,
         }
     };
 
-    LOG_TRACE("+ pipe=%u, size=%zu, bufferAvail=%zu", pipe, requestedSize, receiveBuffer.available());
+    logger->trace("read: pipe={}, size={}, bufferAvail={}", pipe, requestedSize, receiveBuffer.available());
 
     copy_and_update();
 
     if (size == 0)
     {
-        LOG_TRACE("  pipe=%u, size=%zu, read request satisfied from buffer, new buffer size=%zu",
+        logger->trace("read: pipe={}, size={}, read request satisfied from buffer, new buffer size={}",
                   pipe, requestedSize, receiveBuffer.available());
         return {};
     }
@@ -1417,14 +1397,14 @@ std::error_code Impl::read(Pipe pipe_, u8 *buffer, size_t size,
         assert(receiveBuffer.available() == 0);
         receiveBuffer.reset();
 
-        LOG_TRACE("  pipe=%u, requestedSize=%zu, remainingSize=%zu, reading from MVLC...",
+        logger->trace("read: pipe={}, requestedSize={}, remainingSize={}, reading from MVLC...",
                   pipe, requestedSize, size);
 
         auto rr = read_packet(pipe_, receiveBuffer.buffer.data(), receiveBuffer.buffer.size());
 
         ++readCount;
 
-        LOG_TRACE("  pipe=%u, received %u bytes, ec=%s",
+        logger->trace("read: pipe={}, received {} bytes, ec={}",
                   pipe, rr.bytesTransferred, rr.ec.message().c_str());
 
         if (rr.ec && rr.bytesTransferred == 0)
@@ -1441,8 +1421,8 @@ std::error_code Impl::read(Pipe pipe_, u8 *buffer, size_t size,
 
         if (elapsed.count() >= DefaultReadTimeout_ms)
         {
-            LOG_TRACE("  pipe=%u, read of size=%zu completes with %zu bytes and timeout"
-                      " after %zu reads, remaining bytes in buffer=%zu",
+            logger->trace("read: pipe={}, read of size={} completes with {} bytes and timeout"
+                      " after {} reads, remaining bytes in buffer={}",
                       pipe, requestedSize, bytesTransferred, readCount,
                       receiveBuffer.available());
 
@@ -1450,7 +1430,7 @@ std::error_code Impl::read(Pipe pipe_, u8 *buffer, size_t size,
         }
     }
 
-    LOG_TRACE("  pipe=%u, read of size=%zu completed using %zu reads, remaining bytes in buffer=%zu",
+    logger->trace("read: pipe={}, read of size={} completed using {} reads, remaining bytes in buffer={}",
               pipe, requestedSize, readCount, receiveBuffer.available());
 
     return {};
