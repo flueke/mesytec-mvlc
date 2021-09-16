@@ -4,7 +4,6 @@
 #include <atomic>
 #include <deque>
 #include <memory>
-//#include <spdlog/spdlog.h>
 
 #include "mesytec-mvlc/mesytec-mvlc_export.h"
 
@@ -20,8 +19,6 @@ namespace mvlc
 {
 namespace apiv2
 {
-
-//std::shared_ptr<spdlog::logger> setup_logger(std::vector<spdlog::sink_ptr> sinks = {});
 
 struct CmdPipeCounters
 {

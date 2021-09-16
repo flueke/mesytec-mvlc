@@ -1,13 +1,12 @@
 #include "mvlc_apiv2.h"
 
 #include <future>
-#include <spdlog/spdlog.h>
-//#include <spdlog/sinks/stdout_sinks.h>
 
 #ifdef __linux__
 #include <sys/prctl.h>
 #endif
 
+#include "logging.h"
 #include "mvlc_buffer_validators.h"
 #include "mvlc_error.h"
 #include "mvlc_eth_interface.h"
@@ -15,43 +14,12 @@
 #include "util/storage_sizes.h"
 #include "vme_constants.h"
 
-#ifndef NDEBUG
-#include <iostream>
-#include "util/io_util.h"
-#endif
-
 namespace mesytec
 {
 namespace mvlc
 {
 namespace apiv2
 {
-
-#if 0
-static const std::string logger_name = "mvlc";
-
-std::shared_ptr<spdlog::logger> setup_logger(std::vector<spdlog::sink_ptr> sinks)
-{
-    auto logger = spdlog::get(logger_name);
-
-    if(not logger)
-    {
-        if(sinks.size() > 0)
-        {
-            logger = std::make_shared<spdlog::logger>(logger_name,
-                                                      std::begin(sinks),
-                                                      std::end(sinks));
-            spdlog::register_logger(logger);
-        }
-        else
-        {
-            logger = spdlog::stdout_logger_mt(logger_name);
-        }
-    }
-
-    return logger;
-}
-#endif
 
 namespace
 {
@@ -249,8 +217,9 @@ void cmd_pipe_reader(ReaderContext &context)
 #ifdef __linux__
     prctl(PR_SET_NAME,"cmd_pipe_reader",0,0,0);
 #endif
+    auto logger = spdlog::get("cmd_pipe_reader");
 
-    spdlog::info("cmd_pipe_reader starting");
+    logger->info("cmd_pipe_reader starting");
 
     auto mvlcUsb = dynamic_cast<usb::MVLC_USB_Interface *>(context.mvlc);
     auto mvlcEth = dynamic_cast<eth::MVLC_ETH_Interface *>(context.mvlc);
@@ -268,8 +237,7 @@ void cmd_pipe_reader(ReaderContext &context)
 
         while (buffer.used)
         {
-
-            //util::log_buffer(cout, buffer, "cmd_pipe_reader buffer");
+            log_buffer(logger, spdlog::level::trace, buffer, "cmd_pipe_reader buffer");
 
             while (!buffer.empty() && !is_good_header(buffer[0]))
             {
@@ -317,7 +285,7 @@ void cmd_pipe_reader(ReaderContext &context)
                         u32 refCmd = buffer[1];
                         if (((refCmd >> SuperCmdShift) & SuperCmdMask) != static_cast<u32>(SuperCommandType::ReferenceWord))
                         {
-                            spdlog::warn("cmd_pipe_reader: super buffer does not start with ref command");
+                            logger->warn("cmd_pipe_reader: super buffer does not start with ref command");
                             ec = make_error_code(MVLCErrorCode::SuperFormatError);
                             ++counters.superFormatErrors;
                             buffer.consume(get_frame_length(buffer[0]) + 1);
@@ -328,7 +296,7 @@ void cmd_pipe_reader(ReaderContext &context)
 
                             if (ref != pendingResponse->reference)
                             {
-                                spdlog::warn("cmd_pipe_reader: super ref mismatch, wanted={}, got={}",
+                                logger->warn("cmd_pipe_reader: super ref mismatch, wanted={}, got={}",
                                              pendingResponse->reference, ref);
                                 ec = make_error_code(MVLCErrorCode::SuperReferenceMismatch);
                                 ++counters.superRefMismatches;
@@ -432,7 +400,7 @@ void cmd_pipe_reader(ReaderContext &context)
         }
 
         if (bytesTransferred > 0)
-            spdlog::trace("received {} bytes", bytesTransferred);
+            logger->trace("received {} bytes", bytesTransferred);
 
         ++counters.reads;
         counters.bytesRead += bytesTransferred;
@@ -452,8 +420,7 @@ void cmd_pipe_reader(ReaderContext &context)
         context.pendingStack.access().ref(),
         ec ? ec : make_error_code(MVLCErrorCode::IsDisconnected));
 
-    SPDLOG_TRACE("cmd_pipe_reader exiting");
-    spdlog::info("cmd_pipe_reader exiting");
+    logger->info("cmd_pipe_reader exiting");
 }
 
 // ============================================
@@ -699,9 +666,7 @@ std::error_code CmdApi::vmeRead(
     if (auto ec = stackTransaction(stackRef, stackBuilder, stackResponse))
         return ec;
 
-#ifndef NDEBUG
-    util::log_buffer(std::cerr, stackResponse, "vmeRead(): stackResponse");
-#endif
+    log_buffer(spdlog::get("mvlc"), spdlog::level::trace, stackResponse, "vmeRead(): stackResponse");
 
     if (stackResponse.size() != 3)
         return make_error_code(MVLCErrorCode::UnexpectedResponseSize);
@@ -730,9 +695,7 @@ std::error_code CmdApi::vmeWrite(
     if (auto ec = stackTransaction(stackRef, stackBuilder, stackResponse))
         return ec;
 
-#ifndef NDEBUG
-    util::log_buffer(std::cerr, stackResponse, "vmeWrite(): stackResponse");
-#endif
+    log_buffer(spdlog::get("mvlc"), spdlog::level::trace, stackResponse, "vmeWrite(): stackResponse");
 
     if (stackResponse.size() != 2)
         return make_error_code(MVLCErrorCode::UnexpectedResponseSize);
@@ -758,9 +721,7 @@ std::error_code CmdApi::vmeBlockRead(
     if (auto ec = stackTransaction(stackRef, stackBuilder, dest))
         return ec;
 
-#ifndef NDEBUG
-    util::log_buffer(std::cerr, dest, "vmeBlockRead(): stackResponse");
-#endif
+    log_buffer(spdlog::get("mvlc"), spdlog::level::trace, dest, "vmeBlockRead(): stackResponse");
 
     return {};
 }
@@ -777,9 +738,7 @@ std::error_code CmdApi::vmeMBLTSwapped(
     if (auto ec = stackTransaction(stackRef, stackBuilder, dest))
         return ec;
 
-#ifndef NDEBUG
-    util::log_buffer(std::cerr, dest, "vmeMBLTSwapped(): stackResponse");
-#endif
+    log_buffer(spdlog::get("mvlc"), spdlog::level::trace, dest, "vmeMBLTSwapped(): stackResponse");
 
     return stackTransaction(stackRef, stackBuilder, dest);
 }
@@ -836,7 +795,6 @@ MVLC::MVLC()
 MVLC::MVLC(std::unique_ptr<MVLCBasicInterface> &&impl)
     : d(std::make_shared<Private>(std::move(impl)))
 {
-        //spdlog::set_level(spdlog::level::trace);
 }
 
 MVLC::~MVLC()
@@ -845,6 +803,7 @@ MVLC::~MVLC()
 
 std::error_code MVLC::connect()
 {
+    auto logger = spdlog::get("mvlc");
     auto guards = d->locks_.lockBoth();
     d->isConnected_ = d->impl_->isConnected();
     std::error_code ec;
@@ -866,7 +825,7 @@ std::error_code MVLC::connect()
 
         if (ec)
         {
-            spdlog::debug("MVLC::connect(): impl::connect() returned {}", ec.message());
+            logger->error("MVLC::connect(): {}", ec.message());
             return ec;
         }
 
@@ -882,14 +841,14 @@ std::error_code MVLC::connect()
         u32 hardwareId = 0;
         u32 firmwareRevision = 0;
 
-        spdlog::trace("reading hardware_id register");
+        logger->debug("reading hardware_id register");
         if (auto ec = d->cmdApi_.readRegister(registers::hardware_id, hardwareId))
         {
             d->isConnected_ = false;
             return ec;
         }
 
-        spdlog::trace("reading firmware_revision register");
+        logger->debug("reading firmware_revision register");
         if (auto ec = d->cmdApi_.readRegister(registers::firmware_revision, firmwareRevision))
         {
             d->isConnected_ = false;
@@ -898,6 +857,8 @@ std::error_code MVLC::connect()
 
         d->hardwareId_ = hardwareId;
         d->firmwareRevision_ = firmwareRevision;
+
+        logger->info("connected to MVLC ({})", connectionInfo());
     }
     else
     {
@@ -909,12 +870,15 @@ std::error_code MVLC::connect()
 
 std::error_code MVLC::disconnect()
 {
+    auto logger = spdlog::get("mvlc");
     auto guards = d->locks_.lockBoth();
 
     std::error_code ec;
 
     if (d->impl_->isConnected())
     {
+        auto conInfo = connectionInfo();
+
         if (d->readerThread_.joinable())
         {
             d->readerContext_.quit = true;
@@ -923,6 +887,11 @@ std::error_code MVLC::disconnect()
 
         ec = d->impl_->disconnect();
         d->isConnected_ = d->impl_->isConnected();
+
+        if (ec)
+            logger->error("Error disconnecting from MVLC ({}): {}", conInfo, ec.message());
+        else
+            logger->info("Disconnected from MVLC ({})", conInfo);
     }
 
     assert(d->impl_->isConnected() == d->isConnected_);

@@ -31,6 +31,7 @@
 /** @file */
 
 #include "git_version.h"
+#include "logging.h"
 #include "mvlc_command_builders.h"
 #include "mvlc_dialog.h"
 #include "mvlc_dialog_util.h"
