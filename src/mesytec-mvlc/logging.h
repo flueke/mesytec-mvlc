@@ -4,12 +4,15 @@
 #include <string>
 #include <spdlog/spdlog.h>
 
+#include "mesytec-mvlc/mesytec-mvlc_export.h"
+
 namespace mesytec
 {
 namespace mvlc
 {
 
-std::vector<std::shared_ptr<spdlog::logger>> setup_loggers(const std::vector<spdlog::sink_ptr> &sinks = {});
+std::vector<std::shared_ptr<spdlog::logger>> MESYTEC_MVLC_EXPORT
+    setup_loggers(const std::vector<spdlog::sink_ptr> &sinks = {});
 
 template<typename View>
 void log_buffer(const std::shared_ptr<spdlog::logger> &logger,

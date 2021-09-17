@@ -18,7 +18,7 @@ namespace mesytec
 namespace mvlc
 {
 
-struct ListfileParams
+struct MESYTEC_MVLC_EXPORT ListfileParams
 {
     enum class Compression { LZ4, ZIP };
 
@@ -35,7 +35,7 @@ struct ListfileParams
     int compressionLevel = 0;
 };
 
-class MVLCReadout
+class MESYTEC_MVLC_EXPORT MVLCReadout
 {
     public:
         MVLCReadout(MVLCReadout &&other);
@@ -88,26 +88,26 @@ class MVLCReadout
 };
 
 // listfile params
-MVLCReadout make_mvlc_readout(
+MVLCReadout MESYTEC_MVLC_EXPORT make_mvlc_readout(
     const CrateConfig &crateConfig,
     const ListfileParams &listfileParams,
     readout_parser::ReadoutParserCallbacks parserCallbacks = {});
 
 // listfile params + custom mvlc
-MVLCReadout make_mvlc_readout(
+MVLCReadout MESYTEC_MVLC_EXPORT make_mvlc_readout(
     MVLC &mvlc,
     const CrateConfig &crateConfig,
     const ListfileParams &listfileParams,
     readout_parser::ReadoutParserCallbacks parserCallbacks = {});
 
 // listfile write handle
-MVLCReadout make_mvlc_readout(
+MVLCReadout MESYTEC_MVLC_EXPORT make_mvlc_readout(
     const CrateConfig &crateConfig,
     listfile::WriteHandle *listfileWriteHandle,
     readout_parser::ReadoutParserCallbacks parserCallbacks = {});
 
 // listfile write handle + custom mvlc
-MVLCReadout make_mvlc_readout(
+MVLCReadout MESYTEC_MVLC_EXPORT make_mvlc_readout(
     MVLC &mvlc,
     const CrateConfig &crateConfig,
     listfile::WriteHandle *listfileWriteHandle,

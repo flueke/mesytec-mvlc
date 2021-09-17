@@ -49,5 +49,5 @@ std::vector<std::shared_ptr<spdlog::logger>> setup_loggers(const std::vector<spd
     return ret;
 }
 
-}
-}
+} // end namespace mvlc
+} // end namespace mesytec
