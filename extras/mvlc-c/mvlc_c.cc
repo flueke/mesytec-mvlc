@@ -1,6 +1,8 @@
 #include "mvlc_c.h"
 
 #include <cassert>
+#include <exception>
+#include <memory>
 #include <system_error>
 
 #include <mesytec-mvlc/mesytec-mvlc.h>
@@ -93,6 +95,20 @@ bool mvlc_ctrl_is_connected(mvlc_ctrl_t *mvlc)
 void mvlc_ctrl_set_disable_trigger_on_connect(mvlc_ctrl_t *mvlc, bool disableTriggers)
 {
     mvlc->instance.setDisableTriggersOnConnect(disableTriggers);
+}
+
+MVLC_ConnectionType get_mvlc_ctrl_connection_type(const mvlc_ctrl_t *mvlc)
+{
+    auto ct = mvlc->instance.connectionType();
+    switch (ct)
+    {
+        case ConnectionType::USB:
+            return MVLC_ConnectionType_USB;
+        case ConnectionType::ETH:
+            return MVLC_ConnectionType_ETH;
+    }
+
+    return MVLC_ConnectionType_USB;
 }
 
 u32 get_mvlc_ctrl_hardware_id(mvlc_ctrl_t *mvlc)
@@ -198,6 +214,110 @@ mvlc_err_t mvlc_ctrl_vme_mblt_swapped_buffer(mvlc_ctrl_t *mvlc, u32 address, u16
     return make_mvlc_error(ec);
 }
 
+struct mvlc_stackbuilder
+{
+    StackCommandBuilder sb;
+};
+
+mvlc_stackbuilder_t *mvlc_stackbuilder_create(const char *name)
+{
+    auto ret = std::make_unique<mvlc_stackbuilder_t>();
+    ret->sb = StackCommandBuilder(name);
+    return ret.release();
+}
+
+void mvlc_stackbuilder_destroy(mvlc_stackbuilder_t *sb)
+{
+    delete sb;
+}
+
+mvlc_stackbuilder_t *mvlc_stackbuilder_copy(const mvlc_stackbuilder_t *sb)
+{
+    auto ret = std::make_unique<mvlc_stackbuilder_t>();
+    ret->sb = sb->sb;
+    return ret.release();
+}
+
+bool mvlc_stackbuilder_equals(const mvlc_stackbuilder_t *sba, const mvlc_stackbuilder_t *sbb)
+{
+    return sba->sb == sbb->sb;
+}
+
+const char *mvlc_stackbuilder_get_name(const mvlc_stackbuilder_t *sb)
+{
+    return strdup(sb->sb.getName().c_str());
+}
+
+bool mvlc_stackbuilder_is_empty(const mvlc_stackbuilder_t *sb)
+{
+    return sb->sb.empty();
+}
+
+mvlc_stackbuilder_t *mvlc_stackbuilder_add_vme_read(
+    mvlc_stackbuilder_t *sb, u32 address, u8 amod, MVLC_VMEDataWidth dataWidth)
+{
+    sb->sb.addVMERead(address, amod, static_cast<VMEDataWidth>(dataWidth));
+    return sb;
+}
+
+mvlc_stackbuilder_t *mvlc_stackbuilder_add_vme_block_read(
+    mvlc_stackbuilder_t *sb, u32 address, u8 amod, u16 maxTransfers)
+{
+    sb->sb.addVMEBlockRead(address, amod, maxTransfers);
+    return sb;
+}
+
+mvlc_stackbuilder_t *mvlc_stackbuilder_add_vme_mblt_swapped(
+    mvlc_stackbuilder_t *sb, u32 address, u8 amod, u16 maxTransfers)
+{
+    sb->sb.addVMEMBLTSwapped(address, amod, maxTransfers);
+    return sb;
+}
+
+mvlc_stackbuilder_t *mvlc_stackbuilder_add_vme_write(
+    mvlc_stackbuilder_t *sb, u32 address, u32 value, u8 amod, MVLC_VMEDataWidth dataWidth)
+{
+    sb->sb.addVMEWrite(address, value, amod, static_cast<VMEDataWidth>(dataWidth));
+    return sb;
+}
+
+mvlc_stackbuilder_t *mvlc_stackbuilder_add_write_marker(
+    mvlc_stackbuilder_t *sb, u32 value)
+{
+    sb->sb.addWriteMarker(value);
+    return sb;
+}
+
+mvlc_stackbuilder_t *mvlc_stackbuilder_begin_group(
+    mvlc_stackbuilder_t *sb, const char *name)
+{
+    sb->sb.beginGroup(name);
+    return sb;
+}
+
+bool mvlc_stackbuilder_has_open_group(
+    const mvlc_stackbuilder_t *sb)
+{
+    return sb->sb.hasOpenGroup();
+}
+
+size_t mvlc_stackbuilder_get_group_count(
+    const mvlc_stackbuilder_t *sb)
+{
+    return sb->sb.getGroupCount();
+}
+
+// Note: uses strdup() interally so you have to free() the returned string after use.
+const char *mvlc_stackbuilder_get_group_name(
+    const mvlc_stackbuilder_t *sb,
+    size_t groupIndex)
+{
+    if (groupIndex >= sb->sb.getGroupCount())
+        return nullptr;
+
+    return strdup(sb->sb.getGroup(groupIndex).name.c_str());
+}
+
 struct mvlc_crateconfig
 {
     CrateConfig cfg;
@@ -227,6 +347,141 @@ mvlc_crateconfig_t *mvlc_read_crateconfig_from_string(const char *str)
 void mvlc_crateconfig_destroy(mvlc_crateconfig_t *cfg)
 {
     delete cfg;
+}
+
+const char *mvlc_crateconfig_to_string(const mvlc_crateconfig_t *cfg)
+{
+    return strdup(to_yaml(cfg->cfg).c_str());
+}
+
+mvlc_err_t mvlc_write_crateconfig_to_file(const mvlc_crateconfig_t *cfg, const char *filename)
+{
+    std::ofstream of;
+
+    of.open(filename, std::ios_base::out);
+
+    if (of.fail())
+        return mvlc_err_t { errno, &std::system_category() };
+
+    of << to_yaml(cfg->cfg);
+
+    if (of.fail())
+        return mvlc_err_t { errno, &std::system_category() };
+
+    return {};
+}
+
+bool mvlc_crateconfig_equals(mvlc_crateconfig_t *ca, mvlc_crateconfig_t *cb)
+{
+    return ca->cfg == cb->cfg;
+}
+
+MVLC_ConnectionType mvlc_crateconfig_get_connection_type(const mvlc_crateconfig_t *cfg)
+{
+    return static_cast<MVLC_ConnectionType>(cfg->cfg.connectionType);
+}
+
+mvlc_stacktriggers_t mvlc_crateconfig_get_stack_triggers(const mvlc_crateconfig_t *cfg)
+{
+    mvlc_stacktriggers_t ret = {};
+
+    std::copy_n(
+        cfg->cfg.triggers.begin(),
+        std::min(cfg->cfg.triggers.size(), static_cast<size_t>(MVLC_ReadoutStackCount)),
+        ret.triggerValues);
+
+    return ret;
+}
+
+mvlc_stackbuilder_t *mvlc_crateconfig_get_readout_stack(
+    mvlc_crateconfig_t *cfg, unsigned stackIndex)
+{
+    if (stackIndex < cfg->cfg.stacks.size())
+    {
+        auto ret = std::make_unique<mvlc_stackbuilder_t>();
+        ret->sb = cfg->cfg.stacks[stackIndex];
+        return ret.release();
+    }
+    return nullptr;
+}
+
+mvlc_crateconfig_t *mvlc_crateconfig_set_readout_stack(
+    mvlc_crateconfig_t *cfg, mvlc_stackbuilder_t *stack, unsigned stackIndex)
+{
+    if (stackIndex >= cfg->cfg.stacks.size())
+        cfg->cfg.stacks.resize(stackIndex+1);
+    cfg->cfg.stacks[stackIndex] = stack->sb;
+    return cfg;
+}
+
+mvlc_stackbuilder_t *mvlc_crateconfig_get_trigger_io_stack(
+    mvlc_crateconfig_t *cfg)
+{
+    auto ret = std::make_unique<mvlc_stackbuilder_t>();
+    ret->sb = cfg->cfg.initTriggerIO;
+    return ret.release();
+}
+mvlc_crateconfig_t *mvlc_crateconfig_set_trigger_io_stack(
+    mvlc_crateconfig_t *cfg, mvlc_stackbuilder_t *stack)
+{
+    cfg->cfg.initTriggerIO = stack->sb;
+    return cfg;
+}
+
+mvlc_stackbuilder_t *mvlc_crateconfig_get_vme_init_stack(
+    mvlc_crateconfig_t *cfg)
+{
+    auto ret = std::make_unique<mvlc_stackbuilder_t>();
+    ret->sb = cfg->cfg.initCommands;
+    return ret.release();
+}
+mvlc_crateconfig_t *mvlc_crateconfig_set_vme_init_stack(
+    mvlc_crateconfig_t *cfg, mvlc_stackbuilder_t *stack)
+{
+    cfg->cfg.initCommands = stack->sb;
+    return cfg;
+}
+
+mvlc_stackbuilder_t *mvlc_crateconfig_get_vme_stop_stack(
+    mvlc_crateconfig_t *cfg)
+{
+    auto ret = std::make_unique<mvlc_stackbuilder_t>();
+    ret->sb = cfg->cfg.stopCommands;
+    return ret.release();
+}
+mvlc_crateconfig_t *mvlc_crateconfig_set_vme_stop_stack(
+    mvlc_crateconfig_t *cfg, mvlc_stackbuilder_t *stack)
+{
+    cfg->cfg.stopCommands = stack->sb;
+    return cfg;
+}
+
+mvlc_stackbuilder_t *mvlc_crateconfig_get_mcst_daq_start_stack(
+    mvlc_crateconfig_t *cfg)
+{
+    auto ret = std::make_unique<mvlc_stackbuilder_t>();
+    ret->sb = cfg->cfg.mcstDaqStart;
+    return ret.release();
+}
+mvlc_crateconfig_t *mvlc_crateconfig_set_mcst_daq_start_stack(
+    mvlc_crateconfig_t *cfg, mvlc_stackbuilder_t *stack)
+{
+    cfg->cfg.mcstDaqStart = stack->sb;
+    return cfg;
+}
+
+mvlc_stackbuilder_t *mvlc_crateconfig_get_mcst_daq_stop_stack(
+    mvlc_crateconfig_t *cfg)
+{
+    auto ret = std::make_unique<mvlc_stackbuilder_t>();
+    ret->sb = cfg->cfg.mcstDaqStop;
+    return ret.release();
+}
+mvlc_crateconfig_t *mvlc_crateconfig_set_mcst_daq_stop_stack(
+    mvlc_crateconfig_t *cfg, mvlc_stackbuilder_t *stack)
+{
+    cfg->cfg.mcstDaqStop = stack->sb;
+    return cfg;
 }
 
 mvlc_ctrl_t *mvlc_ctrl_create_from_crateconfig(mvlc_crateconfig_t *cfg)
@@ -264,7 +519,7 @@ mvlc_listfile_params_t make_default_listfile_params()
     ret.filepath = "./run_001.zip";
     ret.listfilename = "listfile";
     ret.overwrite = false;
-    ret.compression = MVLC_ListfileCompression:ListfileCompression_:LZ4;
+    ret.compression = ListfileCompression_LZ4;
     ret.compressionLevel = 0;
     return ret;
 }
@@ -298,9 +553,9 @@ namespace
 
                 for (size_t i=0; i<moduleCount; ++i)
                 {
-                    modulesDataC[i].prefix = { modulesDataCpp[i].prefix.data, modulesDataCpp[i].prefix.size };
+                    modulesDataC[i].prefix  = { modulesDataCpp[i].prefix.data,  modulesDataCpp[i].prefix.size };
                     modulesDataC[i].dynamic = { modulesDataCpp[i].dynamic.data, modulesDataCpp[i].dynamic.size };
-                    modulesDataC[i].suffix = { modulesDataCpp[i].suffix.data, modulesDataCpp[i].suffix.size };
+                    modulesDataC[i].suffix  = { modulesDataCpp[i].suffix.data,  modulesDataCpp[i].suffix.size };
                 }
 
                 parser_callbacks.event_data(eventIndex, modulesDataC.begin(), moduleCount);
@@ -393,7 +648,7 @@ mvlc_err_t mvlc_readout_resume(mvlc_readout_t *rdo)
     return make_mvlc_error(ec);
 }
 
-MVLC_ReadoutState get_readout_state(mvlc_readout_t *rdo)
+MVLC_ReadoutState get_readout_state(const mvlc_readout_t *rdo)
 {
     auto cppState = rdo->rdo->state();
     return static_cast<MVLC_ReadoutState>(cppState);

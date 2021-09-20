@@ -15,7 +15,6 @@ extern "C" {
 // - enable/disable jumbo frames
 // - maybe low level reads: usb: read_unbuffered(), eth: read_packet() (need a
 //   PacketReadResult structure or similar)
-// - inspect and modify crateconfigs and stackbuilders
 // - create listfiles
 // - listfile replays
 //
@@ -24,6 +23,7 @@ extern "C" {
 // - readout worker
 // - readout parser
 // - queue between readout and parser
+// - inspect and modify crateconfigs and stackbuilders
 
 // Numeric types
 // =====================================================================
@@ -67,6 +67,14 @@ mvlc_err_t mvlc_ctrl_connect(mvlc_ctrl_t *mvlc);
 mvlc_err_t mvlc_ctrl_disconnect(mvlc_ctrl_t *mvlc);
 bool mvlc_ctrl_is_connected(mvlc_ctrl_t *mvlc);
 void mvlc_ctrl_set_disable_trigger_on_connect(mvlc_ctrl_t *mvlc, bool disableTriggers);
+
+typedef enum
+{
+    MVLC_ConnectionType_USB,
+    MVLC_ConnectionType_ETH,
+} MVLC_ConnectionType;
+
+MVLC_ConnectionType get_mvlc_ctrl_connection_type(const mvlc_ctrl_t *mvlc);
 
 // Info
 // =====================================================================
@@ -117,18 +125,168 @@ mvlc_err_t mvlc_ctrl_vme_mblt_swapped_buffer(
 // Readout abstractions
 // =====================================================================
 
+// StackCommandBuilder
+// ---------------------------------------------------------------------
+typedef struct mvlc_stackbuilder mvlc_stackbuilder_t;
+
+typedef enum
+{
+        MVLC_StackCommand_Invalid             = 0,
+
+        MVLC_StackCommand_StackStart          = 0xF3, // First word in a command stack.
+        MVLC_StackCommand_StackEnd            = 0xF4, // Last word in a command stack.
+        MVLC_StackCommand_VMERead             = 0x12, // VME read requests including block reads.
+
+        MVLC_StackCommand_VMEMBLTSwapped      = 0x13, // Special MBLT read command which swaps the order of the two 32-bit
+                                                      // words in each received 64-bit word. Argument wise it's the same as
+                                                      // the VMERead command but should only be used with the MBLT64 address
+                                                      // modifier.
+                                                      //
+        MVLC_StackCommand_VMEWrite            = 0x23, // VME write requests.
+        MVLC_StackCommand_WriteMarker         = 0xC2, // Writes a 32-bit marker value into the output data stream.
+        MVLC_StackCommand_WriteSpecial        = 0xC1, // Write a special value into the output data stream (not implemented).
+
+        MVLC_StackCommand_AddressIncMode      = 0xC3, // Address increment for block reads: 0=FIFO read, 1=memory read
+        MVLC_StackCommand_Wait                = 0xC4, // Delay in units of MVLC clocks. The number of clocks to delay is
+                                                      // specified as a 24-bit number.
+
+        MVLC_StackCommand_SignalAccu          = 0xC6, // Constant data word used to activate the interal signal array.
+        MVLC_StackCommand_MaskShiftAccu       = 0xC5, // first mask is applied, then the left rotation
+        MVLC_StackCommand_SetAccu             = 0xC8, // Set the accumulator to a specific 32 bit value.
+        MVLC_StackCommand_ReadToAccu          = 0x14, // Single register VME read into the accumulator.
+        MVLC_StackCommand_CompareLoopAccu     = 0xC7, // CompareMode, 0=eq, 1=lt, 2=gt. Loops to previous command if false.
+
+
+        // A value not in use by the MVLC protocol is used for the
+        // SoftwareDelay command.
+        MVLC_StackCommand_SoftwareDelay       = 0xEDu,
+
+        // Special value for custom (binary) stack data. The stack data word is
+        // stored in the 'value' member.
+        MVLC_StackCommand_Custom              = 0xEEu
+} MVLC_StackCommandType;
+
+#define MVLC_TotalStackCount 8u
+#define MVLC_ReadoutStackCount 7u
+
+mvlc_stackbuilder_t *mvlc_stackbuilder_create(const char *name);
+void mvlc_stackbuilder_destroy(mvlc_stackbuilder_t *sb);
+mvlc_stackbuilder_t *mvlc_stackbuilder_copy(const mvlc_stackbuilder_t *sb);
+bool mvlc_stackbuilder_equals(const mvlc_stackbuilder_t *sba, const mvlc_stackbuilder_t *sbb);
+
+// Note: uses strdup() interally so you have to free() the returned string after use.
+const char *mvlc_stackbuilder_get_name(const mvlc_stackbuilder_t *sb);
+
+bool mvlc_stackbuilder_is_empty(const mvlc_stackbuilder_t *sb);
+
+mvlc_stackbuilder_t *mvlc_stackbuilder_add_vme_read(
+    mvlc_stackbuilder_t *sb, u32 address, u8 amod, MVLC_VMEDataWidth dataWidth);
+
+mvlc_stackbuilder_t *mvlc_stackbuilder_add_vme_block_read(
+    mvlc_stackbuilder_t *sb, u32 address, u8 amod, u16 maxTransfers);
+
+mvlc_stackbuilder_t *mvlc_stackbuilder_add_vme_mblt_swapped(
+    mvlc_stackbuilder_t *sb, u32 address, u8 amod, u16 maxTransfers);
+
+mvlc_stackbuilder_t *mvlc_stackbuilder_add_vme_write(
+    mvlc_stackbuilder_t *sb, u32 address, u32 value, u8 amod, MVLC_VMEDataWidth dataWidth);
+
+mvlc_stackbuilder_t *mvlc_stackbuilder_add_write_marker(
+    mvlc_stackbuilder_t *sb, u32 value);
+
+mvlc_stackbuilder_t *mvlc_stackbuilder_begin_group(
+    mvlc_stackbuilder_t *sb, const char *name);
+
+// Partial support for stack groups
+bool mvlc_stackbuilder_has_open_group(
+    const mvlc_stackbuilder_t *sb);
+
+size_t mvlc_stackbuilder_get_group_count(
+    const mvlc_stackbuilder_t *sb);
+
+// Note: uses strdup() interally so you have to free() the returned string after use.
+const char *mvlc_stackbuilder_get_group_name(
+    const mvlc_stackbuilder_t *sb,
+    size_t groupIndex);
+
 // Crateconfig
+// ---------------------------------------------------------------------
 typedef struct mvlc_crateconfig mvlc_crateconfig_t;
 
-// TODO: allow creating, inspecting and modifying crateconfigs
 mvlc_crateconfig_t *mvlc_read_crateconfig_from_file(const char *filename);
 mvlc_crateconfig_t *mvlc_read_crateconfig_from_string(const char *str);
 void mvlc_crateconfig_destroy(mvlc_crateconfig_t *cfg);
+
+// Note: uses strdup() interally so you have to free() the returned string after use.
+const char *mvlc_crateconfig_to_string(const mvlc_crateconfig_t *cfg);
+
+mvlc_err_t mvlc_write_crateconfig_to_file(
+    const mvlc_crateconfig_t *cfg,
+    const char *filename);
+
+bool mvlc_crateconfig_equals(mvlc_crateconfig_t *ca, mvlc_crateconfig_t *cb);
+
+MVLC_ConnectionType mvlc_crateconfig_get_connection_type(const mvlc_crateconfig_t *cfg);
+
+typedef struct mvlc_stacktriggers
+{
+    u32 triggerValues[MVLC_ReadoutStackCount];
+} mvlc_stacktriggers_t;
+
+mvlc_stacktriggers_t mvlc_crateconfig_get_stack_triggers(const mvlc_crateconfig_t *cfg);
+
+// Note: a copy of the readout stack is returned. Modifying the copy won't
+// affect the original stored in the stack builder. The usage pattern is to get
+// the readout stack, modify it and set it again.
+mvlc_stackbuilder_t *mvlc_crateconfig_get_readout_stack(
+    mvlc_crateconfig_t *cfg, unsigned stackIndex);
+mvlc_crateconfig_t *mvlc_crateconfig_set_readout_stack(
+    mvlc_crateconfig_t *cfg, mvlc_stackbuilder_t *stack, unsigned stackIndex);
+
+mvlc_stackbuilder_t *mvlc_crateconfig_get_trigger_io_stack(
+    mvlc_crateconfig_t *cfg);
+mvlc_crateconfig_t *mvlc_crateconfig_set_trigger_io_stack(
+    mvlc_crateconfig_t *cfg, mvlc_stackbuilder_t *stack);
+
+mvlc_stackbuilder_t *mvlc_crateconfig_get_vme_init_stack(
+    mvlc_crateconfig_t *cfg);
+mvlc_crateconfig_t *mvlc_crateconfig_set_vme_init_stack(
+    mvlc_crateconfig_t *cfg, mvlc_stackbuilder_t *stack);
+
+mvlc_stackbuilder_t *mvlc_crateconfig_get_vme_stop_stack(
+    mvlc_crateconfig_t *cfg);
+mvlc_crateconfig_t *mvlc_crateconfig_set_vme_stop_stack(
+    mvlc_crateconfig_t *cfg, mvlc_stackbuilder_t *stack);
+
+mvlc_stackbuilder_t *mvlc_crateconfig_get_mcst_daq_start_stack(
+    mvlc_crateconfig_t *cfg);
+mvlc_crateconfig_t *mvlc_crateconfig_set_mcst_daq_start_stack(
+    mvlc_crateconfig_t *cfg, mvlc_stackbuilder_t *stack);
+
+mvlc_stackbuilder_t *mvlc_crateconfig_get_mcst_daq_stop_stack(
+    mvlc_crateconfig_t *cfg);
+mvlc_crateconfig_t *mvlc_crateconfig_set_mcst_daq_stop_stack(
+    mvlc_crateconfig_t *cfg, mvlc_stackbuilder_t *stack);
+
+// MVLC controller from crateconfig
 mvlc_ctrl_t *mvlc_ctrl_create_from_crateconfig(mvlc_crateconfig_t *cfg);
+
+// Listfiles
+// ---------------------------------------------------------------------
 
 // Listfile write handle function. Must return the number of bytes written or a
 // negative value in case of an error.
 typedef ssize_t (*mvlc_listfile_write_handle) (const u8 *data, size_t size);
+
+
+typedef ssize_t (*mvlc_listfile_read_func) (const u8 *dest, size_t maxSize);
+typedef ssize_t (*mvlc_listfile_seek_func) (size_t pos);
+
+typedef struct listfile_read_handle
+{
+    mvlc_listfile_read_func read_func;
+    mvlc_listfile_seek_func seek_func;
+} listfile_read_handle_t;
 
 // Listfile params
 typedef enum { ListfileCompression_LZ4, ListfileCompression_ZIP } MVLC_ListfileCompression;
@@ -146,6 +304,7 @@ typedef struct mvlc_listfile_params
 mvlc_listfile_params_t make_default_listfile_params();
 
 // Readout data structures and parser callbacks
+// ---------------------------------------------------------------------
 typedef struct readout_datablock
 {
     const u32 *data;    // pointer to the readout data
@@ -173,11 +332,12 @@ typedef struct readout_parser_callbacks
     rdo_system_event_callback system_event;
 } readout_parser_callbacks_t;
 
-// Readout object combining
+// A readout object combining
 // - mvlc
 // - crateconfig
 // - listfile write handle
 // - readout parser callbacks
+// ---------------------------------------------------------------------
 typedef struct mvlc_readout mvlc_readout_t;
 
 mvlc_readout_t *mvlc_readout_create(
@@ -208,7 +368,28 @@ typedef enum
     ReadoutState_Stopping
 } MVLC_ReadoutState;
 
-MVLC_ReadoutState get_readout_state(mvlc_readout_t *rdo);
+MVLC_ReadoutState get_readout_state(const mvlc_readout_t *rdo);
+
+// Replay
+// ---------------------------------------------------------------------
+typedef struct mvlc_replay mvlc_replay_t;
+
+mvlc_replay_t *mvlc_replay_create(
+    const char *listfileFilename,
+    readout_parser_callbacks_t event_callbacks);
+
+mvlc_replay_t *mvlc_replay_create2(
+    listfile_read_handle_t lfh,
+    readout_parser_callbacks_t event_callbacks);
+
+void mvlc_replay_destroy(mvlc_replay_t *replay);
+
+mvlc_err_t mvlc_replay_start(mvlc_replay_t *replay);
+mvlc_err_t mvlc_replay_stop(mvlc_replay_t *replay);
+mvlc_err_t mvlc_replay_pause(mvlc_replay_t *replay);
+mvlc_err_t mvlc_replay_resume(mvlc_replay_t *replay);
+
+MVLC_ReadoutState get_replay_state(const mvlc_replay_t *replay);
 
 #ifdef __cplusplus
 }
