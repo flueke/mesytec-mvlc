@@ -19,7 +19,14 @@ target_link_libraries(mvlc-mini-daq-replay
     PRIVATE spdlog::spdlog
     )
 
-install(TARGETS mvlc-mini-daq mvlc-mini-daq-replay
+add_executable(mvlc-mini-daq-replay2 mini_daq_replay2.cc)
+target_link_libraries(mvlc-mini-daq-replay2
+    PRIVATE mesytec-mvlc
+    PRIVATE BFG::Lyra
+    PRIVATE spdlog::spdlog
+    )
+
+install(TARGETS mvlc-mini-daq mvlc-mini-daq-replay mvlc-mini-daq2 mvlc-mini-daq-replay2
     RUNTIME DESTINATION bin)
 
 add_executable(dev_mvlc_replay_simple_api replay_simple_api.cc)
