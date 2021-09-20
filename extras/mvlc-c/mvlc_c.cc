@@ -264,7 +264,7 @@ mvlc_listfile_params_t make_default_listfile_params()
     ret.filepath = "./run_001.zip";
     ret.listfilename = "listfile";
     ret.overwrite = false;
-    ret.compression = MVLC_ListfileCompression::LZ4;
+    ret.compression = MVLC_ListfileCompression:ListfileCompression_:LZ4;
     ret.compressionLevel = 0;
     return ret;
 }
@@ -289,20 +289,22 @@ namespace
             const readout_parser::ModuleData *modulesDataCpp,
             unsigned moduleCount)
         {
-            static const size_t MaxVMEModulesPerEvent = 20;
-            std::array<readout_moduledata, MaxVMEModulesPerEvent> modulesDataC;
-
-            assert(moduleCount <= modulesDataC.size());
-
-            for (size_t i=0; i<moduleCount; ++i)
-            {
-                modulesDataC[i].prefix = { modulesDataCpp[i].prefix.data, modulesDataCpp[i].prefix.size };
-                modulesDataC[i].dynamic = { modulesDataCpp[i].dynamic.data, modulesDataCpp[i].dynamic.size };
-                modulesDataC[i].suffix = { modulesDataCpp[i].suffix.data, modulesDataCpp[i].suffix.size };
-            }
-
             if (parser_callbacks.event_data)
+            {
+                static const size_t MaxVMEModulesPerEvent = 20;
+                std::array<readout_moduledata, MaxVMEModulesPerEvent> modulesDataC;
+
+                assert(moduleCount <= modulesDataC.size());
+
+                for (size_t i=0; i<moduleCount; ++i)
+                {
+                    modulesDataC[i].prefix = { modulesDataCpp[i].prefix.data, modulesDataCpp[i].prefix.size };
+                    modulesDataC[i].dynamic = { modulesDataCpp[i].dynamic.data, modulesDataCpp[i].dynamic.size };
+                    modulesDataC[i].suffix = { modulesDataCpp[i].suffix.data, modulesDataCpp[i].suffix.size };
+                }
+
                 parser_callbacks.event_data(eventIndex, modulesDataC.begin(), moduleCount);
+            }
         };
 
         parserCallbacks.systemEvent = [parser_callbacks] (const u32 *header, u32 size)

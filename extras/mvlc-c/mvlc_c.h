@@ -13,14 +13,17 @@ extern "C" {
 // TODO:
 // - access to stack error counters
 // - enable/disable jumbo frames
-// - maybe low level reads: usb: read_unbuffered(), eth: read_packet()
-// - load crate config from yaml
+// - maybe low level reads: usb: read_unbuffered(), eth: read_packet() (need a
+//   PacketReadResult structure or similar)
 // - inspect and modify crateconfigs and stackbuilders
 // - create listfiles
+// - listfile replays
+//
+// DONE:
+// - load crate config from yaml
 // - readout worker
 // - readout parser
 // - queue between readout and parser
-// - listfile replays
 
 // Numeric types
 // =====================================================================
@@ -69,7 +72,7 @@ void mvlc_ctrl_set_disable_trigger_on_connect(mvlc_ctrl_t *mvlc, bool disableTri
 // =====================================================================
 u32 get_mvlc_ctrl_hardware_id(mvlc_ctrl_t *mvlc);
 u32 get_mvlc_ctrl_firmware_revision(mvlc_ctrl_t *mvlc);
-// Note: uses strdup() interally so you have to free() the string after use.
+// Note: uses strdup() interally so you have to free() the returned string after use.
 char *get_mvlc_ctrl_connection_info(mvlc_ctrl_t *mvlc);
 
 // Access to internal registers
@@ -127,34 +130,8 @@ mvlc_ctrl_t *mvlc_ctrl_create_from_crateconfig(mvlc_crateconfig_t *cfg);
 // negative value in case of an error.
 typedef ssize_t (*mvlc_listfile_write_handle) (const u8 *data, size_t size);
 
-// Readout data structures and parser callbacks
-typedef struct readout_datablock
-{
-    const u32 *data;
-    u32 size;
-} readout_datablock_t;
-
-typedef struct readout_moduledata
-{
-    readout_datablock_t prefix;
-    readout_datablock_t dynamic;
-    readout_datablock_t suffix;
-} readout_moduledata_t;
-
-typedef void (*rdo_event_data_callback)
-    (int eventIndex, const readout_moduledata_t *moduleDataList, unsigned moduleCount);
-
-typedef void (*rdo_system_event_callback)
-    (const u32 *header, u32 size);
-
-typedef struct readout_parser_callbacks
-{
-    rdo_event_data_callback event_data;
-    rdo_system_event_callback system_event;
-} readout_parser_callbacks_t;
-
 // Listfile params
-typedef enum { LZ4, ZIP } MVLC_ListfileCompression;
+typedef enum { ListfileCompression_LZ4, ListfileCompression_ZIP } MVLC_ListfileCompression;
 
 typedef struct mvlc_listfile_params
 {
@@ -168,6 +145,34 @@ typedef struct mvlc_listfile_params
 
 mvlc_listfile_params_t make_default_listfile_params();
 
+// Readout data structures and parser callbacks
+typedef struct readout_datablock
+{
+    const u32 *data;    // pointer to the readout data
+    u32 size;           // number of elements in the readout data
+} readout_datablock_t;
+
+typedef struct readout_moduledata
+{
+    readout_datablock_t prefix;     // data from single VME reads before any block read
+    readout_datablock_t dynamic;    // block read data
+    readout_datablock_t suffix;     // single VME read data following the block read
+} readout_moduledata_t;
+
+// Called for each readout event recorded by the DAQ.
+typedef void (*rdo_event_data_callback)
+    (int eventIndex, const readout_moduledata_t *moduleDataList, unsigned moduleCount);
+
+// Called for each software generated system event.
+typedef void (*rdo_system_event_callback)
+    (const u32 *header, u32 size);
+
+typedef struct readout_parser_callbacks
+{
+    rdo_event_data_callback event_data;
+    rdo_system_event_callback system_event;
+} readout_parser_callbacks_t;
+
 // Readout object combining
 // - mvlc
 // - crateconfig
@@ -179,13 +184,13 @@ mvlc_readout_t *mvlc_readout_create(
     mvlc_ctrl_t *mvlc,
     mvlc_crateconfig_t *cfg,
     mvlc_listfile_write_handle lfh,
-    readout_parser_callbacks_t callbacks);
+    readout_parser_callbacks_t event_callbacks);
 
 mvlc_readout_t *mvlc_readout_create2(
     mvlc_ctrl_t *mvlc,
     mvlc_crateconfig_t *cfg,
     mvlc_listfile_params_t listfileParams,
-    readout_parser_callbacks_t callbacks);
+    readout_parser_callbacks_t event_callbacks);
 
 void mvlc_readout_destroy(mvlc_readout_t *rdo);
 
