@@ -498,8 +498,7 @@ struct ListfileWriteHandleWrapper: public listfile::WriteHandle
 {
     ListfileWriteHandleWrapper(mvlc_listfile_write_handle listfile_handle)
         : listfile_handle(listfile_handle)
-    {
-    }
+    { }
 
     size_t write(const u8 *data, size_t size) override
     {
@@ -651,5 +650,100 @@ mvlc_err_t mvlc_readout_resume(mvlc_readout_t *rdo)
 MVLC_ReadoutState get_readout_state(const mvlc_readout_t *rdo)
 {
     auto cppState = rdo->rdo->state();
+    return static_cast<MVLC_ReadoutState>(cppState);
+}
+
+// Replay
+// ---------------------------------------------------------------------
+struct ListfileReadHandleWrapper: public listfile::ReadHandle
+{
+    ListfileReadHandleWrapper(mvlc_listfile_read_handle listfile_handle)
+        : listfile_handle(listfile_handle)
+    { }
+
+    size_t read(u8 *dest, size_t maxSize) override
+    {
+        ssize_t res = listfile_handle.read_func(dest, maxSize);
+        if (res < 0)
+            throw std::runtime_error("wrapped listfile read failed: " + std::to_string(res));
+        return res;
+    }
+
+    void seek(size_t pos) override
+    {
+        ssize_t res = listfile_handle.seek_func(pos);
+        if (res < 0)
+            throw std::runtime_error("wrapped listfile seek failed: " + std::to_string(res));
+    }
+
+    mvlc_listfile_read_handle listfile_handle;
+};
+
+struct mvlc_replay
+{
+    std::unique_ptr<MVLCReplay> replay;
+    std::unique_ptr<ListfileReadHandleWrapper> rh;
+};
+
+mvlc_replay_t *mvlc_replay_create(
+    const char *listfileFilename,
+    readout_parser_callbacks_t event_callbacks)
+{
+    auto replay = make_mvlc_replay(
+        listfileFilename,
+        wrap_parser_callbacks(event_callbacks));
+
+    auto ret = std::make_unique<mvlc_replay>();
+    ret->replay = std::make_unique<MVLCReplay>(std::move(replay));
+
+    return ret.release();
+}
+
+mvlc_replay_t *mvlc_replay_create2(
+    listfile_read_handle_t lfh,
+    readout_parser_callbacks_t event_callbacks)
+{
+    auto rh = std::make_unique<ListfileReadHandleWrapper>(lfh);
+    auto replay = make_mvlc_replay(rh.get(), wrap_parser_callbacks(event_callbacks));
+
+    auto ret = std::make_unique<mvlc_replay>();
+    ret->replay = std::make_unique<MVLCReplay>(std::move(replay));
+    ret->rh = std::move(rh);
+
+    return ret.release();
+}
+
+void mvlc_replay_destroy(mvlc_replay_t *replay)
+{
+    delete replay;
+}
+
+mvlc_err_t mvlc_replay_start(mvlc_replay_t *replay)
+{
+    auto ec = replay->replay->start();
+    return make_mvlc_error(ec);
+}
+
+mvlc_err_t mvlc_replay_stop(mvlc_replay_t *replay)
+{
+    auto ec = replay->replay->stop();
+    return make_mvlc_error(ec);
+}
+
+mvlc_err_t mvlc_replay_pause(mvlc_replay_t *replay)
+{
+    auto ec = replay->replay->pause();
+    return make_mvlc_error(ec);
+}
+
+mvlc_err_t mvlc_replay_resume(mvlc_replay_t *replay)
+{
+    auto ec = replay->replay->resume();
+    return make_mvlc_error(ec);
+}
+
+MVLC_ReadoutState get_replay_state(const mvlc_replay_t *replay)
+{
+    auto cppState = replay->replay->state();
     return static_cast<MVLC_ReadoutState>(cppState);
 }

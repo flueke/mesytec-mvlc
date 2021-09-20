@@ -278,18 +278,23 @@ mvlc_ctrl_t *mvlc_ctrl_create_from_crateconfig(mvlc_crateconfig_t *cfg);
 // negative value in case of an error.
 typedef ssize_t (*mvlc_listfile_write_handle) (const u8 *data, size_t size);
 
-
+// Seek and read functions for listfiles. Must return a negative value on
+// error.
 typedef ssize_t (*mvlc_listfile_read_func) (const u8 *dest, size_t maxSize);
 typedef ssize_t (*mvlc_listfile_seek_func) (size_t pos);
 
-typedef struct listfile_read_handle
+typedef struct mvlc_listfile_read_handle
 {
     mvlc_listfile_read_func read_func;
     mvlc_listfile_seek_func seek_func;
 } listfile_read_handle_t;
 
 // Listfile params
-typedef enum { ListfileCompression_LZ4, ListfileCompression_ZIP } MVLC_ListfileCompression;
+typedef enum
+{
+    ListfileCompression_LZ4,
+    ListfileCompression_ZIP
+} MVLC_ListfileCompression;
 
 typedef struct mvlc_listfile_params
 {
@@ -338,6 +343,15 @@ typedef struct readout_parser_callbacks
 // - listfile write handle
 // - readout parser callbacks
 // ---------------------------------------------------------------------
+typedef enum
+{
+    ReadoutState_Idle,
+    ReadoutState_Starting,
+    ReadoutState_Running,
+    ReadoutState_Paused,
+    ReadoutState_Stopping
+} MVLC_ReadoutState;
+
 typedef struct mvlc_readout mvlc_readout_t;
 
 mvlc_readout_t *mvlc_readout_create(
@@ -358,15 +372,6 @@ mvlc_err_t mvlc_readout_start(mvlc_readout_t *rdo, int timeToRun_s);
 mvlc_err_t mvlc_readout_stop(mvlc_readout_t *rdo);
 mvlc_err_t mvlc_readout_pause(mvlc_readout_t *rdo);
 mvlc_err_t mvlc_readout_resume(mvlc_readout_t *rdo);
-
-typedef enum
-{
-    ReadoutState_Idle,
-    ReadoutState_Starting,
-    ReadoutState_Running,
-    ReadoutState_Paused,
-    ReadoutState_Stopping
-} MVLC_ReadoutState;
 
 MVLC_ReadoutState get_readout_state(const mvlc_readout_t *rdo);
 
