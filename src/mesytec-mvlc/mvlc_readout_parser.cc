@@ -300,7 +300,11 @@ inline ParseResult parser_begin_event(ReadoutParserState &state, u32 frameHeader
     int eventIndex = frameInfo.stack - 1;
 
     if (eventIndex < 0 || static_cast<unsigned>(eventIndex) >= state.readoutStructure.size())
+    {
+        auto logger = spdlog::get("readout_parser");
+        logger->warn("parser_begin_event: StackIndexOutOfRange ({})", eventIndex);
         return ParseResult::StackIndexOutOfRange;
+    }
 
     state.workBuffer.used = 0;
     clear_readout_data_spans(state.readoutDataSpans);
@@ -547,9 +551,11 @@ ParseResult parse_readout_contents(
 
                     if (pr != ParseResult::Ok)
                     {
-                        logger->warn("error from parser_begin_event, iter offset={}, bufferNumber={}",
+                        logger->warn("error from parser_begin_event, iter offset={}, bufferNumber={}: {}",
                                  nextStackFrame - inputBegin,
-                                 bufferNumber);
+                                 bufferNumber,
+                                 get_parse_result_name(pr)
+                                 );
                         return pr;
                     }
 
