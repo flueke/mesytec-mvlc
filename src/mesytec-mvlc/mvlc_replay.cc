@@ -1,8 +1,10 @@
 #include "mvlc_replay.h"
+#include "mvlc_readout_parser_util.h"
 
 #include <chrono>
 #include <cstring>
 #include <iostream>
+#include <regex>
 #include <thread>
 
 #if __linux__
@@ -11,9 +13,10 @@
 
 #include "mvlc_eth_interface.h"
 #include "mvlc_listfile.h"
+#include "mvlc_listfile_zip.h"
 #include "mvlc_util.h"
-#include "util/perf.h"
 #include "util/io_util.h"
+#include "util/perf.h"
 
 namespace mesytec
 {
@@ -152,7 +155,6 @@ void fixup_buffer_usb(ReadoutBuffer &readBuffer, ReadoutBuffer &tempBuffer)
 
 struct ReplayWorker::Private
 {
-
     WaitableProtected<ReplayWorker::State> state;
     std::atomic<ReplayWorker::State> desiredState;
     ReadoutBufferQueues &snoopQueues;
@@ -430,5 +432,205 @@ ReplayWorker::Counters ReplayWorker::counters()
     return d->counters.copy();
 }
 
+struct MVLCReplay::Private
+{
+    listfile::ReadHandle *lfh = nullptr;
+    readout_parser::ReadoutParserCallbacks parserCallbacks;
+    CrateConfig crateConfig;
+    listfile::ZipReader lfZip;
+
+    ReadoutBufferQueues snoopQueues;
+    readout_parser::ReadoutParserState readoutParser;
+    Protected<readout_parser::ReadoutParserCounters> parserCounters;
+    std::thread parserThread;
+    std::atomic<bool> parserQuit;
+
+    std::unique_ptr<ReplayWorker> replayWorker;
+
+    Private()
+        : parserCounters({})
+        , parserQuit(false)
+    {}
+};
+
+MVLCReplay::MVLCReplay()
+    : d(std::make_unique<Private>())
+{
 }
+
+MVLCReplay::~MVLCReplay()
+{
+    if (d && d->parserThread.joinable())
+    {
+        d->parserQuit = true;
+        d->parserThread.join();
+    }
 }
+
+MVLCReplay::MVLCReplay(MVLCReplay &&other)
+{
+    d = std::move(other.d);
+}
+
+MVLCReplay &MVLCReplay::operator=(MVLCReplay &&other)
+{
+    d = std::move(other.d);
+    return *this;
+}
+
+void init_common(MVLCReplay &r)
+{
+    auto preamble = listfile::read_preamble(*r.d->lfh);
+
+    if (!(preamble.magic == listfile::get_filemagic_eth()
+          || preamble.magic == listfile::get_filemagic_usb()))
+        throw std::runtime_error("Invalid listfile file format");
+
+    auto configSection = preamble.findCrateConfig();
+
+    if (!configSection)
+        throw std::runtime_error("No MVLC CrateConfig found in listfile");
+
+    r.d->crateConfig = crate_config_from_yaml(configSection->contentsToString());
+    r.d->readoutParser = readout_parser::make_readout_parser(r.d->crateConfig.stacks);
+
+    r.d->parserThread = std::thread(
+        readout_parser::run_readout_parser,
+        std::ref(r.d->readoutParser),
+        std::ref(r.d->parserCounters),
+        std::ref(r.d->snoopQueues),
+        std::ref(r.d->parserCallbacks),
+        std::ref(r.d->parserQuit)
+        );
+
+    r.d->replayWorker = std::make_unique<ReplayWorker>(
+        r.d->snoopQueues,
+        r.d->lfh);
+}
+
+MVLCReplay make_mvlc_replay(
+    const std::string &listfileFilename,
+    readout_parser::ReadoutParserCallbacks parserCallbacks)
+{
+    MVLCReplay r;
+    r.d->parserCallbacks = parserCallbacks;
+
+    auto &zr = r.d->lfZip;
+
+    zr.openArchive(listfileFilename);
+
+    std::string entryName;
+
+    // Try to find a listfile inside the archive.
+    auto entryNames = zr.entryNameList();
+
+    auto it = std::find_if(
+        std::begin(entryNames), std::end(entryNames),
+        [] (const std::string &entryName)
+        {
+            static const std::regex re(R"foo(.+\.mvlclst(\.lz4)?)foo");
+            return std::regex_search(entryName, re);
+        });
+
+    if (it != std::end(entryNames))
+        entryName = *it;
+    else
+        throw std::runtime_error("No listfile found in archive");
+
+    r.d->lfh = zr.openEntry(entryName);
+
+    init_common(r);
+    return r;
+}
+
+MVLCReplay make_mvlc_replay(
+    const std::string &listfileArchiveName,
+    const std::string &listfileArchiveMemberName,
+    readout_parser::ReadoutParserCallbacks parserCallbacks)
+{
+    if (listfileArchiveMemberName.empty())
+        return make_mvlc_replay(listfileArchiveName, parserCallbacks);
+
+    MVLCReplay r;
+    r.d->parserCallbacks = parserCallbacks;
+
+    auto &zr = r.d->lfZip;
+    zr.openArchive(listfileArchiveName);
+    r.d->lfh = zr.openEntry(listfileArchiveMemberName);
+
+    init_common(r);
+    return r;
+}
+
+MVLCReplay make_mvlc_replay(
+    listfile::ReadHandle *lfh,
+    readout_parser::ReadoutParserCallbacks parserCallbacks)
+{
+    MVLCReplay r;
+    r.d->lfh = lfh;
+    r.d->parserCallbacks = parserCallbacks;
+
+    init_common(r);
+    return r;
+}
+
+std::error_code MVLCReplay::start()
+{
+    return d->replayWorker->start().get();
+}
+
+std::error_code MVLCReplay::stop()
+{
+    if (auto ec = d->replayWorker->stop())
+        return ec;
+
+    while (state() != ReplayWorker::State::Idle)
+    {
+        waitableState().wait_for(
+            std::chrono::milliseconds(1000),
+            [] (const ReplayWorker::State &state)
+            {
+                return state == ReplayWorker::State::Idle;
+            });
+    }
+
+    return {};
+}
+
+std::error_code MVLCReplay::pause()
+{
+    return d->replayWorker->pause();
+}
+
+std::error_code MVLCReplay::resume()
+{
+    return d->replayWorker->resume();
+}
+
+ReplayWorker::State MVLCReplay::state() const
+{
+    return d->replayWorker->state();
+}
+
+WaitableProtected<ReplayWorker::State> &MVLCReplay::waitableState()
+{
+    return d->replayWorker->waitableState();
+}
+
+ReplayWorker::Counters MVLCReplay::workerCounters()
+{
+    return d->replayWorker->counters();
+}
+
+readout_parser::ReadoutParserCounters MVLCReplay::parserCounters()
+{
+    return d->parserCounters.copy();
+}
+
+const CrateConfig &MVLCReplay::crateConfig() const
+{
+    return d->crateConfig;
+}
+
+} // end namespace mvlc
+} // end namespace mesytec
