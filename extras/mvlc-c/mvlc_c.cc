@@ -598,6 +598,7 @@ namespace
         readout_parser::ReadoutParserCallbacks parserCallbacks;
 
         parserCallbacks.eventData = [parser_callbacks, userContext] (
+            void *,
             int eventIndex,
             const readout_parser::ModuleData *modulesDataCpp,
             unsigned moduleCount)
@@ -620,7 +621,7 @@ namespace
             }
         };
 
-        parserCallbacks.systemEvent = [parser_callbacks, userContext] (const u32 *header, u32 size)
+        parserCallbacks.systemEvent = [parser_callbacks, userContext] (void *, const u32 *header, u32 size)
         {
             if (parser_callbacks.system_event)
                 parser_callbacks.system_event(userContext, header, size);

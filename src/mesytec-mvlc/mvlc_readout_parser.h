@@ -80,13 +80,13 @@ struct ReadoutParserCallbacks
     // Parameters: index of the VME event the data belongs to, pointer to an
     // array of ModuleData allowing access to the actual module readout data and
     // the moduleCount, specifying the number of elements in the groups array.
-    std::function<void (int eventIndex, const ModuleData *moduleDataList, unsigned moduleCount)>
-        eventData = [] (int, const ModuleData *, size_t) {};
+    std::function<void (void *userContext, int eventIndex, const ModuleData *moduleDataList, unsigned moduleCount)>
+        eventData = [] (void *, int, const ModuleData *, size_t) {};
 
     // Parameters: pointer to the system event header, number of words in the
     // system event
-    std::function<void (const u32 *header, u32 size)>
-        systemEvent = [] (const u32 *, u32) {};
+    std::function<void (void *userContext, const u32 *header, u32 size)>
+        systemEvent = [] (void *, const u32 *, u32) {};
 };
 
 struct ModuleReadoutStructure
@@ -302,6 +302,8 @@ struct MESYTEC_MVLC_EXPORT ReadoutParserState
     s32 lastPacketNumber = -1;
 
     std::exception_ptr eptr;
+
+    void *userContext = nullptr;
 };
 
 // Create a readout parser from a list of readout stack defintions.
@@ -310,7 +312,8 @@ struct MESYTEC_MVLC_EXPORT ReadoutParserState
 // definition for the readout stack with id 1, the second the one for stack id
 // 2 and so on. Stack 0 (the direct exec stack) must not be included.
 MESYTEC_MVLC_EXPORT ReadoutParserState make_readout_parser(
-    const std::vector<StackCommandBuilder> &readoutStacks);
+    const std::vector<StackCommandBuilder> &readoutStacks,
+    void *userContext = nullptr);
 
 // Functions for steering the parser. These should be called repeatedly with
 // complete MVLC readout buffers. The input buffer sequence may be lossfull

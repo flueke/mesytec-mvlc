@@ -377,7 +377,7 @@ int main(int argc, char *argv[])
         readout_parser::ReadoutParserCallbacks parserCallbacks;
 
         parserCallbacks.eventData = [opt_printReadoutData] (
-            int eventIndex, const readout_parser::ModuleData *moduleDataList, unsigned moduleCount)
+            void *, int eventIndex, const readout_parser::ModuleData *moduleDataList, unsigned moduleCount)
         {
             if (opt_printReadoutData)
             {
@@ -403,7 +403,7 @@ int main(int argc, char *argv[])
             }
         };
 
-        parserCallbacks.systemEvent = [opt_printReadoutData] (const u32 *header, u32 size)
+        parserCallbacks.systemEvent = [opt_printReadoutData] (void *, const u32 *header, u32 size)
         {
             if (opt_printReadoutData)
             {

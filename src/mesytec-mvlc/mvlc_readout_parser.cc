@@ -244,7 +244,8 @@ inline void copy_to_workbuffer(
 static const size_t InitialWorkerBufferSize = util::Megabytes(1) / sizeof(u32);
 
 MESYTEC_MVLC_EXPORT ReadoutParserState make_readout_parser(
-    const std::vector<StackCommandBuilder> &readoutStacks)
+    const std::vector<StackCommandBuilder> &readoutStacks,
+    void *userContext)
 {
     ReadoutParserState result = {};
     result.readoutStructure = build_readout_structure(readoutStacks);
@@ -260,6 +261,8 @@ MESYTEC_MVLC_EXPORT ReadoutParserState make_readout_parser(
     result.moduleDataBuffer.resize(maxGroupCount);
 
     ensure_free_space(result.workBuffer, InitialWorkerBufferSize);
+
+    result.userContext = userContext;
 
     return result;
 }
@@ -339,6 +342,7 @@ inline s64 calc_buffer_loss(u32 bufferNumber, u32 lastBufferNumber)
 //
 // Throws end_of_buffer() if the system frame exceeeds the input buffer size.
 inline bool try_handle_system_event(
+    ReadoutParserState &state,
     ReadoutParserCallbacks &callbacks,
     ReadoutParserCounters &counters,
     basic_string_view<u32> &input)
@@ -360,7 +364,7 @@ inline bool try_handle_system_event(
 
             // Pass the frame header itself and the contents to the system event
             // callback.
-            callbacks.systemEvent(input.data(), frameInfo.len + 1);
+            callbacks.systemEvent(state.userContext, input.data(), frameInfo.len + 1);
             input.remove_prefix(frameInfo.len + 1);
             return true;
         }
@@ -454,7 +458,7 @@ ParseResult parse_readout_contents(
                 // continuation data from the last frame right away which could
                 // match the signature of a system frame (0xFA) whereas data from
                 // USB buffers always starts on a frame header.
-                if (!is_eth && try_handle_system_event(callbacks, counters, input))
+                if (!is_eth && try_handle_system_event(state, callbacks, counters, input))
                     continue;
 
                 if (is_event_in_progress(state))
@@ -837,7 +841,7 @@ ParseResult parse_readout_contents(
                     }
                 }
 
-                callbacks.eventData(state.eventIndex, state.moduleDataBuffer.data(), moduleCount);
+                callbacks.eventData(state.userContext, state.eventIndex, state.moduleDataBuffer.data(), moduleCount);
 
                 ++counters.eventHits[state.eventIndex];
 
@@ -1035,7 +1039,7 @@ ParseResult parse_readout_buffer_eth(
             // ETH readout data consists of a mix of SystemEvent frames and raw
             // packet data starting with ETH header0.
 
-            if (try_handle_system_event(callbacks, counters, input))
+            if (try_handle_system_event(state, callbacks, counters, input))
                 continue;
 
             if (input.size() < eth::HeaderWords)

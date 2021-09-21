@@ -191,7 +191,7 @@ class Handle
 
             // parser
             parserCallbacks_.eventData = [this] (
-                int eventIndex, const readout_parser::ModuleData *moduleDataList, unsigned moduleCount)
+                void *, int eventIndex, const readout_parser::ModuleData *moduleDataList, unsigned moduleCount)
             {
                 std::unique_lock<std::mutex> guard(sync_.m);
                 sync_.cv.wait(guard, [this] () { return sync_.processed; });
@@ -212,7 +212,7 @@ class Handle
             };
 
             parserCallbacks_.systemEvent = [this] (
-                const u32 *header, u32 size)
+                void *, const u32 *header, u32 size)
             {
                 std::unique_lock<std::mutex> guard(sync_.m);
                 sync_.cv.wait(guard, [this] () { return sync_.processed; });

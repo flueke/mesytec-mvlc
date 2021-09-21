@@ -59,7 +59,7 @@ void process_readout_system_event(
     if (printData)
     {
         printf("process_readout_system_event, userContext=%p, header=0x%08x, size=%u\n",
-               userContext, header, size);
+               userContext, *header, size);
     }
 }
 
