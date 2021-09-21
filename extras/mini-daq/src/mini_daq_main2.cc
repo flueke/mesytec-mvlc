@@ -367,7 +367,8 @@ int main(int argc, char *argv[])
             }
         };
 
-        parserCallbacks.systemEvent = [opt_printReadoutData] (void *, const u32 *header, u32 size)
+        parserCallbacks.systemEvent = [opt_printReadoutData] (
+            void *, const u32 *header, u32 size)
         {
             if (opt_printReadoutData)
             {

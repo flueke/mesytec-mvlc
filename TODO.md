@@ -23,6 +23,8 @@ TODO {#todo}
     // Readout/Replay need to be Idle and the snoopQueues must be empty (all data consumed).
     // Then parserQuit needs to be set for run_readout_parser() to leave the loop.
     // In this state next_event() needs to return a 'None' type event or some other value to test against.
+    // Maybe add a third monitor thread watchng both the readout/replay
+    // (producer) and the parser sides (consumer).
 
     while (auto event = next_event(syncContext))
     {
