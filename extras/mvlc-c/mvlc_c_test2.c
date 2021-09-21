@@ -20,6 +20,25 @@ void print_help()
     printf("  --duration <seconds>      # DAQ run duration in seconds\n");
 }
 
+// Called for each readout event recorded by the DAQ.
+void process_readout_event_data(
+        void *userContext, int eventIndex, const readout_moduledata_t *moduleDataList, unsigned moduleCount)
+{
+    (void) eventIndex;
+    (void) moduleDataList;
+    (void) moduleCount;
+    printf("process_readout_event_data, userContext=%p\n", userContext);
+}
+
+// Called for each software generated system event.
+void process_readout_system_event(
+        void *userContext, const u32 *header, u32 size)
+{
+    (void) header;
+    (void) size;
+    printf("process_readout_system_event, userContext=%p\n", userContext);
+}
+
 int main(int argc, char *argv[])
 {
     char *opt_mvlcEthHost = NULL;
@@ -96,6 +115,8 @@ int main(int argc, char *argv[])
         return 1;
     }
 
+    mvlc_lib_init();
+
     // crateconfig
     mvlc_crateconfig_t *crateconfig = mvlc_read_crateconfig_from_file(opt_crateConfigPath);
 
@@ -147,15 +168,23 @@ int main(int argc, char *argv[])
     if (opt_overwriteListfile)
         listfileParams.overwrite = true;
 
-    // readout parser callbacks (TODO: opt_printReadoutData)
-    readout_parser_callbacks_t parserCallbacks = {NULL, NULL};
+    // Note: NULL callbacks are also ok
+    //readout_parser_callbacks_t parserCallbacks = {NULL, NULL};
+    readout_parser_callbacks_t parserCallbacks =
+    {
+        process_readout_event_data,
+        process_readout_system_event
+    };
+
+    void *userContext = (void *)0x1337u;
 
     // readout
     mvlc_readout_t *rdo = mvlc_readout_create2(
             mvlc,
             crateconfig,
             listfileParams,
-            parserCallbacks);
+            parserCallbacks,
+            userContext);
 
     MVLC_ReadoutState rdoState = get_readout_state(rdo);
     assert(rdoState == ReadoutState_Idle);
@@ -170,16 +199,30 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    // TODO: use readout_start, stop, pause, resume, check state in between
-    // TODO: define and pass some callbacks for printing the data.
-
-
     while (get_readout_state(rdo) != ReadoutState_Idle)
     {
         usleep(100 * 1000);
     }
 
     printf("Readout done\n");
+
+    stack_error_collection_t stackErrors = mvlc_ctrl_get_stack_errors(mvlc);
+
+    if (stackErrors.count)
+    {
+        printf("MVLC Stack Errors:\n");
+
+        for (size_t i=0; i<stackErrors.count; ++i)
+        {
+            stack_error_t err = stackErrors.errors[i];
+            char *flags = mvlc_format_frame_flags(err.frameFlags);
+            printf("  stack=%u, line=%u, flags=%s, count=%u\n",
+                    err.stackId, err.stackLine, flags, err.count);
+            free(flags);
+        }
+    }
+
+    mvlc_ctrl_stack_errors_destroy(stackErrors);
 
 
     mvlc_readout_destroy(rdo);
