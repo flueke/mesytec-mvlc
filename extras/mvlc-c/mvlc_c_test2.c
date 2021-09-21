@@ -7,19 +7,6 @@
 
 #include <mesytec-mvlc-c.h>
 
-void print_help()
-{
-    printf("Options:\n");
-    printf("  --crateconfig <filename>  # The CrateConfig YAML file to use\n");
-    printf("  --mvlc-eth <hostname>     # Override the mvlc from the crateconfig\n");
-    printf("  --mvlc-usb                # Override the mvlc from the crateconfig\n");
-    printf("  --listfile <filename>     # Specify an output filename, e.g. run01.zip\n");
-    printf("  --no-listfile             # Do not write a an output listfile\n");
-    printf("  --overwrite-listfile      # Overwrite existing listfiles\n");
-    printf("  --print-readout-data      # Print readout data\n");
-    printf("  --duration <seconds>      # DAQ run duration in seconds\n");
-}
-
 // Called for each readout event recorded by the DAQ.
 void process_readout_event_data(
         void *userContext, int eventIndex, const readout_moduledata_t *moduleDataList, unsigned moduleCount)
@@ -37,6 +24,19 @@ void process_readout_system_event(
     (void) header;
     (void) size;
     printf("process_readout_system_event, userContext=%p\n", userContext);
+}
+
+void print_help()
+{
+    printf("Options:\n");
+    printf("  --crateconfig <filename>  # The CrateConfig YAML file to use\n");
+    printf("  --mvlc-eth <hostname>     # Override the mvlc from the crateconfig\n");
+    printf("  --mvlc-usb                # Override the mvlc from the crateconfig\n");
+    printf("  --listfile <filename>     # Specify an output filename, e.g. run01.zip\n");
+    printf("  --no-listfile             # Do not write a an output listfile\n");
+    printf("  --overwrite-listfile      # Overwrite existing listfiles\n");
+    printf("  --print-readout-data      # Print readout data\n");
+    printf("  --duration <seconds>      # DAQ run duration in seconds\n");
 }
 
 int main(int argc, char *argv[])

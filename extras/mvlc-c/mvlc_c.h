@@ -11,19 +11,12 @@ extern "C" {
 #endif
 
 // TODO:
-// - access to stack error counters
 // - maybe low level reads: usb: read_unbuffered(), eth: read_packet() (need a
 //   PacketReadResult structure or similar)
+// - maybe single threaded listfile processing api in the c++ code and an
+//   adapter for the c-layer
 //
 // DONE:
-// - create listfiles
-// - listfile replays
-// - load crate config from yaml
-// - readout worker
-// - readout parser
-// - queue between readout and parser
-// - inspect and modify crateconfigs and stackbuilders
-// - enable/disable jumbo frames
 
 // Numeric types
 // =====================================================================
@@ -425,6 +418,8 @@ mvlc_err_t mvlc_replay_pause(mvlc_replay_t *replay);
 mvlc_err_t mvlc_replay_resume(mvlc_replay_t *replay);
 
 MVLC_ReadoutState get_replay_state(const mvlc_replay_t *replay);
+
+mvlc_crateconfig_t *mvlc_replay_get_crateconfig(const mvlc_replay_t *replay);
 
 #ifdef __cplusplus
 }

@@ -812,3 +812,11 @@ MVLC_ReadoutState get_replay_state(const mvlc_replay_t *replay)
     auto cppState = replay->replay->state();
     return static_cast<MVLC_ReadoutState>(cppState);
 }
+
+mvlc_crateconfig_t *mvlc_replay_get_crateconfig(const mvlc_replay_t *replay)
+{
+    auto cfg = replay->replay->crateConfig();
+    auto ret = std::make_unique<mvlc_crateconfig_t>();
+    ret->cfg = cfg;
+    return ret.release();
+}
