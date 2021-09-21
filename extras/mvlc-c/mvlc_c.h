@@ -12,18 +12,18 @@ extern "C" {
 
 // TODO:
 // - access to stack error counters
-// - enable/disable jumbo frames
 // - maybe low level reads: usb: read_unbuffered(), eth: read_packet() (need a
 //   PacketReadResult structure or similar)
-// - create listfiles
-// - listfile replays
 //
 // DONE:
+// - create listfiles
+// - listfile replays
 // - load crate config from yaml
 // - readout worker
 // - readout parser
 // - queue between readout and parser
 // - inspect and modify crateconfigs and stackbuilders
+// - enable/disable jumbo frames
 
 // Numeric types
 // =====================================================================
@@ -48,6 +48,10 @@ typedef struct mvlc_err
 bool mvlc_is_error(const mvlc_err_t err);
 char *mvlc_format_error(const mvlc_err_t err, char *buf, size_t bufsize);
 
+// Library init
+// =====================================================================
+void mvlc_lib_init();
+
 // mvlc_ctrl_t: create, destroy, copy
 // =====================================================================
 typedef struct mvlc_ctrl mvlc_ctrl_t;
@@ -62,11 +66,12 @@ void mvlc_ctrl_destroy(mvlc_ctrl_t *mvlc);
 mvlc_ctrl_t *mvlc_ctrl_copy(mvlc_ctrl_t *src);
 
 // Connection releated
-// =====================================================================
+// ---------------------------------------------------------------------
 mvlc_err_t mvlc_ctrl_connect(mvlc_ctrl_t *mvlc);
 mvlc_err_t mvlc_ctrl_disconnect(mvlc_ctrl_t *mvlc);
 bool mvlc_ctrl_is_connected(mvlc_ctrl_t *mvlc);
 void mvlc_ctrl_set_disable_trigger_on_connect(mvlc_ctrl_t *mvlc, bool disableTriggers);
+mvlc_err_t mvlc_ctrl_enable_jumbo_frames(mvlc_ctrl_t *mvlc, bool enableJumbos);
 
 typedef enum
 {
@@ -77,19 +82,19 @@ typedef enum
 MVLC_ConnectionType get_mvlc_ctrl_connection_type(const mvlc_ctrl_t *mvlc);
 
 // Info
-// =====================================================================
+// ---------------------------------------------------------------------
 u32 get_mvlc_ctrl_hardware_id(mvlc_ctrl_t *mvlc);
 u32 get_mvlc_ctrl_firmware_revision(mvlc_ctrl_t *mvlc);
 // Note: uses strdup() interally so you have to free() the returned string after use.
 char *get_mvlc_ctrl_connection_info(mvlc_ctrl_t *mvlc);
 
 // Access to internal registers
-// =====================================================================
+// ---------------------------------------------------------------------
 mvlc_err_t mvlc_ctrl_read_register(mvlc_ctrl_t *mvlc, u16 address, u32 *value);
 mvlc_err_t mvlc_ctrl_write_register(mvlc_ctrl_t *mvlc, u16 address, u32 value);
 
 // VME bus access
-// =====================================================================
+// ---------------------------------------------------------------------
 typedef enum
 {
     MVLC_VMEDataWidth_D16 = 0x1,
@@ -121,6 +126,27 @@ mvlc_err_t mvlc_ctrl_vme_mblt_swapped_alloc(
 mvlc_err_t mvlc_ctrl_vme_mblt_swapped_buffer(
     mvlc_ctrl_t *mvlc, u32 address, u16 maxTransfers,
     u32 *buf, size_t *bufsize);
+
+// Stack error counters
+// ---------------------------------------------------------------------
+typedef struct stack_error
+{
+    u8 stackId;
+    u16 stackLine;
+    u8 frameFlags;
+    u32 count;
+} stack_error_t;
+
+typedef struct stack_error_collection
+{
+    stack_error_t *errors;
+    size_t count;
+} stack_error_collection_t;
+
+stack_error_collection_t mvlc_ctrl_get_stack_errors(mvlc_ctrl_t *mvlc);
+void mvlc_ctrl_stack_errors_destroy(stack_error_collection_t stackErrors);
+// Note: uses strdup() interally so you have to free() the returned string after use.
+char *mvlc_format_frame_flags(u8 flags);
 
 // Readout abstractions
 // =====================================================================
@@ -276,12 +302,12 @@ mvlc_ctrl_t *mvlc_ctrl_create_from_crateconfig(mvlc_crateconfig_t *cfg);
 
 // Listfile write handle function. Must return the number of bytes written or a
 // negative value in case of an error.
-typedef ssize_t (*mvlc_listfile_write_handle) (const u8 *data, size_t size);
+typedef ssize_t (*mvlc_listfile_write_handle) (void *userContext, const u8 *data, size_t size);
 
 // Seek and read functions for listfiles. Must return a negative value on
 // error.
-typedef ssize_t (*mvlc_listfile_read_func) (const u8 *dest, size_t maxSize);
-typedef ssize_t (*mvlc_listfile_seek_func) (size_t pos);
+typedef ssize_t (*mvlc_listfile_read_func) (void *userContext, const u8 *dest, size_t maxSize);
+typedef ssize_t (*mvlc_listfile_seek_func) (void *userContext, size_t pos);
 
 typedef struct mvlc_listfile_read_handle
 {
@@ -325,11 +351,11 @@ typedef struct readout_moduledata
 
 // Called for each readout event recorded by the DAQ.
 typedef void (*rdo_event_data_callback)
-    (int eventIndex, const readout_moduledata_t *moduleDataList, unsigned moduleCount);
+    (void *userContext, int eventIndex, const readout_moduledata_t *moduleDataList, unsigned moduleCount);
 
 // Called for each software generated system event.
 typedef void (*rdo_system_event_callback)
-    (const u32 *header, u32 size);
+    (void *userContext, const u32 *header, u32 size);
 
 typedef struct readout_parser_callbacks
 {
@@ -358,13 +384,15 @@ mvlc_readout_t *mvlc_readout_create(
     mvlc_ctrl_t *mvlc,
     mvlc_crateconfig_t *cfg,
     mvlc_listfile_write_handle lfh,
-    readout_parser_callbacks_t event_callbacks);
+    readout_parser_callbacks_t event_callbacks,
+    void *userContext);
 
 mvlc_readout_t *mvlc_readout_create2(
     mvlc_ctrl_t *mvlc,
     mvlc_crateconfig_t *cfg,
     mvlc_listfile_params_t listfileParams,
-    readout_parser_callbacks_t event_callbacks);
+    readout_parser_callbacks_t event_callbacks,
+    void *userContext);
 
 void mvlc_readout_destroy(mvlc_readout_t *rdo);
 
@@ -381,11 +409,13 @@ typedef struct mvlc_replay mvlc_replay_t;
 
 mvlc_replay_t *mvlc_replay_create(
     const char *listfileFilename,
-    readout_parser_callbacks_t event_callbacks);
+    readout_parser_callbacks_t event_callbacks,
+    void *userContext);
 
 mvlc_replay_t *mvlc_replay_create2(
     listfile_read_handle_t lfh,
-    readout_parser_callbacks_t event_callbacks);
+    readout_parser_callbacks_t event_callbacks,
+    void *userContext);
 
 void mvlc_replay_destroy(mvlc_replay_t *replay);
 

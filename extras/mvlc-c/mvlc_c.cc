@@ -30,6 +30,11 @@ char *mvlc_format_error(const mvlc_err_t err, char *buf, size_t bufsize)
     return buf;
 }
 
+void mvlc_lib_init()
+{
+    setup_loggers();
+}
+
 struct mvlc_ctrl
 {
     MVLC instance;
@@ -95,6 +100,12 @@ bool mvlc_ctrl_is_connected(mvlc_ctrl_t *mvlc)
 void mvlc_ctrl_set_disable_trigger_on_connect(mvlc_ctrl_t *mvlc, bool disableTriggers)
 {
     mvlc->instance.setDisableTriggersOnConnect(disableTriggers);
+}
+
+mvlc_err_t mvlc_ctrl_enable_jumbo_frames(mvlc_ctrl_t *mvlc, bool enableJumbos)
+{
+    auto ec = mvlc->instance.enableJumboFrames(enableJumbos);
+    return make_mvlc_error(ec);
 }
 
 MVLC_ConnectionType get_mvlc_ctrl_connection_type(const mvlc_ctrl_t *mvlc)
@@ -212,6 +223,51 @@ mvlc_err_t mvlc_ctrl_vme_mblt_swapped_buffer(mvlc_ctrl_t *mvlc, u32 address, u16
     std::copy_n(dest.begin(), toCopy, buf);
     *bufsize = toCopy;
     return make_mvlc_error(ec);
+}
+
+stack_error_collection_t mvlc_ctrl_get_stack_errors(mvlc_ctrl_t *mvlc)
+{
+    auto counters = mvlc->instance.getStackErrorCounters();
+    size_t nErrors = 0;
+
+    for (auto &errCounts: counters.stackErrors)
+        nErrors += errCounts.size();
+
+    auto mem = std::make_unique<stack_error_t[]>(nErrors);
+    auto dest = mem.get();
+
+    for (size_t stackId = 0; stackId < counters.stackErrors.size(); ++stackId)
+    {
+        auto &errorCounts = counters.stackErrors[stackId];
+
+        for (auto errIt = errorCounts.begin(); errIt != errorCounts.end(); ++errIt)
+        {
+            stack_error_t err = {
+                static_cast<u8>(stackId),
+                errIt->first.line,
+                errIt->first.flags,
+                static_cast<u32>(errIt->second)
+            };
+
+            assert(dest < mem.get() + nErrors);
+
+            *dest++ = err;
+        }
+    }
+
+    stack_error_collection_t errors = { mem.release(), nErrors };
+
+    return errors;
+}
+
+void mvlc_ctrl_stack_errors_destroy(stack_error_collection_t stackErrors)
+{
+    delete stackErrors.errors;
+}
+
+char *mvlc_format_frame_flags(u8 flags)
+{
+    return strdup(format_frame_flags(flags).c_str());
 }
 
 struct mvlc_stackbuilder
@@ -496,19 +552,21 @@ mvlc_ctrl_t *mvlc_ctrl_create_from_crateconfig(mvlc_crateconfig_t *cfg)
 // thrown as std::runtime_errors.
 struct ListfileWriteHandleWrapper: public listfile::WriteHandle
 {
-    ListfileWriteHandleWrapper(mvlc_listfile_write_handle listfile_handle)
+    ListfileWriteHandleWrapper(mvlc_listfile_write_handle listfile_handle, void *userContext)
         : listfile_handle(listfile_handle)
+        , userContext(userContext)
     { }
 
     size_t write(const u8 *data, size_t size) override
     {
-        ssize_t res = listfile_handle(data, size);
+        ssize_t res = listfile_handle(userContext, data, size);
         if (res < 0)
             throw std::runtime_error("wrapped listfile write failed: " + std::to_string(res));
         return res;
     }
 
     mvlc_listfile_write_handle listfile_handle;
+    void *userContext;
 };
 
 mvlc_listfile_params_t make_default_listfile_params()
@@ -534,11 +592,12 @@ namespace
     // Creates C++ ReadoutParserCallbacks which internally call the C-style
     // parser_callbacks functions..
     readout_parser::ReadoutParserCallbacks wrap_parser_callbacks(
-        readout_parser_callbacks_t parser_callbacks)
+        readout_parser_callbacks_t parser_callbacks,
+        void *userContext)
     {
         readout_parser::ReadoutParserCallbacks parserCallbacks;
 
-        parserCallbacks.eventData = [parser_callbacks] (
+        parserCallbacks.eventData = [parser_callbacks, userContext] (
             int eventIndex,
             const readout_parser::ModuleData *modulesDataCpp,
             unsigned moduleCount)
@@ -557,14 +616,14 @@ namespace
                     modulesDataC[i].suffix  = { modulesDataCpp[i].suffix.data,  modulesDataCpp[i].suffix.size };
                 }
 
-                parser_callbacks.event_data(eventIndex, modulesDataC.begin(), moduleCount);
+                parser_callbacks.event_data(userContext, eventIndex, modulesDataC.begin(), moduleCount);
             }
         };
 
-        parserCallbacks.systemEvent = [parser_callbacks] (const u32 *header, u32 size)
+        parserCallbacks.systemEvent = [parser_callbacks, userContext] (const u32 *header, u32 size)
         {
             if (parser_callbacks.system_event)
-                parser_callbacks.system_event(header, size);
+                parser_callbacks.system_event(userContext, header, size);
         };
 
         return parserCallbacks;
@@ -575,15 +634,16 @@ mvlc_readout_t *mvlc_readout_create(
     mvlc_ctrl_t *mvlc,
     mvlc_crateconfig_t *crateconfig,
     mvlc_listfile_write_handle listfile_handle,
-    readout_parser_callbacks_t parser_callbacks)
+    readout_parser_callbacks_t parser_callbacks,
+    void *userContext)
 {
-    auto lfWrap = std::make_unique<ListfileWriteHandleWrapper>(listfile_handle);
+    auto lfWrap = std::make_unique<ListfileWriteHandleWrapper>(listfile_handle, userContext);
 
     auto rdo = make_mvlc_readout(
         mvlc->instance,
         crateconfig->cfg,
         lfWrap.get(),
-        wrap_parser_callbacks(parser_callbacks));
+        wrap_parser_callbacks(parser_callbacks, userContext));
 
     auto ret = std::make_unique<mvlc_readout>();
     ret->rdo = std::make_unique<MVLCReadout>(std::move(rdo));
@@ -596,7 +656,8 @@ mvlc_readout_t *mvlc_readout_create2(
     mvlc_ctrl_t *mvlc,
     mvlc_crateconfig_t *crateconfig,
     mvlc_listfile_params_t lfParamsC,
-    readout_parser_callbacks_t parser_callbacks)
+    readout_parser_callbacks_t parser_callbacks,
+    void *userContext)
 {
     ListfileParams lfParamsCpp;
     lfParamsCpp.writeListfile = lfParamsC.writeListfile;
@@ -610,7 +671,7 @@ mvlc_readout_t *mvlc_readout_create2(
         mvlc->instance,
         crateconfig->cfg,
         lfParamsCpp,
-        wrap_parser_callbacks(parser_callbacks));
+        wrap_parser_callbacks(parser_callbacks, userContext));
 
     auto ret = std::make_unique<mvlc_readout>();
     ret->rdo = std::make_unique<MVLCReadout>(std::move(rdo));
@@ -657,13 +718,14 @@ MVLC_ReadoutState get_readout_state(const mvlc_readout_t *rdo)
 // ---------------------------------------------------------------------
 struct ListfileReadHandleWrapper: public listfile::ReadHandle
 {
-    ListfileReadHandleWrapper(mvlc_listfile_read_handle listfile_handle)
+    ListfileReadHandleWrapper(mvlc_listfile_read_handle listfile_handle, void *userContext)
         : listfile_handle(listfile_handle)
+        , userContext(userContext)
     { }
 
     size_t read(u8 *dest, size_t maxSize) override
     {
-        ssize_t res = listfile_handle.read_func(dest, maxSize);
+        ssize_t res = listfile_handle.read_func(userContext, dest, maxSize);
         if (res < 0)
             throw std::runtime_error("wrapped listfile read failed: " + std::to_string(res));
         return res;
@@ -671,12 +733,13 @@ struct ListfileReadHandleWrapper: public listfile::ReadHandle
 
     void seek(size_t pos) override
     {
-        ssize_t res = listfile_handle.seek_func(pos);
+        ssize_t res = listfile_handle.seek_func(userContext, pos);
         if (res < 0)
             throw std::runtime_error("wrapped listfile seek failed: " + std::to_string(res));
     }
 
     mvlc_listfile_read_handle listfile_handle;
+    void *userContext;
 };
 
 struct mvlc_replay
@@ -687,11 +750,12 @@ struct mvlc_replay
 
 mvlc_replay_t *mvlc_replay_create(
     const char *listfileFilename,
-    readout_parser_callbacks_t event_callbacks)
+    readout_parser_callbacks_t event_callbacks,
+    void *userContext)
 {
     auto replay = make_mvlc_replay(
         listfileFilename,
-        wrap_parser_callbacks(event_callbacks));
+        wrap_parser_callbacks(event_callbacks, userContext));
 
     auto ret = std::make_unique<mvlc_replay>();
     ret->replay = std::make_unique<MVLCReplay>(std::move(replay));
@@ -701,10 +765,11 @@ mvlc_replay_t *mvlc_replay_create(
 
 mvlc_replay_t *mvlc_replay_create2(
     listfile_read_handle_t lfh,
-    readout_parser_callbacks_t event_callbacks)
+    readout_parser_callbacks_t event_callbacks,
+    void *userContext)
 {
-    auto rh = std::make_unique<ListfileReadHandleWrapper>(lfh);
-    auto replay = make_mvlc_replay(rh.get(), wrap_parser_callbacks(event_callbacks));
+    auto rh = std::make_unique<ListfileReadHandleWrapper>(lfh, userContext);
+    auto replay = make_mvlc_replay(rh.get(), wrap_parser_callbacks(event_callbacks, userContext));
 
     auto ret = std::make_unique<mvlc_replay>();
     ret->replay = std::make_unique<MVLCReplay>(std::move(replay));
