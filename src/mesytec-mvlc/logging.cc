@@ -9,10 +9,13 @@ namespace
         "cmd_pipe_reader",
         "listfile",
         "mvlc",
+        "mvlc_blocking_api",
         "mvlc_eth",
         "mvlc_usb",
         "readout",
         "readout_parser",
+        "readout_parser_sync",
+        "replay",
     };
 };
 

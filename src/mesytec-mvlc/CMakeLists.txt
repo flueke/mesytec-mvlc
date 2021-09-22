@@ -6,6 +6,7 @@ add_library(mesytec-mvlc SHARED
     "${CMAKE_CURRENT_BINARY_DIR}/git_version.cc"
     logging.cc
     mvlc_basic_interface.cc
+    mvlc_blocking_data_api.cc
     mvlc.cc
     mvlc_command_builders.cc
     mvlc_constants.cc
@@ -20,11 +21,12 @@ add_library(mesytec-mvlc SHARED
     mvlc_listfile.cc
     mvlc_listfile_zip.cc
     mvlc_readout.cc
-    mvlc_readout_worker.cc
     mvlc_readout_config.cc
     mvlc_readout_parser.cc
     mvlc_readout_parser_util.cc
+    mvlc_readout_worker.cc
     mvlc_replay.cc
+    mvlc_replay_worker.cc
     mvlc_stack_errors.cc
     mvlc_stack_executor.cc
     mvlc_usb_interface.cc
