@@ -7,6 +7,8 @@
 #include <iostream>
 #include <fmt/format.h>
 
+#include "logging.h"
+
 using std::cerr;
 using std::endl;
 
@@ -28,28 +30,45 @@ void run_readout_parser(
     prctl(PR_SET_NAME,"readout_parser",0,0,0);
 #endif
 
+    auto logger = spdlog::get("readout_parser");
+
+    auto &filled = snoopQueues.filledBufferQueue();
+    auto &empty = snoopQueues.emptyBufferQueue();
+
+#ifndef NDEBUG
+    const size_t countFilled = filled.size();
+    const size_t countEmpty = empty.size();
+#endif
+
     try
     {
-        cerr << "run_readout_parser entering loop" << endl;
-
-        auto &filled = snoopQueues.filledBufferQueue();
-        auto &empty = snoopQueues.emptyBufferQueue();
+        logger->debug("run_readout_parser() entering loop");
 
         while (true)
         {
-            auto buffer = filled.dequeue(std::chrono::milliseconds(100));
-
-            if (!buffer || buffer->empty())
+            if (quit)
             {
-                if (quit)
-                    break;
+                logger->info("run_readout_parser(): quit is set, leaving loop");
+                break;
+            }
+
+            auto buffer = filled.dequeue(std::chrono::milliseconds(100), nullptr);
+
+            if (!buffer)
+            {
+                logger->trace("run_readout_parser(): got a null buffer, skipping");
+                continue;
+            }
+
+            if (buffer->empty())
+            {
+                logger->warn("run_readout_parser(): got an empty buffer, skipping");
+                empty.enqueue(buffer);
                 continue;
             }
 
             try
             {
-                //cout << "buffer #" << buffer->bufferNumber() << endl;
-
                 auto bufferView = buffer->viewU32();
 
                 readout_parser::parse_readout_buffer(
@@ -65,6 +84,7 @@ void run_readout_parser(
             }
             catch (...)
             {
+                logger->warn("run_readout_parser(): caught an exception; rethrowing");
                 empty.enqueue(buffer);
                 throw;
             }
@@ -72,24 +92,20 @@ void run_readout_parser(
     }
     catch (const std::runtime_error &e)
     {
-        {
-            //auto state = protectedState.access();
-            state.eptr = std::current_exception();
-        }
-
-        cerr << "readout_parser caught a std::runtime_error: " << e.what() << endl;
+        state.eptr = std::current_exception();
+        logger->error("run_readout_parser() caught a std::runtime_error: {}", e.what());
     }
     catch (...)
     {
-        {
-            //auto state = protectedState.access();
-            state.eptr = std::current_exception();
-        }
-
-        cerr << "readout_parser caught an unknown exception." << endl;
+        state.eptr = std::current_exception();
+        logger->error("run_readout_parser caught an unknown exception");
     }
 
-    cerr << "run_readout_parser left loop" << endl;
+#ifndef NDEBUG
+    assert(filled.size() + empty.size() == countFilled + countEmpty);
+#endif
+
+    logger->debug("run_readout_parser() left loop");
 }
 
 std::ostream &print_counters(std::ostream &out, const ReadoutParserCounters &counters)
