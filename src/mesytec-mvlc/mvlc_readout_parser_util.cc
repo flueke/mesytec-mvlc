@@ -9,7 +9,6 @@
 
 #include "logging.h"
 
-using std::cerr;
 using std::endl;
 
 namespace mesytec

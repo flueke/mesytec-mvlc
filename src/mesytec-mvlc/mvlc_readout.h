@@ -1,11 +1,11 @@
 #ifndef __MESYTEC_MVLC_MVLC_READOUT_H__
 #define __MESYTEC_MVLC_MVLC_READOUT_H__
 
-#include "mesytec-mvlc/mesytec-mvlc_export.h"
-
 #include <chrono>
 #include <future>
 #include <string>
+
+#include "mesytec-mvlc/mesytec-mvlc_export.h"
 
 #include "mvlc.h"
 #include "mvlc_listfile.h"
@@ -55,6 +55,11 @@ class MESYTEC_MVLC_EXPORT MVLCReadout
         WaitableProtected<ReadoutWorker::State> &waitableState();
         ReadoutWorker::Counters workerCounters();
         readout_parser::ReadoutParserCounters parserCounters();
+        const CrateConfig &crateConfig() const;
+
+        ReadoutWorker &readoutWorker();
+        std::thread &parserThread();
+        std::atomic<bool> &parserQuit();
 
     private:
         MVLCReadout();
@@ -65,24 +70,28 @@ class MESYTEC_MVLC_EXPORT MVLCReadout
         friend MVLCReadout make_mvlc_readout(
             const CrateConfig &crateConfig,
             const ListfileParams &listfileParams,
-            readout_parser::ReadoutParserCallbacks parserCallbacks);
+            readout_parser::ReadoutParserCallbacks parserCallbacks,
+            void *userContext);
 
         friend MVLCReadout make_mvlc_readout(
             MVLC &mvlc,
             const CrateConfig &crateConfig,
             const ListfileParams &listfileParams,
-            readout_parser::ReadoutParserCallbacks parserCallbacks);
+            readout_parser::ReadoutParserCallbacks parserCallbacks,
+            void *userContext);
 
         friend MVLCReadout make_mvlc_readout(
             const CrateConfig &crateConfig,
             listfile::WriteHandle *listfileWriteHandle,
-            readout_parser::ReadoutParserCallbacks parserCallbacks);
+            readout_parser::ReadoutParserCallbacks parserCallbacks,
+            void *userContext);
 
         friend MVLCReadout make_mvlc_readout(
             MVLC &mvlc,
             const CrateConfig &crateConfig,
             listfile::WriteHandle *listfileWriteHandle,
-            readout_parser::ReadoutParserCallbacks parserCallbacks);
+            readout_parser::ReadoutParserCallbacks parserCallbacks,
+            void *userContext);
 
         friend void init_common(MVLCReadout &rdo);
 };
@@ -91,27 +100,31 @@ class MESYTEC_MVLC_EXPORT MVLCReadout
 MVLCReadout MESYTEC_MVLC_EXPORT make_mvlc_readout(
     const CrateConfig &crateConfig,
     const ListfileParams &listfileParams,
-    readout_parser::ReadoutParserCallbacks parserCallbacks = {});
+    readout_parser::ReadoutParserCallbacks parserCallbacks = {},
+    void *userContext = nullptr);
 
 // listfile params + custom mvlc
 MVLCReadout MESYTEC_MVLC_EXPORT make_mvlc_readout(
     MVLC &mvlc,
     const CrateConfig &crateConfig,
     const ListfileParams &listfileParams,
-    readout_parser::ReadoutParserCallbacks parserCallbacks = {});
+    readout_parser::ReadoutParserCallbacks parserCallbacks = {},
+    void *userContext = nullptr);
 
 // listfile write handle
 MVLCReadout MESYTEC_MVLC_EXPORT make_mvlc_readout(
     const CrateConfig &crateConfig,
     listfile::WriteHandle *listfileWriteHandle,
-    readout_parser::ReadoutParserCallbacks parserCallbacks = {});
+    readout_parser::ReadoutParserCallbacks parserCallbacks = {},
+    void *userContext = nullptr);
 
 // listfile write handle + custom mvlc
 MVLCReadout MESYTEC_MVLC_EXPORT make_mvlc_readout(
     MVLC &mvlc,
     const CrateConfig &crateConfig,
     listfile::WriteHandle *listfileWriteHandle,
-    readout_parser::ReadoutParserCallbacks parserCallbacks = {});
+    readout_parser::ReadoutParserCallbacks parserCallbacks = {},
+    void *userContext = nullptr);
 
 }
 }

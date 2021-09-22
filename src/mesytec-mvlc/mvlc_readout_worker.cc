@@ -1209,6 +1209,11 @@ std::error_code ReadoutWorker::resume()
     return {};
 }
 
+ReadoutBufferQueues &ReadoutWorker::snoopQueues()
+{
+    return d->snoopQueues;
+}
+
 bool count_stack_hits(const eth::PacketReadResult &prr, StackHits &stackHits)
 {
     if (prr.isNextHeaderPointerValid())

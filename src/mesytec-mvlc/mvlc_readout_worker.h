@@ -177,6 +177,7 @@ class MESYTEC_MVLC_EXPORT ReadoutWorker
         std::error_code stop();
         std::error_code pause();
         std::error_code resume();
+        ReadoutBufferQueues &snoopQueues();
 
     private:
         struct Private;
