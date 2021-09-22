@@ -1,4 +1,3 @@
-#include "mesytec-mvlc/mvlc_constants.h"
 #include <regex>
 #include <unordered_set>
 
@@ -13,6 +12,8 @@ using namespace mesytec::mvlc;
 
 int main(int argc, char *argv[])
 {
+    mesytec::mvlc::setup_loggers();
+
     bool opt_printReadoutData = false;
     bool opt_printCrateConfig = false;
     std::string opt_listfileArchiveName;

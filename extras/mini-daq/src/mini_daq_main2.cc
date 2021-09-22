@@ -394,7 +394,7 @@ int main(int argc, char *argv[])
 
         if (auto ec = rdo.start(timeToRun))
         {
-            cerr << "Error starting readout worker: " << ec.message() << endl;
+            cerr << "Error starting readout: " << ec.message() << endl;
             throw std::runtime_error("ReadoutWorker error");
         }
 

@@ -63,7 +63,7 @@ int main(int argc, char *argv[])
     }
 
     // logging setup
-    auto libLoggers = mesytec::mvlc::setup_loggers();
+    mesytec::mvlc::setup_loggers();
 
     if (opt_logDebug)
         spdlog::set_level(spdlog::level::debug);
@@ -73,8 +73,10 @@ int main(int argc, char *argv[])
 
     // readout parser callbacks
     readout_parser::ReadoutParserCallbacks parserCallbacks;
+    size_t nSystems = 0;
+    size_t nReadouts = 0;
 
-    parserCallbacks.eventData = [opt_printReadoutData] (
+    parserCallbacks.eventData = [opt_printReadoutData, &nReadouts] (
         void *, int eventIndex, const readout_parser::ModuleData *moduleDataList, unsigned moduleCount)
     {
         if (opt_printReadoutData)
@@ -99,9 +101,11 @@ int main(int argc, char *argv[])
                         fmt::format("suffix part: eventIndex={}, moduleIndex={}", eventIndex, moduleIndex));
             }
         }
+
+        ++nReadouts;
     };
 
-    parserCallbacks.systemEvent = [opt_printReadoutData] (void *, const u32 *header, u32 size)
+    parserCallbacks.systemEvent = [opt_printReadoutData, &nSystems] (void *, const u32 *header, u32 size)
     {
         if (opt_printReadoutData)
         {
@@ -111,6 +115,8 @@ int main(int argc, char *argv[])
                 << ", size=" << size << ", bytes=" << (size * sizeof(u32))
                 << endl;
         }
+
+        ++nSystems;
     };
 
     auto replay = make_mvlc_replay(
@@ -179,6 +185,9 @@ int main(int argc, char *argv[])
         cout << "---- readout parser stats ----" << endl;
         readout_parser::print_counters(cout, counters);
     }
+
+    spdlog::info("nSystems={}, nReadouts={}",
+                 nSystems, nReadouts);
 
     return 0;
 }
