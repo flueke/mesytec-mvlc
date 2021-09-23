@@ -295,7 +295,7 @@ mvlc_ctrl_t *mvlc_ctrl_create_from_crateconfig(mvlc_crateconfig_t *cfg);
 
 // Listfile write handle function. Must return the number of bytes written or a
 // negative value in case of an error.
-typedef ssize_t (*mvlc_listfile_write_handle) (void *userContext, const u8 *data, size_t size);
+typedef ssize_t (*mvlc_listfile_write_handle_t) (void *userContext, const u8 *data, size_t size);
 
 // Seek and read functions for listfiles. Must return a negative value on
 // error.
@@ -306,7 +306,7 @@ typedef struct mvlc_listfile_read_handle
 {
     mvlc_listfile_read_func read_func;
     mvlc_listfile_seek_func seek_func;
-} listfile_read_handle_t;
+} mvlc_listfile_read_handle_t;
 
 // Listfile params
 typedef enum
@@ -374,13 +374,25 @@ typedef enum
 typedef struct mvlc_readout mvlc_readout_t;
 
 mvlc_readout_t *mvlc_readout_create(
-    mvlc_ctrl_t *mvlc,
     mvlc_crateconfig_t *cfg,
-    mvlc_listfile_write_handle lfh,
+    mvlc_listfile_write_handle_t lfh,
     readout_parser_callbacks_t event_callbacks,
     void *userContext);
 
 mvlc_readout_t *mvlc_readout_create2(
+    mvlc_ctrl_t *mvlc,
+    mvlc_crateconfig_t *cfg,
+    mvlc_listfile_write_handle_t lfh,
+    readout_parser_callbacks_t event_callbacks,
+    void *userContext);
+
+mvlc_readout_t *mvlc_readout_create3(
+    mvlc_crateconfig_t *cfg,
+    mvlc_listfile_params_t listfileParams,
+    readout_parser_callbacks_t event_callbacks,
+    void *userContext);
+
+mvlc_readout_t *mvlc_readout_create4(
     mvlc_ctrl_t *mvlc,
     mvlc_crateconfig_t *cfg,
     mvlc_listfile_params_t listfileParams,
@@ -396,7 +408,7 @@ mvlc_err_t mvlc_readout_resume(mvlc_readout_t *rdo);
 
 MVLC_ReadoutState get_readout_state(const mvlc_readout_t *rdo);
 
-// Replay
+// Replay similar to the readout object above.
 // ---------------------------------------------------------------------
 typedef struct mvlc_replay mvlc_replay_t;
 
@@ -406,7 +418,7 @@ mvlc_replay_t *mvlc_replay_create(
     void *userContext);
 
 mvlc_replay_t *mvlc_replay_create2(
-    listfile_read_handle_t lfh,
+    mvlc_listfile_read_handle_t lfh,
     readout_parser_callbacks_t event_callbacks,
     void *userContext);
 
@@ -420,6 +432,81 @@ mvlc_err_t mvlc_replay_resume(mvlc_replay_t *replay);
 MVLC_ReadoutState get_replay_state(const mvlc_replay_t *replay);
 
 mvlc_crateconfig_t *mvlc_replay_get_crateconfig(const mvlc_replay_t *replay);
+
+// "Blocking" data consumer API
+// ---------------------------------------------------------------------
+typedef enum
+{
+    MVLC_EventType_None,
+    MVLC_EventType_Readout,
+    MVLC_EventType_System
+} event_type;
+
+#define MVLC_MaxModulesPerEvent 20u
+
+typedef struct readout_event
+{
+    int eventIndex;
+    readout_moduledata_t moduleData[MVLC_MaxModulesPerEvent];
+    unsigned moduleCount;
+} readout_event_t;
+
+typedef struct system_event
+{
+    const u32 *header;
+    u32 size;
+} system_event_t;
+
+typedef struct event_container
+{
+    event_type type;
+    readout_event_t readout;
+    system_event_t system;
+} event_container_t;
+
+inline bool is_valid_event(const event_container_t *event)
+{
+    return event->type != MVLC_EventType_None;
+}
+
+typedef struct mvlc_blocking_readout mvlc_blocking_readout_t;
+typedef struct mvlc_blocking_replay mvlc_blocking_replay_t;
+
+event_container_t next_readout_event(mvlc_blocking_readout_t *r);
+event_container_t next_replay_event(mvlc_blocking_replay_t *r);
+
+mvlc_blocking_readout_t *mvlc_blocking_readout_create(
+    mvlc_crateconfig_t *cfg,
+    mvlc_listfile_write_handle_t lfh);
+
+mvlc_blocking_readout_t *mvlc_blocking_readout_create2(
+    mvlc_ctrl_t *mvlc,
+    mvlc_crateconfig_t *cfg,
+    mvlc_listfile_write_handle_t lfh);
+
+mvlc_blocking_readout_t *mvlc_blocking_readout_create3(
+    mvlc_crateconfig_t *cfg,
+    mvlc_listfile_params_t listfileParams);
+
+mvlc_blocking_readout_t *mvlc_blocking_readout_create4(
+    mvlc_ctrl_t *mvlc,
+    mvlc_crateconfig_t *cfg,
+    mvlc_listfile_params_t listfileParams);
+
+void mvlc_blocking_readout_destroy(mvlc_blocking_readout_t *r);
+
+mvlc_blocking_replay_t *mvlc_blocking_replay_create(
+    const char *listfileFilename);
+
+mvlc_blocking_replay_t *mvlc_blocking_replay_create2(
+    const char *listfileArchiveName,
+    const char *listfileArchiveMemberName);
+
+mvlc_blocking_replay_t *mvlc_blocking_replay_create3(
+    mvlc_listfile_read_handle_t lfh);
+
+void mvlc_blocking_replay_destroy(mvlc_blocking_replay_t *r);
+
 
 #ifdef __cplusplus
 }

@@ -77,7 +77,7 @@ int main(int argc, char *argv[])
     bool opt_printConfig = false;
     bool opt_printReadoutData = false;
 
-    static const size_t errbufsize = 1024;
+    #define errbufsize 1024
     char errbuf[errbufsize];
 
     while(1)

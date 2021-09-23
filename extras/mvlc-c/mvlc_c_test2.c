@@ -109,6 +109,8 @@ int main(int argc, char *argv[])
         }
     }
 
+    (void) opt_printReadoutData;
+
     if (!opt_crateConfigPath)
     {
         printf("Error: missing --crateconfig\n");
@@ -140,7 +142,7 @@ int main(int argc, char *argv[])
         mvlc = mvlc_ctrl_create_from_crateconfig(crateconfig);
     }
 
-    static const size_t errbufsize = 1024;
+    #define errbufsize 1024
     char errbuf[errbufsize];
 
     printf("Connecting to mvlc..\n");
@@ -179,7 +181,7 @@ int main(int argc, char *argv[])
     void *userContext = (void *)0x1337u;
 
     // readout
-    mvlc_readout_t *rdo = mvlc_readout_create2(
+    mvlc_readout_t *rdo = mvlc_readout_create4(
             mvlc,
             crateconfig,
             listfileParams,

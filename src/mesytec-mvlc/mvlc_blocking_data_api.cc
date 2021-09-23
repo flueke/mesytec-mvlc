@@ -73,8 +73,8 @@ namespace
         ctx.cv_.notify_one();
     }
 
-    // Generic monitory function working with ReadoutWorker and ReplayWorker
-    // instances.
+    // Generic monitor function working with both ReadoutWorker and
+    // ReplayWorker types.
     template<typename Worker>
     void monitor(
         Worker &worker,

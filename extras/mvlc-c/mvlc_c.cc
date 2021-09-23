@@ -547,12 +547,12 @@ mvlc_ctrl_t *mvlc_ctrl_create_from_crateconfig(mvlc_crateconfig_t *cfg)
     return ret.release();
 }
 
-// Wraps the C-layer mvlc_listfile_write_handle function in the required C++
+// Wraps the C-layer mvlc_listfile_write_handle_t function in the required C++
 // WriteHandle subclass. Negative return values from the C-layer (indicating a write error) are
 // thrown as std::runtime_errors.
 struct ListfileWriteHandleWrapper: public listfile::WriteHandle
 {
-    ListfileWriteHandleWrapper(mvlc_listfile_write_handle listfile_handle, void *userContext)
+    ListfileWriteHandleWrapper(mvlc_listfile_write_handle_t listfile_handle, void *userContext = nullptr)
         : listfile_handle(listfile_handle)
         , userContext(userContext)
     { }
@@ -565,7 +565,7 @@ struct ListfileWriteHandleWrapper: public listfile::WriteHandle
         return res;
     }
 
-    mvlc_listfile_write_handle listfile_handle;
+    mvlc_listfile_write_handle_t listfile_handle;
     void *userContext;
 };
 
@@ -629,19 +629,33 @@ namespace
 
         return parserCallbacks;
     }
-}
+
+    inline ListfileParams to_cpp_listfile_params(const mvlc_listfile_params_t lfParamsC)
+    {
+        ListfileParams lfParamsCpp = {};
+
+        lfParamsCpp.writeListfile = lfParamsC.writeListfile;
+        lfParamsCpp.filepath = lfParamsC.filepath;
+        lfParamsCpp.listfilename = lfParamsC.listfilename;
+        lfParamsCpp.overwrite = lfParamsC.overwrite;
+        lfParamsCpp.compression = static_cast<ListfileParams::Compression>(lfParamsC.compression);
+        lfParamsCpp.compressionLevel = lfParamsC.compressionLevel;
+
+        return lfParamsCpp;
+    }
+
+
+} // end anon namespace
 
 mvlc_readout_t *mvlc_readout_create(
-    mvlc_ctrl_t *mvlc,
     mvlc_crateconfig_t *crateconfig,
-    mvlc_listfile_write_handle listfile_handle,
+    mvlc_listfile_write_handle_t lfh,
     readout_parser_callbacks_t parser_callbacks,
     void *userContext)
 {
-    auto lfWrap = std::make_unique<ListfileWriteHandleWrapper>(listfile_handle, userContext);
+    auto lfWrap = std::make_unique<ListfileWriteHandleWrapper>(lfh, userContext);
 
     auto rdo = make_mvlc_readout(
-        mvlc->instance,
         crateconfig->cfg,
         lfWrap.get(),
         wrap_parser_callbacks(parser_callbacks, userContext));
@@ -656,17 +670,52 @@ mvlc_readout_t *mvlc_readout_create(
 mvlc_readout_t *mvlc_readout_create2(
     mvlc_ctrl_t *mvlc,
     mvlc_crateconfig_t *crateconfig,
+    mvlc_listfile_write_handle_t lfh,
+    readout_parser_callbacks_t parser_callbacks,
+    void *userContext)
+{
+    auto lfWrap = std::make_unique<ListfileWriteHandleWrapper>(lfh, userContext);
+
+    auto rdo = make_mvlc_readout(
+        mvlc->instance,
+        crateconfig->cfg,
+        lfWrap.get(),
+        wrap_parser_callbacks(parser_callbacks, userContext));
+
+    auto ret = std::make_unique<mvlc_readout>();
+    ret->rdo = std::make_unique<MVLCReadout>(std::move(rdo));
+    ret->lfWrap = std::move(lfWrap);
+
+    return ret.release();
+}
+
+mvlc_readout_t *mvlc_readout_create3(
+    mvlc_crateconfig_t *crateconfig,
     mvlc_listfile_params_t lfParamsC,
     readout_parser_callbacks_t parser_callbacks,
     void *userContext)
 {
-    ListfileParams lfParamsCpp;
-    lfParamsCpp.writeListfile = lfParamsC.writeListfile;
-    lfParamsCpp.filepath = lfParamsC.filepath;
-    lfParamsCpp.listfilename = lfParamsC.listfilename;
-    lfParamsCpp.overwrite = lfParamsC.overwrite;
-    lfParamsCpp.compression = static_cast<ListfileParams::Compression>(lfParamsC.compression);
-    lfParamsCpp.compressionLevel = lfParamsC.compressionLevel;
+    auto lfParamsCpp = to_cpp_listfile_params(lfParamsC);
+
+    auto rdo = make_mvlc_readout(
+        crateconfig->cfg,
+        lfParamsCpp,
+        wrap_parser_callbacks(parser_callbacks, userContext));
+
+    auto ret = std::make_unique<mvlc_readout>();
+    ret->rdo = std::make_unique<MVLCReadout>(std::move(rdo));
+
+    return ret.release();
+}
+
+mvlc_readout_t *mvlc_readout_create4(
+    mvlc_ctrl_t *mvlc,
+    mvlc_crateconfig_t *crateconfig,
+    mvlc_listfile_params_t lfParamsC,
+    readout_parser_callbacks_t parser_callbacks,
+    void *userContext)
+{
+    auto lfParamsCpp = to_cpp_listfile_params(lfParamsC);
 
     auto rdo = make_mvlc_readout(
         mvlc->instance,
@@ -719,7 +768,7 @@ MVLC_ReadoutState get_readout_state(const mvlc_readout_t *rdo)
 // ---------------------------------------------------------------------
 struct ListfileReadHandleWrapper: public listfile::ReadHandle
 {
-    ListfileReadHandleWrapper(mvlc_listfile_read_handle listfile_handle, void *userContext)
+    ListfileReadHandleWrapper(mvlc_listfile_read_handle_t listfile_handle, void *userContext = nullptr)
         : listfile_handle(listfile_handle)
         , userContext(userContext)
     { }
@@ -739,7 +788,7 @@ struct ListfileReadHandleWrapper: public listfile::ReadHandle
             throw std::runtime_error("wrapped listfile seek failed: " + std::to_string(res));
     }
 
-    mvlc_listfile_read_handle listfile_handle;
+    mvlc_listfile_read_handle_t listfile_handle;
     void *userContext;
 };
 
@@ -765,7 +814,7 @@ mvlc_replay_t *mvlc_replay_create(
 }
 
 mvlc_replay_t *mvlc_replay_create2(
-    listfile_read_handle_t lfh,
+    mvlc_listfile_read_handle_t lfh,
     readout_parser_callbacks_t event_callbacks,
     void *userContext)
 {
@@ -820,4 +869,154 @@ mvlc_crateconfig_t *mvlc_replay_get_crateconfig(const mvlc_replay_t *replay)
     auto ret = std::make_unique<mvlc_crateconfig_t>();
     ret->cfg = cfg;
     return ret.release();
+}
+
+// Blocking API
+
+struct mvlc_blocking_readout
+{
+    std::unique_ptr<BlockingReadout> r;
+    std::unique_ptr<ListfileWriteHandleWrapper> lfWrap;
+};
+
+struct mvlc_blocking_replay
+{
+    std::unique_ptr<BlockingReplay> r;
+    std::unique_ptr<ListfileReadHandleWrapper> lfWrap;
+};
+
+namespace
+{
+    inline event_container_t to_c_container(const EventContainer &cppEvent)
+    {
+        event_container_t ret = {};
+
+        switch (cppEvent.type)
+        {
+            case EventContainer::Type::None:
+                ret.type = MVLC_EventType_None;
+                break;
+
+            case EventContainer::Type::Readout:
+                ret.type = MVLC_EventType_Readout;
+                ret.readout.eventIndex = cppEvent.readout.eventIndex;
+
+                for (size_t i=0; i<cppEvent.readout.moduleCount; ++i)
+                {
+                    auto cppData = cppEvent.readout.moduleDataList[i];
+                    ret.readout.moduleData[i].prefix  = { cppData.prefix.data,  cppData.prefix.size };
+                    ret.readout.moduleData[i].dynamic = { cppData.dynamic.data, cppData.dynamic.size };
+                    ret.readout.moduleData[i].suffix  = { cppData.suffix.data,  cppData.suffix.size };
+                }
+
+                ret.readout.moduleCount = cppEvent.readout.moduleCount;
+                break;
+
+            case EventContainer::Type::System:
+                ret.type = MVLC_EventType_System;
+                ret.system.header = cppEvent.system.header;
+                ret.system.size = cppEvent.system.size;
+                break;
+        }
+
+        return ret;
+    }
+}
+
+event_container_t next_readout_event(mvlc_blocking_readout_t *r)
+{
+    return to_c_container(next_event(*r->r));
+}
+
+event_container_t next_replay_event(mvlc_blocking_replay_t *r)
+{
+    return to_c_container(next_event(*r->r));
+}
+
+mvlc_blocking_readout_t *mvlc_blocking_readout_create(
+    mvlc_crateconfig_t *cfg,
+    mvlc_listfile_write_handle_t lfh)
+{
+    auto lfWrap = std::make_unique<ListfileWriteHandleWrapper>(lfh);
+    auto r = make_mvlc_readout_blocking(cfg->cfg, lfWrap.get());
+    auto ret = std::make_unique<mvlc_blocking_readout_t>();
+    ret->r = std::make_unique<BlockingReadout>(std::move(r));
+    ret->lfWrap = std::move(lfWrap);
+    return ret.release();
+}
+
+mvlc_blocking_readout_t *mvlc_blocking_readout_create2(
+    mvlc_ctrl_t *mvlc,
+    mvlc_crateconfig_t *cfg,
+    mvlc_listfile_write_handle_t lfh)
+{
+    auto lfWrap = std::make_unique<ListfileWriteHandleWrapper>(lfh);
+    auto r = make_mvlc_readout_blocking(mvlc->instance, cfg->cfg, lfWrap.get());
+    auto ret = std::make_unique<mvlc_blocking_readout_t>();
+    ret->r = std::make_unique<BlockingReadout>(std::move(r));
+    ret->lfWrap = std::move(lfWrap);
+    return ret.release();
+}
+
+mvlc_blocking_readout_t *mvlc_blocking_readout_create3(
+    mvlc_crateconfig_t *cfg,
+    mvlc_listfile_params_t lfParamsC)
+{
+    auto lfParamsCpp = to_cpp_listfile_params(lfParamsC);
+    auto r = make_mvlc_readout_blocking(cfg->cfg, lfParamsCpp);
+    auto ret = std::make_unique<mvlc_blocking_readout_t>();
+    ret->r = std::make_unique<BlockingReadout>(std::move(r));
+    return ret.release();
+}
+
+mvlc_blocking_readout_t *mvlc_blocking_readout_create4(
+    mvlc_ctrl_t *mvlc,
+    mvlc_crateconfig_t *cfg,
+    mvlc_listfile_params_t lfParamsC)
+{
+    auto lfParamsCpp = to_cpp_listfile_params(lfParamsC);
+    auto r = make_mvlc_readout_blocking(mvlc->instance, cfg->cfg, lfParamsCpp);
+    auto ret = std::make_unique<mvlc_blocking_readout_t>();
+    ret->r = std::make_unique<BlockingReadout>(std::move(r));
+    return ret.release();
+}
+
+void mvlc_blocking_readout_destroy(mvlc_blocking_readout_t *r)
+{
+    delete r;
+}
+
+mvlc_blocking_replay_t *mvlc_blocking_replay_create(
+    const char *listfileArchiveFilename)
+{
+    auto r = make_mvlc_replay_blocking(listfileArchiveFilename);
+    auto ret = std::make_unique<mvlc_blocking_replay_t>();
+    ret->r = std::make_unique<BlockingReplay>(std::move(r));
+    return ret.release();
+}
+
+mvlc_blocking_replay_t *mvlc_blocking_replay_create2(
+    const char *listfileArchiveName,
+    const char *listfileArchiveMemberName)
+{
+    auto r = make_mvlc_replay_blocking(listfileArchiveName, listfileArchiveMemberName);
+    auto ret = std::make_unique<mvlc_blocking_replay_t>();
+    ret->r = std::make_unique<BlockingReplay>(std::move(r));
+    return ret.release();
+}
+
+mvlc_blocking_replay_t *mvlc_blocking_replay_create3(
+    mvlc_listfile_read_handle_t lfh)
+{
+    auto lfWrap = std::make_unique<ListfileReadHandleWrapper>(lfh);
+    auto r = make_mvlc_replay_blocking(lfWrap.get());
+    auto ret = std::make_unique<mvlc_blocking_replay_t>();
+    ret->r = std::make_unique<BlockingReplay>(std::move(r));
+    ret->lfWrap = std::move(lfWrap);
+    return ret.release();
+}
+
+void mvlc_blocking_replay_destroy(mvlc_blocking_replay_t *r)
+{
+    delete r;
 }
