@@ -28,8 +28,6 @@
 #ifndef __MESYTEC_MVLC_H__
 #define __MESYTEC_MVLC_H__
 
-/** @file */
-
 #include "git_version.h"
 #include "logging.h"
 #include "mvlc_blocking_data_api.h"

@@ -64,18 +64,18 @@ class MESYTEC_MVLC_EXPORT MVLCReplay
         friend void init_common(MVLCReplay &rdo, void *userContext);
 };
 
-MVLCReplay make_mvlc_replay(
+MVLCReplay MESYTEC_MVLC_EXPORT make_mvlc_replay(
     const std::string &listfileArchiveName,
     readout_parser::ReadoutParserCallbacks parserCallbacks,
     void *userContext = nullptr);
 
-MVLCReplay make_mvlc_replay(
+MVLCReplay MESYTEC_MVLC_EXPORT make_mvlc_replay(
     const std::string &listfileArchiveName,
     const std::string &listfileArchiveMemberName,
     readout_parser::ReadoutParserCallbacks parserCallbacks,
     void *userContext = nullptr);
 
-MVLCReplay make_mvlc_replay(
+MVLCReplay MESYTEC_MVLC_EXPORT make_mvlc_replay(
     listfile::ReadHandle *lfh,
     readout_parser::ReadoutParserCallbacks parserCallbacks,
     void *userContext = nullptr);

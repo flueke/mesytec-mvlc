@@ -1,3 +1,10 @@
+/**
+ * \file
+ * MVLC object creation, connect, register access and vme access example.
+ *
+ * \ingroup mvlc-c
+ * \{
+ */
 #include <getopt.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -161,3 +168,5 @@ int main(int argc, char *argv[])
 
     return 0;
 }
+
+/**\}*/

@@ -47,7 +47,7 @@ struct MESYTEC_MVLC_EXPORT EventContainer
 
 // readout
 
-class BlockingReadout
+class MESYTEC_MVLC_EXPORT BlockingReadout
 {
     public:
         ~BlockingReadout();
@@ -87,30 +87,30 @@ class BlockingReadout
         friend EventContainer next_event(BlockingReadout &br);
 };
 
-BlockingReadout make_mvlc_readout_blocking(
+BlockingReadout MESYTEC_MVLC_EXPORT make_mvlc_readout_blocking(
     const CrateConfig &crateConfig,
     const ListfileParams &listfileParams);
 
-BlockingReadout make_mvlc_readout_blocking(
+BlockingReadout MESYTEC_MVLC_EXPORT make_mvlc_readout_blocking(
     MVLC &mvlc,
     const CrateConfig &crateConfig,
     const ListfileParams &listfileParams);
 
-BlockingReadout make_mvlc_readout_blocking(
+BlockingReadout MESYTEC_MVLC_EXPORT make_mvlc_readout_blocking(
     const CrateConfig &crateConfig,
     listfile::WriteHandle *listfileWriteHandle);
 
-BlockingReadout make_mvlc_readout_blocking(
+BlockingReadout MESYTEC_MVLC_EXPORT make_mvlc_readout_blocking(
     MVLC &mvlc,
     const CrateConfig &crateConfig,
     listfile::WriteHandle *listfileWriteHandle);
 
-EventContainer next_event(BlockingReadout &br);
+EventContainer MESYTEC_MVLC_EXPORT next_event(BlockingReadout &br);
 
 
 // replay
 
-class BlockingReplay
+class MESYTEC_MVLC_EXPORT BlockingReplay
 {
     public:
         ~BlockingReplay();
@@ -142,17 +142,17 @@ class BlockingReplay
         friend EventContainer next_event(BlockingReplay &br);
 };
 
-BlockingReplay make_mvlc_replay_blocking(
+BlockingReplay MESYTEC_MVLC_EXPORT make_mvlc_replay_blocking(
     const std::string &listfileArchiveName);
 
-BlockingReplay make_mvlc_replay_blocking(
+BlockingReplay MESYTEC_MVLC_EXPORT make_mvlc_replay_blocking(
     const std::string &listfileArchiveName,
     const std::string &listfileArchiveMemberName);
 
-BlockingReplay make_mvlc_replay_blocking(
+BlockingReplay MESYTEC_MVLC_EXPORT make_mvlc_replay_blocking(
     listfile::ReadHandle *lfh);
 
-EventContainer next_event(BlockingReplay &br);
+EventContainer MESYTEC_MVLC_EXPORT next_event(BlockingReplay &br);
 
 }
 }

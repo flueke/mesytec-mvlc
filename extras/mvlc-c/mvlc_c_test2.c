@@ -1,3 +1,11 @@
+/**
+ * \file
+ * Minimal DAQ program implemented using the mvlc-c interface.
+ *
+ * Uses the mvlc_readout_t abstraction with custom callbacks.
+ * \ingroup mvlc-c
+ * \{
+ */
 #include <assert.h>
 #include <getopt.h>
 #include <stdio.h>
@@ -235,3 +243,4 @@ int main(int argc, char *argv[])
     return 0;
 }
 
+/**\}*/

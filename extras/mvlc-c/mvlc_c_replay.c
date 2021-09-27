@@ -1,3 +1,11 @@
+/**
+ * \file
+ * Minimal listfile replay tool implemented using the mvlc-c interface.
+ *
+ * Uses the mvlc_replay_t abstraction with custom callbacks.
+ * \ingroup mvlc-c
+ * \{
+ */
 #include <assert.h>
 #include <getopt.h>
 #include <stdio.h>
@@ -165,3 +173,5 @@ int main(int argc, char *argv[])
 
     return 0;
 }
+
+/**\}*/

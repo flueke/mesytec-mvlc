@@ -1,6 +1,11 @@
 #ifndef __MESYTEC_MVLC_C_H__
 #define __MESYTEC_MVLC_C_H__
 
+/**
+ * \defgroup mvlc-c mvlc-c - C language interface for the mesytec-mvlc driver library
+ * \{
+ */
+
 #include <stddef.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -13,10 +18,6 @@ extern "C" {
 // TODO:
 // - maybe low level reads: usb: read_unbuffered(), eth: read_packet() (need a
 //   PacketReadResult structure or similar)
-// - maybe single threaded listfile processing api in the c++ code and an
-//   adapter for the c-layer
-//
-// DONE:
 
 // Numeric types
 // =====================================================================
@@ -32,6 +33,10 @@ typedef int64_t s64;
 
 // Error handling
 // =====================================================================
+
+/**
+ * C version of the information contained in std::error_code objects.
+ */
 typedef struct mvlc_err
 {
     int ec;
@@ -40,22 +45,43 @@ typedef struct mvlc_err
 
 bool mvlc_is_error(const mvlc_err_t err);
 char *mvlc_format_error(const mvlc_err_t err, char *buf, size_t bufsize);
+// Note: uses strdup() interally so you have to free() the returned string after use.
+char *mvlc_format_error_alloc(const mvlc_err_t err);
 
 // Library init
 // =====================================================================
+/** Library initialization function.
+ *
+ * Run this function once before using any other parts of the library to setup
+ * logging and perform any additional initialization steps.
+ */
 void mvlc_lib_init();
 
 // mvlc_ctrl_t: create, destroy, copy
 // =====================================================================
+
+/**
+ * %Handle type representing an MVLC controller.
+ */
 typedef struct mvlc_ctrl mvlc_ctrl_t;
 
+/** MVLC controller factory function using the first MVLC_USB found on the system. */
 mvlc_ctrl_t *mvlc_ctrl_create_usb(void);
+
+/** MVLC controller factory function using the MVLC_USB with the specified index. */
 mvlc_ctrl_t *mvlc_ctrl_create_usb_index(unsigned index);
+
+/** MVLC controller factory function using the MVLC_USB with the specified serial. */
 mvlc_ctrl_t *mvlc_ctrl_create_usb_serial(const char *serial);
+
+/** MVLC controller factory function for an MVLC_ETH with the given hostname/ip address. */
 mvlc_ctrl_t *mvlc_ctrl_create_eth(const char *host);
 
+/** Destroys a mvlc_ctrl_t instance. */
 void mvlc_ctrl_destroy(mvlc_ctrl_t *mvlc);
 
+/** Creates a copy of the underlying MVLC object. It is safe to use the copy
+ * from a different thread. */
 mvlc_ctrl_t *mvlc_ctrl_copy(mvlc_ctrl_t *src);
 
 // Connection releated
@@ -148,6 +174,7 @@ char *mvlc_format_frame_flags(u8 flags);
 // ---------------------------------------------------------------------
 typedef struct mvlc_stackbuilder mvlc_stackbuilder_t;
 
+#if 0
 typedef enum
 {
         MVLC_StackCommand_Invalid             = 0,
@@ -184,6 +211,7 @@ typedef enum
         // stored in the 'value' member.
         MVLC_StackCommand_Custom              = 0xEEu
 } MVLC_StackCommandType;
+#endif
 
 #define MVLC_TotalStackCount 8u
 #define MVLC_ReadoutStackCount 7u
@@ -511,5 +539,7 @@ void mvlc_blocking_replay_destroy(mvlc_blocking_replay_t *r);
 #ifdef __cplusplus
 }
 #endif
+
+/**\}*/
 
 #endif /* __MESYTEC_MVLC_C_H__ */
