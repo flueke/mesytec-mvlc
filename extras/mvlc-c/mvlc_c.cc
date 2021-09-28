@@ -30,11 +30,6 @@ char *mvlc_format_error(const mvlc_err_t err, char *buf, size_t bufsize)
     return buf;
 }
 
-void mvlc_lib_init()
-{
-    setup_loggers();
-}
-
 struct mvlc_ctrl
 {
     MVLC instance;

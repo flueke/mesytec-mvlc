@@ -130,8 +130,6 @@ int main(int argc, char *argv[])
         }
     }
 
-    mvlc_lib_init();
-
     readout_parser_callbacks_t parserCallbacks =
     {
         process_readout_event_data,

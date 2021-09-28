@@ -6,11 +6,11 @@
 #include <sys/prctl.h>
 #endif
 
-#include "logging.h"
 #include "mvlc_buffer_validators.h"
 #include "mvlc_error.h"
 #include "mvlc_eth_interface.h"
 #include "mvlc_usb_interface.h"
+#include "util/logging.h"
 #include "util/storage_sizes.h"
 #include "vme_constants.h"
 
@@ -217,7 +217,7 @@ void cmd_pipe_reader(ReaderContext &context)
 #ifdef __linux__
     prctl(PR_SET_NAME,"cmd_pipe_reader",0,0,0);
 #endif
-    auto logger = spdlog::get("cmd_pipe_reader");
+    auto logger = get_logger("cmd_pipe_reader");
 
     logger->info("cmd_pipe_reader starting");
 
@@ -666,7 +666,7 @@ std::error_code CmdApi::vmeRead(
     if (auto ec = stackTransaction(stackRef, stackBuilder, stackResponse))
         return ec;
 
-    log_buffer(spdlog::get("mvlc"), spdlog::level::trace, stackResponse, "vmeRead(): stackResponse");
+    log_buffer(get_logger("mvlc"), spdlog::level::trace, stackResponse, "vmeRead(): stackResponse");
 
     if (stackResponse.size() != 3)
         return make_error_code(MVLCErrorCode::UnexpectedResponseSize);
@@ -695,7 +695,7 @@ std::error_code CmdApi::vmeWrite(
     if (auto ec = stackTransaction(stackRef, stackBuilder, stackResponse))
         return ec;
 
-    log_buffer(spdlog::get("mvlc"), spdlog::level::trace, stackResponse, "vmeWrite(): stackResponse");
+    log_buffer(get_logger("mvlc"), spdlog::level::trace, stackResponse, "vmeWrite(): stackResponse");
 
     if (stackResponse.size() != 2)
         return make_error_code(MVLCErrorCode::UnexpectedResponseSize);
@@ -721,7 +721,7 @@ std::error_code CmdApi::vmeBlockRead(
     if (auto ec = stackTransaction(stackRef, stackBuilder, dest))
         return ec;
 
-    log_buffer(spdlog::get("mvlc"), spdlog::level::trace, dest, "vmeBlockRead(): stackResponse");
+    log_buffer(get_logger("mvlc"), spdlog::level::trace, dest, "vmeBlockRead(): stackResponse");
 
     return {};
 }
@@ -738,7 +738,7 @@ std::error_code CmdApi::vmeMBLTSwapped(
     if (auto ec = stackTransaction(stackRef, stackBuilder, dest))
         return ec;
 
-    log_buffer(spdlog::get("mvlc"), spdlog::level::trace, dest, "vmeMBLTSwapped(): stackResponse");
+    log_buffer(get_logger("mvlc"), spdlog::level::trace, dest, "vmeMBLTSwapped(): stackResponse");
 
     return stackTransaction(stackRef, stackBuilder, dest);
 }
@@ -803,7 +803,7 @@ MVLC::~MVLC()
 
 std::error_code MVLC::connect()
 {
-    auto logger = spdlog::get("mvlc");
+    auto logger = get_logger("mvlc");
     auto guards = d->locks_.lockBoth();
     d->isConnected_ = d->impl_->isConnected();
     std::error_code ec;
@@ -870,7 +870,7 @@ std::error_code MVLC::connect()
 
 std::error_code MVLC::disconnect()
 {
-    auto logger = spdlog::get("mvlc");
+    auto logger = get_logger("mvlc");
     auto guards = d->locks_.lockBoth();
 
     std::error_code ec;

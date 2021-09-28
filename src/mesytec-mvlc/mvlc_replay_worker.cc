@@ -1,7 +1,6 @@
 #include "mvlc_replay_worker.h"
 
 #include <cstring>
-#include <spdlog/spdlog.h>
 
 #if __linux__
 #include <sys/prctl.h>
@@ -10,6 +9,7 @@
 #include "mesytec-mvlc/mvlc_util.h"
 #include "mesytec-mvlc/mvlc_eth_interface.h"
 #include "util/perf.h"
+#include "util/logging.h"
 
 namespace mesytec
 {
@@ -168,7 +168,7 @@ struct ReplayWorker::Private
         , snoopQueues(snoopQueues_)
         , lfh(lfh_)
         , counters({})
-        , logger(spdlog::get("replay"))
+        , logger(get_logger("replay"))
     {}
 
     ~Private()

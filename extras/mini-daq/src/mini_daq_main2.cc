@@ -12,7 +12,6 @@
 
 #include <mesytec-mvlc/mesytec-mvlc.h>
 #include <lyra/lyra.hpp>
-#include <spdlog/spdlog.h>
 
 using std::cout;
 using std::cerr;
@@ -257,8 +256,6 @@ int main(int argc, char *argv[])
     }
 
     // logging setup
-    auto libLoggers = mesytec::mvlc::setup_loggers();
-
     if (opt_logDebug)
         spdlog::set_level(spdlog::level::debug);
 

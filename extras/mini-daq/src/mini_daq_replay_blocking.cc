@@ -186,8 +186,6 @@ void monitor(
 
 int main(int argc, char *argv[])
 {
-    mesytec::mvlc::setup_loggers();
-
     SyncContext ctx;
 
     ReadoutParserCallbacks callbacks =

@@ -9,7 +9,6 @@
 #include <limits>
 #include <sstream>
 #include <system_error>
-#include <spdlog/spdlog.h>
 
 #ifndef __WIN32
     #include <netdb.h>
@@ -43,6 +42,7 @@
 #include "mvlc_util.h"
 #include "util/io_util.h"
 #include "util/string_view.hpp"
+#include "util/logging.h"
 
 #define MVLC_ETH_THROTTLE_WRITE_DEBUG_FILE 0
 
@@ -365,7 +365,7 @@ void mvlc_eth_throttler(
     Protected<eth::EthThrottleContext> &ctx,
     Protected<eth::EthThrottleCounters> &counters)
 {
-    auto logger = spdlog::get("mvlc_eth");
+    auto logger = get_logger("mvlc_eth");
 
     auto send_query = [&logger] (int netlinkSock)
     {
@@ -599,7 +599,7 @@ void mvlc_eth_throttler(
     Protected<eth::EthThrottleContext> &ctx,
     Protected<eth::EthThrottleCounters> &counters)
 {
-    auto logger = spdlog::get("mvlc_eth");
+    auto logger = get_logger("mvlc_eth");
 
     int dataSocket = ctx.access()->dataSocket;
     ReceiveBufferSnapshot rbs = { 0u, static_cast<u32>(ctx.access()->dataSocketReceiveBufferSize) };
@@ -724,7 +724,7 @@ Impl::~Impl()
 //   currently sending its data output.
 std::error_code Impl::connect()
 {
-    auto logger = spdlog::get("mvlc_eth");
+    auto logger = get_logger("mvlc_eth");
     logger->trace("begin {}", __PRETTY_FUNCTION__);
 
     auto close_sockets = [this] ()
@@ -1156,7 +1156,7 @@ static inline std::error_code receive_one_packet(int sockfd, u8 *dest, size_t si
 
 PacketReadResult Impl::read_packet(Pipe pipe_, u8 *buffer, size_t size)
 {
-    auto logger = spdlog::get("mvlc_eth");
+    auto logger = get_logger("mvlc_eth");
 
     PacketReadResult res = {};
 
@@ -1344,7 +1344,7 @@ PacketReadResult Impl::read_packet(Pipe pipe_, u8 *buffer, size_t size)
 std::error_code Impl::read(Pipe pipe_, u8 *buffer, size_t size,
                            size_t &bytesTransferred)
 {
-    auto logger = spdlog::get("mvlc_eth");
+    auto logger = get_logger("mvlc_eth");
 
     unsigned pipe = static_cast<unsigned>(pipe_);
 

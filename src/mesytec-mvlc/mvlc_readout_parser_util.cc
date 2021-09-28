@@ -7,7 +7,7 @@
 #include <iostream>
 #include <fmt/format.h>
 
-#include "logging.h"
+#include "util/logging.h"
 
 using std::endl;
 
@@ -29,7 +29,7 @@ void run_readout_parser(
     prctl(PR_SET_NAME,"readout_parser",0,0,0);
 #endif
 
-    auto logger = spdlog::get("readout_parser");
+    auto logger = get_logger("readout_parser");
 
     auto &filled = snoopQueues.filledBufferQueue();
     auto &empty = snoopQueues.emptyBufferQueue();

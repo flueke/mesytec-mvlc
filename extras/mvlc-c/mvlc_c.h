@@ -48,15 +48,6 @@ char *mvlc_format_error(const mvlc_err_t err, char *buf, size_t bufsize);
 // Note: uses strdup() interally so you have to free() the returned string after use.
 char *mvlc_format_error_alloc(const mvlc_err_t err);
 
-// Library init
-// =====================================================================
-/** Library initialization function.
- *
- * Run this function once before using any other parts of the library to setup
- * logging and perform any additional initialization steps.
- */
-void mvlc_lib_init();
-
 // mvlc_ctrl_t: create, destroy, copy
 // =====================================================================
 

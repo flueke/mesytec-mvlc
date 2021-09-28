@@ -1,6 +1,6 @@
 #include "mesytec-mvlc/mvlc_blocking_data_api.h"
 
-#include <spdlog/spdlog.h>
+#include "util/logging.h"
 
 namespace mesytec
 {
@@ -82,7 +82,7 @@ namespace
         std::atomic<bool> &parserQuit,
         BlockingContext &ctx)
     {
-        auto logger = spdlog::get("mvlc_blocking_api");
+        auto logger = get_logger("mvlc_blocking_api");
 
         logger->info("monitor() waiting for idle producer");
 

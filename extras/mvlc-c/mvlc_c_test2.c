@@ -125,8 +125,6 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    mvlc_lib_init();
-
     // crateconfig
     mvlc_crateconfig_t *crateconfig = mvlc_read_crateconfig_from_file(opt_crateConfigPath);
 

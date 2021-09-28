@@ -11,8 +11,11 @@ namespace mesytec
 namespace mvlc
 {
 
-std::vector<std::shared_ptr<spdlog::logger>> MESYTEC_MVLC_EXPORT
-    setup_loggers(const std::vector<spdlog::sink_ptr> &sinks = {});
+std::shared_ptr<spdlog::logger> MESYTEC_MVLC_EXPORT
+    get_logger(const std::string &name);
+
+std::shared_ptr<spdlog::logger> MESYTEC_MVLC_EXPORT
+    create_logger(const std::string &name, const std::vector<spdlog::sink_ptr> &sinks = {});
 
 template<typename View>
 void log_buffer(const std::shared_ptr<spdlog::logger> &logger,
@@ -23,7 +26,6 @@ void log_buffer(const std::shared_ptr<spdlog::logger> &logger,
 
     for (const auto &value: buffer)
         logger->log(level, "  0x{:008X}", value);
-
 
     logger->log(level, "end buffer '{}' (size={})", header, buffer.size());
 

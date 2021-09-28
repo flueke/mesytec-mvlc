@@ -63,8 +63,6 @@ int main(int argc, char *argv[])
     }
 
     // logging setup
-    mesytec::mvlc::setup_loggers();
-
     if (opt_logDebug)
         spdlog::set_level(spdlog::level::debug);
 

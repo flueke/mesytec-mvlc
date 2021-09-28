@@ -68,7 +68,6 @@
 #include <exception>
 #include <iostream>
 #include <fmt/format.h>
-#include <spdlog/spdlog.h>
 
 #ifdef __linux__
 #include <sys/prctl.h>
@@ -81,6 +80,7 @@
 #include "mvlc_usb_interface.h"
 #include "util/future_util.h"
 #include "util/io_util.h"
+#include "util/logging.h"
 #include "util/perf.h"
 #include "util/storage_sizes.h"
 
@@ -117,7 +117,7 @@ ReadoutInitResults MESYTEC_MVLC_EXPORT init_readout(
     MVLC &mvlc, const CrateConfig &crateConfig,
     const CommandExecOptions stackExecOptions)
 {
-    auto logger = spdlog::get("readout");
+    auto logger = get_logger("readout");
 
     ReadoutInitResults ret;
 
@@ -213,7 +213,7 @@ void MESYTEC_MVLC_EXPORT listfile_buffer_writer(
     prctl(PR_SET_NAME,"listfile_writer",0,0,0);
 #endif
 
-    auto logger = spdlog::get("listfile");
+    auto logger = get_logger("listfile");
 
     auto &filled = bufferQueues.filledBufferQueue();
     auto &empty = bufferQueues.emptyBufferQueue();
@@ -365,7 +365,7 @@ struct ReadoutWorker::Private
         , listfileQueues(ListfileWriterBufferSize, ListfileWriterBufferCount)
         , localBuffer(ListfileWriterBufferSize)
         , previousData(ListfileWriterBufferSize)
-        , logger(spdlog::get("readout"))
+        , logger(get_logger("readout"))
     {}
 
     ~Private()
@@ -895,7 +895,7 @@ inline void fixup_usb_buffer(
 
             if (!is_valid_readout_frame(frameInfo))
             {
-                auto logger = spdlog::get("readout");
+                auto logger = get_logger("readout");
                 cout << fmt::format("non valid readout frame: frameHeader=0x{:08x}", frameHeader) << endl;
 
                 // The above loop was not able to find a valid readout frame.

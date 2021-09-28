@@ -27,7 +27,6 @@
 #include <iomanip>
 #include <numeric>
 #include <regex>
-#include <spdlog/spdlog.h>
 
 #include <ftd3xx.h>
 
@@ -35,6 +34,7 @@
 #include "mvlc_dialog_util.h"
 #include "mvlc_error.h"
 #include "mvlc_util.h"
+#include "util/logging.h"
 
 #define USB_WIN_USE_ASYNC 0
 // TODO: remove the non-ex code paths
@@ -270,7 +270,7 @@ mesytec::mvlc::usb::DeviceInfoList make_device_info_list()
 // - Do a register read to check that communication is ok now.
 std::error_code post_connect_cleanup(mesytec::mvlc::usb::Impl &impl)
 {
-    auto logger = spdlog::get("mvlc_usb");
+    auto logger = get_logger("mvlc_usb");
     logger->debug("begin post_connect_cleanup");
 
     static const int DisableTriggerRetryCount = 5;
@@ -441,7 +441,7 @@ std::error_code Impl::closeHandle()
 
 std::error_code Impl::connect()
 {
-    auto logger = spdlog::get("mvlc_usb");
+    auto logger = get_logger("mvlc_usb");
     logger->trace("begin {}", __PRETTY_FUNCTION__);
 
     if (isConnected())
@@ -629,7 +629,7 @@ bool Impl::isConnected() const
 std::error_code Impl::write(Pipe pipe, const u8 *buffer, size_t size,
                             size_t &bytesTransferred)
 {
-    auto logger = spdlog::get("mvlc_usb");
+    auto logger = get_logger("mvlc_usb");
 
     assert(buffer);
     assert(size <= USBSingleTransferMaxBytes);
@@ -718,7 +718,7 @@ std::error_code Impl::write(Pipe pipe, const u8 *buffer, size_t size,
 std::error_code Impl::write(Pipe pipe, const u8 *buffer, size_t size,
                             size_t &bytesTransferred)
 {
-    auto logger = spdlog::get("mvlc_usb");
+    auto logger = get_logger("mvlc_usb");
 
     assert(buffer);
     assert(size <= USBSingleTransferMaxBytes);
@@ -771,7 +771,7 @@ std::error_code Impl::write(Pipe pipe, const u8 *buffer, size_t size,
 std::error_code Impl::read(Pipe pipe, u8 *buffer, size_t size,
                            size_t &bytesTransferred)
 {
-    auto logger = spdlog::get("mvlc_usb");
+    auto logger = get_logger("mvlc_usb");
 
     assert(buffer);
     assert(size <= USBSingleTransferMaxBytes);
@@ -915,7 +915,7 @@ std::error_code Impl::read(Pipe pipe, u8 *buffer, size_t size,
 std::error_code Impl::read(Pipe pipe, u8 *buffer, size_t size,
                            size_t &bytesTransferred)
 {
-    auto logger = spdlog::get("mvlc_usb");
+    auto logger = get_logger("mvlc_usb");
 
     assert(buffer);
     assert(size <= USBSingleTransferMaxBytes);
@@ -955,7 +955,7 @@ std::error_code Impl::read(Pipe pipe, u8 *buffer, size_t size,
 std::error_code Impl::read_unbuffered(Pipe pipe, u8 *buffer, size_t size,
                                       size_t &bytesTransferred)
 {
-    auto logger = spdlog::get("mvlc_usb");
+    auto logger = get_logger("mvlc_usb");
 
     assert(buffer);
     assert(static_cast<unsigned>(pipe) < PipeCount);
@@ -1049,7 +1049,7 @@ std::error_code Impl::read_unbuffered(Pipe pipe, u8 *buffer, size_t size,
 std::error_code Impl::abortPipe(Pipe pipe, EndpointDirection dir)
 {
 #ifdef __WIN32
-    auto logger = spdlog::get("mvlc_usb");
+    auto logger = get_logger("mvlc_usb");
 
     logger->warn("FT_AbortPipe on pipe={}, dir={}",
               static_cast<unsigned>(pipe),

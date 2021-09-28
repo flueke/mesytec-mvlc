@@ -30,11 +30,11 @@
 #include <cassert>
 #include <iostream>
 
-#include "logging.h"
 #include "mvlc_buffer_validators.h"
 #include "mvlc_constants.h"
 #include "mvlc_impl_eth.h"
 #include "util/io_util.h"
+#include "util/logging.h"
 #include "util/storage_sizes.h"
 #include "util/string_view.hpp"
 #include "vme_constants.h"
@@ -295,7 +295,7 @@ inline ParseResult parser_begin_event(ReadoutParserState &state, u32 frameHeader
 
     if (frameInfo.type != frame_headers::StackFrame)
     {
-        auto logger = spdlog::get("readout_parser");
+        auto logger = get_logger("readout_parser");
         logger->warn("NotAStackFrame: 0x{:008x}", frameHeader);
         return ParseResult::NotAStackFrame;
     }
@@ -304,7 +304,7 @@ inline ParseResult parser_begin_event(ReadoutParserState &state, u32 frameHeader
 
     if (eventIndex < 0 || static_cast<unsigned>(eventIndex) >= state.readoutStructure.size())
     {
-        auto logger = spdlog::get("readout_parser");
+        auto logger = get_logger("readout_parser");
         logger->warn("parser_begin_event: StackIndexOutOfRange ({})", eventIndex);
         return ParseResult::StackIndexOutOfRange;
     }
@@ -427,7 +427,7 @@ ParseResult parse_readout_contents(
     bool is_eth,
     u32 bufferNumber)
 {
-    auto logger = spdlog::get("readout_parser");
+    auto logger = get_logger("readout_parser");
 
     auto originalInputView = input;
 
@@ -882,7 +882,7 @@ ParseResult parse_eth_packet(
     basic_string_view<u32> input,
     u32 bufferNumber)
 {
-    auto logger = spdlog::get("readout_parser");
+    auto logger = get_logger("readout_parser");
 
     if (input.size() < eth::HeaderWords)
         throw end_of_buffer("ETH header words");
@@ -963,7 +963,7 @@ ParseResult parse_readout_buffer(
     ReadoutParserCounters &counters,
     u32 bufferNumber, const u32 *buffer, size_t bufferWords)
 {
-    auto logger = spdlog::get("readout_parser");
+    auto logger = get_logger("readout_parser");
 
     logger->trace("begin: bufferNumber={}, buffer={}, bufferWords={}",
               bufferNumber, reinterpret_cast<const void *>(buffer), bufferWords);
@@ -1008,7 +1008,7 @@ ParseResult parse_readout_buffer_eth(
 {
     const size_t bufferBytes = bufferWords * sizeof(u32);
 
-    auto logger = spdlog::get("readout_parser");
+    auto logger = get_logger("readout_parser");
 
     logger->trace("begin parsing ETH buffer {}, size={} bytes", bufferNumber, bufferBytes);
 
@@ -1230,7 +1230,7 @@ ParseResult parse_readout_buffer_usb(
 {
     const size_t bufferBytes = bufferWords * sizeof(u32);
 
-    auto logger = spdlog::get("readout_parser");
+    auto logger = get_logger("readout_parser");
 
     logger->trace("begin parsing USB buffer {}, size={} bytes", bufferNumber, bufferBytes);
 

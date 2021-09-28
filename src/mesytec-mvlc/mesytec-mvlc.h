@@ -29,7 +29,6 @@
 #define __MESYTEC_MVLC_H__
 
 #include "git_version.h"
-#include "logging.h"
 #include "mvlc_blocking_data_api.h"
 #include "mvlc_command_builders.h"
 #include "mvlc_dialog.h"
@@ -50,6 +49,7 @@
 #include "util/fmt.h"
 #include "util/int_types.h"
 #include "util/io_util.h"
+#include "util/logging.h"
 #include "vme_constants.h"
 
 #endif /* __MESYTEC_MVLC_H__ */

@@ -4,8 +4,6 @@ using namespace mesytec::mvlc;
 
 int main(int argc, char *argv[])
 {
-    mesytec::mvlc::setup_loggers();
-
     auto replay = make_mvlc_replay_blocking(argv[1]);
 
     if (auto ec = replay.start())
