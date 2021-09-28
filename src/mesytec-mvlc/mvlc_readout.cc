@@ -82,7 +82,7 @@ std::error_code MVLCReadout::stop()
     if (auto ec = d->readoutWorker->stop())
         return ec;
 
-    while (state() != ReadoutWorker::State::Idle)
+    while (workerState() != ReadoutWorker::State::Idle)
     {
         waitableState().wait_for(
             std::chrono::milliseconds(1000),
@@ -105,7 +105,13 @@ std::error_code MVLCReadout::resume()
     return d->readoutWorker->resume();
 }
 
-ReadoutWorker::State MVLCReadout::state() const
+bool MVLCReadout::finished()
+{
+    return (d->readoutWorker->state() == ReadoutWorker::State::Idle
+            && d->readoutWorker->snoopQueues().filledBufferQueue().empty());
+}
+
+ReadoutWorker::State MVLCReadout::workerState() const
 {
     return d->readoutWorker->state();
 }

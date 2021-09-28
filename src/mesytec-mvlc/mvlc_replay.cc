@@ -174,7 +174,7 @@ std::error_code MVLCReplay::stop()
     if (auto ec = d->replayWorker->stop())
         return ec;
 
-    while (state() != ReplayWorker::State::Idle)
+    while (workerState() != ReplayWorker::State::Idle)
     {
         waitableState().wait_for(
             std::chrono::milliseconds(1000),
@@ -197,7 +197,13 @@ std::error_code MVLCReplay::resume()
     return d->replayWorker->resume();
 }
 
-ReplayWorker::State MVLCReplay::state() const
+bool MVLCReplay::finished()
+{
+    return (d->replayWorker->state() == ReplayWorker::State::Idle
+            && d->replayWorker->snoopQueues().filledBufferQueue().empty());
+}
+
+ReplayWorker::State MVLCReplay::workerState() const
 {
     return d->replayWorker->state();
 }

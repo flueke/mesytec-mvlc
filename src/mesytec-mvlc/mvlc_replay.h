@@ -29,7 +29,9 @@ class MESYTEC_MVLC_EXPORT MVLCReplay
         std::error_code pause();
         std::error_code resume();
 
-        ReplayWorker::State state() const;
+        bool finished();
+
+        ReplayWorker::State workerState() const;
         WaitableProtected<ReplayWorker::State> &waitableState();
         ReplayWorker::Counters workerCounters();
         readout_parser::ReadoutParserCounters parserCounters();

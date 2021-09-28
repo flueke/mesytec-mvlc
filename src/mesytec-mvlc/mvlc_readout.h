@@ -51,7 +51,9 @@ class MESYTEC_MVLC_EXPORT MVLCReadout
         std::error_code pause();
         std::error_code resume();
 
-        ReadoutWorker::State state() const;
+        bool finished();
+
+        ReadoutWorker::State workerState() const;
         WaitableProtected<ReadoutWorker::State> &waitableState();
         ReadoutWorker::Counters workerCounters();
         readout_parser::ReadoutParserCounters parserCounters();
