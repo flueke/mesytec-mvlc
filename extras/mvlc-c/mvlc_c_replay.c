@@ -64,6 +64,7 @@ void process_readout_system_event(
         void *userContext, const u32 *header, u32 size)
 {
     bool printData = (bool) userContext;
+
     if (printData)
     {
         printf("process_readout_system_event, userContext=%p, header=0x%08x, size=%u\n",

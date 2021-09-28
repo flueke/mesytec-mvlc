@@ -30,6 +30,12 @@ char *mvlc_format_error(const mvlc_err_t err, char *buf, size_t bufsize)
     return buf;
 }
 
+char *mvlc_format_error_alloc(const mvlc_err_t err)
+{
+    auto ec = std::error_code(err.ec, *reinterpret_cast<const std::error_category *>(err.cat));
+    return strdup(ec.message().c_str());
+}
+
 struct mvlc_ctrl
 {
     MVLC instance;
@@ -755,7 +761,7 @@ mvlc_err_t mvlc_readout_resume(mvlc_readout_t *rdo)
 
 MVLC_ReadoutState get_readout_state(const mvlc_readout_t *rdo)
 {
-    auto cppState = rdo->rdo->state();
+    auto cppState = rdo->rdo->workerState();
     return static_cast<MVLC_ReadoutState>(cppState);
 }
 
@@ -854,7 +860,7 @@ mvlc_err_t mvlc_replay_resume(mvlc_replay_t *replay)
 
 MVLC_ReadoutState get_replay_state(const mvlc_replay_t *replay)
 {
-    auto cppState = replay->replay->state();
+    auto cppState = replay->replay->workerState();
     return static_cast<MVLC_ReadoutState>(cppState);
 }
 
@@ -976,6 +982,12 @@ mvlc_blocking_readout_t *mvlc_blocking_readout_create4(
     return ret.release();
 }
 
+mvlc_err_t mvlc_blocking_readout_start(mvlc_blocking_readout_t *r, int timeToRun_s)
+{
+    auto ec = r->r->start(std::chrono::seconds(timeToRun_s));
+    return make_mvlc_error(ec);
+}
+
 void mvlc_blocking_readout_destroy(mvlc_blocking_readout_t *r)
 {
     delete r;
@@ -1009,6 +1021,12 @@ mvlc_blocking_replay_t *mvlc_blocking_replay_create3(
     ret->r = std::make_unique<BlockingReplay>(std::move(r));
     ret->lfWrap = std::move(lfWrap);
     return ret.release();
+}
+
+mvlc_err_t mvlc_blocking_replay_start(mvlc_blocking_replay_t *r)
+{
+    auto ec = r->r->start();
+    return make_mvlc_error(ec);
 }
 
 void mvlc_blocking_replay_destroy(mvlc_blocking_replay_t *r)

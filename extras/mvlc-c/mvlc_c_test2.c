@@ -19,19 +19,58 @@
 void process_readout_event_data(
         void *userContext, int eventIndex, const readout_moduledata_t *moduleDataList, unsigned moduleCount)
 {
-    (void) eventIndex;
-    (void) moduleDataList;
-    (void) moduleCount;
-    printf("process_readout_event_data, userContext=%p\n", userContext);
+    bool printData = (bool) userContext;
+
+    if (printData)
+    {
+        printf("process_readout_event_data, userContext=%p, eventIndex=%d, moduleCount=%u\n",
+                userContext, eventIndex, moduleCount);
+
+        for (unsigned mi=0; mi<moduleCount; ++mi)
+        {
+            readout_moduledata_t md = moduleDataList[mi];
+
+            if (md.prefix.size)
+            {
+                readout_datablock_t block = md.prefix;
+                printf("  prefix block of size %u: ", block.size);
+                for (u32 i=0; i<block.size; ++i)
+                    printf("0x%08x ", block.data[i]);
+                printf("\n");
+            }
+
+            if (md.dynamic.size)
+            {
+                readout_datablock_t block = md.dynamic;
+                printf("  dynamic block of size %u: ", block.size);
+                for (u32 i=0; i<block.size; ++i)
+                    printf("0x%08x ", block.data[i]);
+                printf("\n");
+            }
+
+            if (md.suffix.size)
+            {
+                readout_datablock_t block = md.suffix;
+                printf("  suffix block of size %u: ", block.size);
+                for (u32 i=0; i<block.size; ++i)
+                    printf("0x%08x ", block.data[i]);
+                printf("\n");
+            }
+        }
+    }
 }
 
 // Called for each software generated system event.
 void process_readout_system_event(
         void *userContext, const u32 *header, u32 size)
 {
-    (void) header;
-    (void) size;
-    printf("process_readout_system_event, userContext=%p\n", userContext);
+    bool printData = (bool) userContext;
+
+    if (printData)
+    {
+        printf("process_readout_system_event, userContext=%p, header=0x%08x, size=%u\n",
+               userContext, *header, size);
+    }
 }
 
 void print_help()
@@ -117,8 +156,6 @@ int main(int argc, char *argv[])
         }
     }
 
-    (void) opt_printReadoutData;
-
     if (!opt_crateConfigPath)
     {
         printf("Error: missing --crateconfig\n");
@@ -176,15 +213,17 @@ int main(int argc, char *argv[])
     if (opt_overwriteListfile)
         listfileParams.overwrite = true;
 
-    // Note: NULL callbacks are also ok
+    // Note: NULL callbacks would also be ok. In this case the readout data is only
+    // passed written to the listfile.
     //readout_parser_callbacks_t parserCallbacks = {NULL, NULL};
+
     readout_parser_callbacks_t parserCallbacks =
     {
         process_readout_event_data,
         process_readout_system_event
     };
 
-    void *userContext = (void *)0x1337u;
+    void *userContext = (void *) opt_printReadoutData;
 
     // readout
     mvlc_readout_t *rdo = mvlc_readout_create4(

@@ -12,9 +12,10 @@
 
 #include <mesytec-mvlc-c.h>
 
+#define errbufsize 1024u
+
 void run_some_mvlc_functions(mvlc_ctrl_t *mvlc)
 {
-    static const size_t errbufsize = 1024;
     char errbuf[errbufsize];
 
     printf("Running a few of the MVLC functions..\n");
@@ -37,7 +38,7 @@ void run_some_mvlc_functions(mvlc_ctrl_t *mvlc)
         return;
     }
 
-    static const u32 modBase = 0x03000000;
+    static const u32 modBase = 0x00000000;
     static const u32 hwReg = 0x6008;
     static const u32 fwReg = 0x600e;
     static const u8 amod = 0x09;
@@ -96,7 +97,6 @@ int main(int argc, char *argv[])
         }
     }
 
-    static const size_t errbufsize = 1024;
     char errbuf[errbufsize];
 
     // USB

@@ -483,7 +483,7 @@ typedef struct event_container
     system_event_t system;
 } event_container_t;
 
-inline bool is_valid_event(const event_container_t *event)
+static inline bool is_valid_event(const event_container_t *event)
 {
     return event->type != MVLC_EventType_None;
 }
@@ -512,6 +512,8 @@ mvlc_blocking_readout_t *mvlc_blocking_readout_create4(
     mvlc_crateconfig_t *cfg,
     mvlc_listfile_params_t listfileParams);
 
+mvlc_err_t mvlc_blocking_readout_start(mvlc_blocking_readout_t *r, int timeToRun_s);
+
 void mvlc_blocking_readout_destroy(mvlc_blocking_readout_t *r);
 
 mvlc_blocking_replay_t *mvlc_blocking_replay_create(
@@ -523,6 +525,8 @@ mvlc_blocking_replay_t *mvlc_blocking_replay_create2(
 
 mvlc_blocking_replay_t *mvlc_blocking_replay_create3(
     mvlc_listfile_read_handle_t lfh);
+
+mvlc_err_t mvlc_blocking_replay_start(mvlc_blocking_replay_t *r);
 
 void mvlc_blocking_replay_destroy(mvlc_blocking_replay_t *r);
 

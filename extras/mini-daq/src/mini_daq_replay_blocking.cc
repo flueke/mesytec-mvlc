@@ -4,6 +4,12 @@ using namespace mesytec::mvlc;
 
 int main(int argc, char *argv[])
 {
+    if (argc != 2)
+    {
+        std::cout << fmt::format("Usage: {} <listfile>\n", argv[0]) << std::endl;
+        return 1;
+    }
+
     auto replay = make_mvlc_replay_blocking(argv[1]);
 
     if (auto ec = replay.start())
@@ -47,7 +53,6 @@ int main(int argc, char *argv[])
 
         spdlog::info("hits for event {}: {}", eventIndex, count);
     }
-
 
     return 0;
 }
