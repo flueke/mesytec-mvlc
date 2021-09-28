@@ -12,7 +12,6 @@
 
 #include <mesytec-mvlc/mesytec-mvlc.h>
 #include <lyra/lyra.hpp>
-#include <spdlog/spdlog.h>
 
 using std::cout;
 using std::cerr;
@@ -174,7 +173,6 @@ int main(int argc, char *argv[])
     int opt_listfileCompressionLevel = 0;
     std::string opt_crateConfig;
     unsigned opt_secondsToRun = 10;
-    CommandExecOptions initOptions = {};
     bool opt_printReadoutData = false;
     bool opt_noPeriodicCounterDumps = false;
 
@@ -257,6 +255,7 @@ int main(int argc, char *argv[])
         return 0;
     }
 
+    // logging setup
     if (opt_logDebug)
         spdlog::set_level(spdlog::level::debug);
 
@@ -310,69 +309,31 @@ int main(int argc, char *argv[])
             return 1;
         }
 
-        cout << "Connected to MVLC " << mvlc.connectionInfo() << endl;
+        //cout << "Connected to MVLC " << mvlc.connectionInfo() << endl;
 
         //
-        // init
+        // Listfile setup
         //
+        if (opt_listfileOut.empty())
+            opt_listfileOut = util::basename(opt_crateConfig) + ".zip";
+
+        ListfileParams listfileParams =
         {
-            auto initResults = init_readout(mvlc, crateConfig, initOptions);
+            .writeListfile = !opt_noListfile,
+            .filepath = opt_listfileOut,
+            .overwrite = opt_overwriteListfile,
 
-            //cout << "Results from init_commands:" << endl << initResults.init << endl;
+            .compression = (opt_listfileCompressionType == "lz4"
+                            ? ListfileParams::Compression::LZ4
+                            : ListfileParams::Compression::ZIP),
 
-            if (initResults.ec)
-            {
-                spdlog::error("Error running readout init sequence: {}", initResults.ec.message());
-                return 1;
-            }
+            .compressionLevel = opt_listfileCompressionLevel,
 
-            spdlog::info("readout init sequence done");
-        }
-
-        //
-        // listfile
-        //
-        listfile::ZipCreator zipWriter;
-        listfile::WriteHandle *lfh = nullptr;
-
-        if (!opt_noListfile)
-        {
-            if (opt_listfileOut.empty())
-                opt_listfileOut = util::basename(opt_crateConfig) + ".zip";
-
-            cout << "listfile filename: " << opt_listfileOut << endl;
-
-            if (!opt_overwriteListfile && util::file_exists(opt_listfileOut))
-            {
-                cerr << "Error: output listfile " << opt_listfileOut << " exists."
-                    " Use  --overwrite-listfile to force overwriting the file." << endl;
-                return 1;
-            }
-
-            cout << "Opening output listfile " << opt_listfileOut << " for writing." << endl;
-
-            zipWriter.createArchive(opt_listfileOut, opt_overwriteListfile
-                                    ? listfile::ZipCreator::Overwrite
-                                    : listfile::ZipCreator::DontOverwrite);
-
-            if (opt_listfileCompressionType == "lz4")
-                lfh = zipWriter.createLZ4Entry("listfile.mvlclst", opt_listfileCompressionLevel);
-            else if (opt_listfileCompressionType == "zip")
-                lfh = zipWriter.createZIPEntry("listfile.mvlclst", opt_listfileCompressionLevel);
-            else
-                return 1;
-        }
-
-        // Write the CrateConfig and additional meta information to the listfile.
-        if (lfh)
-            listfile::listfile_write_preamble(*lfh, crateConfig);
+        };
 
         //
-        // Setup and start the readout parser.
+        // readout parser callbacks
         //
-        const size_t BufferSize = util::Megabytes(1);
-        const size_t BufferCount = 10;
-        ReadoutBufferQueues snoopQueues(BufferSize, BufferCount);
 
         readout_parser::ReadoutParserCallbacks parserCallbacks;
 
@@ -403,7 +364,8 @@ int main(int argc, char *argv[])
             }
         };
 
-        parserCallbacks.systemEvent = [opt_printReadoutData] (void *, const u32 *header, u32 size)
+        parserCallbacks.systemEvent = [opt_printReadoutData] (
+            void *, const u32 *header, u32 size)
         {
             if (opt_printReadoutData)
             {
@@ -415,42 +377,28 @@ int main(int argc, char *argv[])
             }
         };
 
-        auto parserState = readout_parser::make_readout_parser(crateConfig.stacks);
-        Protected<readout_parser::ReadoutParserCounters> parserCounters({});
-
-        std::thread parserThread;
-        std::atomic<bool> parserQuit(false);
-
-        parserThread = std::thread(
-            readout_parser::run_readout_parser,
-            std::ref(parserState),
-            std::ref(parserCounters),
-            std::ref(snoopQueues),
-            std::ref(parserCallbacks),
-            std::ref(parserQuit)
-            );
-
         //
-        // Create a ReadoutWorker and start the readout.
+        // readout object
         //
-        ReadoutWorker readoutWorker(mvlc, crateConfig.triggers, snoopQueues, lfh);
-        readoutWorker.setMcstDaqStartCommands(crateConfig.mcstDaqStart);
-        readoutWorker.setMcstDaqStopCommands(crateConfig.mcstDaqStop);
 
-        cout << "Starting readout worker. Running for " << timeToRun.count() << " seconds." << endl;
+        auto rdo = make_mvlc_readout(
+            mvlc,
+            crateConfig,
+            listfileParams,
+            parserCallbacks);
 
-        auto f = readoutWorker.start(timeToRun);
+        cout << "Starting readout. Running for " << timeToRun.count() << " seconds." << endl;
 
-        if (auto ec = f.get())
+        if (auto ec = rdo.start(timeToRun))
         {
-            cerr << "Error starting readout worker: " << ec.message() << endl;
+            cerr << "Error starting readout: " << ec.message() << endl;
             throw std::runtime_error("ReadoutWorker error");
         }
 
         // wait until readout done, dumping counter stats periodically
-        while (readoutWorker.state() != ReadoutWorker::State::Idle)
+        while (rdo.state() != ReadoutWorker::State::Idle)
         {
-            readoutWorker.waitableState().wait_for(
+            rdo.waitableState().wait_for(
                 std::chrono::milliseconds(1000),
                 [] (const ReadoutWorker::State &state)
                 {
@@ -463,26 +411,9 @@ int main(int argc, char *argv[])
                     cout,
                     crateConfig.connectionType,
                     mvlc.getStackErrorCounters(),
-                    readoutWorker.counters(),
-                    parserCounters.copy());
+                    rdo.workerCounters(),
+                    rdo.parserCounters());
             }
-        }
-
-        cout << "stopping readout_parser" << endl;
-
-        // stop the readout parser
-        if (parserThread.joinable())
-        {
-            parserQuit = true;
-            parserThread.join();
-        }
-
-        int retval = 0;
-
-        if (auto ec = disable_all_triggers_and_daq_mode(mvlc))
-        {
-            cerr << "Error disabling MVLC triggers: " << ec.message() << endl;
-            retval = 1;
         }
 
         mvlc.disconnect();
@@ -493,8 +424,8 @@ int main(int argc, char *argv[])
             cout,
             crateConfig.connectionType,
             mvlc.getStackErrorCounters(),
-            readoutWorker.counters(),
-            parserCounters.copy());
+            rdo.workerCounters(),
+            rdo.parserCounters());
 
 
         auto cmdPipeCounters = mvlc.getCmdPipeCounters();
@@ -519,7 +450,7 @@ int main(int argc, char *argv[])
                       cmdPipeCounters.superRefMismatches,
                       cmdPipeCounters.stackRefMismatches);
 
-        return retval;
+        return 0;
     }
     catch (const std::runtime_error &e)
     {
@@ -536,3 +467,4 @@ int main(int argc, char *argv[])
 
     return 0;
 }
+

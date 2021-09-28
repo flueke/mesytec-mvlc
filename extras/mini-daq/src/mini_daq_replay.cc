@@ -1,3 +1,4 @@
+#include "mesytec-mvlc/mvlc_constants.h"
 #include <regex>
 #include <unordered_set>
 
@@ -18,6 +19,8 @@ int main(int argc, char *argv[])
     std::string opt_listfileMemberName;
 
     bool opt_showHelp = false;
+    bool opt_logDebug = false;
+    bool opt_logTrace = false;
 
     auto cli
         = lyra::help(opt_showHelp)
@@ -29,6 +32,8 @@ int main(int argc, char *argv[])
         // logging
         | lyra::opt(opt_printReadoutData)
             ["--print-readout-data"]("log each word of readout data (very verbose!)")
+        | lyra::opt(opt_logDebug)["--debug"]("enable debug logging")
+        | lyra::opt(opt_logTrace)["--trace"]("enable trace logging")
 
         // positional args
         | lyra::arg(opt_listfileArchiveName, "listfile")
@@ -57,89 +62,19 @@ int main(int argc, char *argv[])
         return 0;
     }
 
-    listfile::ZipReader zr;
-    zr.openArchive(opt_listfileArchiveName);
+    // logging setup
+    if (opt_logDebug)
+        spdlog::set_level(spdlog::level::debug);
 
-    std::string entryName;
+    if (opt_logTrace)
+        spdlog::set_level(spdlog::level::trace);
 
-    if (!opt_listfileMemberName.empty())
-        entryName = opt_listfileMemberName;
-    else
-    {
-        // Try to find a listfile inside the archive.
-        auto entryNames = zr.entryNameList();
-
-        auto it = std::find_if(
-            std::begin(entryNames), std::end(entryNames),
-            [] (const std::string &entryName)
-            {
-                static const std::regex re(R"foo(.+\.mvlclst(\.lz4)?)foo");
-                return std::regex_search(entryName, re);
-            });
-
-        if (it != std::end(entryNames))
-            entryName = *it;
-    }
-
-    if (entryName.empty())
-    {
-        cerr << "Could not find a mvlclst zip archive member to replay from." << endl;
-        return 1;
-    }
-
-    auto &rh = *zr.openEntry(entryName);
-
-    auto preamble = listfile::read_preamble(rh);
-
-    if (!(preamble.magic == listfile::get_filemagic_eth()
-          || preamble.magic == listfile::get_filemagic_usb()))
-    {
-        cerr << "Invalid file format (magic bytes do not match the MVLC formats)" << endl;
-        return 1;
-    }
-
-    CrateConfig crateConfig = {};
-
-    {
-        auto configSection = preamble.findCrateConfig();
-
-        if (!configSection)
-        {
-            cerr << "The listfile does not contain an MVLC CrateConfig (corrupted file or wrong format)" << endl;
-            return 1;
-        }
-
-        try
-        {
-            crateConfig = crate_config_from_yaml(configSection->contentsToString());
-        }
-        catch (const std::runtime_error &e)
-        {
-            cerr << "Error parsing CrateConfig from listfile: " << e.what() << endl;
-            return 1;
-        }
-    }
-
-    if (opt_printCrateConfig)
-    {
-        cout << "CrateConfig found in " << opt_listfileArchiveName << ":"
-            << entryName << ":" << endl;
-        cout << to_yaml(crateConfig) << endl;
-        return 0;
-    }
-
-    cout << "Starting replay from " << opt_listfileArchiveName << ":" << entryName << endl;
-
-    //
-    // readout parser
-    //
-    const size_t BufferSize = util::Megabytes(1);
-    const size_t BufferCount = 100;
-    ReadoutBufferQueues snoopQueues(BufferSize, BufferCount);
-
+    // readout parser callbacks
     readout_parser::ReadoutParserCallbacks parserCallbacks;
+    size_t nSystems = 0;
+    size_t nReadouts = 0;
 
-    parserCallbacks.eventData = [opt_printReadoutData] (
+    parserCallbacks.eventData = [opt_printReadoutData, &nReadouts] (
         void *, int eventIndex, const readout_parser::ModuleData *moduleDataList, unsigned moduleCount)
     {
         if (opt_printReadoutData)
@@ -164,9 +99,11 @@ int main(int argc, char *argv[])
                         fmt::format("suffix part: eventIndex={}, moduleIndex={}", eventIndex, moduleIndex));
             }
         }
+
+        ++nReadouts;
     };
 
-    parserCallbacks.systemEvent = [opt_printReadoutData] (void *, const u32 *header, u32 size)
+    parserCallbacks.systemEvent = [opt_printReadoutData, &nSystems] (void *, const u32 *header, u32 size)
     {
         if (opt_printReadoutData)
         {
@@ -176,50 +113,47 @@ int main(int argc, char *argv[])
                 << ", size=" << size << ", bytes=" << (size * sizeof(u32))
                 << endl;
         }
+
+        ++nSystems;
     };
 
-    auto parserState = readout_parser::make_readout_parser(crateConfig.stacks);
-    Protected<readout_parser::ReadoutParserCounters> parserCounters({});
+    auto replay = make_mvlc_replay(
+        opt_listfileArchiveName,
+        opt_listfileMemberName,
+        parserCallbacks);
 
-    std::thread parserThread;
-    std::atomic<bool> parserQuit(false);
 
-    parserThread = std::thread(
-        readout_parser::run_readout_parser,
-        std::ref(parserState),
-        std::ref(parserCounters),
-        std::ref(snoopQueues),
-        std::ref(parserCallbacks),
-        std::ref(parserQuit)
-        );
-
-    ReplayWorker replayWorker(snoopQueues, &rh);
-
-    auto f = replayWorker.start();
-
-    // wait until replay done
-    replayWorker.waitableState().wait(
-        [] (const ReplayWorker::State &state)
-        {
-            return state == ReplayWorker::State::Idle;
-        });
-
-    cout << "stopping readout_parser" << endl;
-
-    // stop the readout parser
-    if (parserThread.joinable())
+    if (opt_printCrateConfig)
     {
-        parserQuit = true;
-        parserThread.join();
+        cout << "CrateConfig found in " << opt_listfileArchiveName << ":" << endl;
+        cout << to_yaml(replay.crateConfig()) << endl;
+        return 0;
     }
 
-    cout << "Replay from " << opt_listfileArchiveName << ":" << entryName << " done" << endl;
+    cout << "Starting replay from " << opt_listfileArchiveName << "..." << endl;
+
+    if (auto ec = replay.start())
+    {
+        cerr << "Error starting replay: " << ec.message() << endl;
+        return 1;
+    }
+
+    while (replay.state() != ReplayWorker::State::Idle)
+    {
+        replay.waitableState().wait_for(
+            std::chrono::milliseconds(1000),
+            [] (const ReplayWorker::State &state)
+            {
+                return state == ReplayWorker::State::Idle;
+            });
+    }
+
 
     //
     // replay stats
     //
     {
-        auto counters = replayWorker.counters();
+        auto counters = replay.workerCounters();
 
         auto tStart = counters.tStart;
         auto tEnd = (counters.state != ReplayWorker::State::Idle
@@ -243,12 +177,15 @@ int main(int argc, char *argv[])
     // parser stats
     //
     {
-        auto counters = parserCounters.copy();
+        auto counters = replay.parserCounters();
 
         cout << endl;
         cout << "---- readout parser stats ----" << endl;
-        readout_parser::print_counters(cout, parserCounters.copy());
+        readout_parser::print_counters(cout, counters);
     }
+
+    spdlog::info("nSystems={}, nReadouts={}",
+                 nSystems, nReadouts);
 
     return 0;
 }
