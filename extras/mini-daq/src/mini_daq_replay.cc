@@ -138,16 +138,8 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    while (replay.state() != ReplayWorker::State::Idle)
-    {
-        replay.waitableState().wait_for(
-            std::chrono::milliseconds(1000),
-            [] (const ReplayWorker::State &state)
-            {
-                return state == ReplayWorker::State::Idle;
-            });
-    }
-
+    while (!replay.finished())
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
 
     //
     // replay stats

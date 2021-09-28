@@ -395,15 +395,9 @@ int main(int argc, char *argv[])
             throw std::runtime_error("ReadoutWorker error");
         }
 
-        // wait until readout done, dumping counter stats periodically
-        while (rdo.state() != ReadoutWorker::State::Idle)
+        while (!rdo.finished())
         {
-            rdo.waitableState().wait_for(
-                std::chrono::milliseconds(1000),
-                [] (const ReadoutWorker::State &state)
-                {
-                    return state == ReadoutWorker::State::Idle;
-                });
+            std::this_thread::sleep_for(std::chrono::milliseconds(1000));
 
             if (!opt_noPeriodicCounterDumps)
             {
