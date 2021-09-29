@@ -466,7 +466,7 @@ class CmdApi
             u32 stackRef, const StackCommandBuilder &stackBuilder, std::vector<u32> &stackResponse);
 
     private:
-        static constexpr std::chrono::milliseconds ResultWaitTimeout = std::chrono::milliseconds(250);
+        static constexpr std::chrono::milliseconds ResultWaitTimeout = std::chrono::milliseconds(500);
 
         ReaderContext &readerContext_;
 };
