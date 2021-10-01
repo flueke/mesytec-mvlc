@@ -136,21 +136,14 @@ class MVLCErrorCategory: public std::error_category
             case MVLCErrorCode::ReadoutSetupError:
                  return "Generic Readout Setup Error";
 
-            case MVLCErrorCode::StackIndexOutOfRange:
-                 return "Stack index out of range";
-
             case MVLCErrorCode::UnexpectedBufferHeader:
                  return "Unexpected buffer header";
-
-            case MVLCErrorCode::NeedMoreData:
-                 return "Need more data";
 
             case MVLCErrorCode::InUse:
                  return "MVLC is in use";
 
             case MVLCErrorCode::USBChipConfigError:
                  return "Incorrect USB chip configuration (FTDI)";
-
 
             case MVLCErrorCode::CommandTimeout:
                  return "CommandTimeout";
@@ -215,9 +208,7 @@ class MVLCErrorCategory: public std::error_category
             case MVLCErrorCode::InvalidStackHeader:
             case MVLCErrorCode::TimerCountExceeded: // FIXME: does not belong here (used in mvlc_daq.cc)
             case MVLCErrorCode::ReadoutSetupError:  // FIXME: does not belong here (used in mvlc_daq.cc)
-            case MVLCErrorCode::StackIndexOutOfRange:
             case MVLCErrorCode::UnexpectedBufferHeader:
-            case MVLCErrorCode::NeedMoreData:
             case MVLCErrorCode::UDPPacketChannelOutOfRange:
             case MVLCErrorCode::UDPDataWordCountExceedsPacketSize:
             case MVLCErrorCode::NonBlockAddressMode:

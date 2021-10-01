@@ -42,7 +42,7 @@ bool is_stack_command(u8 v)
             || v == static_cast<u8>(StackCT::VMEMBLTSwapped)
             || v == static_cast<u8>(StackCT::WriteMarker)
             || v == static_cast<u8>(StackCT::WriteSpecial)
-            || v == static_cast<u8>(StackCT::AddressIncMode)
+            || v == static_cast<u8>(StackCT::SetAddressIncMode)
             || v == static_cast<u8>(StackCT::Wait)
             || v == static_cast<u8>(StackCT::SignalAccu)
             || v == static_cast<u8>(StackCT::MaskShiftAccu)
@@ -264,8 +264,8 @@ std::string to_string(const StackCommand &cmd)
         case CT::WriteSpecial:
             return fmt::format("write_special {}", cmd.value);
 
-        case CT::AddressIncMode:
-                return fmt::format("address_inc_mode {}",
+        case CT::SetAddressIncMode:
+                return fmt::format("set_address_inc_mode {}",
                     address_inc_mode_to_string(cmd.value));
 
         case CT::Wait:
@@ -358,9 +358,9 @@ StackCommand stack_command_from_string(const std::string &str)
         result.type = CT::WriteSpecial;
         iss >> arg; result.value = std::stoul(arg, nullptr, 0);
     }
-    else if (name == "address_inc_mode")
+    else if (name == "set_address_inc_mode")
     {
-        result.type = CT::AddressIncMode;
+        result.type = CT::SetAddressIncMode;
         iss >> arg; result.value = address_inc_mode_from_string(arg);
     }
     else if (name == "wait")
@@ -500,7 +500,7 @@ StackCommandBuilder &StackCommandBuilder::addWriteMarker(u32 value)
 StackCommandBuilder &StackCommandBuilder::addSetAddressIncMode(const AddressIncrementMode &mode)
 {
     StackCommand cmd = {};
-    cmd.type = CommandType::AddressIncMode;
+    cmd.type = CommandType::SetAddressIncMode;
     cmd.value = static_cast<u32>(mode);
 
     return addCommand(cmd);
@@ -729,7 +729,7 @@ size_t get_encoded_size(const StackCommand::CommandType &type)
     {
         case StackCT::StackStart:
         case StackCT::StackEnd:
-        case StackCT::AddressIncMode:
+        case StackCT::SetAddressIncMode:
         case StackCT::Wait:
         case StackCT::SignalAccu:
         case StackCT::Custom:
@@ -983,7 +983,7 @@ std::vector<u32> make_stack_buffer(const std::vector<StackCommand> &stack)
                     result.push_back(customValue);
                 break;
 
-            case CommandType::AddressIncMode:
+            case CommandType::SetAddressIncMode:
                 cmdWord |= cmd.value & 0x00FFFFFFu; // 0: FIFO, 1: mem
                 result.push_back(cmdWord);
                 break;
@@ -1122,7 +1122,7 @@ std::vector<StackCommand> stack_commands_from_buffer(const std::vector<u32> &buf
                 cmd.value = (*it & 0x00FFFFFFu);
                 break;
 
-            case StackCT::AddressIncMode:
+            case StackCT::SetAddressIncMode:
                 cmd.value = arg1;
                 break;
 

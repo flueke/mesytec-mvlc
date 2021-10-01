@@ -49,11 +49,7 @@ enum class MVLCErrorCode
     TimerCountExceeded,
     ReadoutSetupError,
 
-    // TODO: move these into a readout worker error enum. This is not really
-    // MVLC layer stuff
-    StackIndexOutOfRange,
-    UnexpectedBufferHeader,
-    NeedMoreData,
+    UnexpectedBufferHeader, // mvlc_dialog.cc
 
     // Returned by the ETH implementation on connect if it detects that any of
     // the triggers are enabled.
@@ -63,6 +59,7 @@ enum class MVLCErrorCode
     // not correct.
     USBChipConfigError,
 
+    // Added for mvlc_apiv2.cc
     CommandTimeout,
     ShortSuperFrame,
     SuperFormatError,

@@ -32,7 +32,7 @@ CommandExecResult run_command(
         case CT::StackEnd:
         case CT::WriteMarker:
         case CT::WriteSpecial:
-        case CT::AddressIncMode:
+        case CT::SetAddressIncMode:
         case CT::Wait:
         case CT::SignalAccu:
         case CT::MaskShiftAccu:

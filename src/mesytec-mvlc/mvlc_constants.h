@@ -109,7 +109,7 @@ namespace stack_commands
         WriteMarker         = 0xC2, // Writes a 32-bit marker value into the output data stream.
         WriteSpecial        = 0xC1, // Write a special value into the output data stream (not implemented).
 
-        AddressIncMode      = 0xC3, // Address increment for block reads: 0=FIFO read, 1=memory read
+        SetAddressIncMode   = 0xC3, // Address increment for block reads: 0=FIFO read, 1=memory read
         Wait                = 0xC4, // Delay in units of MVLC clocks. The number of clocks to delay is
                                     // specified as a 24-bit number.
 

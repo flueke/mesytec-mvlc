@@ -96,7 +96,7 @@ struct MESYTEC_MVLC_EXPORT StackCommand
         VMEMBLTSwapped      = static_cast<u8>(StackCommandType::VMEMBLTSwapped),
         WriteMarker         = static_cast<u8>(StackCommandType::WriteMarker),
         WriteSpecial        = static_cast<u8>(StackCommandType::WriteSpecial),
-        AddressIncMode      = static_cast<u8>(StackCommandType::AddressIncMode),
+        SetAddressIncMode   = static_cast<u8>(StackCommandType::SetAddressIncMode),
         Wait                = static_cast<u8>(StackCommandType::Wait),
         SignalAccu          = static_cast<u8>(StackCommandType::SignalAccu),
         MaskShiftAccu       = static_cast<u8>(StackCommandType::MaskShiftAccu),
