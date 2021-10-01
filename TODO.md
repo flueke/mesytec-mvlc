@@ -6,8 +6,8 @@ TODO {#todo}
 * Core API for reading listfiles and working with the data:
   - Multiple views:
     - linear readout data (does not need crate config)
-    - parsed readout data
-  Done: - single thread / blocking api for working with event data
+    - DONE parsed readout data
+    - DONE single thread / blocking api for working with event data
 * Add (API) version info to CrateConfig and the yaml format.
 
 * abstraction for the trigger/io system. This needs to be flexible because the
