@@ -155,6 +155,43 @@ std::vector<SuperCommand> SuperCommandBuilder::getCommands() const
 // StackCommand
 //
 
+std::string address_inc_mode_to_string(AddressIncrementMode mode)
+{
+    switch (mode)
+    {
+        case AddressIncrementMode::FIFO: return "fifo";
+        case AddressIncrementMode::Memory: return "mem";
+    }
+    return {};
+}
+
+AddressIncrementMode address_inc_mode_from_string(const std::string &mode)
+{
+    if (mode == "fifo") return AddressIncrementMode::FIFO;
+    if (mode == "mem") return AddressIncrementMode::Memory;
+    return {};
+}
+
+std::string accu_comparator_to_string(AccuComparator comparator)
+{
+    switch (comparator)
+    {
+        case AccuComparator::EQ: return "eq";
+        case AccuComparator::LT: return "lt";
+        case AccuComparator::GT: return "gt";
+        default: break;
+    }
+    return {};
+}
+
+AccuComparator accu_comparator_from_string(const std::string &comparator)
+{
+    if (comparator == "eq") return AccuComparator::EQ;
+    if (comparator == "lt") return AccuComparator::LT;
+    if (comparator == "gt") return AccuComparator::GT;
+    return {};
+}
+
 namespace
 {
 
@@ -180,43 +217,6 @@ VMEDataWidth vme_data_width_from_string(const std::string &str)
         return VMEDataWidth::D32;
 
     throw std::runtime_error("invalid VMEDataWidth");
-}
-
-std::string address_inc_mode_to_string(u32 mode)
-{
-    switch (mode)
-    {
-        case 0: return "fifo";
-        case 1: return "mem";
-    }
-    return {};
-}
-
-u32 address_inc_mode_from_string(const std::string &mode)
-{
-    if (mode == "fifo") return 0;
-    if (mode == "mem") return 1;
-    return {};
-}
-
-std::string accu_comparator_to_string(u32 comparator)
-{
-    switch (comparator)
-    {
-        case 0x0: return "eq";
-        case 0x1: return "lt";
-        case 0x2: return "gt";
-        default: break;
-    }
-    return {};
-}
-
-u32 accu_comparator_from_string(const std::string &comparator)
-{
-    if (comparator == "eq") return 0x0;
-    if (comparator == "lt") return 0x1;
-    if (comparator == "gt") return 0x2;
-    return {};
 }
 
 } // end anon namespace
@@ -266,7 +266,7 @@ std::string to_string(const StackCommand &cmd)
 
         case CT::SetAddressIncMode:
                 return fmt::format("set_address_inc_mode {}",
-                    address_inc_mode_to_string(cmd.value));
+                    address_inc_mode_to_string(static_cast<AddressIncrementMode>(cmd.value)));
 
         case CT::Wait:
                 return fmt::format("wait {}", cmd.value);
@@ -289,7 +289,7 @@ std::string to_string(const StackCommand &cmd)
         case CT::CompareLoopAccu:
                 // args: compare mode, value
                 return fmt::format("compare_loop_accu {} {}",
-                    accu_comparator_to_string(cmd.value), cmd.address);
+                    accu_comparator_to_string(static_cast<AccuComparator>(cmd.value)), cmd.address);
 
         case CT::SoftwareDelay:
             return fmt::format("software_delay {}", cmd.value);
@@ -361,7 +361,7 @@ StackCommand stack_command_from_string(const std::string &str)
     else if (name == "set_address_inc_mode")
     {
         result.type = CT::SetAddressIncMode;
-        iss >> arg; result.value = address_inc_mode_from_string(arg);
+        iss >> arg; result.value = static_cast<u32>(address_inc_mode_from_string(arg));
     }
     else if (name == "wait")
     {
@@ -393,7 +393,7 @@ StackCommand stack_command_from_string(const std::string &str)
     else if (name == "compare_loop_accu")
     {
         result.type = CT::CompareLoopAccu;
-        iss >> arg; result.value = accu_comparator_from_string(arg); // comparator
+        iss >> arg; result.value = static_cast<u32>(accu_comparator_from_string(arg)); // comparator
         iss >> arg; result.address = std::stoul(arg, nullptr, 0); // value to compare against
     }
     else if (name == "software_delay")

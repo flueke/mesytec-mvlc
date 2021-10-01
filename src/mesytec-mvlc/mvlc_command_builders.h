@@ -310,6 +310,13 @@ MESYTEC_MVLC_EXPORT std::vector<SuperCommand> make_stack_upload_commands(
 MESYTEC_MVLC_EXPORT std::vector<SuperCommand> make_stack_upload_commands(
     u8 stackOutputPipe, u16 StackMemoryOffset, const std::vector<u32> &stackBuffer);
 
+// Command parsing utilities
+MESYTEC_MVLC_EXPORT std::string address_inc_mode_to_string(AddressIncrementMode mode);
+MESYTEC_MVLC_EXPORT AddressIncrementMode address_inc_mode_from_string(const std::string &mode);
+
+MESYTEC_MVLC_EXPORT std::string accu_comparator_to_string(AccuComparator comp);
+MESYTEC_MVLC_EXPORT AccuComparator accu_comparator_from_string(const std::string &comparator);
+
 }
 }
 
