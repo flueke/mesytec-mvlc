@@ -294,8 +294,37 @@ TEST(mvlc_commands, StackFromBuffer)
     builder.addVMEBlockRead(0x1338u, vme_amods::BLT32, 42);
     builder.addVMEWrite(0x1339u, 43, 0x09u, VMEDataWidth::D32);
     builder.addWriteMarker(0x87654321u);
+    builder.addSetAddressIncMode(AddressIncrementMode::Memory);
+    builder.addWait(42069);
+    builder.addSignalAccu();
+    builder.addMaskShiftAccu(0x0FF0, 7);
+    builder.addSetAccu(1234);
+    builder.addReadToAccu(0x1340u, 0x09u, VMEDataWidth::D32);
+    builder.addCompareLoopAccu(AccuComparator::GT, 9000u);
+
     ASSERT_EQ(builder.getGroupCount(), 1);
 
+    // Test cmd -> string -> cmd conversion
+    for (const auto &cmd: builder.getCommands())
+    {
+        auto cmdString = to_string(cmd);
+        cout << cmdString << endl;
+        auto cmdParsed = stack_command_from_string(cmdString);
+        ASSERT_EQ(cmd, cmdParsed);
+    }
+
+    // Test cmd -> buffer -> cmd conversion
+    for (const auto &cmd: builder.getCommands())
+    {
+        auto buffer = make_stack_buffer(cmd);
+        auto bufcmds = stack_commands_from_buffer(buffer);
+        ASSERT_EQ(bufcmds.size(), 1u);
+        auto cmdParsed = bufcmds[0];
+        ASSERT_EQ(cmd, cmdParsed);
+    }
+
+    // Convert the whole builder to a stack buffer, then parse the buffer back
+    // into a builder and finally compare both builders.
     auto buffer = make_stack_buffer(builder);
     auto builder2 = stack_builder_from_buffer(buffer);
 

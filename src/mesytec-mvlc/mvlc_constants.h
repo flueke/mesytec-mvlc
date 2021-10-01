@@ -77,7 +77,7 @@ namespace super_commands
     };
 }
 
-using super_commands::SuperCommandType;
+using SuperCommandType = super_commands::SuperCommandType;
 
 // Stack-only commands. These can be written into the stack memory area
 // starting from StackMemoryBegin using WriteLocal commands.
@@ -121,7 +121,7 @@ namespace stack_commands
     };
 }
 
-using stack_commands::StackCommandType;
+using StackCommandType = stack_commands::StackCommandType;
 
 // Constants for working with incoming data frames.
 namespace frame_headers
@@ -274,6 +274,19 @@ enum class SpecialWord: u8
 {
     Timestamp,
     StackTriggers
+};
+
+enum class AddressIncrementMode: u8
+{
+    FIFO,
+    Memory
+};
+
+enum class AccuComparator: u8
+{
+    EQ, // ==
+    LT, // <
+    GT, // >
 };
 
 static const u16 InternalRegisterMin = 0x0001;

@@ -108,8 +108,8 @@ struct MESYTEC_MVLC_EXPORT StackCommand
         // SoftwareDelay command.
         SoftwareDelay       = static_cast<u8>(0xEDu),
 
-        // Special value for custom (binary) stack data. The stack data word is
-        // stored in the 'value' member.
+        // Special value for custom (binary) stack data. The stack data words are
+        // stored in the 'customValues' member.
         Custom              = static_cast<u8>(0xEEu),
     };
 
@@ -130,7 +130,9 @@ struct MESYTEC_MVLC_EXPORT StackCommand
                 && amod == o.amod
                 && dataWidth == o.dataWidth
                 && transfers == o.transfers
-                && rate == o.rate);
+                && rate == o.rate
+                && customValues == o.customValues
+               );
     }
 
     bool operator!=(const StackCommand &o) const noexcept
@@ -174,9 +176,9 @@ class MESYTEC_MVLC_EXPORT StackCommandBuilder
         bool operator==(const StackCommandBuilder &o) const;
         bool operator!=(const StackCommandBuilder &o) const { return !(*this == o); }
 
-        // These methods each add a single command to the currently open group.
-        // If there exists no open group a new group with an empty name will be
-        // created.
+        // Note: these methods each add a single command to the currently open
+        // group. If there exists no open group a new group with an empty name
+        // will be created.
         StackCommandBuilder &addVMERead(u32 address, u8 amod, VMEDataWidth dataWidth);
         StackCommandBuilder &addVMEBlockRead(u32 address, u8 amod, u16 maxTransfers);
         StackCommandBuilder &addVMEMBLTSwapped(u32 address, u8 amod, u16 maxTransfers);
@@ -185,12 +187,21 @@ class MESYTEC_MVLC_EXPORT StackCommandBuilder
         StackCommandBuilder &addVMEWrite(u32 address, u32 value, u8 amod, VMEDataWidth dataWidth);
         StackCommandBuilder &addWriteMarker(u32 value);
 
+        StackCommandBuilder &addSetAddressIncMode(const AddressIncrementMode &mode);
+        StackCommandBuilder &addWait(u32 clocks);
+        StackCommandBuilder &addSignalAccu();
+        StackCommandBuilder &addMaskShiftAccu(u32 mask, u8 shift);
+        StackCommandBuilder &addSetAccu(u32 value);
+        StackCommandBuilder &addReadToAccu(u32 address, u8 amod, VMEDataWidth dataWidth);
+        StackCommandBuilder &addCompareLoopAccu(AccuComparator comp, u32 value);
+
         // Intended for direct stack execution. Suspends further command
         // execution for the given duration.
         // Is not supported for stacks uploaded to the MVLC for autonomous
         // execution.
         StackCommandBuilder &addSoftwareDelay(const std::chrono::milliseconds &ms);
 
+        // Add a manually created StackCommand object.
         StackCommandBuilder &addCommand(const StackCommand &cmd);
 
         // Begins a new group using the supplied name.
@@ -282,6 +293,7 @@ MESYTEC_MVLC_EXPORT SuperCommandBuilder super_builder_from_buffer(const std::vec
 // not interleaved with the write commands for uploading.
 MESYTEC_MVLC_EXPORT std::vector<u32> make_stack_buffer(const StackCommandBuilder &builder);
 MESYTEC_MVLC_EXPORT std::vector<u32> make_stack_buffer(const std::vector<StackCommand> &stack);
+MESYTEC_MVLC_EXPORT std::vector<u32> make_stack_buffer(const StackCommand &cmd);
 
 // Note: these do not work if the stack contains custom/arbitrary data.
 MESYTEC_MVLC_EXPORT StackCommandBuilder stack_builder_from_buffer(const std::vector<u32> &buffer);

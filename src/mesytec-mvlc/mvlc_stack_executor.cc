@@ -25,7 +25,6 @@ CommandExecResult run_command(
 
     using CT = StackCommand::CommandType;
 
-    // TODO: add the new fw0019 commands
     switch (cmd.type)
     {
         case CT::Invalid:
@@ -33,6 +32,14 @@ CommandExecResult run_command(
         case CT::StackEnd:
         case CT::WriteMarker:
         case CT::WriteSpecial:
+        case CT::AddressIncMode:
+        case CT::Wait:
+        case CT::SignalAccu:
+        case CT::MaskShiftAccu:
+        case CT::SetAccu:
+        case CT::ReadToAccu:
+        case CT::CompareLoopAccu:
+        case CT::Custom:
             return result;
 
         case CT::SoftwareDelay:

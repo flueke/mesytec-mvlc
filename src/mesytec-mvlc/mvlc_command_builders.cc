@@ -41,7 +41,15 @@ bool is_stack_command(u8 v)
             || v == static_cast<u8>(StackCT::VMERead)
             || v == static_cast<u8>(StackCT::VMEMBLTSwapped)
             || v == static_cast<u8>(StackCT::WriteMarker)
-            || v == static_cast<u8>(StackCT::WriteSpecial));
+            || v == static_cast<u8>(StackCT::WriteSpecial)
+            || v == static_cast<u8>(StackCT::AddressIncMode)
+            || v == static_cast<u8>(StackCT::Wait)
+            || v == static_cast<u8>(StackCT::SignalAccu)
+            || v == static_cast<u8>(StackCT::MaskShiftAccu)
+            || v == static_cast<u8>(StackCT::SetAccu)
+            || v == static_cast<u8>(StackCT::ReadToAccu)
+            || v == static_cast<u8>(StackCT::CompareLoopAccu)
+            );
 }
 
 }
@@ -174,6 +182,43 @@ VMEDataWidth vme_data_width_from_string(const std::string &str)
     throw std::runtime_error("invalid VMEDataWidth");
 }
 
+std::string address_inc_mode_to_string(u32 mode)
+{
+    switch (mode)
+    {
+        case 0: return "fifo";
+        case 1: return "mem";
+    }
+    return {};
+}
+
+u32 address_inc_mode_from_string(const std::string &mode)
+{
+    if (mode == "fifo") return 0;
+    if (mode == "mem") return 1;
+    return {};
+}
+
+std::string accu_comparator_to_string(u32 comparator)
+{
+    switch (comparator)
+    {
+        case 0x0: return "eq";
+        case 0x1: return "lt";
+        case 0x2: return "gt";
+        default: break;
+    }
+    return {};
+}
+
+u32 accu_comparator_from_string(const std::string &comparator)
+{
+    if (comparator == "eq") return 0x0;
+    if (comparator == "lt") return 0x1;
+    if (comparator == "gt") return 0x2;
+    return {};
+}
+
 } // end anon namespace
 
 std::string to_string(const StackCommand &cmd)
@@ -220,7 +265,8 @@ std::string to_string(const StackCommand &cmd)
             return fmt::format("write_special {}", cmd.value);
 
         case CT::AddressIncMode:
-                return fmt::format("address_inc_mode {}", cmd.value);
+                return fmt::format("address_inc_mode {}",
+                    address_inc_mode_to_string(cmd.value));
 
         case CT::Wait:
                 return fmt::format("wait {}", cmd.value);
@@ -229,16 +275,21 @@ std::string to_string(const StackCommand &cmd)
                 return fmt::format("signal_accu");
 
         case CT::MaskShiftAccu:
-                return fmt::format("mask_shift_accu");
+                // args: mask, shift
+                return fmt::format("mask_shift_accu {:#010x} {}", cmd.address, cmd.value);
 
         case CT::SetAccu:
-                return fmt::format("set_accu");
+                return fmt::format("set_accu {}", cmd.value);
 
         case CT::ReadToAccu:
-                return fmt::format("read_to_accu");
+                // same as non-block vme reads
+                return fmt::format("read_to_accu {:#04x} {} {:#010x}",
+                    cmd.amod, to_string(cmd.dataWidth), cmd.address);
 
         case CT::CompareLoopAccu:
-                return fmt::format("compare_loop_accu");
+                // args: compare mode, value
+                return fmt::format("compare_loop_accu {} {}",
+                    accu_comparator_to_string(cmd.value), cmd.address);
 
         case CT::SoftwareDelay:
             return fmt::format("software_delay {}", cmd.value);
@@ -274,15 +325,6 @@ StackCommand stack_command_from_string(const std::string &str)
         iss >> arg; result.dataWidth = vme_data_width_from_string(arg);
         iss >> arg; result.address = std::stoul(arg, nullptr, 0);
     }
-#if 0 // fw 19
-    else if (name == "vme_signal_read")
-    {
-        result.type = CT::SignallingVMERead;
-        iss >> arg; result.amod = std::stoul(arg, nullptr, 0);
-        iss >> arg; result.dataWidth = vme_data_width_from_string(arg);
-        iss >> arg; result.address = std::stoul(arg, nullptr, 0);
-    }
-#endif
     else if (name == "vme_block_read")
     {
         // FIXME: Blk2eSST is missing
@@ -316,13 +358,44 @@ StackCommand stack_command_from_string(const std::string &str)
         result.type = CT::WriteSpecial;
         iss >> arg; result.value = std::stoul(arg, nullptr, 0);
     }
-#if 0 // fw 19
-    else if (name == "write_signal_word")
+    else if (name == "address_inc_mode")
     {
-        result.type = CT::WriteSignalWord;
+        result.type = CT::AddressIncMode;
+        iss >> arg; result.value = address_inc_mode_from_string(arg);
+    }
+    else if (name == "wait")
+    {
+        result.type = CT::Wait;
         iss >> arg; result.value = std::stoul(arg, nullptr, 0);
     }
-#endif
+    else if (name == "signal_accu")
+    {
+        result.type = CT::SignalAccu;
+    }
+    else if (name == "mask_shift_accu")
+    {
+        result.type = CT::MaskShiftAccu;
+        iss >> arg; result.address = std::stoul(arg, nullptr, 0); // mask
+        iss >> arg; result.value = std::stoul(arg, nullptr, 0); // shift
+    }
+    else if (name == "set_accu")
+    {
+        result.type = CT::SetAccu;
+        iss >> arg; result.value = std::stoul(arg, nullptr, 0);
+    }
+    else if (name == "read_to_accu")
+    {
+        result.type = CT::ReadToAccu;
+        iss >> arg; result.amod = std::stoul(arg, nullptr, 0);
+        iss >> arg; result.dataWidth = vme_data_width_from_string(arg);
+        iss >> arg; result.address = std::stoul(arg, nullptr, 0);
+    }
+    else if (name == "compare_loop_accu")
+    {
+        result.type = CT::CompareLoopAccu;
+        iss >> arg; result.value = accu_comparator_from_string(arg); // comparator
+        iss >> arg; result.address = std::stoul(arg, nullptr, 0); // value to compare against
+    }
     else if (name == "software_delay")
     {
         result.type = CT::SoftwareDelay;
@@ -372,9 +445,7 @@ StackCommandBuilder &StackCommandBuilder::addVMERead(u32 address, u8 amod, VMEDa
     cmd.amod = amod;
     cmd.dataWidth = dataWidth;
 
-    addCommand(cmd);
-
-    return *this;
+    return addCommand(cmd);
 }
 
 StackCommandBuilder &StackCommandBuilder::addVMEBlockRead(u32 address, u8 amod, u16 maxTransfers)
@@ -385,9 +456,7 @@ StackCommandBuilder &StackCommandBuilder::addVMEBlockRead(u32 address, u8 amod, 
     cmd.amod = amod;
     cmd.transfers = maxTransfers;
 
-    addCommand(cmd);
-
-    return *this;
+    return addCommand(cmd);
 }
 
 StackCommandBuilder &StackCommandBuilder::addVMEMBLTSwapped(u32 address, u8 amod, u16 maxTransfers)
@@ -398,9 +467,7 @@ StackCommandBuilder &StackCommandBuilder::addVMEMBLTSwapped(u32 address, u8 amod
     cmd.amod = amod;
     cmd.transfers = maxTransfers;
 
-    addCommand(cmd);
-
-    return *this;
+    return addCommand(cmd);
 }
 
 StackCommandBuilder &StackCommandBuilder::addVMEMBLTSwapped(u32 address, u16 maxTransfers)
@@ -418,9 +485,7 @@ StackCommandBuilder &StackCommandBuilder::addVMEWrite(u32 address, u32 value, u8
     cmd.amod = amod;
     cmd.dataWidth = dataWidth;
 
-    addCommand(cmd);
-
-    return *this;
+    return addCommand(cmd);
 }
 
 StackCommandBuilder &StackCommandBuilder::addWriteMarker(u32 value)
@@ -429,9 +494,73 @@ StackCommandBuilder &StackCommandBuilder::addWriteMarker(u32 value)
     cmd.type = CommandType::WriteMarker;
     cmd.value = value;
 
-    addCommand(cmd);
+    return addCommand(cmd);
+}
 
-    return *this;
+StackCommandBuilder &StackCommandBuilder::addSetAddressIncMode(const AddressIncrementMode &mode)
+{
+    StackCommand cmd = {};
+    cmd.type = CommandType::AddressIncMode;
+    cmd.value = static_cast<u32>(mode);
+
+    return addCommand(cmd);
+}
+
+StackCommandBuilder &StackCommandBuilder::addWait(u32 clocks)
+{
+    StackCommand cmd = {};
+    cmd.type = CommandType::Wait;
+    cmd.value = clocks;
+
+    return addCommand(cmd);
+}
+
+StackCommandBuilder &StackCommandBuilder::addSignalAccu()
+{
+    StackCommand cmd = {};
+    cmd.type = CommandType::SignalAccu;
+
+    return addCommand(cmd);
+}
+
+StackCommandBuilder &StackCommandBuilder::addMaskShiftAccu(u32 mask, u8 shift)
+{
+    StackCommand cmd = {};
+    cmd.type = CommandType::MaskShiftAccu;
+    cmd.value = shift;
+    cmd.address = mask;
+
+    return addCommand(cmd);
+}
+
+StackCommandBuilder &StackCommandBuilder::addSetAccu(u32 value)
+{
+    StackCommand cmd = {};
+    cmd.type = CommandType::SetAccu;
+    cmd.value = value;
+
+    return addCommand(cmd);
+}
+
+StackCommandBuilder &StackCommandBuilder::addReadToAccu(u32 address, u8 amod, VMEDataWidth dataWidth)
+{
+    StackCommand cmd = {};
+    cmd.type = CommandType::ReadToAccu;
+    cmd.address = address;
+    cmd.amod = amod;
+    cmd.dataWidth = dataWidth;
+
+    return addCommand(cmd);
+}
+
+StackCommandBuilder &StackCommandBuilder::addCompareLoopAccu(AccuComparator comp, u32 value)
+{
+    StackCommand cmd = {};
+    cmd.type = CommandType::CompareLoopAccu;
+    cmd.value = static_cast<u32>(comp);
+    cmd.address = value;
+
+    return addCommand(cmd);
 }
 
 StackCommandBuilder &StackCommandBuilder::addSoftwareDelay(const std::chrono::milliseconds &ms)
@@ -784,7 +913,6 @@ std::vector<u32> make_stack_buffer(const std::vector<StackCommand> &stack)
     {
         u32 cmdWord = static_cast<u32>(cmd.type) << stack_commands::CmdShift;
 
-        // TODO: add the new fw0019 commands
         switch (cmd.type)
         {
             case CommandType::VMERead:
@@ -854,10 +982,53 @@ std::vector<u32> make_stack_buffer(const std::vector<StackCommand> &stack)
                 for (u32 customValue: cmd.customValues)
                     result.push_back(customValue);
                 break;
+
+            case CommandType::AddressIncMode:
+                cmdWord |= cmd.value & 0x00FFFFFFu; // 0: FIFO, 1: mem
+                result.push_back(cmdWord);
+                break;
+
+            case CommandType::Wait:
+                cmdWord |= cmd.value & 0x00FFFFFFu;
+                result.push_back(cmdWord);
+                break;
+
+            case CommandType::SignalAccu:
+                result.push_back(cmdWord);
+                break;
+
+            case CommandType::MaskShiftAccu:
+                cmdWord |= cmd.value; // shift
+                result.push_back(cmdWord);
+                result.push_back(cmd.address); // mask
+                break;
+
+            case CommandType::SetAccu:
+                result.push_back(cmdWord);
+                result.push_back(cmd.value);
+                break;
+
+            case CommandType::ReadToAccu:
+                cmdWord |= cmd.amod << stack_commands::CmdArg0Shift;
+                cmdWord |= static_cast<u32>(cmd.dataWidth) << stack_commands::CmdArg1Shift;
+                result.push_back(cmdWord);
+                result.push_back(cmd.address);
+                break;
+
+            case CommandType::CompareLoopAccu:
+                cmdWord |= cmd.value; // comparator
+                result.push_back(cmdWord);
+                result.push_back(cmd.address); // compare value
+                break;
         }
     }
 
     return result;
+}
+
+std::vector<u32> make_stack_buffer(const StackCommand &cmd)
+{
+    return make_stack_buffer(std::vector<StackCommand>{ cmd });
 }
 
 StackCommandBuilder stack_builder_from_buffer(const std::vector<u32> &buffer)
@@ -865,6 +1036,7 @@ StackCommandBuilder stack_builder_from_buffer(const std::vector<u32> &buffer)
     return StackCommandBuilder(stack_commands_from_buffer(buffer));
 }
 
+// TODO: error handling (std::pair?)
 std::vector<StackCommand> stack_commands_from_buffer(const std::vector<u32> &buffer)
 {
     using namespace stack_commands;
@@ -878,23 +1050,31 @@ std::vector<StackCommand> stack_commands_from_buffer(const std::vector<u32> &buf
         u8 arg0 = (*it >> CmdArg0Shift) & CmdArg0Mask;
         u16 arg1 = (*it >> CmdArg1Shift) & CmdArg1Mask;
 
-        if (!is_stack_command(sct))
-            break; // TODO: error
-
         StackCommand cmd = {};
+
+        if (!is_stack_command(sct))
+        {
+            // Create a single value Custom block from unknown stack data.
+            cmd.type = StackCT::Custom;
+            cmd.customValues.push_back(*it);
+            result.emplace_back(cmd);
+            continue;
+        }
+
         cmd.type = static_cast<StackCT>(sct);
 
-        // TODO: add the new fw0019 commands
         switch (cmd.type)
         {
             case StackCT::StackStart:
             case StackCT::StackEnd:
             case StackCT::SoftwareDelay:
             case StackCT::Invalid:
+            case StackCT::Custom:
                 continue;
 
             case StackCT::VMERead:
             case StackCT::VMEMBLTSwapped:
+            case StackCT::ReadToAccu:
                 cmd.amod = arg0;
 
                 if (!vme_amods::is_block_mode(cmd.amod))
@@ -939,7 +1119,37 @@ std::vector<StackCommand> stack_commands_from_buffer(const std::vector<u32> &buf
                 break;
 
             case StackCT::WriteSpecial:
-                cmd.value = *it & 0x00FFFFFFu;
+                cmd.value = (*it & 0x00FFFFFFu);
+                break;
+
+            case StackCT::AddressIncMode:
+                cmd.value = arg1;
+                break;
+
+            case StackCT::Wait:
+                cmd.value = (*it & 0x00FFFFFFu); // clocks
+                break;
+
+            case StackCT::SignalAccu:
+                break; // no args
+
+            case StackCT::MaskShiftAccu:
+                cmd.value = (*it & 0x00FFFFFFu); // shift
+                if (++it != buffer.end()) // TODO: else error
+                    cmd.address = *it; // mask
+                break;
+
+            case StackCT::SetAccu:
+                if (++it != buffer.end()) // TODO: else error
+                    cmd.value = *it; // accu value
+                break;
+
+            case StackCT::CompareLoopAccu:
+                cmd.value = arg1; // comparator
+
+                if (++it != buffer.end()) // TODO: else error
+                    cmd.address = *it;
+                break;
         }
 
         result.emplace_back(cmd);
