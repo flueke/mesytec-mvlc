@@ -29,7 +29,7 @@ namespace readout_parser
 //      std::ref(snoopQueues),
 //      std::ref(parserCallbacks));
 //
-// To terminate enqueue an empty buffer onto snoopQueues.filledBufferQueue().
+// To terminate set the atomic 'quit' to true.
 void MESYTEC_MVLC_EXPORT run_readout_parser(
     readout_parser::ReadoutParserState &state,
     Protected<readout_parser::ReadoutParserCounters> &counters,
