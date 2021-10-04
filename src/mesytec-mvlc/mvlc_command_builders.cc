@@ -162,14 +162,14 @@ std::string address_inc_mode_to_string(AddressIncrementMode mode)
         case AddressIncrementMode::FIFO: return "fifo";
         case AddressIncrementMode::Memory: return "mem";
     }
-    return {};
+    throw std::runtime_error("invalid AddressIncrementMode");
 }
 
 AddressIncrementMode address_inc_mode_from_string(const std::string &mode)
 {
     if (mode == "fifo") return AddressIncrementMode::FIFO;
     if (mode == "mem") return AddressIncrementMode::Memory;
-    return {};
+    throw std::runtime_error("invalid AddressIncrementMode");
 }
 
 std::string accu_comparator_to_string(AccuComparator comparator)
@@ -181,7 +181,7 @@ std::string accu_comparator_to_string(AccuComparator comparator)
         case AccuComparator::GT: return "gt";
         default: break;
     }
-    return {};
+    throw std::runtime_error("invalid AccuComparator");
 }
 
 AccuComparator accu_comparator_from_string(const std::string &comparator)
@@ -189,7 +189,7 @@ AccuComparator accu_comparator_from_string(const std::string &comparator)
     if (comparator == "eq") return AccuComparator::EQ;
     if (comparator == "lt") return AccuComparator::LT;
     if (comparator == "gt") return AccuComparator::GT;
-    return {};
+    throw std::runtime_error("invalid AccuComparator");
 }
 
 namespace
