@@ -17,12 +17,12 @@ std::shared_ptr<spdlog::logger>
         if (!sinks.empty())
         {
             logger = std::make_shared<spdlog::logger>(name, std::begin(sinks), std::end(sinks));
+            spdlog::register_logger(logger);
         }
         else
         {
             logger = spdlog::stdout_color_mt(name);
         }
-        spdlog::register_logger(logger);
     }
 
     return logger;
