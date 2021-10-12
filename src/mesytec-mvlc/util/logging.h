@@ -31,6 +31,8 @@ void log_buffer(const std::shared_ptr<spdlog::logger> &logger,
 
 }
 
+const std::vector<std::string> &get_known_logger_names();
+
 } // end namespace mvlc
 } // end namespace mesytec
 

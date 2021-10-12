@@ -17,12 +17,12 @@ std::shared_ptr<spdlog::logger>
         if (!sinks.empty())
         {
             logger = std::make_shared<spdlog::logger>(name, std::begin(sinks), std::end(sinks));
-            spdlog::register_logger(logger);
         }
         else
         {
             logger = spdlog::stdout_color_mt(name);
         }
+        spdlog::register_logger(logger);
     }
 
     return logger;
@@ -37,6 +37,24 @@ std::shared_ptr<spdlog::logger>
         logger = create_logger(name);
 
     return logger;
+}
+
+const std::vector<std::string> &get_known_logger_names()
+{
+    static const std::vector<std::string> mvlc_lib_logger_names =
+    {
+        "cmd_pipe_reader",
+        "listfile",
+        "mvlc",
+        "mvlc_blocking_api",
+        "mvlc_eth",
+        "mvlc_usb",
+        "readout",
+        "readout_parser",
+        "replay",
+    };
+
+    return mvlc_lib_logger_names;
 }
 
 } // end namespace mvlc
