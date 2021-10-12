@@ -1098,6 +1098,7 @@ ParseResult parse_readout_buffer_eth(
             try
             {
                 pr = parse_eth_packet(state, callbacks, counters, packetInput, bufferNumber);
+                count_parse_result(counters, pr);
             }
             catch (...)
             {
