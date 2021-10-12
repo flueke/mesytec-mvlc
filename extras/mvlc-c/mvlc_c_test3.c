@@ -59,7 +59,7 @@ int main(int argc, char *argv[])
             nSystems, nReadouts);
 
     printf("readout event counts:\n");
-    for (size_t i=0; i<MVLC_TotalStackCount; ++i)
+    for (size_t i=0; i<MVLC_ReadoutStackCount; ++i)
     {
         size_t hits = eventHits[i];
 
