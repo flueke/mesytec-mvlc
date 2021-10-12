@@ -952,6 +952,12 @@ ParseResult parse_eth_packet(
                   e.what());
         throw;
     }
+    catch (...)
+    {
+        logger->debug("end_parsing packet {}, dataWords={}, caught an unknown exception!",
+                  ethHdrs.packetNumber(), ethHdrs.dataWordCount());
+        throw;
+    }
 
     return {};
 }
@@ -1100,9 +1106,21 @@ ParseResult parse_readout_buffer_eth(
                 pr = parse_eth_packet(state, callbacks, counters, packetInput, bufferNumber);
                 count_parse_result(counters, pr);
             }
+            catch (const std::exception &e)
+            {
+                logger->warn("exception from parse_eth_packet(): {}, skipping packet",
+                             e.what());
+                exceptionSeen = true;
+            }
             catch (...)
             {
+                logger->warn("unknown exception from parse_eth_packet(), skipping packet");
                 exceptionSeen = true;
+                // XXX: Rethrowing here makes the parser abort parsing of the
+                // rest of the buffer. If the throw is commented out the
+                // exception is just counted via exceptionSeen, the packet is
+                // skipped and parsing continues with the next packet.
+                //throw;
 
 // very verbose printf debugging code
 #if 0
@@ -1166,8 +1184,6 @@ ParseResult parse_readout_buffer_eth(
 
                 if (exceptionSeen)
                     ++counters.parserExceptions;
-                else
-                    count_parse_result(counters, pr);
 
                 if (input.size() >= packetWords)
                 {
