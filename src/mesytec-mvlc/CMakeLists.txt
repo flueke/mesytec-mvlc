@@ -33,6 +33,7 @@ add_library(mesytec-mvlc SHARED
     readout_buffer.cc
     readout_buffer_queues.cc
 
+    util/data_filter.cc
     util/filesystem.cc
     util/logging.cc
     util/protected.cc
