@@ -29,6 +29,7 @@
 #define __MESYTEC_MVLC_H__
 
 #include "git_version.h"
+#include "event_builder.h"
 #include "mvlc_blocking_data_api.h"
 #include "mvlc_command_builders.h"
 #include "mvlc_dialog.h"

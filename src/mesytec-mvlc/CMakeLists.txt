@@ -4,6 +4,7 @@ configure_file("git_version.cc.in" "git_version.cc" @ONLY)
 
 add_library(mesytec-mvlc SHARED
     "${CMAKE_CURRENT_BINARY_DIR}/git_version.cc"
+    event_builder.cc
     mvlc_basic_interface.cc
     mvlc_blocking_data_api.cc
     mvlc.cc
@@ -141,5 +142,6 @@ if (MVLC_BUILD_TESTS)
     add_gtest(test_threadsafequeue util/threadsafequeue.test.cc)
     add_gtest(test_protected util/protected.test.cc)
     add_gtest(test_mvlc_error mvlc_error.test.cc)
+    add_gtest(test_event_builder event_builder.test.cc)
     #target_link_libraries(test_mvlc_error PRIVATE ftd3xx)
 endif(MVLC_BUILD_TESTS)
