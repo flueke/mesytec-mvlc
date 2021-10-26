@@ -16,6 +16,9 @@ using ModuleData = readout_parser::ModuleData;
 using Callbacks = readout_parser::ReadoutParserCallbacks;
 using timestamp_extractor = std::function<u32 (const u32 *data, size_t size)>;
 
+static const auto DefaultMatchWindow = std::make_pair(-8, 8);
+static const int DefaultMinMainModuleEvents = 1000;
+
 struct IndexedTimestampFilterExtractor
 {
     public:
@@ -29,6 +32,13 @@ struct IndexedTimestampFilterExtractor
         s32 index_;
 };
 
+inline IndexedTimestampFilterExtractor make_mesytec_default_timestamp_extractor()
+{
+    return IndexedTimestampFilterExtractor(
+        make_filter("11DDDDDDDDDDDDDDDDDDDDDDDDDDDDDD"), // 30 bit non-extended timestamp
+        -1); // directly index the last word of the module data
+}
+
 struct TimestampFilterExtractor
 {
     public:
@@ -40,9 +50,6 @@ struct TimestampFilterExtractor
         DataFilter filter_;
         CacheEntry filterCache_;
 };
-
-static const auto DefaultMatchWindow = std::make_pair(-8, 8);
-static const int DefaultMinMainModuleEvents = 1000;
 
 struct EventSetup
 {
@@ -86,11 +93,12 @@ class EventBuilder
         bool isEnabledForAnyEvent() const;
 
         // Push data into the eventbuilder (called after parsing and multi event splitting).
-        void recordEventData(int crateIndex, int eventIndex, const ModuleData *moduleDataList, unsigned moduleCount);
+        void recordEventData(int crateIndex, int eventIndex,
+                             const ModuleData *moduleDataList, unsigned moduleCount);
         void recordSystemEvent(int crateIndex, const u32 *header, u32 size);
 
         // Attempt to build the next full events. If successful invoke the
-        // callbacks to further process the assembled events. Maybe be called
+        // callbacks to further process the assembled events. May be called
         // from a different thread than the push*() methods.
 
         // Note: right now doesn't do any age checking or similar. This means

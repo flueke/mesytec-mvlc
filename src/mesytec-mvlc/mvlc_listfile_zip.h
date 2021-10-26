@@ -117,6 +117,8 @@ class MESYTEC_MVLC_EXPORT ZipReader
         std::string currentEntryName() const;
         const ZipEntryInfo &entryInfo() const;
 
+        std::string firstListfileEntryName();
+
     private:
         struct Private;
         std::unique_ptr<Private> d;

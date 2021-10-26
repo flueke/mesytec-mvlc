@@ -19,6 +19,13 @@ target_link_libraries(mvlc-mini-daq-replay-blocking
     PRIVATE spdlog::spdlog
     )
 
+add_executable(mvlc-multi-crate-replay multi_crate_replay.cc)
+target_link_libraries(mvlc-multi-crate-replay
+    PRIVATE mesytec-mvlc
+    PRIVATE BFG::Lyra
+    PRIVATE spdlog::spdlog
+    )
+
 install(TARGETS
     mvlc-mini-daq
     mvlc-mini-daq-replay

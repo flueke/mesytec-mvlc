@@ -117,28 +117,27 @@ namespace
 
         return modParts;
     }
-
-    ReadoutParserState::ReadoutStructure build_readout_structure(
-        const std::vector<StackCommandBuilder> &readoutStacks)
-    {
-        ReadoutParserState::ReadoutStructure result;
-
-        for (const auto &stack: readoutStacks)
-        {
-            std::vector<ModuleReadoutStructure> groupStructure;
-
-            for (const auto &group: stack.getGroups())
-            {
-                groupStructure.emplace_back(parse_module_readout_commands(group.commands));
-            }
-
-            result.emplace_back(groupStructure);
-        }
-
-        return result;
-    }
 }
 
+ReadoutParserState::ReadoutStructure build_readout_structure(
+    const std::vector<StackCommandBuilder> &readoutStacks)
+{
+    ReadoutParserState::ReadoutStructure result;
+
+    for (const auto &stack: readoutStacks)
+    {
+        std::vector<ModuleReadoutStructure> groupStructure;
+
+        for (const auto &group: stack.getGroups())
+        {
+            groupStructure.emplace_back(parse_module_readout_commands(group.commands));
+        }
+
+        result.emplace_back(groupStructure);
+    }
+
+    return result;
+}
 
 const char *get_parse_result_name(const ParseResult &pr)
 {

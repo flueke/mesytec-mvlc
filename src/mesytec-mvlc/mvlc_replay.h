@@ -32,6 +32,9 @@ class MESYTEC_MVLC_EXPORT MVLCReplay
         bool finished();
 
         ReplayWorker::State workerState() const;
+        // FIXME: waitableState() == Idle and finished() which checks the
+        // internal buffer queue should return the same result at the same
+        // point in time. This is not true right now and misleading.
         WaitableProtected<ReplayWorker::State> &waitableState();
         ReplayWorker::Counters workerCounters();
         readout_parser::ReadoutParserCounters parserCounters();

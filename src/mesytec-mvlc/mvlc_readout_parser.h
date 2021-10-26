@@ -338,6 +338,9 @@ MESYTEC_MVLC_EXPORT ParseResult parse_readout_buffer_usb(
     ReadoutParserCounters &counters,
     u32 bufferNumber, const u32 *buffer, size_t bufferWords);
 
+MESYTEC_MVLC_EXPORT ReadoutParserState::ReadoutStructure build_readout_structure(
+    const std::vector<StackCommandBuilder> &readoutStacks);
+
 } // end namespace readout_parser
 } // end namespace mvlc
 } // end namespace mesytec

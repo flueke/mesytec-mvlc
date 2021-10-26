@@ -1,8 +1,10 @@
 #include "mvlc_listfile_zip.h"
 
-#include <iostream>
 #include <cassert>
 #include <cstring>
+#include <iostream>
+#include <regex>
+#include <sys/stat.h>
 #include <lz4frame.h>
 #include <mz.h>
 #include <mz_compat.h>
@@ -12,7 +14,6 @@
 #include <mz_strm_os.h>
 #include <mz_zip.h>
 #include <mz_zip_rw.h>
-#include <sys/stat.h>
 
 #include "util/filesystem.h"
 #include "util/storage_sizes.h"
@@ -712,6 +713,21 @@ std::string ZipReader::currentEntryName() const
 const ZipEntryInfo &ZipReader::entryInfo() const
 {
     return d->entryInfo;
+}
+
+std::string ZipReader::firstListfileEntryName()
+{
+    auto entryNames = entryNameList();
+
+    auto it = std::find_if(
+        std::begin(entryNames), std::end(entryNames),
+        [] (const std::string &entryName)
+        {
+            static const std::regex re(R"foo(.+\.mvlclst(\.lz4)?)foo");
+            return std::regex_search(entryName, re);
+        });
+
+    return (it != std::end(entryNames) ? *it : std::string{});
 }
 
 } // end namespace listfile

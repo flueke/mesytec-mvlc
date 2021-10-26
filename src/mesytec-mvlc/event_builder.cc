@@ -2,6 +2,7 @@
 
 #include <deque>
 #include "mvlc_threading.h"
+#include "util/logging.h"
 
 namespace mesytec
 {
@@ -145,6 +146,8 @@ struct EventBuilder::Private
     std::vector<std::vector<size_t>> moduleEmptyEvents_;
     // indexes: event, linear module
     std::vector<std::vector<size_t>> moduleInvScoreSums_;
+    // indexes: event, linear module
+    std::vector<std::vector<size_t>> moduleTotalHits_;
 
     std::vector<ModuleData> eventAssembly_;
 
@@ -321,10 +324,10 @@ EventBuilder::EventBuilder(const std::vector<EventSetup> &setups, void *userCont
                 matchWindows.push_back(crateSetup.moduleMatchWindows[moduleIndex]);
             }
 
-            eventBuffers.resize(moduleCount);
-            discardedEvents.resize(moduleCount);
-            emptyEvents.resize(moduleCount);
-            invScores.resize(moduleCount);
+            eventBuffers.resize(eventBuffers.size() + moduleCount);
+            discardedEvents.resize(discardedEvents.size() + moduleCount);
+            emptyEvents.resize(emptyEvents.size() + moduleCount);
+            invScores.resize(invScores.size() + moduleCount);
         }
 
         size_t mainModuleLinearIndex = d->getLinearModuleIndex(
@@ -372,48 +375,58 @@ void EventBuilder::recordEventData(int crateIndex, int eventIndex, const ModuleD
     assert(0 <= crateIndex);
     assert(0 <= eventIndex);
 
-    auto &moduleEventBuffers = d->moduleEventBuffers_.at(eventIndex);
-    auto &timestampExtractors = d->moduleTimestampExtractors_.at(eventIndex);
-    auto &emptyEvents = d->moduleEmptyEvents_.at(eventIndex);
-
-    for (unsigned moduleIndex = 0; moduleIndex < moduleCount; ++moduleIndex)
+    try
     {
-        auto moduleData = moduleDataList[moduleIndex];
 
-        auto &prefix = moduleData.prefix;
-        auto &dynamic = moduleData.dynamic;
-        auto &suffix = moduleData.suffix;
+        auto &moduleEventBuffers = d->moduleEventBuffers_.at(eventIndex);
+        auto &timestampExtractors = d->moduleTimestampExtractors_.at(eventIndex);
+        auto &emptyEvents = d->moduleEmptyEvents_.at(eventIndex);
 
-        // The readout parser can yield zero length data if a module is read
-        // out using a block transfer but the module has not converted any
-        // events at all. In this case it will immediately raise BERR on the
-        // VME bus. This is different than the case where the module got a
-        // trigger but no channel was within the thresholds. Then we do get an
-        // event consisting of only the header and footer (containing the
-        // timestamp).
-        // The zero length events need to be skipped as there is no timestamp
-        // information contained within and the builder code assumes non-zero
-        // data for module events.
-        if (dynamic.size == 0)
+        for (unsigned moduleIndex = 0; moduleIndex < moduleCount; ++moduleIndex)
         {
-            ++emptyEvents.at(moduleIndex);
-            continue;
+            auto moduleData = moduleDataList[moduleIndex];
+
+            auto &prefix = moduleData.prefix;
+            auto &dynamic = moduleData.dynamic;
+            auto &suffix = moduleData.suffix;
+
+            // The readout parser can yield zero length data if a module is read
+            // out using a block transfer but the module has not converted any
+            // events at all. In this case it will immediately raise BERR on the
+            // VME bus. This is different than the case where the module got a
+            // trigger but no channel was within the thresholds. Then we do get an
+            // event consisting of only the header and footer (containing the
+            // timestamp).
+            // The zero length events need to be skipped as there is no timestamp
+            // information contained within and the builder code assumes non-zero
+            // data for module events.
+            if (dynamic.size == 0)
+            {
+                ++emptyEvents.at(moduleIndex);
+                continue;
+            }
+
+            const auto linearModuleIndex = d->getLinearModuleIndex(crateIndex, eventIndex, moduleIndex);
+            u32 timestamp = timestampExtractors.at(linearModuleIndex)(dynamic.data, dynamic.size);
+
+            assert(timestamp <= TimestampMax);
+
+            ModuleEventStorage eventStorage =
+            {
+                timestamp,
+                { prefix.data, prefix.data + prefix.size },
+                { dynamic.data, dynamic.data + dynamic.size },
+                { suffix.data, suffix.data + suffix.size },
+            };
+
+            moduleEventBuffers.at(linearModuleIndex).emplace_back(eventStorage);
         }
 
-        const auto linearModuleIndex = d->getLinearModuleIndex(crateIndex, eventIndex, moduleIndex);
-        u32 timestamp = timestampExtractors.at(linearModuleIndex)(dynamic.data, dynamic.size);
-
-        assert(timestamp <= TimestampMax);
-
-        ModuleEventStorage eventStorage =
-        {
-            timestamp,
-            { prefix.data, prefix.data + prefix.size },
-            { dynamic.data, dynamic.data + dynamic.size },
-            { suffix.data, suffix.data + suffix.size },
-        };
-
-        moduleEventBuffers.at(linearModuleIndex).emplace_back(eventStorage);
+    }
+    catch (const std::exception &e)
+    {
+        get_logger("event_builder")->error("recordEventData(): {}", e.what());
+        throw;
     }
 
     guard.unlock();
