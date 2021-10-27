@@ -1,13 +1,6 @@
 Using the mesytec-mvlc library {#usage-guide}
 =============================================
 
-* Creating a CreateConfig and writing it to disk
-* Snoop queues, listfile and readout ReadoutWorker, readout_parser,
-* Listfile format and parsing
-* libzmq
-
-
-
 Usage with cmake
 ----------------
 
