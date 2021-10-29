@@ -79,7 +79,7 @@ int main(int argc, char *argv[])
 
     std::vector<EventSetup> eventSetups;
 
-    for (int ei = 0; ei < multicrateEvents.size(); ++ei)
+    for (size_t ei = 0; ei < multicrateEvents.size(); ++ei)
     {
         EventSetup eventSetup;
 
@@ -90,10 +90,11 @@ int main(int argc, char *argv[])
         if (!eventSetup.enabled)
             continue;
 
-        eventSetup.mainModule = std::make_pair(0, 0); // FIXME
+        //eventSetup.mainModule = std::make_pair(0, 0); // FIXME
         //eventSetup.minMainModuleEvents = std::numeric_limits<size_t>::max();
+        eventSetup.minMainModuleEvents = 1000;
 
-        for (int ci = 0; ci < crateConfigs.size(); ++ci)
+        for (size_t ci = 0; ci < crateConfigs.size(); ++ci)
         {
             const auto &crateConfig = crateConfigs.at(ci);
             auto readoutStructure = readout_parser::build_readout_structure(
@@ -126,21 +127,21 @@ int main(int argc, char *argv[])
 
 	for (const auto &listfilePath: listfilePaths)
 	{
-        readout_parser::ReadoutParserCallbacks callbacks;
-        callbacks.eventData = [crateIndex, &eventBuilder] (
+        readout_parser::ReadoutParserCallbacks parserCallbacks;
+        parserCallbacks.eventData = [crateIndex, &eventBuilder] (
             void *, int eventIndex, const ModuleData *moduleData, size_t moduleCount)
         {
             // FIXME: swallows none eventbuilder events
             if (eventBuilder.isEnabledFor(eventIndex))
                 eventBuilder.recordEventData(crateIndex, eventIndex, moduleData, moduleCount);
         };
-        callbacks.systemEvent = [crateIndex, &eventBuilder, &recordedSystemEvents] (
+        parserCallbacks.systemEvent = [crateIndex, &eventBuilder, &recordedSystemEvents] (
             void *, const u32 *data, u32 size)
         {
             eventBuilder.recordSystemEvent(crateIndex, data, size);
-            ++recordedSystemEvents[crateIndex];
+            ++recordedSystemEvents[crateIndex]; // FIXME: this is not thread save and will be executd in parallel by each of the readout parsers
         };
-        auto replay = make_mvlc_replay(listfilePath, callbacks);
+        auto replay = make_mvlc_replay(listfilePath, parserCallbacks);
         replays.emplace_back(std::move(replay));
         ++crateIndex;
 	}
