@@ -2,8 +2,9 @@
 #define __MESYTEC_MVLC_EVENT_BUILDER_H__
 
 #include <functional>
-#include "util/data_filter.h"
+#include "mesytec-mvlc/mesytec-mvlc_export.h"
 #include "mvlc_readout_parser.h"
+#include "util/data_filter.h"
 
 namespace mesytec
 {
@@ -19,7 +20,7 @@ using timestamp_extractor = std::function<u32 (const u32 *data, size_t size)>;
 static const auto DefaultMatchWindow = std::make_pair(-8, 8);
 static const int DefaultMinMainModuleEvents = 1000;
 
-struct IndexedTimestampFilterExtractor
+struct MESYTEC_MVLC_EXPORT IndexedTimestampFilterExtractor
 {
     public:
         IndexedTimestampFilterExtractor(const DataFilter &filter, s32 wordIndex, char matchChar = 'D');
@@ -39,7 +40,7 @@ inline IndexedTimestampFilterExtractor make_mesytec_default_timestamp_extractor(
         -1); // directly index the last word of the module data
 }
 
-struct TimestampFilterExtractor
+struct MESYTEC_MVLC_EXPORT TimestampFilterExtractor
 {
     public:
         TimestampFilterExtractor(const DataFilter &filter, char matchChar = 'D');
@@ -51,7 +52,7 @@ struct TimestampFilterExtractor
         CacheEntry filterCache_;
 };
 
-struct EventSetup
+struct MESYTEC_MVLC_EXPORT EventSetup
 {
     struct CrateSetup
     {
@@ -77,7 +78,7 @@ struct EventSetup
     size_t minMainModuleEvents = DefaultMinMainModuleEvents;
 };
 
-class EventBuilder
+class MESYTEC_MVLC_EXPORT EventBuilder
 {
     public:
         explicit EventBuilder(const std::vector<EventSetup> &setup, void *userContext = nullptr);
@@ -123,14 +124,14 @@ class EventBuilder
         std::unique_ptr<Private> d;
 };
 
-enum class WindowMatch
+enum class MESYTEC_MVLC_EXPORT WindowMatch
 {
     too_old,
     in_window,
     too_new
 };
 
-struct WindowMatchResult
+struct MESYTEC_MVLC_EXPORT WindowMatchResult
 {
     WindowMatch match;
     // The asbsolute distance to the reference timestamp tsMain.
@@ -138,7 +139,7 @@ struct WindowMatchResult
     u32 invscore;
 };
 
-WindowMatchResult timestamp_match(u32 tsMain, u32 tsModule, const std::pair<s32, s32> &matchWindow);
+MESYTEC_MVLC_EXPORT WindowMatchResult timestamp_match(u32 tsMain, u32 tsModule, const std::pair<s32, s32> &matchWindow);
 
 }
 }

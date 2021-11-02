@@ -1035,12 +1035,12 @@ std::error_code Impl::connect()
 
     m_throttleCounters.access().ref() = {};
 
-#ifdef __linux__
+//#ifdef __linux__
     m_throttleThread = std::thread(
         mvlc_eth_throttler,
         std::ref(m_throttleContext),
         std::ref(m_throttleCounters));
-#endif
+//#endif
 
     spdlog::trace("end {}", __PRETTY_FUNCTION__);
 
