@@ -18,7 +18,6 @@ using Callbacks = readout_parser::ReadoutParserCallbacks;
 using timestamp_extractor = std::function<u32 (const u32 *data, size_t size)>;
 
 static const auto DefaultMatchWindow = std::make_pair(-8, 8);
-static const int DefaultMinMainModuleEvents = 1000;
 
 struct MESYTEC_MVLC_EXPORT IndexedTimestampFilterExtractor
 {
@@ -71,11 +70,6 @@ struct MESYTEC_MVLC_EXPORT EventSetup
 
     // crate and crate-relative indexes of the main module which provides the reference timestamp
     std::pair<int, int> mainModule;
-
-    // Minimum number of main module events that need to be buffered before
-    // event building proceeds. Ignored if flush is set in the call to
-    // buildEvents().
-    size_t minMainModuleEvents = DefaultMinMainModuleEvents;
 };
 
 class MESYTEC_MVLC_EXPORT EventBuilder

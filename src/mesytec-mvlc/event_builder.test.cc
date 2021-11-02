@@ -446,7 +446,6 @@ TEST(event_builder, SingleCratePerfectMatches)
     int crateIndex = 0;
     int eventIndex = 0;
     auto setup = make_one_crate_one_event_test_setup();
-    setup.minMainModuleEvents = 1000;
     EventBuilder eventBuilder({ setup });
 
     // Storage for a single event (3 modules)
@@ -484,9 +483,8 @@ TEST(event_builder, SingleCratePerfectMatches)
         ++systemCallbackCount;
     };
 
-    // Empty event builder, nothing should happen.
-    ASSERT_EQ(eventBuilder.buildEvents({ eventDataCallback, systemEventCallback }, false), 0);;
-    ASSERT_EQ(dataCallbackCount, 0);
+    ASSERT_EQ(eventBuilder.buildEvents({ eventDataCallback, systemEventCallback }, false), 999);;
+    ASSERT_EQ(dataCallbackCount, 999);
     ASSERT_EQ(systemCallbackCount, 0);
 
     // Push one more event to reach 1000 buffered
@@ -497,18 +495,17 @@ TEST(event_builder, SingleCratePerfectMatches)
         eventBuilder.recordEventData(crateIndex, eventIndex, eventData.data(), eventData.size());
     }
 
-    // Can build one event to fall below the 1000 minMainModuleEvents limit
     ASSERT_EQ(eventBuilder.buildEvents({ eventDataCallback, systemEventCallback }, false), 1);;
-    ASSERT_EQ(dataCallbackCount, 1);
+    ASSERT_EQ(dataCallbackCount, 1000);
     ASSERT_EQ(systemCallbackCount, 0);
 
     // No change, cannot build
     ASSERT_EQ(eventBuilder.buildEvents({ eventDataCallback, systemEventCallback }, false), 0);;
-    ASSERT_EQ(dataCallbackCount, 1);
+    ASSERT_EQ(dataCallbackCount, 1000);
     ASSERT_EQ(systemCallbackCount, 0);
 
-    // Flush
-    ASSERT_EQ(eventBuilder.buildEvents({ eventDataCallback, systemEventCallback }, true), 999);;
+    // Flush but no more data left
+    ASSERT_EQ(eventBuilder.buildEvents({ eventDataCallback, systemEventCallback }, true), 0);;
     ASSERT_EQ(dataCallbackCount, 1000);
     ASSERT_EQ(systemCallbackCount, 0);
 
@@ -520,13 +517,13 @@ TEST(event_builder, SingleCratePerfectMatches)
         eventBuilder.recordEventData(crateIndex, eventIndex, eventData.data(), eventData.size());
     }
 
-    // Cannot build, only one event buffered
-    ASSERT_EQ(eventBuilder.buildEvents({ eventDataCallback, systemEventCallback }, false), 0);;
-    ASSERT_EQ(dataCallbackCount, 1000);
+    // Can build the single event
+    ASSERT_EQ(eventBuilder.buildEvents({ eventDataCallback, systemEventCallback }, false), 1);;
+    ASSERT_EQ(dataCallbackCount, 1001);
     ASSERT_EQ(systemCallbackCount, 0);
 
     // Flush
-    ASSERT_EQ(eventBuilder.buildEvents({ eventDataCallback, systemEventCallback }, true), 1);;
+    ASSERT_EQ(eventBuilder.buildEvents({ eventDataCallback, systemEventCallback }, true), 0);;
     ASSERT_EQ(dataCallbackCount, 1001);
     ASSERT_EQ(systemCallbackCount, 0);
 }

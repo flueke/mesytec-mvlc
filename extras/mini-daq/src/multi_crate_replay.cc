@@ -91,8 +91,6 @@ int main(int argc, char *argv[])
             continue;
 
         //eventSetup.mainModule = std::make_pair(0, 0); // FIXME
-        //eventSetup.minMainModuleEvents = std::numeric_limits<size_t>::max();
-        eventSetup.minMainModuleEvents = 1000;
 
         for (size_t ci = 0; ci < crateConfigs.size(); ++ci)
         {
