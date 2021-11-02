@@ -33,7 +33,7 @@ struct MESYTEC_MVLC_EXPORT IndexedTimestampFilterExtractor
         s32 index_;
 };
 
-inline IndexedTimestampFilterExtractor make_mesytec_default_timestamp_extractor()
+MESYTEC_MVLC_EXPORT inline IndexedTimestampFilterExtractor make_mesytec_default_timestamp_extractor()
 {
     return IndexedTimestampFilterExtractor(
         make_filter("11DDDDDDDDDDDDDDDDDDDDDDDDDDDDDD"), // 30 bit non-extended timestamp
