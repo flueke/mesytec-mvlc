@@ -124,7 +124,7 @@ class MESYTEC_MVLC_EXPORT EventBuilder
         std::unique_ptr<Private> d;
 };
 
-enum class MESYTEC_MVLC_EXPORT WindowMatch
+enum class WindowMatch
 {
     too_old,
     in_window,
