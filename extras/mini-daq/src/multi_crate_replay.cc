@@ -158,7 +158,7 @@ int main(int argc, char *argv[])
         ++eventCounts[eventIndex];
         for (size_t mi=0; mi<moduleCount; ++mi)
         {
-            if (moduleData[mi].prefix.size || moduleData[mi].dynamic.size || moduleData[mi].suffix.size)
+            if (moduleData[mi].data.size)
                 ++moduleCounts[eventIndex][mi];
         }
     };

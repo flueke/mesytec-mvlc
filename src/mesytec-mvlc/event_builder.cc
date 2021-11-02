@@ -61,9 +61,7 @@ struct SystemEventStorage
 struct ModuleEventStorage
 {
     u32 timestamp;
-    std::vector<u32> prefix;
-    std::vector<u32> dynamic;
-    std::vector<u32> suffix;
+    std::vector<u32> data;
 };
 
 using mesytec::mvlc::TicketMutex;
@@ -74,9 +72,7 @@ ModuleData module_data_from_event_storage(const ModuleEventStorage &input)
 {
     auto result = ModuleData
     {
-        { input.prefix.data(), static_cast<u32>(input.prefix.size()) },
-        { input.dynamic.data(), static_cast<u32>(input.dynamic.size()) },
-        { input.suffix.data(), static_cast<u32>(input.suffix.size()) },
+        { input.data.data(), static_cast<u32>(input.data.size()) },
     };
 
     return result;
@@ -240,7 +236,7 @@ struct EventBuilder::Private
             {
                 auto &moduleData = eventAssembly_[moduleIndex];
 
-                if (moduleData.prefix.data || moduleData.dynamic.data || moduleData.suffix.data)
+                if (moduleData.data.data)
                 {
                     assert(!eventBuffers.at(moduleIndex).empty());
                     eventBuffers.at(moduleIndex).pop_front();
@@ -386,9 +382,7 @@ void EventBuilder::recordEventData(int crateIndex, int eventIndex, const ModuleD
         {
             auto moduleData = moduleDataList[moduleIndex];
 
-            auto &prefix = moduleData.prefix;
-            auto &dynamic = moduleData.dynamic;
-            auto &suffix = moduleData.suffix;
+            auto &data = moduleData.data;
 
             // The readout parser can yield zero length data if a module is read
             // out using a block transfer but the module has not converted any
@@ -400,23 +394,21 @@ void EventBuilder::recordEventData(int crateIndex, int eventIndex, const ModuleD
             // The zero length events need to be skipped as there is no timestamp
             // information contained within and the builder code assumes non-zero
             // data for module events.
-            if (dynamic.size == 0)
+            if (data.size == 0)
             {
                 ++emptyEvents.at(moduleIndex);
                 continue;
             }
 
             const auto linearModuleIndex = d->getLinearModuleIndex(crateIndex, eventIndex, moduleIndex);
-            u32 timestamp = timestampExtractors.at(linearModuleIndex)(dynamic.data, dynamic.size);
+            u32 timestamp = timestampExtractors.at(linearModuleIndex)(data.data, data.size);
 
             assert(timestamp <= TimestampMax);
 
             ModuleEventStorage eventStorage =
             {
                 timestamp,
-                { prefix.data, prefix.data + prefix.size },
-                { dynamic.data, dynamic.data + dynamic.size },
-                { suffix.data, suffix.data + suffix.size },
+                { data.data, data.data + data.size },
             };
 
             moduleEventBuffers.at(linearModuleIndex).emplace_back(eventStorage);

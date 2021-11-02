@@ -346,20 +346,10 @@ int main(int argc, char *argv[])
                 {
                     auto &moduleData = moduleDataList[moduleIndex];
 
-                    if (moduleData.prefix.size)
+                    if (moduleData.data.size)
                         util::log_buffer(
-                            std::cout, basic_string_view<u32>(moduleData.prefix.data, moduleData.prefix.size),
-                            fmt::format("prefix part: eventIndex={}, moduleIndex={}", eventIndex, moduleIndex));
-
-                    if (moduleData.dynamic.size)
-                        util::log_buffer(
-                            std::cout, basic_string_view<u32>(moduleData.dynamic.data, moduleData.dynamic.size),
-                            fmt::format("dynamic part: eventIndex={}, moduleIndex={}", eventIndex, moduleIndex));
-
-                    if (moduleData.suffix.size)
-                        util::log_buffer(
-                            std::cout, basic_string_view<u32>(moduleData.suffix.data, moduleData.suffix.size),
-                            fmt::format("suffix part: eventIndex={}, moduleIndex={}", eventIndex, moduleIndex));
+                            std::cout, basic_string_view<u32>(moduleData.data.data, moduleData.data.size),
+                            fmt::format("module data: eventIndex={}, moduleIndex={}", eventIndex, moduleIndex));
                 }
             }
         };

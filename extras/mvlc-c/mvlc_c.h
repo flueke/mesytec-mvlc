@@ -356,9 +356,7 @@ typedef struct readout_datablock
 
 typedef struct readout_moduledata
 {
-    readout_datablock_t prefix;     // data from single VME reads before any block read
-    readout_datablock_t dynamic;    // block read data
-    readout_datablock_t suffix;     // single VME read data following the block read
+    readout_datablock_t data;
 } readout_moduledata_t;
 
 // Called for each readout event recorded by the DAQ.

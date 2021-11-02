@@ -184,9 +184,7 @@ std::ostream &print_counters(std::ostream &out, const ReadoutParserCounters &cou
         out << fmt::format("ei={}, hits={}, ", kv.first, kv.second);
     out << endl;
 
-    print_hits_and_sizes("prefix", counters.groupPrefixHits, counters.groupPrefixSizes);
-    print_hits_and_sizes("dynamic", counters.groupDynamicHits, counters.groupDynamicSizes);
-    print_hits_and_sizes("suffix", counters.groupSuffixHits, counters.groupSuffixSizes);
+    print_hits_and_sizes("prefix", counters.groupHits, counters.groupSizes);
 
     return out;
 }

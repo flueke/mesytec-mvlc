@@ -613,9 +613,7 @@ namespace
 
                 for (size_t i=0; i<moduleCount; ++i)
                 {
-                    modulesDataC[i].prefix  = { modulesDataCpp[i].prefix.data,  modulesDataCpp[i].prefix.size };
-                    modulesDataC[i].dynamic = { modulesDataCpp[i].dynamic.data, modulesDataCpp[i].dynamic.size };
-                    modulesDataC[i].suffix  = { modulesDataCpp[i].suffix.data,  modulesDataCpp[i].suffix.size };
+                    modulesDataC[i].data = { modulesDataCpp[i].data.data,  modulesDataCpp[i].data.size };
                 }
 
                 parser_callbacks.event_data(userContext, eventIndex, modulesDataC.begin(), moduleCount);
@@ -905,9 +903,7 @@ namespace
                 for (size_t i=0; i<cppEvent.readout.moduleCount; ++i)
                 {
                     auto cppData = cppEvent.readout.moduleDataList[i];
-                    ret.readout.moduleData[i].prefix  = { cppData.prefix.data,  cppData.prefix.size };
-                    ret.readout.moduleData[i].dynamic = { cppData.dynamic.data, cppData.dynamic.size };
-                    ret.readout.moduleData[i].suffix  = { cppData.suffix.data,  cppData.suffix.size };
+                    ret.readout.moduleData[i].data  = { cppData.data.data,  cppData.data.size };
                 }
 
                 ret.readout.moduleCount = cppEvent.readout.moduleCount;

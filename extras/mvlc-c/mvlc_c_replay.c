@@ -29,28 +29,10 @@ void process_readout_event_data(
         {
             readout_moduledata_t md = moduleDataList[mi];
 
-            if (md.prefix.size)
+            if (md.data.size)
             {
-                readout_datablock_t block = md.prefix;
-                printf("  prefix block of size %u: ", block.size);
-                for (u32 i=0; i<block.size; ++i)
-                    printf("0x%08x ", block.data[i]);
-                printf("\n");
-            }
-
-            if (md.dynamic.size)
-            {
-                readout_datablock_t block = md.dynamic;
-                printf("  dynamic block of size %u: ", block.size);
-                for (u32 i=0; i<block.size; ++i)
-                    printf("0x%08x ", block.data[i]);
-                printf("\n");
-            }
-
-            if (md.suffix.size)
-            {
-                readout_datablock_t block = md.suffix;
-                printf("  suffix block of size %u: ", block.size);
+                readout_datablock_t block = md.data;
+                printf("  data block of size %u: ", block.size);
                 for (u32 i=0; i<block.size; ++i)
                     printf("0x%08x ", block.data[i]);
                 printf("\n");

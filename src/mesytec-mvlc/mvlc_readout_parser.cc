@@ -48,14 +48,16 @@ namespace mvlc
 namespace readout_parser
 {
 
+    // TODO: check that all (block) reads are handled including the stack accumulator one
+
 namespace
 {
     ModuleReadoutStructure parse_module_readout_commands(const std::vector<StackCommand> &commands)
     {
         using StackCT = StackCommand::CommandType;
 
-        enum State { Prefix, Dynamic, Suffix };
-        State state = Prefix;
+        enum State { Initial, Fixed, Dynamic };
+        State state = Initial;
         ModuleReadoutStructure modParts = {};
 
         for (const auto &cmd: commands)
@@ -63,36 +65,33 @@ namespace
             if ((cmd.type == StackCT::VMERead
                  && !vme_amods::is_block_mode(cmd.amod))
                 || cmd.type == StackCT::WriteMarker)
-                // TODO: WriteSpecial if and when it is used by the MVLC
             {
                 switch (state)
                 {
-                    case Prefix:
-                        modParts.prefixLen++;
+                    case Initial:
+                        state = Fixed;
+                        ++modParts.len;
+                        break;
+                    case Fixed:
+                        ++modParts.len;
                         break;
                     case Dynamic:
-                        modParts.suffixLen++;
-                        state = Suffix;
-                        break;
-                    case Suffix:
-                        modParts.suffixLen++;
-                        break;
+                        throw std::runtime_error("block read after fixed reads in module reaodut");
                 }
             }
             else if (cmd.type == StackCT::VMERead || cmd.type == StackCT::VMEMBLTSwapped)
             {
-                assert(vme_amods::is_block_mode(cmd.amod));
-
                 switch (state)
                 {
-                    case Prefix:
-                        modParts.hasDynamic = true;
+                    case Initial:
                         state = Dynamic;
+                        assert(modParts.len == 0);
+                        modParts.len = -1;
                         break;
+                    case Fixed:
+                        throw std::runtime_error("fixed read after block read in module readout");
                     case Dynamic:
                         throw std::runtime_error("multiple block reads in module readout");
-                    case Suffix:
-                        throw std::runtime_error("block read inside the suffix part in module readout");
                 }
             }
             else if (cmd.type == StackCT::Custom)
@@ -101,16 +100,15 @@ namespace
                 // produced by the custom stack command.
                 switch (state)
                 {
-                    case Prefix:
-                        modParts.prefixLen += cmd.transfers;
+                    case Initial:
+                        state = Fixed;
+                        modParts.len += cmd.transfers;
+                        break;
+                    case Fixed:
+                        modParts.len += cmd.transfers;
                         break;
                     case Dynamic:
-                        modParts.suffixLen += cmd.transfers;
-                        state = Suffix;
-                        break;
-                    case Suffix:
-                        modParts.suffixLen += cmd.transfers;
-                        break;
+                        throw std::runtime_error("custom stack command after block read in module readout");
                 }
             }
         }
@@ -282,7 +280,7 @@ inline void parser_clear_event_state(ReadoutParserState &state)
     state.moduleIndex = -1;
     state.curStackFrame = ReadoutParserState::FrameParseState{};
     state.curBlockFrame = ReadoutParserState::FrameParseState{};
-    state.groupParseState = ReadoutParserState::Prefix;
+    state.groupParseState = ReadoutParserState::Initial;
     assert(!is_event_in_progress(state));
 }
 
@@ -313,7 +311,7 @@ inline ParseResult parser_begin_event(ReadoutParserState &state, u32 frameHeader
 
     state.eventIndex = eventIndex;
     state.moduleIndex = 0;
-    state.groupParseState = ReadoutParserState::Prefix;
+    state.groupParseState = ReadoutParserState::Initial;
     state.curStackFrame = ReadoutParserState::FrameParseState{ frameHeader };
     state.curBlockFrame = ReadoutParserState::FrameParseState{};
 
@@ -601,170 +599,127 @@ ParseResult parse_readout_contents(
 
             const auto &moduleParts = moduleReadoutInfos[state.moduleIndex];
 
-            if (moduleParts.prefixLen == 0 && !moduleParts.hasDynamic && moduleParts.suffixLen == 0)
+            if (is_empty(moduleParts))
             {
-                // The group/module does not have any of the three parts, its
-                // readout is completely empty.
+                // Skip over groups/modules which have no data producing
+                // readout commands.
                 ++state.moduleIndex;
             }
             else
             {
+                assert(!is_empty(moduleReadoutInfos[state.moduleIndex]));
+
+                if (state.groupParseState == ReadoutParserState::Initial)
+                {
+                    if (!is_dynamic(moduleReadoutInfos[state.moduleIndex]))
+                        state.groupParseState = ReadoutParserState::Fixed;
+                    else
+                        state.groupParseState = ReadoutParserState::Dynamic;
+                }
+
                 auto &moduleSpans = state.readoutDataSpans[state.moduleIndex];
 
-                switch (state.groupParseState)
+                if (state.groupParseState == ReadoutParserState::Fixed)
                 {
-                    case ReadoutParserState::Prefix:
-                        if (moduleSpans.prefixSpan.size < moduleParts.prefixLen)
+                    assert(!is_dynamic(moduleReadoutInfos[state.moduleIndex]));
+                    assert(moduleParts.len >= 0);
+
+                    if (moduleSpans.dataSpan.size < static_cast<u32>(moduleParts.len))
+                    {
+                        // record the offset of the first word of this span
+                        if (moduleSpans.dataSpan.size == 0)
+                            moduleSpans.dataSpan.offset = state.workBuffer.used;
+
+                        u32 wordsLeftInSpan = moduleParts.len - moduleSpans.dataSpan.size;
+                        assert(wordsLeftInSpan);
+                        u32 wordsToCopy = std::min({
+                            wordsLeftInSpan,
+                                static_cast<u32>(state.curStackFrame.wordsLeft),
+                                static_cast<u32>(input.size())});
+
+                        copy_to_workbuffer(state, input, wordsToCopy);
+                        moduleSpans.dataSpan.size += wordsToCopy;
+                    }
+
+                    assert(moduleSpans.dataSpan.size <= static_cast<u32>(moduleParts.len));
+
+                    if (moduleSpans.dataSpan.size == static_cast<u32>(moduleParts.len))
+                    {
+                        // We're done with this module.
+                        state.moduleIndex++;
+                        state.groupParseState = ReadoutParserState::Initial;
+                    }
+                }
+                else if (state.groupParseState == ReadoutParserState::Dynamic)
+                {
+                    assert(is_dynamic(moduleReadoutInfos[state.moduleIndex]));
+
+                    if (state.curStackFrame.wordsLeft > 0 && !state.curBlockFrame)
+                    {
+                        if (input.empty())
                         {
-                            // record the offset of the first word of this span
-                            if (moduleSpans.prefixSpan.size == 0)
-                                moduleSpans.prefixSpan.offset = state.workBuffer.used;
-
-                            u32 wordsLeftInSpan = moduleParts.prefixLen - moduleSpans.prefixSpan.size;
-                            assert(wordsLeftInSpan);
-                            u32 wordsToCopy = std::min({
-                                wordsLeftInSpan,
-                                    static_cast<u32>(state.curStackFrame.wordsLeft),
-                                    static_cast<u32>(input.size())});
-
-                            copy_to_workbuffer(state, input, wordsToCopy);
-                            moduleSpans.prefixSpan.size += wordsToCopy;
+                            // Need more data to read in the next block frame header.
+                            return ParseResult::Ok;
                         }
 
-                        assert(moduleSpans.prefixSpan.size <= moduleParts.prefixLen);
+                        // Peek the potential block frame header
+                        state.curBlockFrame = ReadoutParserState::FrameParseState{ input[0] };
 
-                        if (moduleSpans.prefixSpan.size == moduleParts.prefixLen)
+                        logger->trace("state.curBlockFrame.header=0x{:x}", state.curBlockFrame.header);
+
+                        if (state.curBlockFrame.info().type != frame_headers::BlockRead)
                         {
-                            if (moduleParts.hasDynamic)
-                            {
-                                state.groupParseState = ReadoutParserState::Dynamic;
-                                continue;
-                            }
-                            else if (moduleParts.suffixLen != 0)
-                            {
-                                state.groupParseState = ReadoutParserState::Suffix;
-                                continue;
-                            }
-                            else
-                            {
-                                // We're done with this module as it does have neither
-                                // dynamic nor suffix parts.
-                                state.moduleIndex++;
-                                state.groupParseState = ReadoutParserState::Prefix;
-                            }
-                        }
-
-                        break;
-
-                    case ReadoutParserState::Dynamic:
-                        {
-                            assert(moduleParts.hasDynamic);
-
-                            if (state.curStackFrame.wordsLeft > 0 && !state.curBlockFrame)
-                            {
-                                if (input.empty())
-                                {
-                                    // Need more data to read in the next block frame header.
-                                    return ParseResult::Ok;
-                                    //throw end_of_buffer("next module dynamic block frame header");
-                                }
-
-                                // Peek the potential block frame header
-                                state.curBlockFrame = ReadoutParserState::FrameParseState{ input[0] };
-
-                                logger->trace("state.curBlockFrame.header=0x{:x}", state.curBlockFrame.header);
-
-                                if (state.curBlockFrame.info().type != frame_headers::BlockRead)
-                                {
-                                    // Verbose debug output
+                            // Verbose debug output
 #if 0
-                                    s64 currentOffset = input.data() - originalInputView.data();
-                                    s64 logStartOffset = std::max(currentOffset - 400, static_cast<s64>(0));
-                                    size_t logWordCount = std::min(input.size(), static_cast<size_t>(400u + 100lu));
+                            s64 currentOffset = input.data() - originalInputView.data();
+                            s64 logStartOffset = std::max(currentOffset - 400, static_cast<s64>(0));
+                            size_t logWordCount = std::min(input.size(), static_cast<size_t>(400u + 100lu));
 
-                                    basic_string_view<u32> logView(
-                                        originalInputView.data() + logStartOffset,
-                                        logWordCount);
+                            basic_string_view<u32> logView(
+                                originalInputView.data() + logStartOffset,
+                                logWordCount);
 
-                                    util::log_buffer(std::cout, logView, "input around the non block frame header");
+                            util::log_buffer(std::cout, logView, "input around the non block frame header");
 
-                                    //util::log_buffer(std::cout, input, "input (the part that's left to parse)");
-                                    //cout << "offset=" << (input.data() - originalInputView.data()) << endl;
-                                    //std::terminate();
+                            //util::log_buffer(std::cout, input, "input (the part that's left to parse)");
+                            //cout << "offset=" << (input.data() - originalInputView.data()) << endl;
+                            //std::terminate();
 #endif
 
-                                    logger->warn("NotABlockFrame: type=0x{:x}, frameHeader=0x{:008x}",
-                                              state.curBlockFrame.info().type,
-                                              state.curBlockFrame.header);
+                            logger->warn("NotABlockFrame: type=0x{:x}, frameHeader=0x{:008x}",
+                                      state.curBlockFrame.info().type,
+                                      state.curBlockFrame.header);
 
-                                    state.curBlockFrame = ReadoutParserState::FrameParseState{};
-                                    parser_clear_event_state(state);
-                                    return ParseResult::NotABlockFrame;
-                                }
-
-                                // Block frame header is ok, consume it taking care of
-                                // the outer stack frame word count as well.
-                                input.remove_prefix(1);
-                                state.curStackFrame.consumeWord();
-                            }
-
-                            // record the offset of the first word of this span
-                            if (moduleSpans.dynamicSpan.size == 0)
-                                moduleSpans.dynamicSpan.offset = state.workBuffer.used;
-
-                            u32 wordsToCopy = std::min(
-                                static_cast<u32>(state.curBlockFrame.wordsLeft),
-                                static_cast<u32>(input.size()));
-
-                            copy_to_workbuffer(state, input, wordsToCopy);
-                            moduleSpans.dynamicSpan.size += wordsToCopy;
-                            state.curBlockFrame.wordsLeft -= wordsToCopy;
-
-                            if (state.curBlockFrame.wordsLeft == 0
-                                && !(state.curBlockFrame.info().flags & frame_flags::Continue))
-                            {
-
-                                if (moduleParts.suffixLen == 0)
-                                {
-                                    // No suffix, we're done with the module
-                                    state.moduleIndex++;
-                                    state.groupParseState = ReadoutParserState::Prefix;
-                                }
-                                else
-                                {
-                                    state.groupParseState = ReadoutParserState::Suffix;
-                                    continue;
-                                }
-                            }
-                        }
-                        break;
-
-                    case ReadoutParserState::Suffix:
-                        if (moduleSpans.suffixSpan.size < moduleParts.suffixLen)
-                        {
-                            // record the offset of the first word of this span
-                            if (moduleSpans.suffixSpan.size == 0)
-                                moduleSpans.suffixSpan.offset = state.workBuffer.used;
-
-                            u32 wordsLeftInSpan = moduleParts.suffixLen - moduleSpans.suffixSpan.size;
-                            assert(wordsLeftInSpan);
-                            u32 wordsToCopy = std::min({
-                                wordsLeftInSpan,
-                                    static_cast<u32>(state.curStackFrame.wordsLeft),
-                                    static_cast<u32>(input.size())});
-
-                            copy_to_workbuffer(state, input, wordsToCopy);
-                            moduleSpans.suffixSpan.size += wordsToCopy;
+                            state.curBlockFrame = ReadoutParserState::FrameParseState{};
+                            parser_clear_event_state(state);
+                            return ParseResult::NotABlockFrame;
                         }
 
-                        if (moduleSpans.suffixSpan.size >= moduleParts.suffixLen)
-                        {
-                            // Done with the module
-                            state.moduleIndex++;
-                            state.groupParseState = ReadoutParserState::Prefix;
-                        }
+                        // Block frame header is ok, consume it taking care of
+                        // the outer stack frame word count as well.
+                        input.remove_prefix(1);
+                        state.curStackFrame.consumeWord();
+                    }
 
-                        break;
+                    // record the offset of the first word of this span
+                    if (moduleSpans.dataSpan.size == 0)
+                        moduleSpans.dataSpan.offset = state.workBuffer.used;
+
+                    u32 wordsToCopy = std::min(
+                        static_cast<u32>(state.curBlockFrame.wordsLeft),
+                        static_cast<u32>(input.size()));
+
+                    copy_to_workbuffer(state, input, wordsToCopy);
+                    moduleSpans.dataSpan.size += wordsToCopy;
+                    state.curBlockFrame.wordsLeft -= wordsToCopy;
+
+                    if (state.curBlockFrame.wordsLeft == 0
+                        && !(state.curBlockFrame.info().flags & frame_flags::Continue))
+                    {
+                        // We're done with the module
+                        state.moduleIndex++;
+                        state.groupParseState = ReadoutParserState::Initial;
+                    }
                 }
             }
 
@@ -789,7 +744,6 @@ ParseResult parse_readout_contents(
 
                 // All modules have been processed and the event can be flushed.
 
-
                 // Transform the offset based ModuleReadoutSpans into pointer
                 // based ModuleData structures, then invoke the eventData()
                 // callback.
@@ -798,45 +752,19 @@ ParseResult parse_readout_contents(
                     const auto &moduleSpans = state.readoutDataSpans[mi];
                     auto &moduleData = state.moduleDataBuffer[mi];
 
-                    moduleData.prefix =
+                    moduleData.data =
                     {
-                        state.workBuffer.buffer.data() + moduleSpans.prefixSpan.offset,
-                        moduleSpans.prefixSpan.size
-                    };
-
-                    moduleData.dynamic =
-                    {
-                        state.workBuffer.buffer.data() + moduleSpans.dynamicSpan.offset,
-                        moduleSpans.dynamicSpan.size
-                    };
-
-                    moduleData.suffix =
-                    {
-                        state.workBuffer.buffer.data() + moduleSpans.suffixSpan.offset,
-                        moduleSpans.suffixSpan.size
+                        state.workBuffer.buffer.data() + moduleSpans.dataSpan.offset,
+                        moduleSpans.dataSpan.size
                     };
 
                     const auto partIndex = std::make_pair(state.eventIndex, mi);
 
-                    if (moduleSpans.prefixSpan.size)
+                    if (moduleSpans.dataSpan.size)
                     {
-                        ++counters.groupPrefixHits[partIndex];
+                        ++counters.groupHits[partIndex];
                         update_part_size_info(
-                            counters.groupPrefixSizes[partIndex], moduleSpans.prefixSpan.size);
-                    }
-
-                    if (moduleSpans.dynamicSpan.size)
-                    {
-                        ++counters.groupDynamicHits[partIndex];
-                        update_part_size_info(
-                            counters.groupDynamicSizes[partIndex], moduleSpans.dynamicSpan.size);
-                    }
-
-                    if (moduleSpans.suffixSpan.size)
-                    {
-                        ++counters.groupSuffixHits[partIndex];
-                        update_part_size_info(
-                            counters.groupSuffixSizes[partIndex], moduleSpans.suffixSpan.size);
+                            counters.groupSizes[partIndex], moduleSpans.dataSpan.size);
                     }
                 }
 

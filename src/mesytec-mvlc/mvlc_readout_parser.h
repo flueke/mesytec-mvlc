@@ -45,6 +45,11 @@ namespace mvlc
 namespace readout_parser
 {
 
+// Note: the first parser version accepted group/module readouts consisting of
+// a fixed size prefix, a dynamic part and a fixed size suffix. This
+// functionality was removed in Nov. 2021 to simplify both the parser and any
+// consumers working with the parsed data.
+
 // Purpose: The reaodut_parser system is used to parse a possibly lossfull
 // sequence of MVLC readout buffers into complete readout event data
 // and make this data available to a consumer.
@@ -55,9 +60,15 @@ namespace readout_parser
 //   block_read     -> dynamic part (0xF5 framed)
 //
 // Restrictions applying to the structure of each stack command group:
-//   - an optional fixed size prefix part (single value read and marker commands)
-//   - an optional dynamic block part (a single block read command)
-//   - an optional fixed size suffix part (single value read and marker commands)
+//   - the group may consist of either a number of single_read/marker commands
+//   or
+//   - a single block read command producing dynamically sized output
+//
+// These restrictions are in place to keep the readout_parser code simple and
+// to make it easy to pass around readout data (pointer + size is enough). If
+// more complex readout schemes are needed one can just add more readout groups
+// to achieve the desired effect, e.g. one group for a fixed prefix, one group
+// for the dynamic part and another group for the suffix.
 //
 // A stack group is typically used to read out a single VME module, so groups
 // are synonymous with modules in the parser code.
@@ -70,9 +81,10 @@ struct DataBlock
 
 struct ModuleData
 {
-    DataBlock prefix;
-    DataBlock dynamic;
-    DataBlock suffix;
+    // TODO: maybe add these to carry source information for the module event.
+    //u64 bufferNumber;
+    //u64 eventNumber;
+    DataBlock data;
 };
 
 struct ReadoutParserCallbacks
@@ -91,14 +103,19 @@ struct ReadoutParserCallbacks
 
 struct ModuleReadoutStructure
 {
-    u8 prefixLen; // length in 32 bit words of the fixed part prefix
-    u8 suffixLen; // length in 32 bit words of the fixed part suffix
-    bool hasDynamic; // true if a dynamic part (block read) is present
+    // case >= 0: length of the output producing single_reader/marker commands of this module
+    // case  < 0: the readout is a dynamically sized block read command.
+    s16 len;
 };
 
 inline bool is_empty(const ModuleReadoutStructure &mrs)
 {
-    return mrs.prefixLen == 0 && mrs.suffixLen == 0 && !mrs.hasDynamic;
+    return mrs.len == 0;
+}
+
+inline bool is_dynamic(const ModuleReadoutStructure &mrs)
+{
+    return mrs.len < 0;
 }
 
 struct Span
@@ -109,16 +126,12 @@ struct Span
 
 struct ModuleReadoutSpans
 {
-    Span prefixSpan;
-    Span dynamicSpan;
-    Span suffixSpan;
+    Span dataSpan;
 };
 
 inline bool is_empty(const ModuleReadoutSpans &spans)
 {
-    return (spans.prefixSpan.size == 0
-            && spans.dynamicSpan.size == 0
-            && spans.suffixSpan.size == 0);
+    return spans.dataSpan.size == 0;
 }
 
 struct end_of_frame: public std::exception {};
@@ -210,14 +223,10 @@ struct MESYTEC_MVLC_EXPORT ReadoutParserCounters
     std::unordered_map<int, size_t> eventHits;
 
     // Part specific hit counts by (eventIndex, moduleIndex)
-    GroupPartHits groupPrefixHits;
-    GroupPartHits groupDynamicHits;
-    GroupPartHits groupSuffixHits;
+    GroupPartHits groupHits;
 
     // Part specific event size information by (eventIndex, moduleIndex)
-    GroupPartSizes groupPrefixSizes;
-    GroupPartSizes groupDynamicSizes;
-    GroupPartSizes groupSuffixSizes;
+    GroupPartSizes groupSizes;
 };
 
 struct MESYTEC_MVLC_EXPORT ReadoutParserState
@@ -253,7 +262,7 @@ struct MESYTEC_MVLC_EXPORT ReadoutParserState
         u16 wordsLeft;
     };
 
-    enum GroupParseState { Prefix, Dynamic, Suffix };
+    enum GroupParseState { Initial, Fixed, Dynamic };
 
     using ReadoutStructure = std::vector<std::vector<ModuleReadoutStructure>>;
 
@@ -287,7 +296,7 @@ struct MESYTEC_MVLC_EXPORT ReadoutParserState
 
     int eventIndex = -1;
     int moduleIndex = -1;
-    GroupParseState groupParseState = Prefix;
+    GroupParseState groupParseState = Initial;
 
     // Parsing state of the current 0xF3 stack frame. This is always active
     // when parsing readout data.

@@ -67,8 +67,8 @@ namespace
         for (size_t mi = 0; mi < moduleTestData.size(); ++mi)
         {
             result[mi] = {};
-            result[mi].dynamic.data = moduleTestData[mi].data();
-            result[mi].dynamic.size = moduleTestData[mi].size();
+            result[mi].data.data = moduleTestData[mi].data();
+            result[mi].data.size = moduleTestData[mi].size();
         }
 
         return result;
@@ -177,13 +177,13 @@ TEST(event_builder, SingleCrateWindowMatchingNoOverflow)
         auto eventDataCallback = [&] (void *, int eventIndex, const ModuleData *moduleDataList, unsigned moduleCount)
         {
             ++dataCallbackCount;
-            ASSERT_EQ(moduleDataList[0].dynamic.size, 0);
+            ASSERT_EQ(moduleDataList[0].data.size, 0);
 
-            ASSERT_EQ(moduleDataList[1].dynamic.size, 1);
-            ASSERT_EQ(moduleDataList[1].dynamic.data[0], 150);
+            ASSERT_EQ(moduleDataList[1].data.size, 1);
+            ASSERT_EQ(moduleDataList[1].data.data[0], 150);
 
-            ASSERT_EQ(moduleDataList[2].dynamic.size, 1);
-            ASSERT_EQ(moduleDataList[2].dynamic.data[0], 200);
+            ASSERT_EQ(moduleDataList[2].data.size, 1);
+            ASSERT_EQ(moduleDataList[2].data.data[0], 200);
         };
 
         auto systemEventCallback = [&] (void *, const u32 *header, u32 size)
@@ -218,23 +218,23 @@ TEST(event_builder, SingleCrateWindowMatchingNoOverflow)
             {
                 case 0:
                     {
-                        ASSERT_EQ(moduleDataList[0].dynamic.size, 1);
-                        ASSERT_EQ(moduleDataList[0].dynamic.data[0], 101);
+                        ASSERT_EQ(moduleDataList[0].data.size, 1);
+                        ASSERT_EQ(moduleDataList[0].data.data[0], 101);
 
-                        ASSERT_EQ(moduleDataList[1].dynamic.size, 1);
-                        ASSERT_EQ(moduleDataList[1].dynamic.data[0], 150);
+                        ASSERT_EQ(moduleDataList[1].data.size, 1);
+                        ASSERT_EQ(moduleDataList[1].data.data[0], 150);
 
-                        ASSERT_EQ(moduleDataList[2].dynamic.size, 1);
-                        ASSERT_EQ(moduleDataList[2].dynamic.data[0], 200);
+                        ASSERT_EQ(moduleDataList[2].data.size, 1);
+                        ASSERT_EQ(moduleDataList[2].data.data[0], 200);
                     } break;
                 case 1:
                     {
-                        ASSERT_EQ(moduleDataList[0].dynamic.size, 0);
+                        ASSERT_EQ(moduleDataList[0].data.size, 0);
 
-                        ASSERT_EQ(moduleDataList[1].dynamic.size, 1);
-                        ASSERT_EQ(moduleDataList[1].dynamic.data[0], 151);
+                        ASSERT_EQ(moduleDataList[1].data.size, 1);
+                        ASSERT_EQ(moduleDataList[1].data.data[0], 151);
 
-                        ASSERT_EQ(moduleDataList[2].dynamic.size, 0);
+                        ASSERT_EQ(moduleDataList[2].data.size, 0);
                     } break;
             }
         };
@@ -274,34 +274,34 @@ TEST(event_builder, SingleCrateWindowMatchingNoOverflow)
             {
                 case 0:
                     {
-                        ASSERT_EQ(moduleDataList[0].dynamic.size, 1);
-                        ASSERT_EQ(moduleDataList[0].dynamic.data[0], 101);
+                        ASSERT_EQ(moduleDataList[0].data.size, 1);
+                        ASSERT_EQ(moduleDataList[0].data.data[0], 101);
 
-                        ASSERT_EQ(moduleDataList[1].dynamic.size, 1);
-                        ASSERT_EQ(moduleDataList[1].dynamic.data[0], 150);
+                        ASSERT_EQ(moduleDataList[1].data.size, 1);
+                        ASSERT_EQ(moduleDataList[1].data.data[0], 150);
 
-                        ASSERT_EQ(moduleDataList[2].dynamic.size, 1);
-                        ASSERT_EQ(moduleDataList[2].dynamic.data[0], 200);
+                        ASSERT_EQ(moduleDataList[2].data.size, 1);
+                        ASSERT_EQ(moduleDataList[2].data.data[0], 200);
                     } break;
                 case 1:
                     {
-                        ASSERT_EQ(moduleDataList[0].dynamic.size, 1);
-                        ASSERT_EQ(moduleDataList[0].dynamic.data[0], 225);
+                        ASSERT_EQ(moduleDataList[0].data.size, 1);
+                        ASSERT_EQ(moduleDataList[0].data.data[0], 225);
 
-                        ASSERT_EQ(moduleDataList[1].dynamic.size, 1);
-                        ASSERT_EQ(moduleDataList[1].dynamic.data[0], 151);
+                        ASSERT_EQ(moduleDataList[1].data.size, 1);
+                        ASSERT_EQ(moduleDataList[1].data.data[0], 151);
 
-                        ASSERT_EQ(moduleDataList[2].dynamic.size, 0);
+                        ASSERT_EQ(moduleDataList[2].data.size, 0);
                     } break;
                 case 2:
                     {
-                        ASSERT_EQ(moduleDataList[0].dynamic.size, 0);
+                        ASSERT_EQ(moduleDataList[0].data.size, 0);
 
-                        ASSERT_EQ(moduleDataList[1].dynamic.size, 1);
-                        ASSERT_EQ(moduleDataList[1].dynamic.data[0], 252);
+                        ASSERT_EQ(moduleDataList[1].data.size, 1);
+                        ASSERT_EQ(moduleDataList[1].data.data[0], 252);
 
-                        ASSERT_EQ(moduleDataList[2].dynamic.size, 1);
-                        ASSERT_EQ(moduleDataList[2].dynamic.data[0], 350);
+                        ASSERT_EQ(moduleDataList[2].data.size, 1);
+                        ASSERT_EQ(moduleDataList[2].data.data[0], 350);
                     } break;
             }
         };
@@ -384,45 +384,45 @@ TEST(event_builder, SingleCrateWindowMatchingOverflow)
             {
                 case 0:
                     {
-                        ASSERT_EQ(moduleDataList[0].dynamic.size, 1);
-                        ASSERT_EQ(moduleDataList[0].dynamic.data[0], 100);
+                        ASSERT_EQ(moduleDataList[0].data.size, 1);
+                        ASSERT_EQ(moduleDataList[0].data.data[0], 100);
 
-                        ASSERT_EQ(moduleDataList[1].dynamic.size, 1);
-                        ASSERT_EQ(moduleDataList[1].dynamic.data[0], 150);
+                        ASSERT_EQ(moduleDataList[1].data.size, 1);
+                        ASSERT_EQ(moduleDataList[1].data.data[0], 150);
 
-                        ASSERT_EQ(moduleDataList[2].dynamic.size, 1);
-                        ASSERT_EQ(moduleDataList[2].dynamic.data[0], 200);
+                        ASSERT_EQ(moduleDataList[2].data.size, 1);
+                        ASSERT_EQ(moduleDataList[2].data.data[0], 200);
                     } break;
                 case 1:
                     {
-                        ASSERT_EQ(moduleDataList[0].dynamic.size, 1);
-                        ASSERT_EQ(moduleDataList[0].dynamic.data[0], 0x3fffffff - 5);
+                        ASSERT_EQ(moduleDataList[0].data.size, 1);
+                        ASSERT_EQ(moduleDataList[0].data.data[0], 0x3fffffff - 5);
 
-                        ASSERT_EQ(moduleDataList[1].dynamic.size, 1);
-                        ASSERT_EQ(moduleDataList[1].dynamic.data[0], 10);
+                        ASSERT_EQ(moduleDataList[1].data.size, 1);
+                        ASSERT_EQ(moduleDataList[1].data.data[0], 10);
 
-                        ASSERT_EQ(moduleDataList[2].dynamic.size, 1);
-                        ASSERT_EQ(moduleDataList[2].dynamic.data[0], 0x3fffffff - 10);
+                        ASSERT_EQ(moduleDataList[2].data.size, 1);
+                        ASSERT_EQ(moduleDataList[2].data.data[0], 0x3fffffff - 10);
                     } break;
                 case 2:
                     {
-                        ASSERT_EQ(moduleDataList[0].dynamic.size, 1);
-                        ASSERT_EQ(moduleDataList[0].dynamic.data[0], 50);
+                        ASSERT_EQ(moduleDataList[0].data.size, 1);
+                        ASSERT_EQ(moduleDataList[0].data.data[0], 50);
 
-                        ASSERT_EQ(moduleDataList[1].dynamic.size, 1);
-                        ASSERT_EQ(moduleDataList[1].dynamic.data[0], 0x3fffffff - 15);
+                        ASSERT_EQ(moduleDataList[1].data.size, 1);
+                        ASSERT_EQ(moduleDataList[1].data.data[0], 0x3fffffff - 15);
 
-                        ASSERT_EQ(moduleDataList[2].dynamic.size, 1);
-                        ASSERT_EQ(moduleDataList[2].dynamic.data[0], 100);
+                        ASSERT_EQ(moduleDataList[2].data.size, 1);
+                        ASSERT_EQ(moduleDataList[2].data.data[0], 100);
                     } break;
                 case 3:
                     {
-                        ASSERT_EQ(moduleDataList[0].dynamic.size, 0);
+                        ASSERT_EQ(moduleDataList[0].data.size, 0);
 
-                        ASSERT_EQ(moduleDataList[1].dynamic.size, 1);
-                        ASSERT_EQ(moduleDataList[1].dynamic.data[0], 0x3fffffff - 17);
+                        ASSERT_EQ(moduleDataList[1].data.size, 1);
+                        ASSERT_EQ(moduleDataList[1].data.data[0], 0x3fffffff - 17);
 
-                        ASSERT_EQ(moduleDataList[2].dynamic.size, 0);
+                        ASSERT_EQ(moduleDataList[2].data.size, 0);
                     } break;
             }
         };
@@ -455,9 +455,9 @@ TEST(event_builder, SingleCratePerfectMatches)
     // Callback compatible ModuleData array pointing into the eventStorage storage.
     std::array<ModuleData, TestSetupModuleCount> eventData =
     {
-        ModuleData { .dynamic = { eventStorage[0].data(), 1 } },
-        ModuleData { .dynamic = { eventStorage[1].data(), 1 } },
-        ModuleData { .dynamic = { eventStorage[2].data(), 1 } },
+        ModuleData { .data = { eventStorage[0].data(), 1 } },
+        ModuleData { .data = { eventStorage[1].data(), 1 } },
+        ModuleData { .data = { eventStorage[2].data(), 1 } },
     };
 
     u32 ts = 0;
