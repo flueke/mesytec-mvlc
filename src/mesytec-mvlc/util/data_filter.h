@@ -3,6 +3,7 @@
 
 #include <array>
 #include <string>
+#include "mesytec-mvlc/mesytec-mvlc_export.h"
 #include "mesytec-mvlc/util/bits.h"
 
 namespace mesytec
@@ -20,7 +21,7 @@ namespace util
 
 static const s32 FilterSize = 32;
 
-struct DataFilter
+struct MESYTEC_MVLC_EXPORT DataFilter
 {
     std::array<char, FilterSize> filter;
     u32 matchMask  = 0;
@@ -37,7 +38,7 @@ struct DataFilter
     }
 };
 
-struct CacheEntry
+struct MESYTEC_MVLC_EXPORT CacheEntry
 {
     u32 extractMask = 0;
     u8 extractBits  = 0;
@@ -47,7 +48,7 @@ struct CacheEntry
 #endif
 };
 
-DataFilter make_filter(const std::string &filter, s32 wordIndex = -1);
+MESYTEC_MVLC_EXPORT DataFilter make_filter(const std::string &filter, s32 wordIndex = -1);
 
 inline bool matches(const DataFilter &filter, u32 value, s32 wordIndex = -1)
 {
@@ -55,7 +56,7 @@ inline bool matches(const DataFilter &filter, u32 value, s32 wordIndex = -1)
         && ((value & filter.matchMask) == filter.matchValue);
 }
 
-CacheEntry make_cache_entry(const DataFilter &filter, char marker);
+MESYTEC_MVLC_EXPORT CacheEntry make_cache_entry(const DataFilter &filter, char marker);
 
 // Note: a match is assumed.
 inline u32 extract(const CacheEntry &cache, u32 value)
@@ -95,7 +96,7 @@ inline u8 get_extract_shift(const DataFilter &filter, char marker)
     return make_cache_entry(filter, marker).extractShift;
 }
 
-std::string to_string(const DataFilter &filter);
+MESYTEC_MVLC_EXPORT std::string to_string(const DataFilter &filter);
 
 }
 }
