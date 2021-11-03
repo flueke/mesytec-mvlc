@@ -107,7 +107,7 @@ int main(int argc, char *argv[])
                     make_mesytec_default_timestamp_extractor());
 
                 // FIXME
-                crateSetup.moduleMatchWindows.emplace_back(DefaultMatchWindow);
+                crateSetup.moduleMatchWindows.emplace_back(event_builder::DefaultMatchWindow);
                 //crateSetup.moduleMatchWindows.emplace_back(std::make_pair(0, 0));
             }
 
@@ -117,7 +117,9 @@ int main(int argc, char *argv[])
         eventSetups.emplace_back(eventSetup);
     }
 
-    EventBuilder eventBuilder(eventSetups);
+    EventBuilderConfig cfg;
+    cfg.setups = eventSetups;
+    EventBuilder eventBuilder(cfg);
 
 	std::vector<MVLCReplay> replays;
     int crateIndex = 0;
@@ -198,7 +200,9 @@ int main(int argc, char *argv[])
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
 
-    // FIXME: ugly threading problems with the MVLCReplay design/implementation
+    // FIXME: ugly threading problems with the MVLCReplay design/implementation:
+    // MVLCReplay does not join() its internal thread when finished/stopped.
+    // Instead the thread is joined when the object is destroyed.
     replays.clear();
 
     quitEventBuilder = true;

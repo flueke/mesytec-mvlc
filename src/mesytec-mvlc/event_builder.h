@@ -5,6 +5,7 @@
 #include "mesytec-mvlc/mesytec-mvlc_export.h"
 #include "mvlc_readout_parser.h"
 #include "util/data_filter.h"
+#include "util/storage_sizes.h"
 
 namespace mesytec
 {
@@ -17,7 +18,13 @@ using ModuleData = readout_parser::ModuleData;
 using Callbacks = readout_parser::ReadoutParserCallbacks;
 using timestamp_extractor = std::function<u32 (const u32 *data, size_t size)>;
 
+namespace event_builder
+{
+
 static const auto DefaultMatchWindow = std::make_pair(-8, 8);
+static const size_t DefaultMemoryLimit = util::Gigabytes(1);
+
+}
 
 struct MESYTEC_MVLC_EXPORT IndexedTimestampFilterExtractor
 {
@@ -72,10 +79,16 @@ struct MESYTEC_MVLC_EXPORT EventSetup
     std::pair<int, int> mainModule;
 };
 
+struct MESYTEC_MVLC_EXPORT EventBuilderConfig
+{
+    std::vector<EventSetup> setups;
+    size_t memoryLimit = event_builder::DefaultMemoryLimit;
+};
+
 class MESYTEC_MVLC_EXPORT EventBuilder
 {
     public:
-        explicit EventBuilder(const std::vector<EventSetup> &setup, void *userContext = nullptr);
+        explicit EventBuilder(const EventBuilderConfig &cfg, void *userContext = nullptr);
         ~EventBuilder();
 
         EventBuilder(EventBuilder &&);
@@ -112,6 +125,9 @@ class MESYTEC_MVLC_EXPORT EventBuilder
 
         EventCounters getCounters(int eventIndex) const;
         std::vector<EventCounters> getCounters() const;
+
+        size_t getMemoryUsage() const;
+        void discardAllEventData();
 
     private:
         struct Private;

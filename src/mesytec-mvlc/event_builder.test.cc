@@ -51,8 +51,8 @@ TEST(event_builder, TimestampMatch)
 
 TEST(event_builder, ConstructDescruct)
 {
-    std::vector<EventSetup> setup;
-    EventBuilder eventbuilder(setup);
+    EventBuilderConfig cfg;
+    EventBuilder eventbuilder(cfg);
 }
 
 namespace
@@ -104,32 +104,36 @@ namespace
     const size_t TestSetupModuleCount = 3;
 }
 
-TEST(event_builder, EventIndexOutOfRange)
+TEST(event_builder, MemoryUsageAndDiscarding)
 {
     // Storage for the module data
     std::vector<std::array<std::vector<u32>, TestSetupModuleCount>> moduleTestData =
     {
         {
             {
-                { 100 }, // crate0, module0
-                { 150 }, // crate0, module1
-                { 200 }, // crate0, module2
+                {0,       }, // crate0, module0
+                {0, 1,    }, // crate0, module1 (**)
+                {0, 1, 2, }, // crate0, module2
             }
         },
     };
 
-    auto setup = std::vector<EventSetup>{ make_one_crate_one_event_test_setup() };
+    int crateIndex = 0;
+    int eventIndex = 0;
+    EventBuilderConfig cfg;
+    cfg.setups = std::vector<EventSetup>{ make_one_crate_one_event_test_setup() };
+    EventBuilder eventBuilder(cfg);
 
-    {
-        EventBuilder eventBuilder(setup);
+    ASSERT_EQ(eventBuilder.getMemoryUsage(), 0u);
 
-        int crateIndex = 0;
-        int eventIndex = 1; // out of range
-        auto moduleDataList = module_data_list_from_test_data(moduleTestData[0]);
+    auto moduleDataList = module_data_list_from_test_data(moduleTestData[0]);
+    eventBuilder.recordEventData(crateIndex, eventIndex, moduleDataList.data(), moduleDataList.size());
 
-        ASSERT_THROW(eventBuilder.recordEventData(crateIndex, eventIndex, moduleDataList.data(), moduleDataList.size()),
-                     std::out_of_range);
-    }
+    ASSERT_EQ(eventBuilder.getMemoryUsage(), 6*sizeof(u32));
+
+    eventBuilder.discardAllEventData();
+
+    ASSERT_EQ(eventBuilder.getMemoryUsage(), 0u);
 }
 
 TEST(event_builder, SingleCrateWindowMatchingNoOverflow)
@@ -162,11 +166,12 @@ TEST(event_builder, SingleCrateWindowMatchingNoOverflow)
 
     int crateIndex = 0;
     int eventIndex = 0;
-    auto setup = std::vector<EventSetup>{ make_one_crate_one_event_test_setup() };
+    EventBuilderConfig cfg;
+    cfg.setups = std::vector<EventSetup>{ make_one_crate_one_event_test_setup() };
 
     // push one event, then flush
     {
-        EventBuilder eventBuilder(setup);
+        EventBuilder eventBuilder(cfg);
 
         auto moduleDataList = module_data_list_from_test_data(moduleTestData[0]);
         eventBuilder.recordEventData(crateIndex, eventIndex, moduleDataList.data(), moduleDataList.size());
@@ -201,7 +206,7 @@ TEST(event_builder, SingleCrateWindowMatchingNoOverflow)
 
     // push two events, then flush
     {
-        EventBuilder eventBuilder(setup);
+        EventBuilder eventBuilder(cfg);
 
         auto moduleDataList = module_data_list_from_test_data(moduleTestData[0]);
         eventBuilder.recordEventData(crateIndex, eventIndex, moduleDataList.data(), moduleDataList.size());
@@ -227,6 +232,7 @@ TEST(event_builder, SingleCrateWindowMatchingNoOverflow)
                         ASSERT_EQ(moduleDataList[2].data.size, 1);
                         ASSERT_EQ(moduleDataList[2].data.data[0], 200);
                     } break;
+#if 0
                 case 1:
                     {
                         ASSERT_EQ(moduleDataList[0].data.size, 0);
@@ -236,6 +242,7 @@ TEST(event_builder, SingleCrateWindowMatchingNoOverflow)
 
                         ASSERT_EQ(moduleDataList[2].data.size, 0);
                     } break;
+#endif
             }
         };
 
@@ -244,9 +251,9 @@ TEST(event_builder, SingleCrateWindowMatchingNoOverflow)
             ++systemCallbackCount;
         };
 
-        ASSERT_EQ(eventBuilder.buildEvents({ eventDataCallback, systemEventCallback }, true), 2);
+        ASSERT_EQ(eventBuilder.buildEvents({ eventDataCallback, systemEventCallback }, true), 1);
 
-        ASSERT_EQ(dataCallbackCount, 2);
+        ASSERT_EQ(dataCallbackCount, 1);
         ASSERT_EQ(systemCallbackCount, 0);
         dataCallbackCount = 0;
         systemCallbackCount = 0;
@@ -254,7 +261,7 @@ TEST(event_builder, SingleCrateWindowMatchingNoOverflow)
 
     // push three events, then flush
     {
-        EventBuilder eventBuilder(setup);
+        EventBuilder eventBuilder(cfg);
 
         auto moduleDataList = module_data_list_from_test_data(moduleTestData[0]);
         eventBuilder.recordEventData(crateIndex, eventIndex, moduleDataList.data(), moduleDataList.size());
@@ -293,6 +300,7 @@ TEST(event_builder, SingleCrateWindowMatchingNoOverflow)
 
                         ASSERT_EQ(moduleDataList[2].data.size, 0);
                     } break;
+#if 0
                 case 2:
                     {
                         ASSERT_EQ(moduleDataList[0].data.size, 0);
@@ -303,6 +311,7 @@ TEST(event_builder, SingleCrateWindowMatchingNoOverflow)
                         ASSERT_EQ(moduleDataList[2].data.size, 1);
                         ASSERT_EQ(moduleDataList[2].data.data[0], 350);
                     } break;
+#endif
             }
         };
 
@@ -311,9 +320,9 @@ TEST(event_builder, SingleCrateWindowMatchingNoOverflow)
             ++systemCallbackCount;
         };
 
-        ASSERT_EQ(eventBuilder.buildEvents({ eventDataCallback, systemEventCallback }, true), 3);
+        ASSERT_EQ(eventBuilder.buildEvents({ eventDataCallback, systemEventCallback }, true), 2);
 
-        ASSERT_EQ(dataCallbackCount, 3);
+        ASSERT_EQ(dataCallbackCount, 2);
         ASSERT_EQ(systemCallbackCount, 0);
         dataCallbackCount = 0;
         systemCallbackCount = 0;
@@ -357,11 +366,12 @@ TEST(event_builder, SingleCrateWindowMatchingOverflow)
 
     int crateIndex = 0;
     int eventIndex = 0;
-    auto setup = std::vector<EventSetup>{ make_one_crate_one_event_test_setup() };
+    EventBuilderConfig cfg;
+    cfg.setups = std::vector<EventSetup>{ make_one_crate_one_event_test_setup() };
 
     // push three events, then flush
     {
-        EventBuilder eventBuilder(setup);
+        EventBuilder eventBuilder(cfg);
 
         auto moduleDataList = module_data_list_from_test_data(moduleTestData[0]);
         eventBuilder.recordEventData(crateIndex, eventIndex, moduleDataList.data(), moduleDataList.size());
@@ -445,8 +455,9 @@ TEST(event_builder, SingleCratePerfectMatches)
 {
     int crateIndex = 0;
     int eventIndex = 0;
-    auto setup = make_one_crate_one_event_test_setup();
-    EventBuilder eventBuilder({ setup });
+    EventBuilderConfig cfg;
+    cfg.setups = std::vector<EventSetup>{ make_one_crate_one_event_test_setup() };
+    EventBuilder eventBuilder(cfg);
 
     // Storage for a single event (3 modules)
     std::array<std::array<u32, 1>, TestSetupModuleCount> eventStorage = {};

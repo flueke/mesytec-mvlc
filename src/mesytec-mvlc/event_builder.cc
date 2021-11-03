@@ -1,6 +1,7 @@
 #include "event_builder.h"
 
 #include <deque>
+#include <numeric>
 #include "mvlc_threading.h"
 #include "util/logging.h"
 
@@ -62,6 +63,18 @@ struct ModuleEventStorage
 {
     u32 timestamp;
     std::vector<u32> data;
+
+    size_t usedMemory() const
+    {
+        return data.size() * sizeof(*data.data());
+    }
+};
+
+struct PassthroughEventStorage
+{
+    int crateIndex;
+    int eventIndex;
+    std::vector<std::vector<u32>> moduleData;
 };
 
 using mesytec::mvlc::TicketMutex;
@@ -114,12 +127,16 @@ struct EventBuilder::Private
     void *userContext_ = nullptr;
 
     std::vector<EventSetup> setups_;
+    size_t memoryLimit_ = event_builder::DefaultMemoryLimit;
 
     TicketMutex mutex_;
     std::condition_variable_any cv_;
 
     // copies of systemEvents
     std::deque<SystemEventStorage> systemEvents_;
+
+    // copies of passthrough events (events for which event building is not enabled)
+    std::deque<PassthroughEventStorage> passThroughEvents_;
 
     // indexes: event, pair(crateIndex, moduleIndex) -> linear module index
     std::vector<std::unordered_map<std::pair<int, unsigned>, size_t, PairHash>> linearModuleIndexTable_;
@@ -158,225 +175,6 @@ struct EventBuilder::Private
         return eventTable.at(key);
     }
 
-#if 0
-    // First version:
-    // - starts yielding data once minMainModuleEvents events have been
-    //   buffered for the main module.
-    // - stops yielding data once the main module buffers again fall below the threshold
-    // - flush is needed for force out any leftover data when a DAQ run ends
-    // - yields null module data is the respective module is not (yet) present
-    //   when event building is performed
-    size_t buildEvents(int eventIndex, Callbacks &callbacks, bool flush)
-    {
-        auto &eventBuffers = moduleEventBuffers_.at(eventIndex);
-        const auto &matchWindows = moduleMatchWindows_.at(eventIndex);
-        assert(eventBuffers.size() == matchWindows.size());
-        const size_t moduleCount = eventBuffers.size();
-        auto mainModuleIndex = mainModuleLinearIndexes_.at(eventIndex);
-        assert(mainModuleIndex < moduleCount);
-        const auto &mainBuffer = eventBuffers.at(mainModuleIndex);
-        auto &discardedEvents = moduleDiscardedEvents_.at(eventIndex);
-        auto &invScores = moduleInvScoreSums_.at(eventIndex);
-
-        // Check if there is at least one event from the main module
-        if (mainBuffer.empty())
-            return 0u;
-
-        eventAssembly_.resize(moduleCount);
-
-        size_t result = 0u;
-        const auto &setup = setups_.at(eventIndex);
-
-        while (!mainBuffer.empty()
-               && (flush || mainBuffer.size() >= setup.minMainModuleEvents))
-        {
-            u32 mainModuleTimestamp = eventBuffers.at(mainModuleIndex).front().timestamp;
-
-            std::fill(eventAssembly_.begin(), eventAssembly_.end(), ModuleData{});
-            u32 eventInvScore = 0u;
-
-            for (size_t moduleIndex = 0; moduleIndex < moduleCount; ++moduleIndex)
-            {
-                if (eventBuffers.at(moduleIndex).empty())
-                    continue;
-
-                auto &matchWindow = matchWindows[moduleIndex];
-                bool done = false;
-
-                while (!done && !eventBuffers.at(moduleIndex).empty())
-                {
-                    auto &moduleEvent = eventBuffers.at(moduleIndex).front();
-                    auto matchResult = timestamp_match(mainModuleTimestamp, moduleEvent.timestamp, matchWindow);
-
-                    switch (matchResult.match)
-                    {
-                        case WindowMatch::too_old:
-                            eventBuffers.at(moduleIndex).pop_front();
-                            ++discardedEvents.at(moduleIndex);
-                            break;
-
-                        case WindowMatch::in_window:
-                            eventAssembly_[moduleIndex] = module_data_from_event_storage(moduleEvent);
-                            eventInvScore += matchResult.invscore;
-                            invScores.at(moduleIndex) += matchResult.invscore;
-                            done = true;
-                            break;
-
-                        case WindowMatch::too_new:
-                            done = true;
-                            break;
-                    }
-                }
-            }
-
-            // TODO: pass eventInvScore as a quality measure to the analysis
-            // could either add an EventMeta object and udpate all the callbacks in the chain
-            // or could create more virtual events and modules and pass the data in via separate calls
-            // to eventData() using the indexes of the virtual objects.
-            // Unless virtual events are created the solution with multiple
-            // calls to eventData() won't work.  The drawback of having extra
-            // events is that they introduce another analysis context operators
-            // can run in which is separate from the oirignal event we want to
-            // report stats for.
-            callbacks.eventData(userContext_, eventIndex, eventAssembly_.data(), moduleCount);
-            ++result;
-
-            // Now, after, the callback, pop the consumed module events off the deques.
-            for (size_t moduleIndex = 0; moduleIndex < moduleCount; ++moduleIndex)
-            {
-                auto &moduleData = eventAssembly_[moduleIndex];
-
-                if (moduleData.data.data)
-                {
-                    assert(!eventBuffers.at(moduleIndex).empty());
-                    eventBuffers.at(moduleIndex).pop_front();
-                }
-            }
-        }
-
-        assert(mainBuffer.size() < setup.minMainModuleEvents);
-
-        // Clear all module event buffers if flush was requested.
-        if (flush)
-        {
-            std::for_each(std::begin(eventBuffers), std::end(eventBuffers),
-                          [] (auto &eb) { eb.clear(); });
-
-            assert(std::all_of(std::begin(eventBuffers), std::end(eventBuffers),
-                               [] (const auto &eb) { return eb.empty(); }));
-        }
-
-        return result;
-    }
-#else
-    // Version 2:
-    // - get rid of minMainModuleEvents
-    // - instead attempt to yield events on every call:
-    //   * if main module is not present -> return
-    //   * discard module data that is too old
-    //   * if all modules are in the match window: yield the event, pop the data afterwards
-    //   * if some module data is too new: return and attempt to build the
-    //     specific main module event again on the next call
-    size_t buildEvents(int eventIndex, Callbacks &callbacks, bool flush)
-    {
-        auto &eventBuffers = moduleEventBuffers_.at(eventIndex);
-        const auto &matchWindows = moduleMatchWindows_.at(eventIndex);
-        assert(eventBuffers.size() == matchWindows.size());
-        const size_t moduleCount = eventBuffers.size();
-        auto mainModuleIndex = mainModuleLinearIndexes_.at(eventIndex);
-        assert(mainModuleIndex < moduleCount);
-        const auto &mainBuffer = eventBuffers.at(mainModuleIndex);
-        auto &discardedEvents = moduleDiscardedEvents_.at(eventIndex);
-        auto &invScores = moduleInvScoreSums_.at(eventIndex);
-
-        // Have to always resize as module counts vary for different eventIndexes
-        eventAssembly_.resize(moduleCount);
-
-        size_t result = 0u;
-        bool buildingDone = false;
-
-        while (!mainBuffer.empty() && !buildingDone)
-        {
-            u32 mainModuleTimestamp = eventBuffers.at(mainModuleIndex).front().timestamp;
-            std::fill(eventAssembly_.begin(), eventAssembly_.end(), ModuleData{});
-            u32 eventInvScore = 0u;
-
-            for (size_t moduleIndex = 0; moduleIndex < moduleCount; ++moduleIndex)
-            {
-                if (eventBuffers.at(moduleIndex).empty() && !flush)
-                {
-                    buildingDone = true;
-                    break;
-                }
-
-                auto &matchWindow = matchWindows[moduleIndex];
-                bool eventDone = false;
-
-                while (!eventDone && !eventBuffers.at(moduleIndex).empty())
-                {
-                    auto &moduleEvent = eventBuffers.at(moduleIndex).front();
-                    auto matchResult = timestamp_match(mainModuleTimestamp, moduleEvent.timestamp, matchWindow);
-
-                    switch (matchResult.match)
-                    {
-                        case WindowMatch::too_old:
-                            eventBuffers.at(moduleIndex).pop_front();
-                            ++discardedEvents.at(moduleIndex);
-                            break;
-
-                        case WindowMatch::in_window:
-                            eventAssembly_[moduleIndex] = module_data_from_event_storage(moduleEvent);
-                            eventInvScore += matchResult.invscore;
-                            invScores.at(moduleIndex) += matchResult.invscore;
-                            eventDone = true;
-                            break;
-
-                        case WindowMatch::too_new:
-                            eventDone = true;
-                            buildingDone = !flush;
-                            break;
-                    }
-                }
-            }
-
-            // Modules have been checked, eventAssembly has been filled if
-            // possible. Now yield the assembled event.
-            if (flush || std::all_of(std::begin(eventAssembly_), std::end(eventAssembly_),
-                                     [] (const ModuleData &d) { return d.data.data != nullptr; }))
-            {
-                const int crateIndex = 0;
-                callbacks.eventData(userContext_, crateIndex, eventIndex, eventAssembly_.data(), moduleCount);
-                ++result;
-
-                // Now, after, the callback, pop the consumed module events off the deques.
-                for (size_t moduleIndex = 0; moduleIndex < moduleCount; ++moduleIndex)
-                {
-                    auto &moduleData = eventAssembly_[moduleIndex];
-
-                    if (moduleData.data.data)
-                    {
-                        assert(!eventBuffers.at(moduleIndex).empty());
-                        eventBuffers.at(moduleIndex).pop_front();
-                    }
-                }
-            }
-        }
-
-        if (flush)
-        {
-            // Flush out all remaining data. This should only be module
-            // events that are too new and thus do not fall into the match
-            // window.
-            std::for_each(std::begin(eventBuffers), std::end(eventBuffers),
-                          [] (auto &eb) { eb.clear(); });
-
-            assert(std::all_of(std::begin(eventBuffers), std::end(eventBuffers),
-                               [] (const auto &eb) { return eb.empty(); }));
-        }
-
-        return result;
-    }
-#endif
 
     EventBuilder::EventCounters getCounters(int eventIndex) const
     {
@@ -386,13 +184,47 @@ struct EventBuilder::Private
         ret.invScoreSums = moduleInvScoreSums_.at(eventIndex);
         return ret;
     }
+
+    size_t getMemoryUsage() const
+    {
+        return std::accumulate(
+            std::begin(moduleMemCounters_), std::end(moduleMemCounters_), static_cast<size_t>(0u),
+            [] (const size_t &a, const std::vector<size_t> &b)
+            {
+                return a + std::accumulate(std::begin(b), std::end(b), static_cast<size_t>(0u));
+            });
+    }
+
+    size_t buildEvents(int eventIndex, Callbacks &callbacks, bool flush);
+
+    void discardAllEventData()
+    {
+        for (size_t eventIndex = 0; eventIndex < moduleEventBuffers_.size(); ++eventIndex)
+        {
+            auto &eventBuffers = moduleEventBuffers_[eventIndex];
+            auto &discards = moduleDiscardedEvents_.at(eventIndex);
+
+            for (size_t moduleIndex = 0; moduleIndex < eventBuffers.size(); ++moduleIndex)
+            {
+                auto &eventBuffer = eventBuffers[moduleIndex];
+                discards[moduleIndex] += eventBuffer.size();
+                eventBuffer.clear();
+            }
+        }
+
+        for (auto &memCounters: moduleMemCounters_)
+            std::fill(std::begin(memCounters), std::end(memCounters), static_cast<size_t>(0u));
+
+        assert(getMemoryUsage() == 0u);
+    }
 };
 
-EventBuilder::EventBuilder(const std::vector<EventSetup> &setups, void *userContext)
+EventBuilder::EventBuilder(const EventBuilderConfig &cfg, void *userContext)
     : d(std::make_unique<Private>())
 {
     d->userContext_ = userContext;
-    d->setups_ = setups;
+    d->setups_ = cfg.setups;
+    d->memoryLimit_ = cfg.memoryLimit;
 
     const size_t eventCount = d->setups_.size();
 
@@ -493,6 +325,34 @@ void EventBuilder::recordEventData(int crateIndex, int eventIndex, const ModuleD
     assert(0 <= crateIndex);
     assert(0 <= eventIndex);
 
+    // Store non eb event data so that it can be yielded from the eb thread in
+    // buildEvents().
+    if (!isEnabledFor(eventIndex))
+    {
+        PassthroughEventStorage storage;
+        storage.crateIndex = crateIndex;
+        storage.eventIndex = eventIndex;
+        for (unsigned moduleIndex = 0; moduleIndex < moduleCount; ++moduleIndex)
+        {
+            auto &data = moduleDataList[moduleIndex].data;
+            std::vector<u32> moduleData(data.data, data.data + data.size);
+            storage.moduleData.emplace_back(moduleData);
+        }
+        assert(storage.moduleData.size() == moduleCount);
+        d->passThroughEvents_.emplace_back(storage);
+        return;
+    }
+
+    assert(isEnabledFor(eventIndex));
+
+    // Memory usage check and possible discarding of all buffered data.
+    if (d->getMemoryUsage() >= d->memoryLimit_)
+    {
+        get_logger("event_builder")->warn("recordEventData(): memory limit exceeded, discarding data");
+        d->discardAllEventData();
+    }
+
+    // Now record the module data.
     try
     {
         auto &moduleEventBuffers = d->moduleEventBuffers_.at(eventIndex);
@@ -524,11 +384,7 @@ void EventBuilder::recordEventData(int crateIndex, int eventIndex, const ModuleD
 
             const auto linearModuleIndex = d->getLinearModuleIndex(crateIndex, eventIndex, moduleIndex);
 
-            u32 timestamp = 0u;
-
-            if (isEnabledFor(eventIndex) && timestampExtractors.at(linearModuleIndex))
-                timestamp = timestampExtractors.at(linearModuleIndex)(data.data, data.size);
-
+            u32 timestamp = timestampExtractors.at(linearModuleIndex)(data.data, data.size);
             assert(timestamp <= TimestampMax);
 
             ModuleEventStorage eventStorage =
@@ -537,7 +393,7 @@ void EventBuilder::recordEventData(int crateIndex, int eventIndex, const ModuleD
                 { data.data, data.data + data.size },
             };
 
-            size_t usedMem = sizeof(eventStorage) + data.size * sizeof(*data.data);
+            size_t usedMem = eventStorage.usedMemory();
 
             moduleEventBuffers.at(linearModuleIndex).emplace_back(eventStorage);
             moduleMemCounters.at(linearModuleIndex) += usedMem;
@@ -595,12 +451,37 @@ size_t EventBuilder::buildEvents(Callbacks callbacks, bool flush)
     // system events
     while (!d->systemEvents_.empty())
     {
-        auto &ses = d->systemEvents_.back();
+        auto &ses = d->systemEvents_.front();
         callbacks.systemEvent(d->userContext_, ses.crateIndex, ses.data.data(), ses.data.size());
         d->systemEvents_.pop_front();
     }
 
     assert(d->systemEvents_.empty());
+
+    // non-eb events (passthrough)
+    while (!d->passThroughEvents_.empty())
+    {
+        auto es = d->passThroughEvents_.front();
+        unsigned moduleCount = es.moduleData.size();
+
+        d->eventAssembly_.resize(moduleCount);
+
+        for (unsigned moduleIndex=0; moduleIndex<moduleCount; ++moduleIndex)
+        {
+            d->eventAssembly_[moduleIndex].data = {
+                es.moduleData[moduleIndex].data(),
+                static_cast<unsigned>(es.moduleData[moduleIndex].size()),
+            };
+        }
+
+        callbacks.eventData(
+            d->userContext_, es.crateIndex, es.eventIndex,
+            d->eventAssembly_.data(), d->eventAssembly_.size());
+
+        d->passThroughEvents_.pop_front();
+    }
+
+    assert(d->passThroughEvents_.empty());
 
     // readout event building
     const size_t eventCount = d->setups_.size();
@@ -614,6 +495,256 @@ size_t EventBuilder::buildEvents(Callbacks callbacks, bool flush)
 
     return result;
 }
+
+#if 1
+// Version 2:
+// - get rid of minMainModuleEvents
+// - instead attempt to yield events on every call:
+//   * if main module is not present -> return
+//   * discard module data that is too old
+//   * if all modules are in the match window: yield the event, pop the data afterwards
+//   * if some module data is too new: return and attempt to build the
+//     specific main module event again on the next call
+size_t EventBuilder::Private::buildEvents(int eventIndex, Callbacks &callbacks, bool flush)
+{
+    auto &eventBuffers = moduleEventBuffers_.at(eventIndex);
+    const auto &matchWindows = moduleMatchWindows_.at(eventIndex);
+    assert(eventBuffers.size() == matchWindows.size());
+    const size_t moduleCount = eventBuffers.size();
+    auto mainModuleIndex = mainModuleLinearIndexes_.at(eventIndex);
+    assert(mainModuleIndex < moduleCount);
+    const auto &mainBuffer = eventBuffers.at(mainModuleIndex);
+    auto &discardedEvents = moduleDiscardedEvents_.at(eventIndex);
+    auto &invScores = moduleInvScoreSums_.at(eventIndex);
+    auto &memCounters = moduleMemCounters_.at(eventIndex);
+
+    // Have to always resize as module counts vary for different eventIndexes.
+    eventAssembly_.resize(moduleCount);
+
+    size_t result = 0u;
+    bool buildingDone = false;
+
+    while (!mainBuffer.empty() && !buildingDone)
+    {
+        u32 mainModuleTimestamp = eventBuffers.at(mainModuleIndex).front().timestamp;
+        std::fill(eventAssembly_.begin(), eventAssembly_.end(), ModuleData{});
+        u32 eventInvScore = 0u;
+
+        for (size_t moduleIndex = 0; moduleIndex < moduleCount; ++moduleIndex)
+        {
+            if (eventBuffers.at(moduleIndex).empty() && !flush)
+            {
+                buildingDone = true;
+                break;
+            }
+
+            auto &matchWindow = matchWindows[moduleIndex];
+            bool eventDone = false;
+
+            while (!eventDone && !eventBuffers.at(moduleIndex).empty())
+            {
+                auto &moduleEvent = eventBuffers.at(moduleIndex).front();
+                auto matchResult = timestamp_match(mainModuleTimestamp, moduleEvent.timestamp, matchWindow);
+
+                switch (matchResult.match)
+                {
+                    case WindowMatch::too_old:
+                        {
+                            const auto &eventStorage = eventBuffers.at(moduleIndex).front();
+                            size_t usedMem = eventStorage.usedMemory();
+                            assert(memCounters.at(moduleIndex) >= usedMem);
+                            memCounters.at(moduleIndex) -= usedMem;
+                            eventBuffers.at(moduleIndex).pop_front();
+                            ++discardedEvents.at(moduleIndex);
+                        }
+                        break;
+
+                    case WindowMatch::in_window:
+                        eventAssembly_[moduleIndex] = module_data_from_event_storage(moduleEvent);
+                        eventInvScore += matchResult.invscore;
+                        invScores.at(moduleIndex) += matchResult.invscore;
+                        eventDone = true;
+                        break;
+
+                    case WindowMatch::too_new:
+                        eventDone = true;
+                        buildingDone = !flush;
+                        break;
+                }
+            }
+        }
+
+        // Modules have been checked, eventAssembly has been filled if
+        // possible. Now yield the assembled event.
+        if (flush || std::all_of(std::begin(eventAssembly_), std::end(eventAssembly_),
+                                 [] (const ModuleData &d) { return d.data.data != nullptr; }))
+        {
+            const int crateIndex = 0;
+            callbacks.eventData(userContext_, crateIndex, eventIndex, eventAssembly_.data(), moduleCount);
+            ++result;
+
+            // Now, after, the callback, pop the consumed module events off the deques.
+            for (size_t moduleIndex = 0; moduleIndex < moduleCount; ++moduleIndex)
+            {
+                auto &moduleData = eventAssembly_[moduleIndex];
+
+                if (moduleData.data.data)
+                {
+                    assert(!eventBuffers.at(moduleIndex).empty());
+                    const auto &eventStorage = eventBuffers.at(moduleIndex).front();
+                    size_t usedMem = eventStorage.usedMemory();
+                    assert(memCounters.at(moduleIndex) >= usedMem);
+                    memCounters.at(moduleIndex) -= usedMem;
+                    eventBuffers.at(moduleIndex).pop_front();
+                }
+            }
+        }
+    }
+
+    if (flush)
+    {
+        // Flush out all remaining data. This should only be module
+        // events that are too new and thus do not fall into the match
+        // window.
+        std::for_each(std::begin(eventBuffers), std::end(eventBuffers),
+                      [] (auto &eb) { eb.clear(); });
+
+        assert(std::all_of(std::begin(eventBuffers), std::end(eventBuffers),
+                           [] (const auto &eb) { return eb.empty(); }));
+
+        std::fill(std::begin(memCounters), std::end(memCounters), 0u);
+    }
+
+    return result;
+}
+#else
+// FIXME: this does not work when flush=false!
+// Version 3:
+// - Get rid of the 'buildingDone' boolean.
+// - Behavior change: try to only yield complete events, meaning events where
+// all modules are present.
+//
+size_t EventBuilder::Private::buildEvents(int eventIndex, Callbacks &callbacks, bool flush)
+{
+    if (flush)
+        get_logger("event_builder")->debug("Private::buildEvents(): flush requested!");
+
+    auto &eventBuffers = moduleEventBuffers_.at(eventIndex);
+    const auto &matchWindows = moduleMatchWindows_.at(eventIndex);
+    assert(eventBuffers.size() == matchWindows.size());
+    const size_t moduleCount = eventBuffers.size();
+    auto mainModuleIndex = mainModuleLinearIndexes_.at(eventIndex);
+    assert(mainModuleIndex < moduleCount);
+    const auto &mainBuffer = eventBuffers.at(mainModuleIndex);
+    auto &discardedEvents = moduleDiscardedEvents_.at(eventIndex);
+    auto &invScores = moduleInvScoreSums_.at(eventIndex);
+    auto &memCounters = moduleMemCounters_.at(eventIndex);
+
+    // Have to always resize as module counts vary for different eventIndexes.
+    eventAssembly_.resize(moduleCount);
+
+    size_t result = 0u;
+
+    // Loop until one of the module event buffers is empty.
+    while (!std::any_of(std::begin(eventBuffers), std::end(eventBuffers),
+                        [] (const auto &buffer) { return buffer.empty(); }))
+    {
+        u32 mainModuleTimestamp = mainBuffer.front().timestamp;
+        std::fill(eventAssembly_.begin(), eventAssembly_.end(), ModuleData{});
+        u32 eventInvScore = 0u;
+
+        for (size_t moduleIndex = 0; moduleIndex < moduleCount; ++moduleIndex)
+        {
+            auto &matchWindow = matchWindows[moduleIndex];
+            bool moduleDone = false;
+            auto &eventBuffer = eventBuffers.at(moduleIndex);
+
+            while (!moduleDone && !eventBuffer.empty())
+            {
+                auto &moduleEvent = eventBuffer.front();
+                auto matchResult = timestamp_match(mainModuleTimestamp, moduleEvent.timestamp, matchWindow);
+
+                switch (matchResult.match)
+                {
+                    case WindowMatch::too_old:
+                        {
+                            // This module event is too old. It cannot be
+                            // matched at any future point in time. Pop the
+                            // event off the queue and update counters.
+                            size_t usedMem = moduleEvent.usedMemory();
+                            assert(memCounters.at(moduleIndex) >= usedMem);
+                            memCounters.at(moduleIndex) -= usedMem;
+                            eventBuffer.pop_front();
+                            ++discardedEvents.at(moduleIndex);
+                        }
+                        break;
+
+                    case WindowMatch::in_window:
+                        // The module event is in the timestamp match window.
+                        // Update the event assembly and counters but do not
+                        // pop the event off the queue yet as the eventAssembly
+                        // points to the queue.
+                        eventAssembly_[moduleIndex] = module_data_from_event_storage(moduleEvent);
+                        eventInvScore += matchResult.invscore;
+                        invScores.at(moduleIndex) += matchResult.invscore;
+                        moduleDone = true;
+                        break;
+
+                    case WindowMatch::too_new:
+                        // The module event is too young to be matched with the
+                        // current main module event.
+                        moduleDone = true;
+                        break;
+                }
+            }
+        }
+
+        // Modules have been checked, eventAssembly has been filled if
+        // possible. Now yield the assembled event.
+        if (flush || std::all_of(std::begin(eventAssembly_), std::end(eventAssembly_),
+                                 [] (const ModuleData &d) { return d.data.data != nullptr; }))
+        {
+            // Assembled events are always mapped to crate 0.
+            const int crateIndex = 0;
+            callbacks.eventData(userContext_, crateIndex, eventIndex, eventAssembly_.data(), moduleCount);
+            ++result;
+
+            // After the callback we can pop the consumed module events off the deques.
+            for (size_t moduleIndex = 0; moduleIndex < moduleCount; ++moduleIndex)
+            {
+                auto &moduleData = eventAssembly_[moduleIndex];
+
+                if (moduleData.data.data)
+                {
+                    assert(!eventBuffers.at(moduleIndex).empty());
+                    const auto &eventStorage = eventBuffers.at(moduleIndex).front();
+                    size_t usedMem = eventStorage.usedMemory();
+                    assert(memCounters.at(moduleIndex) >= usedMem);
+                    memCounters.at(moduleIndex) -= usedMem;
+                    eventBuffers.at(moduleIndex).pop_front();
+                }
+            }
+        }
+    }
+
+    if (flush)
+    {
+        // Flush out all remaining data that's left in the buffers.  Note that
+        // this can also flush main module events if it was not possible to
+        // create a fully populated assembled event from the respective main
+        // module event.
+        std::for_each(std::begin(eventBuffers), std::end(eventBuffers),
+                      [] (auto &eb) { eb.clear(); });
+
+        assert(std::all_of(std::begin(eventBuffers), std::end(eventBuffers),
+                           [] (const auto &eb) { return eb.empty(); }));
+
+        std::fill(std::begin(memCounters), std::end(memCounters), 0u);
+    }
+
+    return result;
+}
+#endif
 
 EventBuilder::EventCounters EventBuilder::getCounters(int eventIndex) const
 {
@@ -632,6 +763,18 @@ std::vector<EventBuilder::EventCounters> EventBuilder::getCounters() const
         ret.emplace_back(d->getCounters(ei));
 
     return ret;
+}
+
+size_t EventBuilder::getMemoryUsage() const
+{
+    UniqueLock guard(d->mutex_);
+    return d->getMemoryUsage();
+}
+
+void EventBuilder::discardAllEventData()
+{
+    UniqueLock guard(d->mutex_);
+    d->discardAllEventData();
 }
 
 }
