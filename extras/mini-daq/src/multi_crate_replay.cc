@@ -127,14 +127,14 @@ int main(int argc, char *argv[])
 	{
         readout_parser::ReadoutParserCallbacks parserCallbacks;
         parserCallbacks.eventData = [crateIndex, &eventBuilder] (
-            void *, int eventIndex, const ModuleData *moduleData, size_t moduleCount)
+            void *, int /*crateIndex*/, int eventIndex, const ModuleData *moduleData, size_t moduleCount)
         {
             // FIXME: swallows none eventbuilder events
             if (eventBuilder.isEnabledFor(eventIndex))
                 eventBuilder.recordEventData(crateIndex, eventIndex, moduleData, moduleCount);
         };
         parserCallbacks.systemEvent = [crateIndex, &eventBuilder, &recordedSystemEvents] (
-            void *, const u32 *data, u32 size)
+            void *, int /*crateIndex*/, const u32 *data, u32 size)
         {
             eventBuilder.recordSystemEvent(crateIndex, data, size);
             ++recordedSystemEvents[crateIndex]; // FIXME: this is not thread save and will be executd in parallel by each of the readout parsers
@@ -150,7 +150,7 @@ int main(int argc, char *argv[])
 
     readout_parser::ReadoutParserCallbacks eventBuilderCallbacks;
     eventBuilderCallbacks.eventData = [&eventCounts, &moduleCounts] (
-        void *, int eventIndex, const ModuleData *moduleData, size_t moduleCount)
+        void *, int /*crateIndex*/, int eventIndex, const ModuleData *moduleData, size_t moduleCount)
     {
         //cout << fmt::format("eb.eventData: ei={}, moduleCount={}", eventIndex, moduleCount) << endl;
         ++eventCounts[eventIndex];
@@ -161,7 +161,7 @@ int main(int argc, char *argv[])
         }
     };
     eventBuilderCallbacks.systemEvent = [&eventBuilder, &systemEvents] (
-        void *, const u32 *data, u32 size)
+        void *, int /*crateIndex*/, const u32 *data, u32 size)
     {
         //cout << fmt::format("eb.systemEvent: size={}", size) << endl;
         ++systemEvents;

@@ -21,6 +21,7 @@ namespace
     // Readout parser callback for event data
     void event_data_blocking(
         void *userContext,
+        int /*crateIndex*/,
         int eventIndex,
         const readout_parser::ModuleData *moduleDataList,
         unsigned moduleCount)
@@ -49,6 +50,7 @@ namespace
     // Readout parser callback for system events
     void system_event_blocking(
         void *userContext,
+        int /*crateIndex*/,
         const u32 *header,
         u32 size)
     {

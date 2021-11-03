@@ -92,13 +92,13 @@ struct ReadoutParserCallbacks
     // Parameters: index of the VME event the data belongs to, pointer to an
     // array of ModuleData allowing access to the actual module readout data and
     // the moduleCount, specifying the number of elements in the groups array.
-    std::function<void (void *userContext, int eventIndex, const ModuleData *moduleDataList, unsigned moduleCount)>
-        eventData = [] (void *, int, const ModuleData *, size_t) {};
+    std::function<void (void *userContext, int crateIndex, int eventIndex, const ModuleData *moduleDataList, unsigned moduleCount)>
+        eventData = [] (void *, int, int, const ModuleData *, size_t) {};
 
     // Parameters: pointer to the system event header, number of words in the
     // system event
-    std::function<void (void *userContext, const u32 *header, u32 size)>
-        systemEvent = [] (void *, const u32 *, u32) {};
+    std::function<void (void *userContext, int crateIndex, const u32 *header, u32 size)>
+        systemEvent = [] (void *, int, const u32 *, u32) {};
 };
 
 struct ModuleReadoutStructure

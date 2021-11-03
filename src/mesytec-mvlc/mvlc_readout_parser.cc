@@ -361,7 +361,8 @@ inline bool try_handle_system_event(
 
             // Pass the frame header itself and the contents to the system event
             // callback.
-            callbacks.systemEvent(state.userContext, input.data(), frameInfo.len + 1);
+            const int crateIndex = 0;
+            callbacks.systemEvent(state.userContext, crateIndex, input.data(), frameInfo.len + 1);
             input.remove_prefix(frameInfo.len + 1);
             return true;
         }
@@ -768,7 +769,8 @@ ParseResult parse_readout_contents(
                     }
                 }
 
-                callbacks.eventData(state.userContext, state.eventIndex, state.moduleDataBuffer.data(), moduleCount);
+                int crateIndex = 0;
+                callbacks.eventData(state.userContext, crateIndex, state.eventIndex, state.moduleDataBuffer.data(), moduleCount);
 
                 ++counters.eventHits[state.eventIndex];
 

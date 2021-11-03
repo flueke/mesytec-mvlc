@@ -133,6 +133,8 @@ struct EventBuilder::Private
     // indexes: event, linear module, buffered event
     std::vector<std::vector<std::deque<ModuleEventStorage>>> moduleEventBuffers_;
     // indexes: event, linear module
+    std::vector<std::vector<size_t>> moduleMemCounters_;
+    // indexes: event, linear module
     std::vector<std::vector<timestamp_extractor>> moduleTimestampExtractors_;
     // indexes: event, linear module
     std::vector<std::vector<std::pair<s32, s32>>> moduleMatchWindows_;
@@ -342,7 +344,8 @@ struct EventBuilder::Private
             if (flush || std::all_of(std::begin(eventAssembly_), std::end(eventAssembly_),
                                      [] (const ModuleData &d) { return d.data.data != nullptr; }))
             {
-                callbacks.eventData(userContext_, eventIndex, eventAssembly_.data(), moduleCount);
+                const int crateIndex = 0;
+                callbacks.eventData(userContext_, crateIndex, eventIndex, eventAssembly_.data(), moduleCount);
                 ++result;
 
                 // Now, after, the callback, pop the consumed module events off the deques.
@@ -396,6 +399,7 @@ EventBuilder::EventBuilder(const std::vector<EventSetup> &setups, void *userCont
     d->linearModuleIndexTable_.resize(eventCount);
     d->mainModuleLinearIndexes_.resize(eventCount);
     d->moduleEventBuffers_.resize(eventCount);
+    d->moduleMemCounters_.resize(eventCount);
     d->moduleTimestampExtractors_.resize(eventCount);
     d->moduleMatchWindows_.resize(eventCount);
     d->moduleDiscardedEvents_.resize(eventCount);
@@ -413,6 +417,7 @@ EventBuilder::EventBuilder(const std::vector<EventSetup> &setups, void *userCont
         auto &timestampExtractors = d->moduleTimestampExtractors_.at(eventIndex);
         auto &matchWindows = d->moduleMatchWindows_.at(eventIndex);
         auto &eventBuffers = d->moduleEventBuffers_.at(eventIndex);
+        auto &memCounters = d->moduleMemCounters_.at(eventIndex);
         auto &discardedEvents = d->moduleDiscardedEvents_.at(eventIndex);
         auto &emptyEvents = d->moduleEmptyEvents_.at(eventIndex);
         auto &invScores = d->moduleInvScoreSums_.at(eventIndex);
@@ -432,11 +437,12 @@ EventBuilder::EventBuilder(const std::vector<EventSetup> &setups, void *userCont
                 eventTable[key] = linearModuleIndex;
                 ++linearModuleIndex;
 
-                timestampExtractors.push_back(crateSetup.moduleTimestampExtractors[moduleIndex]);
-                matchWindows.push_back(crateSetup.moduleMatchWindows[moduleIndex]);
+                timestampExtractors.push_back(crateSetup.moduleTimestampExtractors.at(moduleIndex));
+                matchWindows.push_back(crateSetup.moduleMatchWindows.at(moduleIndex));
             }
 
             eventBuffers.resize(eventBuffers.size() + moduleCount);
+            memCounters.resize(memCounters.size() + moduleCount);
             discardedEvents.resize(discardedEvents.size() + moduleCount);
             emptyEvents.resize(emptyEvents.size() + moduleCount);
             invScores.resize(invScores.size() + moduleCount);
@@ -489,8 +495,8 @@ void EventBuilder::recordEventData(int crateIndex, int eventIndex, const ModuleD
 
     try
     {
-
         auto &moduleEventBuffers = d->moduleEventBuffers_.at(eventIndex);
+        auto &moduleMemCounters = d->moduleMemCounters_.at(eventIndex);
         auto &timestampExtractors = d->moduleTimestampExtractors_.at(eventIndex);
         auto &emptyEvents = d->moduleEmptyEvents_.at(eventIndex);
 
@@ -517,7 +523,11 @@ void EventBuilder::recordEventData(int crateIndex, int eventIndex, const ModuleD
             }
 
             const auto linearModuleIndex = d->getLinearModuleIndex(crateIndex, eventIndex, moduleIndex);
-            u32 timestamp = timestampExtractors.at(linearModuleIndex)(data.data, data.size);
+
+            u32 timestamp = 0u;
+
+            if (isEnabledFor(eventIndex) && timestampExtractors.at(linearModuleIndex))
+                timestamp = timestampExtractors.at(linearModuleIndex)(data.data, data.size);
 
             assert(timestamp <= TimestampMax);
 
@@ -527,9 +537,11 @@ void EventBuilder::recordEventData(int crateIndex, int eventIndex, const ModuleD
                 { data.data, data.data + data.size },
             };
 
-            moduleEventBuffers.at(linearModuleIndex).emplace_back(eventStorage);
-        }
+            size_t usedMem = sizeof(eventStorage) + data.size * sizeof(*data.data);
 
+            moduleEventBuffers.at(linearModuleIndex).emplace_back(eventStorage);
+            moduleMemCounters.at(linearModuleIndex) += usedMem;
+        }
     }
     catch (const std::exception &e)
     {
@@ -584,8 +596,7 @@ size_t EventBuilder::buildEvents(Callbacks callbacks, bool flush)
     while (!d->systemEvents_.empty())
     {
         auto &ses = d->systemEvents_.back();
-        // FIXME: crateIndex (analysis needs to know)
-        callbacks.systemEvent(d->userContext_, ses.data.data(), ses.data.size());
+        callbacks.systemEvent(d->userContext_, ses.crateIndex, ses.data.data(), ses.data.size());
         d->systemEvents_.pop_front();
     }
 

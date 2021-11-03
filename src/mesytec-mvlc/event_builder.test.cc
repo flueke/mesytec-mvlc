@@ -174,7 +174,7 @@ TEST(event_builder, SingleCrateWindowMatchingNoOverflow)
         size_t dataCallbackCount = 0;
         size_t systemCallbackCount = 0;
 
-        auto eventDataCallback = [&] (void *, int eventIndex, const ModuleData *moduleDataList, unsigned moduleCount)
+        auto eventDataCallback = [&] (void *, int crateIndex, int eventIndex, const ModuleData *moduleDataList, unsigned moduleCount)
         {
             ++dataCallbackCount;
             ASSERT_EQ(moduleDataList[0].data.size, 0);
@@ -186,7 +186,7 @@ TEST(event_builder, SingleCrateWindowMatchingNoOverflow)
             ASSERT_EQ(moduleDataList[2].data.data[0], 200);
         };
 
-        auto systemEventCallback = [&] (void *, const u32 *header, u32 size)
+        auto systemEventCallback = [&] (void *, int crateIndex, const u32 *header, u32 size)
         {
             ++systemCallbackCount;
         };
@@ -212,7 +212,7 @@ TEST(event_builder, SingleCrateWindowMatchingNoOverflow)
         size_t dataCallbackCount = 0;
         size_t systemCallbackCount = 0;
 
-        auto eventDataCallback = [&] (void *, int eventIndex, const ModuleData *moduleDataList, unsigned moduleCount)
+        auto eventDataCallback = [&] (void *, int crateIndex, int eventIndex, const ModuleData *moduleDataList, unsigned moduleCount)
         {
             switch (dataCallbackCount++)
             {
@@ -239,7 +239,7 @@ TEST(event_builder, SingleCrateWindowMatchingNoOverflow)
             }
         };
 
-        auto systemEventCallback = [&] (void *, const u32 *header, u32 size)
+        auto systemEventCallback = [&] (void *, int crateIndex, const u32 *header, u32 size)
         {
             ++systemCallbackCount;
         };
@@ -268,7 +268,7 @@ TEST(event_builder, SingleCrateWindowMatchingNoOverflow)
         size_t dataCallbackCount = 0;
         size_t systemCallbackCount = 0;
 
-        auto eventDataCallback = [&] (void *, int eventIndex, const ModuleData *moduleDataList, unsigned moduleCount)
+        auto eventDataCallback = [&] (void *, int crateIndex, int eventIndex, const ModuleData *moduleDataList, unsigned moduleCount)
         {
             switch (dataCallbackCount++)
             {
@@ -306,7 +306,7 @@ TEST(event_builder, SingleCrateWindowMatchingNoOverflow)
             }
         };
 
-        auto systemEventCallback = [&] (void *, const u32 *header, u32 size)
+        auto systemEventCallback = [&] (void *, int crateIndex, const u32 *header, u32 size)
         {
             ++systemCallbackCount;
         };
@@ -378,7 +378,7 @@ TEST(event_builder, SingleCrateWindowMatchingOverflow)
         size_t dataCallbackCount = 0;
         size_t systemCallbackCount = 0;
 
-        auto eventDataCallback = [&] (void *, int eventIndex, const ModuleData *moduleDataList, unsigned moduleCount)
+        auto eventDataCallback = [&] (void *, int crateIndex, int eventIndex, const ModuleData *moduleDataList, unsigned moduleCount)
         {
             switch (dataCallbackCount++)
             {
@@ -427,7 +427,7 @@ TEST(event_builder, SingleCrateWindowMatchingOverflow)
             }
         };
 
-        auto systemEventCallback = [&] (void *, const u32 *header, u32 size)
+        auto systemEventCallback = [&] (void *, int crateIndex, const u32 *header, u32 size)
         {
             ++systemCallbackCount;
         };
@@ -473,12 +473,12 @@ TEST(event_builder, SingleCratePerfectMatches)
     size_t dataCallbackCount = 0;
     size_t systemCallbackCount = 0;
 
-    auto eventDataCallback = [&] (void *, int eventIndex, const ModuleData *eventData, unsigned moduleCount)
+    auto eventDataCallback = [&] (void *, int crateIndex, int eventIndex, const ModuleData *eventData, unsigned moduleCount)
     {
         ++dataCallbackCount;
     };
 
-    auto systemEventCallback = [&] (void *, const u32 *header, u32 size)
+    auto systemEventCallback = [&] (void *, int crateIndex, const u32 *header, u32 size)
     {
         ++systemCallbackCount;
     };

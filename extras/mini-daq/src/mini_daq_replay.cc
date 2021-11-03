@@ -74,7 +74,7 @@ int main(int argc, char *argv[])
     size_t nReadouts = 0;
 
     parserCallbacks.eventData = [opt_printReadoutData, &nReadouts] (
-        void *, int eventIndex, const readout_parser::ModuleData *moduleDataList, unsigned moduleCount)
+        void *, int /*crateIndex*/, int eventIndex, const readout_parser::ModuleData *moduleDataList, unsigned moduleCount)
     {
         if (opt_printReadoutData)
         {
@@ -92,7 +92,7 @@ int main(int argc, char *argv[])
         ++nReadouts;
     };
 
-    parserCallbacks.systemEvent = [opt_printReadoutData, &nSystems] (void *, const u32 *header, u32 size)
+    parserCallbacks.systemEvent = [opt_printReadoutData, &nSystems] (void *, int /*crateIndex*/, const u32 *header, u32 size)
     {
         if (opt_printReadoutData)
         {
