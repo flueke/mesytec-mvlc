@@ -257,6 +257,7 @@ EventBuilder::EventBuilder(const EventBuilderConfig &cfg, void *userContext)
     d->moduleDiscardedEvents_.resize(eventCount);
     d->moduleEmptyEvents_.resize(eventCount);
     d->moduleInvScoreSums_.resize(eventCount);
+    d->moduleTotalHits_.resize(eventCount);
 
     for (size_t eventIndex = 0; eventIndex < eventCount; ++eventIndex)
     {
@@ -273,6 +274,7 @@ EventBuilder::EventBuilder(const EventBuilderConfig &cfg, void *userContext)
         auto &discardedEvents = d->moduleDiscardedEvents_.at(eventIndex);
         auto &emptyEvents = d->moduleEmptyEvents_.at(eventIndex);
         auto &invScores = d->moduleInvScoreSums_.at(eventIndex);
+        auto &hits = d->moduleTotalHits_.at(eventIndex);
         unsigned linearModuleIndex = 0;
 
         for (size_t crateIndex = 0; crateIndex < eventSetup.crateSetups.size(); ++crateIndex)
@@ -298,6 +300,7 @@ EventBuilder::EventBuilder(const EventBuilderConfig &cfg, void *userContext)
             discardedEvents.resize(discardedEvents.size() + moduleCount);
             emptyEvents.resize(emptyEvents.size() + moduleCount);
             invScores.resize(invScores.size() + moduleCount);
+            hits.resize(hits.size() + moduleCount);
         }
 
         size_t mainModuleLinearIndex = d->getLinearModuleIndex(
