@@ -232,7 +232,7 @@ TEST(event_builder, SingleCrateWindowMatchingNoOverflow)
                         ASSERT_EQ(moduleDataList[2].data.size, 1);
                         ASSERT_EQ(moduleDataList[2].data.data[0], 200);
                     } break;
-#if 0
+#if 1
                 case 1:
                     {
                         ASSERT_EQ(moduleDataList[0].data.size, 0);
@@ -251,9 +251,9 @@ TEST(event_builder, SingleCrateWindowMatchingNoOverflow)
             ++systemCallbackCount;
         };
 
-        ASSERT_EQ(eventBuilder.buildEvents({ eventDataCallback, systemEventCallback }, true), 1);
+        ASSERT_EQ(eventBuilder.buildEvents({ eventDataCallback, systemEventCallback }, true), 2);
 
-        ASSERT_EQ(dataCallbackCount, 1);
+        ASSERT_EQ(dataCallbackCount, 2);
         ASSERT_EQ(systemCallbackCount, 0);
         dataCallbackCount = 0;
         systemCallbackCount = 0;
@@ -300,7 +300,7 @@ TEST(event_builder, SingleCrateWindowMatchingNoOverflow)
 
                         ASSERT_EQ(moduleDataList[2].data.size, 0);
                     } break;
-#if 0
+#if 1
                 case 2:
                     {
                         ASSERT_EQ(moduleDataList[0].data.size, 0);
@@ -320,9 +320,9 @@ TEST(event_builder, SingleCrateWindowMatchingNoOverflow)
             ++systemCallbackCount;
         };
 
-        ASSERT_EQ(eventBuilder.buildEvents({ eventDataCallback, systemEventCallback }, true), 2);
+        ASSERT_EQ(eventBuilder.buildEvents({ eventDataCallback, systemEventCallback }, true), 3);
 
-        ASSERT_EQ(dataCallbackCount, 2);
+        ASSERT_EQ(dataCallbackCount, 3);
         ASSERT_EQ(systemCallbackCount, 0);
         dataCallbackCount = 0;
         systemCallbackCount = 0;

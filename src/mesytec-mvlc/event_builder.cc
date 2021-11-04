@@ -150,6 +150,8 @@ struct EventBuilder::Private
     // indexes: event, linear module, buffered event
     std::vector<std::vector<std::deque<ModuleEventStorage>>> moduleEventBuffers_;
     // indexes: event, linear module
+    // TODO (maybe): could use a single size_t to track all of the used memory.
+    // Would lose detail about which module uses how much of the space.
     std::vector<std::vector<size_t>> moduleMemCounters_;
     // indexes: event, linear module
     std::vector<std::vector<timestamp_extractor>> moduleTimestampExtractors_;
@@ -317,7 +319,8 @@ bool EventBuilder::isEnabledForAnyEvent() const
                        [] (const EventSetup &setup) { return setup.enabled; });
 }
 
-void EventBuilder::recordEventData(int crateIndex, int eventIndex, const ModuleData *moduleDataList, unsigned moduleCount)
+void EventBuilder::recordEventData(int crateIndex, int eventIndex,
+                                   const ModuleData *moduleDataList, unsigned moduleCount)
 {
     // lock, then copy the data to an internal buffer
     UniqueLock guard(d->mutex_);
@@ -404,6 +407,9 @@ void EventBuilder::recordEventData(int crateIndex, int eventIndex, const ModuleD
         get_logger("event_builder")->error("recordEventData(): {}", e.what());
         throw;
     }
+
+    get_logger("event_builder")->trace("recordEventData(): memory usage is {}",
+                                       d->getMemoryUsage());
 
     guard.unlock();
     d->cv_.notify_one();
@@ -496,7 +502,7 @@ size_t EventBuilder::buildEvents(Callbacks callbacks, bool flush)
     return result;
 }
 
-#if 1
+#if 0
 // Version 2:
 // - get rid of minMainModuleEvents
 // - instead attempt to yield events on every call:
@@ -617,7 +623,8 @@ size_t EventBuilder::Private::buildEvents(int eventIndex, Callbacks &callbacks, 
 
     return result;
 }
-#else
+#endif
+#if 1
 // FIXME: this does not work when flush=false!
 // Version 3:
 // - Get rid of the 'buildingDone' boolean.
@@ -645,9 +652,11 @@ size_t EventBuilder::Private::buildEvents(int eventIndex, Callbacks &callbacks, 
 
     size_t result = 0u;
 
-    // Loop until one of the module event buffers is empty.
-    while (!std::any_of(std::begin(eventBuffers), std::end(eventBuffers),
-                        [] (const auto &buffer) { return buffer.empty(); }))
+    // Loop while we have data from the main module and none of the module
+    // buffers are empty or we're flushing.
+    while (!mainBuffer.empty() &&
+           (flush || !std::any_of(std::begin(eventBuffers), std::end(eventBuffers),
+                                  [] (const auto &buffer) { return buffer.empty(); })))
     {
         u32 mainModuleTimestamp = mainBuffer.front().timestamp;
         std::fill(eventAssembly_.begin(), eventAssembly_.end(), ModuleData{});
@@ -668,9 +677,10 @@ size_t EventBuilder::Private::buildEvents(int eventIndex, Callbacks &callbacks, 
                 {
                     case WindowMatch::too_old:
                         {
-                            // This module event is too old. It cannot be
-                            // matched at any future point in time. Pop the
-                            // event off the queue and update counters.
+                            // This module event is too old relative to the
+                            // main module. It cannot be matched at any future
+                            // point in time. Pop the event off the queue and
+                            // update counters.
                             size_t usedMem = moduleEvent.usedMemory();
                             assert(memCounters.at(moduleIndex) >= usedMem);
                             memCounters.at(moduleIndex) -= usedMem;
@@ -699,10 +709,31 @@ size_t EventBuilder::Private::buildEvents(int eventIndex, Callbacks &callbacks, 
             }
         }
 
-        // Modules have been checked, eventAssembly has been filled if
-        // possible. Now yield the assembled event.
-        if (flush || std::all_of(std::begin(eventAssembly_), std::end(eventAssembly_),
-                                 [] (const ModuleData &d) { return d.data.data != nullptr; }))
+        // At this point module events that are too old to be matched with the
+        // current main module event have been popped of the queues. An attempt
+        // to match all modules in the current event has been made but some of
+        // the modules may contain null data in case no window match was found.
+        // No match can mean that either the module data is too new to be
+        // matched with the current main module event or there is no more data
+        // for the respective module as it has not arrived yet.
+
+        if (!flush)
+        {
+            bool yieldEvent = true;
+
+            for (size_t moduleIndex = 0; moduleIndex < moduleCount; ++moduleIndex)
+            {
+                if (!eventAssembly_.at(moduleIndex).data.data && eventBuffers.at(moduleIndex).empty())
+                {
+                    yieldEvent = false;
+                    break;
+                }
+            }
+
+            if (!yieldEvent)
+                break;
+        }
+
         {
             // Assembled events are always mapped to crate 0.
             const int crateIndex = 0;
@@ -729,18 +760,18 @@ size_t EventBuilder::Private::buildEvents(int eventIndex, Callbacks &callbacks, 
 
     if (flush)
     {
-        // Flush out all remaining data that's left in the buffers.  Note that
-        // this can also flush main module events if it was not possible to
-        // create a fully populated assembled event from the respective main
-        // module event.
+        // Flush out all remaining data that's left in the buffers.
         std::for_each(std::begin(eventBuffers), std::end(eventBuffers),
                       [] (auto &eb) { eb.clear(); });
 
         assert(std::all_of(std::begin(eventBuffers), std::end(eventBuffers),
                            [] (const auto &eb) { return eb.empty(); }));
 
+        // Zero out the per module memory usage counters.
         std::fill(std::begin(memCounters), std::end(memCounters), 0u);
     }
+
+    get_logger("event_builder")->debug("buildEvents(): built {} events", result);
 
     return result;
 }
