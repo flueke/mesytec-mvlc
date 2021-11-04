@@ -239,9 +239,9 @@ int main(int argc, char *argv[])
 
     auto ebCounters = eventBuilder.getCounters();
 
-    for (size_t ei=0; ei<ebCounters.size(); ++ei)
+    for (size_t ei=0; ei<ebCounters.eventCounters.size(); ++ei)
     {
-        auto &modCounters = ebCounters.at(ei);
+        auto &modCounters = ebCounters.eventCounters.at(ei);
         for (size_t mi=0; mi<modCounters.discardedEvents.size(); ++mi)
         {
             cout << fmt::format(

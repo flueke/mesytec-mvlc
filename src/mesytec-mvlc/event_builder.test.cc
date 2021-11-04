@@ -53,6 +53,9 @@ TEST(event_builder, ConstructDescruct)
 {
     EventBuilderConfig cfg;
     EventBuilder eventbuilder(cfg);
+
+    ASSERT_EQ(eventbuilder.getMemoryUsage(), 0u);
+    ASSERT_EQ(eventbuilder.getMaxMemoryUsage(), 0u);
 }
 
 namespace
@@ -130,10 +133,19 @@ TEST(event_builder, MemoryUsageAndDiscarding)
     eventBuilder.recordEventData(crateIndex, eventIndex, moduleDataList.data(), moduleDataList.size());
 
     ASSERT_EQ(eventBuilder.getMemoryUsage(), 6*sizeof(u32));
+    ASSERT_EQ(eventBuilder.getMaxMemoryUsage(), 6*sizeof(u32));
 
+    // discard but do not reset the internal counters
     eventBuilder.discardAllEventData();
 
     ASSERT_EQ(eventBuilder.getMemoryUsage(), 0u);
+    ASSERT_EQ(eventBuilder.getMaxMemoryUsage(), 6*sizeof(u32));
+
+    // dicard + counter reset
+    eventBuilder.reset();
+
+    ASSERT_EQ(eventBuilder.getMemoryUsage(), 0u);
+    ASSERT_EQ(eventBuilder.getMaxMemoryUsage(), 0u);
 }
 
 TEST(event_builder, SingleCrateWindowMatchingNoOverflow)

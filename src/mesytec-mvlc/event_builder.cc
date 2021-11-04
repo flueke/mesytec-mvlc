@@ -132,12 +132,6 @@ struct EventBuilder::Private
     TicketMutex mutex_;
     std::condition_variable_any cv_;
 
-    // copies of systemEvents
-    std::deque<SystemEventStorage> systemEvents_;
-
-    // copies of passthrough events (events for which event building is not enabled)
-    std::deque<PassthroughEventStorage> passThroughEvents_;
-
     // indexes: event, pair(crateIndex, moduleIndex) -> linear module index
     std::vector<std::unordered_map<std::pair<int, unsigned>, size_t, PairHash>> linearModuleIndexTable_;
     // Reverse mapping back from calculated linear modules indexes to (crateIndex, moduleIndex)
@@ -146,13 +140,19 @@ struct EventBuilder::Private
     // Linear module index of the main module for each event
     // indexes: event, linear module
     std::vector<size_t> mainModuleLinearIndexes_;
+
+    // copies of systemEvents
+    std::deque<SystemEventStorage> systemEvents_;
+    // copies of passthrough events (events for which event building is not enabled)
+    std::deque<PassthroughEventStorage> passThroughEvents_;
     // Holds copies of module event data and the extracted event timestamp.
     // indexes: event, linear module, buffered event
     std::vector<std::vector<std::deque<ModuleEventStorage>>> moduleEventBuffers_;
     // indexes: event, linear module
-    // TODO (maybe): could use a single size_t to track all of the used memory.
-    // Would lose detail about which module uses how much of the space.
     std::vector<std::vector<size_t>> moduleMemCounters_;
+    // Keeps track of the maximum total memory used for module event buffering
+    // since the last call to reset()
+    size_t maxUsedMemory_ = 0u;;
     // indexes: event, linear module
     std::vector<std::vector<timestamp_extractor>> moduleTimestampExtractors_;
     // indexes: event, linear module
@@ -184,6 +184,7 @@ struct EventBuilder::Private
         ret.discardedEvents = moduleDiscardedEvents_.at(eventIndex);
         ret.emptyEvents = moduleEmptyEvents_.at(eventIndex);
         ret.invScoreSums = moduleInvScoreSums_.at(eventIndex);
+        ret.totalHits = moduleTotalHits_.at(eventIndex);
         return ret;
     }
 
@@ -218,6 +219,23 @@ struct EventBuilder::Private
             std::fill(std::begin(memCounters), std::end(memCounters), static_cast<size_t>(0u));
 
         assert(getMemoryUsage() == 0u);
+    }
+
+    void resetCounters()
+    {
+        maxUsedMemory_ = 0u;
+
+        auto fill0 = [] (auto &c)
+        {
+            for (auto &counters: c)
+                std::fill(std::begin(counters), std::end(counters), static_cast<size_t>(0u));
+        };
+
+        fill0(moduleMemCounters_);
+        fill0(moduleDiscardedEvents_);
+        fill0(moduleEmptyEvents_);
+        fill0(moduleInvScoreSums_);
+        fill0(moduleTotalHits_);
     }
 };
 
@@ -322,6 +340,8 @@ bool EventBuilder::isEnabledForAnyEvent() const
 void EventBuilder::recordEventData(int crateIndex, int eventIndex,
                                    const ModuleData *moduleDataList, unsigned moduleCount)
 {
+    auto logger = get_logger("event_builder");
+
     // lock, then copy the data to an internal buffer
     UniqueLock guard(d->mutex_);
 
@@ -351,7 +371,7 @@ void EventBuilder::recordEventData(int crateIndex, int eventIndex,
     // Memory usage check and possible discarding of all buffered data.
     if (d->getMemoryUsage() >= d->memoryLimit_)
     {
-        get_logger("event_builder")->warn("recordEventData(): memory limit exceeded, discarding data");
+        logger->warn("recordEventData(): memory limit exceeded, discarding all data");
         d->discardAllEventData();
     }
 
@@ -404,12 +424,14 @@ void EventBuilder::recordEventData(int crateIndex, int eventIndex,
     }
     catch (const std::exception &e)
     {
-        get_logger("event_builder")->error("recordEventData(): {}", e.what());
+        logger->error("recordEventData(): {}", e.what());
         throw;
     }
 
-    get_logger("event_builder")->trace("recordEventData(): memory usage is {}",
-                                       d->getMemoryUsage());
+    size_t usedMem = d->getMemoryUsage();
+    d->maxUsedMemory_ = std::max(d->maxUsedMemory_, usedMem);
+
+    logger->trace("recordEventData(): memory usage is {}", usedMem);
 
     guard.unlock();
     d->cv_.notify_one();
@@ -625,7 +647,6 @@ size_t EventBuilder::Private::buildEvents(int eventIndex, Callbacks &callbacks, 
 }
 #endif
 #if 1
-// FIXME: this does not work when flush=false!
 // Version 3:
 // - Get rid of the 'buildingDone' boolean.
 // - Behavior change: try to only yield complete events, meaning events where
@@ -771,7 +792,7 @@ size_t EventBuilder::Private::buildEvents(int eventIndex, Callbacks &callbacks, 
         std::fill(std::begin(memCounters), std::end(memCounters), 0u);
     }
 
-    get_logger("event_builder")->debug("buildEvents(): built {} events", result);
+    get_logger("event_builder")->trace("buildEvents(): built {} events", result);
 
     return result;
 }
@@ -783,17 +804,20 @@ EventBuilder::EventCounters EventBuilder::getCounters(int eventIndex) const
     return d->getCounters(eventIndex);
 }
 
-std::vector<EventBuilder::EventCounters> EventBuilder::getCounters() const
+EventBuilder::EventBuilderCounters EventBuilder::getCounters() const
 {
     UniqueLock guard(d->mutex_);
 
-    std::vector<EventCounters> ret;
-    ret.reserve(d->moduleDiscardedEvents_.size());
+    std::vector<EventCounters> eventCounters;
+    eventCounters.reserve(d->moduleDiscardedEvents_.size());
 
     for (size_t ei=0; ei<d->moduleDiscardedEvents_.size(); ++ei)
-        ret.emplace_back(d->getCounters(ei));
+        eventCounters.emplace_back(d->getCounters(ei));
 
-    return ret;
+    EventBuilderCounters result;
+    result.eventCounters = std::move(eventCounters);
+    result.maxMemoryUsage = d->maxUsedMemory_;
+    return result;
 }
 
 size_t EventBuilder::getMemoryUsage() const
@@ -802,10 +826,23 @@ size_t EventBuilder::getMemoryUsage() const
     return d->getMemoryUsage();
 }
 
+size_t EventBuilder::getMaxMemoryUsage() const
+{
+    UniqueLock guard(d->mutex_);
+    return d->maxUsedMemory_;
+}
+
 void EventBuilder::discardAllEventData()
 {
     UniqueLock guard(d->mutex_);
     d->discardAllEventData();
+}
+
+void EventBuilder::reset()
+{
+    UniqueLock guard(d->mutex_);
+    d->discardAllEventData();
+    d->resetCounters();
 }
 
 }

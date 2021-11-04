@@ -121,13 +121,22 @@ class MESYTEC_MVLC_EXPORT EventBuilder
             std::vector<size_t> discardedEvents;
             std::vector<size_t> emptyEvents;
             std::vector<size_t> invScoreSums;
+            std::vector<size_t> totalHits;
+        };
+
+        struct EventBuilderCounters
+        {
+            std::vector<EventCounters> eventCounters;
+            size_t maxMemoryUsage;
         };
 
         EventCounters getCounters(int eventIndex) const;
-        std::vector<EventCounters> getCounters() const;
+        EventBuilderCounters getCounters() const;
 
         size_t getMemoryUsage() const;
+        size_t getMaxMemoryUsage() const;
         void discardAllEventData();
+        void reset();
 
     private:
         struct Private;
