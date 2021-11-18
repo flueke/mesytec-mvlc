@@ -372,10 +372,10 @@ void cmd_pipe_reader(ReaderContext &context)
                 buffer.ensureFreeSpace(usb::USBSingleTransferMaxWords);
 
             ec = context.mvlc->read(
-            Pipe::Command,
-            reinterpret_cast<u8 *>(buffer.writeBegin()),
-            std::min(buffer.free() * sizeof(u32), usb::USBSingleTransferMaxBytes),
-            bytesTransferred);
+                Pipe::Command,
+                reinterpret_cast<u8 *>(buffer.writeBegin()),
+                std::min(buffer.free() * sizeof(u32), usb::USBSingleTransferMaxBytes),
+                bytesTransferred);
 
             buffer.used += bytesTransferred / sizeof(u32);
         }
