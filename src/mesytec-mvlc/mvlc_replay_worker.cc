@@ -1,6 +1,7 @@
 #include "mvlc_replay_worker.h"
 
 #include <cstring>
+#include <thread>
 
 #if __linux__
 #include <sys/prctl.h>
