@@ -129,6 +129,12 @@ namespace
             {
                 accumulatorActive = true;
             }
+            else if (cmd.type == StackCT::SignalAccu)
+            {
+                // SignalAccu also resets the accu
+                accumulatorActive = false;
+            }
+
         }
 
         return modParts;
