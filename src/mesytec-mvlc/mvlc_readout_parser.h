@@ -103,7 +103,7 @@ struct ReadoutParserCallbacks
 
 struct ModuleReadoutStructure
 {
-    // case >= 0: length of the output producing single_reader/marker commands of this module
+    // case >= 0: length of the output producing single_read/marker commands of this module
     // case  < 0: the readout is a dynamically sized block read command.
     s16 len;
 };

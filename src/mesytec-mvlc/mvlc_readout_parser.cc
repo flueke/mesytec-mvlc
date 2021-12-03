@@ -60,10 +60,21 @@ namespace
         State state = Initial;
         ModuleReadoutStructure modParts = {};
 
+        // Tracks state of the MVLC stack accumulator functionality.
+        // This is set to true on encountering SetAccu, ReadToAccu or CompareLoopAccu.
+        // It is reset once a vme read is encountered.
+        // The reason why this needs to be tracked is that using the accu turns
+        // the following single(!) read vme instruction into a fake block
+        // transfer: the MVLC takes the number of single reads to perform from
+        // the accu and packages the resulting data into a standard 0xF5 block
+        // frame.
+        bool accumulatorActive = false;
+
         for (const auto &cmd: commands)
         {
             if ((cmd.type == StackCT::VMERead
-                 && !vme_amods::is_block_mode(cmd.amod))
+                 && !vme_amods::is_block_mode(cmd.amod)
+                 && !accumulatorActive)
                 || cmd.type == StackCT::WriteMarker)
             {
                 switch (state)
@@ -93,6 +104,7 @@ namespace
                     case Dynamic:
                         throw std::runtime_error("multiple block reads in module readout");
                 }
+                accumulatorActive = false;
             }
             else if (cmd.type == StackCT::Custom)
             {
@@ -110,6 +122,12 @@ namespace
                     case Dynamic:
                         throw std::runtime_error("custom stack command after block read in module readout");
                 }
+            }
+            else if (cmd.type == StackCT::SetAccu
+                     || cmd.type == StackCT::ReadToAccu
+                     || cmd.type == StackCT::CompareLoopAccu)
+            {
+                accumulatorActive = true;
             }
         }
 
