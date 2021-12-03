@@ -273,7 +273,7 @@ static const u8 Blk2eSSTRateShift = 6;
 enum class SpecialWord: u8
 {
     Timestamp,
-    StackTriggers
+    Accu,
 };
 
 enum class AddressIncrementMode: u8
