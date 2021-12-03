@@ -961,7 +961,7 @@ std::vector<u32> make_stack_buffer(const std::vector<StackCommand> &stack)
                 break;
 
             case CommandType::WriteSpecial:
-                cmdWord |= cmd.value & 0x00FFFFFFu;
+                cmdWord |= cmd.value & 0x00FFFFFFu; // 24 bits
                 result.push_back(cmdWord);
                 break;
 
