@@ -194,6 +194,7 @@ class MESYTEC_MVLC_EXPORT StackCommandBuilder
         StackCommandBuilder &addSetAccu(u32 value);
         StackCommandBuilder &addReadToAccu(u32 address, u8 amod, VMEDataWidth dataWidth);
         StackCommandBuilder &addCompareLoopAccu(AccuComparator comp, u32 value);
+        StackCommandBuilder &addWriteSpecial(u32 specialValue);
 
         // Intended for direct stack execution. Suspends further command
         // execution for the given duration.

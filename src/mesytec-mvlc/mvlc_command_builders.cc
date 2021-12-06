@@ -563,6 +563,15 @@ StackCommandBuilder &StackCommandBuilder::addCompareLoopAccu(AccuComparator comp
     return addCommand(cmd);
 }
 
+StackCommandBuilder &StackCommandBuilder::addWriteSpecial(u32 specialValue)
+{
+    StackCommand cmd = {};
+    cmd.type = CommandType::WriteSpecial;
+    cmd.value = specialValue;
+
+    return addCommand(cmd);
+}
+
 StackCommandBuilder &StackCommandBuilder::addSoftwareDelay(const std::chrono::milliseconds &ms)
 {
     StackCommand cmd = {};
