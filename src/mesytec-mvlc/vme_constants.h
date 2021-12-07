@@ -37,7 +37,7 @@ namespace vme_amods
     static const uint8_t a16User   = 0x29;
     static const uint8_t a16Priv   = 0x2D;
 
-    // defaults using the privileged modes
+    // default modes
     static const u8 A16         = a16User;
     static const u8 A24         = a24UserData;
     static const u8 A32         = a32UserData;
