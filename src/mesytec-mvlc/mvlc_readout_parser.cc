@@ -75,8 +75,12 @@ namespace
             if ((cmd.type == StackCT::VMERead
                  && !vme_amods::is_block_mode(cmd.amod)
                  && !accumulatorActive)
-                || cmd.type == StackCT::WriteMarker)
+                || cmd.type == StackCT::WriteMarker
+                || cmd.type == StackCT::WriteSpecial)
             {
+                // Handles non-block vme reads and marker/special commands which
+                // produce a single output word each.
+
                 switch (state)
                 {
                     case Initial:
@@ -87,20 +91,22 @@ namespace
                         ++modParts.len;
                         break;
                     case Dynamic:
-                        throw std::runtime_error("block read after fixed reads in module reaodut");
+                        throw std::runtime_error("fixed read after block read in module readout");
                 }
             }
             else if (cmd.type == StackCT::VMERead || cmd.type == StackCT::VMEMBLTSwapped)
             {
+                // Handles vme block reads making the structure have a dynamic size.
+
                 switch (state)
                 {
                     case Initial:
                         state = Dynamic;
                         assert(modParts.len == 0);
-                        modParts.len = -1;
+                        modParts.len = -1; // negative values mean "dynamic"
                         break;
                     case Fixed:
-                        throw std::runtime_error("fixed read after block read in module readout");
+                        throw std::runtime_error("block read after fixed reads in module readout");
                     case Dynamic:
                         throw std::runtime_error("multiple block reads in module readout");
                 }
@@ -108,6 +114,8 @@ namespace
             }
             else if (cmd.type == StackCT::Custom)
             {
+                // Handles mvlc_custom_begin/end blocks
+
                 // Note: cmd.transfers contains the number of data words
                 // produced by the custom stack command.
                 switch (state)
@@ -134,7 +142,12 @@ namespace
                 // SignalAccu also resets the accu
                 accumulatorActive = false;
             }
-
+            else
+            {
+                auto logger = get_logger("readout_parser");
+                logger->debug("parse_module_readout_commands: unhandled command {}",
+                             to_string(cmd));
+            }
         }
 
         return modParts;
