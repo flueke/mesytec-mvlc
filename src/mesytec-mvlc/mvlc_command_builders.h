@@ -114,12 +114,12 @@ struct MESYTEC_MVLC_EXPORT StackCommand
     };
 
     CommandType type = CommandType::Invalid;
-    u32 address;
-    u32 value;
-    u8 amod;
+    u32 address = {};
+    u32 value = {};
+    u8 amod = {};
     VMEDataWidth dataWidth = VMEDataWidth::D16;
     u16 transfers; // max number of transfers for block read commands / number of produced data words for custom commands
-    Blk2eSSTRate rate;
+    Blk2eSSTRate rate = {};
     std::vector<u32> customValues;
     bool slowRead = false;
 
