@@ -285,6 +285,34 @@ TEST(mvlc_commands, StackWriteMarker)
     ASSERT_EQ(commands.front().value, 0x87654321u);
 }
 
+TEST(mvlc_commands, StackCustomCommand)
+{
+    StackCommand custom = {};
+    custom.type = StackCommand::CommandType::Custom;
+    custom.transfers = 42; // number of output words the custom stack data produces
+
+    const std::vector<u32> customData =
+    {
+        0x12345678u,
+        0xdeadbeefu,
+        0x87654321u,
+        0xabcdefabu,
+    };
+
+    custom.customValues = customData;
+
+    StackCommandBuilder builder;
+    builder.addCommand(custom);
+
+    auto commands = builder.getCommands();
+    ASSERT_EQ(builder.getGroupCount(), 1);
+    ASSERT_EQ(commands.size(), 1u);
+    ASSERT_EQ(commands.front().type, StackCommand::CommandType::Custom);
+    ASSERT_EQ(commands.front().transfers, 42);
+    ASSERT_EQ(commands.front().customValues, customData);
+}
+
+// Note: this test fails when adding a custom command to the stack builder.
 TEST(mvlc_commands, StackFromBuffer)
 {
     StackCommandBuilder builder;
@@ -302,14 +330,17 @@ TEST(mvlc_commands, StackFromBuffer)
     builder.addReadToAccu(0x1340u, 0x09u, VMEDataWidth::D32);
     builder.addCompareLoopAccu(AccuComparator::GT, 9000u);
 
+
     ASSERT_EQ(builder.getGroupCount(), 1);
 
     // Test cmd -> string -> cmd conversion
     for (const auto &cmd: builder.getCommands())
     {
         auto cmdString = to_string(cmd);
-        cout << cmdString << endl;
+        //cout << cmdString << endl;
         auto cmdParsed = stack_command_from_string(cmdString);
+        //if (cmd != cmdParsed)
+        //    cout << "foo" << std::endl;
         ASSERT_EQ(cmd, cmdParsed);
     }
 
@@ -374,6 +405,19 @@ TEST(mvlc_commands, StackCommandToString)
     builder.addVMEWrite(0x1339u, 43, 0x09u, VMEDataWidth::D32);
     builder.addWriteMarker(0x87654321u);
     builder.addSoftwareDelay(std::chrono::milliseconds(100));
+
+    StackCommand custom = {};
+    custom.type = StackCommand::CommandType::Custom;
+    custom.transfers = 42; // number of output words the custom stack data produces
+    custom.customValues =
+    {
+        0x12345678u,
+        0xdeadbeefu,
+        0x87654321u,
+        0xabcdefabu,
+    };
+
+    builder.addCommand(custom);
 
     for (const auto &cmd: builder.getCommands())
     {

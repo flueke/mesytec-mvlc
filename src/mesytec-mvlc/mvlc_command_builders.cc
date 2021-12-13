@@ -3,7 +3,9 @@
 #include <iterator>
 #include <numeric>
 #include <sstream>
+
 #include <fmt/format.h>
+#include <yaml-cpp/yaml.h>
 
 #include "mvlc_command_builders.h"
 #include "mvlc_constants.h"
@@ -302,7 +304,30 @@ std::string to_string(const StackCommand &cmd)
             return fmt::format("software_delay {}", cmd.value);
 
         case CT::Custom:
-            return fmt::format("custom_cmd");
+            YAML::Emitter out;
+
+            out << YAML::BeginMap;
+            out << YAML::Key << "custom_cmd" << YAML::Value;
+
+            {
+                out << YAML::BeginMap;
+                out << YAML::Key << "output_words" << YAML::Value << std::to_string(cmd.transfers);
+                out << YAML::Key << "custom_contents" << YAML::Value;
+                {
+                    out << YAML::BeginSeq;
+                    for (const u32 w: cmd.customValues)
+                    {
+                        out << fmt::format("{:#010x}", w);
+                    }
+                    out << YAML::EndSeq;
+                }
+                out << YAML::EndMap;
+                assert(out.good());
+            }
+
+            out << YAML::EndMap;
+
+            return out.c_str();
     }
 
     return {};
@@ -411,6 +436,26 @@ StackCommand stack_command_from_string(const std::string &str)
     {
         result.type = CT::SoftwareDelay;
         iss >> arg; result.value = std::stoul(arg, nullptr, 0);
+    }
+    else if (name == "custom_cmd:")
+    {
+        // Note: the custom command is encoded as inline YAML!
+        YAML::Node yRoot = YAML::Load(str);
+
+        if (!yRoot || !yRoot["custom_cmd"])
+            throw std::runtime_error("Could not parse inline YAML for 'custom_cmd'");
+
+        yRoot = yRoot["custom_cmd"];
+
+        result.type = CT::Custom;
+
+        if (yRoot["output_words"])
+            result.transfers = yRoot["output_words"].as<u32>();
+
+        for (const auto &yVal: yRoot["custom_contents"])
+        {
+            result.customValues.push_back(yVal.as<u32>());
+        }
     }
     else
         throw std::runtime_error("invalid command");
@@ -688,6 +733,11 @@ bool MESYTEC_MVLC_EXPORT produces_output(const StackCommand &cmd)
         case StackCommand::CommandType::WriteMarker:
         case StackCommand::CommandType::WriteSpecial:
             return true;
+
+        case StackCommand::CommandType::Custom:
+            // The number of output_words produced by the custom command is
+            // stored in the 'transfers' member.
+            return cmd.transfers > 0;
 
         default:
             break;
