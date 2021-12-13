@@ -54,7 +54,7 @@ class MESYTEC_MVLC_EXPORT SuperCommandBuilder
 
         // Below are shortcut methods which internally create a stack using
         // outputPipe=CommandPipe(=0) and stackMemoryOffset=0
-        SuperCommandBuilder &addVMERead(u32 address, u8 amod, VMEDataWidth dataWidth);
+        SuperCommandBuilder &addVMERead(u32 address, u8 amod, VMEDataWidth dataWidth, bool slowMode = false);
         SuperCommandBuilder &addVMEBlockRead(u32 address, u8 amod, u16 maxTransfers);
         SuperCommandBuilder &addVMEMBLTSwapped(u32 address, u8 amod, u16 maxTransfers);
         SuperCommandBuilder &addVMEMBLTSwapped(u32 address, u16 maxTransfers);
@@ -121,6 +121,7 @@ struct MESYTEC_MVLC_EXPORT StackCommand
     u16 transfers; // max number of transfers for block read commands / number of produced data words for custom commands
     Blk2eSSTRate rate;
     std::vector<u32> customValues;
+    bool slowRead = false;
 
     bool operator==(const StackCommand &o) const noexcept
     {
@@ -132,6 +133,7 @@ struct MESYTEC_MVLC_EXPORT StackCommand
                 && transfers == o.transfers
                 && rate == o.rate
                 && customValues == o.customValues
+                && slowRead == o.slowRead
                );
     }
 
@@ -179,7 +181,7 @@ class MESYTEC_MVLC_EXPORT StackCommandBuilder
         // Note: these methods each add a single command to the currently open
         // group. If there exists no open group a new group with an empty name
         // will be created.
-        StackCommandBuilder &addVMERead(u32 address, u8 amod, VMEDataWidth dataWidth);
+        StackCommandBuilder &addVMERead(u32 address, u8 amod, VMEDataWidth dataWidth, bool slowMode = false);
         StackCommandBuilder &addVMEBlockRead(u32 address, u8 amod, u16 maxTransfers);
         StackCommandBuilder &addVMEMBLTSwapped(u32 address, u8 amod, u16 maxTransfers);
         // Overload of addVMEMBLTSwapped() using vme_amods::MBLT64 as the VME address modifier.
@@ -192,7 +194,7 @@ class MESYTEC_MVLC_EXPORT StackCommandBuilder
         StackCommandBuilder &addSignalAccu();
         StackCommandBuilder &addMaskShiftAccu(u32 mask, u8 shift);
         StackCommandBuilder &addSetAccu(u32 value);
-        StackCommandBuilder &addReadToAccu(u32 address, u8 amod, VMEDataWidth dataWidth);
+        StackCommandBuilder &addReadToAccu(u32 address, u8 amod, VMEDataWidth dataWidth, bool slowMode = false);
         StackCommandBuilder &addCompareLoopAccu(AccuComparator comp, u32 value);
         StackCommandBuilder &addWriteSpecial(u32 specialValue);
 

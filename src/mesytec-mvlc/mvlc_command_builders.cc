@@ -102,9 +102,9 @@ SuperCommandBuilder &SuperCommandBuilder::addCommands(const std::vector<SuperCom
 
 // Below are shortcut methods which internally create a stack using
 // outputPipe=CommandPipe(=0) and offset=0
-SuperCommandBuilder &SuperCommandBuilder::addVMERead(u32 address, u8 amod, VMEDataWidth dataWidth)
+SuperCommandBuilder &SuperCommandBuilder::addVMERead(u32 address, u8 amod, VMEDataWidth dataWidth, bool slowMode)
 {
-    auto stack = StackCommandBuilder().addVMERead(address, amod, dataWidth);
+    auto stack = StackCommandBuilder().addVMERead(address, amod, dataWidth, slowMode);
     return addCommands(make_stack_upload_commands(CommandPipe, 0u, stack));
 }
 
@@ -238,9 +238,16 @@ std::string to_string(const StackCommand &cmd)
 
         case CT::VMERead:
             if (!vme_amods::is_block_mode(cmd.amod))
-                return fmt::format(
+            {
+                auto ret = fmt::format(
                     "vme_read {:#04x} {} {:#010x}",
                     cmd.amod, to_string(cmd.dataWidth), cmd.address);
+
+                if (cmd.slowRead)
+                    ret += " slow";
+
+                return ret;
+            }
 
             // block mode
             // FIXME: Blk2eSST is missing
@@ -324,6 +331,8 @@ StackCommand stack_command_from_string(const std::string &str)
         iss >> arg; result.amod = std::stoul(arg, nullptr, 0);
         iss >> arg; result.dataWidth = vme_data_width_from_string(arg);
         iss >> arg; result.address = std::stoul(arg, nullptr, 0);
+        arg = {};
+        iss >> arg; result.slowRead = (arg == "slow");
     }
     else if (name == "vme_block_read")
     {
@@ -389,6 +398,8 @@ StackCommand stack_command_from_string(const std::string &str)
         iss >> arg; result.amod = std::stoul(arg, nullptr, 0);
         iss >> arg; result.dataWidth = vme_data_width_from_string(arg);
         iss >> arg; result.address = std::stoul(arg, nullptr, 0);
+        arg = {};
+        iss >> arg; result.slowRead = (arg == "slow");
     }
     else if (name == "compare_loop_accu")
     {
@@ -437,13 +448,14 @@ bool StackCommandBuilder::operator==(const StackCommandBuilder &o) const
         && m_groups == o.m_groups;
 }
 
-StackCommandBuilder &StackCommandBuilder::addVMERead(u32 address, u8 amod, VMEDataWidth dataWidth)
+StackCommandBuilder &StackCommandBuilder::addVMERead(u32 address, u8 amod, VMEDataWidth dataWidth, bool slowMode)
 {
     StackCommand cmd = {};
     cmd.type = CommandType::VMERead;
     cmd.address = address;
     cmd.amod = amod;
     cmd.dataWidth = dataWidth;
+    cmd.slowRead = slowMode;
 
     return addCommand(cmd);
 }
@@ -542,13 +554,14 @@ StackCommandBuilder &StackCommandBuilder::addSetAccu(u32 value)
     return addCommand(cmd);
 }
 
-StackCommandBuilder &StackCommandBuilder::addReadToAccu(u32 address, u8 amod, VMEDataWidth dataWidth)
+StackCommandBuilder &StackCommandBuilder::addReadToAccu(u32 address, u8 amod, VMEDataWidth dataWidth, bool slowMode)
 {
     StackCommand cmd = {};
     cmd.type = CommandType::ReadToAccu;
     cmd.address = address;
     cmd.amod = amod;
     cmd.dataWidth = dataWidth;
+    cmd.slowRead = slowMode;
 
     return addCommand(cmd);
 }
@@ -929,7 +942,11 @@ std::vector<u32> make_stack_buffer(const std::vector<StackCommand> &stack)
                 if (!vme_amods::is_block_mode(cmd.amod))
                 {
                     cmdWord |= cmd.amod << stack_commands::CmdArg0Shift;
-                    cmdWord |= static_cast<u32>(cmd.dataWidth) << stack_commands::CmdArg1Shift;
+
+                    u32 dataWidth = static_cast<u32>(cmd.dataWidth);
+                    dataWidth |= static_cast<u32>(cmd.slowRead) << stack_commands::SlowReadShift;
+
+                    cmdWord |= dataWidth << stack_commands::CmdArg1Shift;
                 }
                 else if (vme_amods::is_blt_mode(cmd.amod))
                 {
@@ -1018,10 +1035,14 @@ std::vector<u32> make_stack_buffer(const std::vector<StackCommand> &stack)
                 break;
 
             case CommandType::ReadToAccu:
-                cmdWord |= cmd.amod << stack_commands::CmdArg0Shift;
-                cmdWord |= static_cast<u32>(cmd.dataWidth) << stack_commands::CmdArg1Shift;
-                result.push_back(cmdWord);
-                result.push_back(cmd.address);
+                {
+                    cmdWord |= cmd.amod << stack_commands::CmdArg0Shift;
+                    u32 dataWidth = static_cast<u32>(cmd.dataWidth);
+                    dataWidth |= static_cast<u32>(cmd.slowRead) << stack_commands::SlowReadShift;
+                    cmdWord |= dataWidth << stack_commands::CmdArg1Shift;
+                    result.push_back(cmdWord);
+                    result.push_back(cmd.address);
+                }
                 break;
 
             case CommandType::CompareLoopAccu:
@@ -1088,7 +1109,10 @@ std::vector<StackCommand> stack_commands_from_buffer(const std::vector<u32> &buf
 
                 if (!vme_amods::is_block_mode(cmd.amod))
                 {
-                    cmd.dataWidth = static_cast<VMEDataWidth>(arg1);
+                    u32 dataWidth = arg1 & 0b11u;
+                    bool slowRead = (arg1 >> stack_commands::SlowReadShift) & 0b1u;
+                    cmd.dataWidth = static_cast<VMEDataWidth>(dataWidth);
+                    cmd.slowRead = slowRead;
                 }
                 else if (vme_amods::is_blt_mode(cmd.amod))
                 {
@@ -1193,6 +1217,7 @@ std::vector<SuperCommand> make_stack_upload_commands(
         address,
         (static_cast<u32>(StackCommandType::StackStart) << stack_commands::CmdShift
          | (stackOutputPipe << stack_commands::CmdArg0Shift)));
+
     address += AddressIncrement;
 
     // A write for each data word of the stack.
