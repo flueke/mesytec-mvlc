@@ -33,6 +33,8 @@ namespace vme_amods
     static const u8 a24PrivProgram = 0x3E;
     static const u8 a24PrivBlock   = 0x3F;
 
+    static const u8 cr             = 0x2F;
+
     // a16
     static const uint8_t a16User   = 0x29;
     static const uint8_t a16Priv   = 0x2D;
