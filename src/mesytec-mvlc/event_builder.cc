@@ -31,7 +31,7 @@ u32 IndexedTimestampFilterExtractor::operator()(const u32 *data, size_t size)
         return extract(filterCache_, data[index_]);
     }
 
-    return 0u;
+    return event_builder::TimestampExtractionFailed;
 }
 
 TimestampFilterExtractor::TimestampFilterExtractor(const DataFilter &filter, char matchChar)
@@ -48,7 +48,7 @@ u32 TimestampFilterExtractor::operator()(const u32 *data, size_t size)
             return extract(filterCache_, *valuep);
     }
 
-    return 0u;
+    return event_builder::TimestampExtractionFailed;
 }
 
 struct SystemEventStorage
@@ -58,7 +58,7 @@ struct SystemEventStorage
 };
 
 // maybe FIXME: Buffering module data using a std::vector here is not ideal as
-// we do need to alloc for each (non-empty) event.
+// we do need to alloc for each non-empty event.
 struct ModuleEventStorage
 {
     u32 timestamp;
@@ -91,11 +91,10 @@ ModuleData module_data_from_event_storage(const ModuleEventStorage &input)
     return result;
 }
 
-static const u32 TimestampMax = 0x3fffffffu; // 30 bits
-static const u32 TimestampHalf = TimestampMax >> 1;
-
 WindowMatchResult timestamp_match(u32 tsMain, u32 tsModule, const std::pair<s32, s32> &matchWindow)
 {
+    using namespace event_builder;
+
     s64 diff = static_cast<s64>(tsMain) - static_cast<s64>(tsModule);
 
     if (std::abs(diff) > TimestampHalf)
@@ -411,7 +410,8 @@ void EventBuilder::recordEventData(int crateIndex, int eventIndex,
             const auto linearModuleIndex = d->getLinearModuleIndex(crateIndex, eventIndex, moduleIndex);
 
             u32 timestamp = timestampExtractors.at(linearModuleIndex)(data.data, data.size);
-            assert(timestamp <= TimestampMax);
+            assert(timestamp <= event_builder::TimestampMax
+                   || timestamp == event_builder::TimestampExtractionFailed);
 
             ModuleEventStorage eventStorage =
             {
@@ -695,7 +695,16 @@ size_t EventBuilder::Private::buildEvents(int eventIndex, Callbacks &callbacks, 
             while (!moduleDone && !eventBuffer.empty())
             {
                 auto &moduleEvent = eventBuffer.front();
-                auto matchResult = timestamp_match(mainModuleTimestamp, moduleEvent.timestamp, matchWindow);
+                WindowMatchResult matchResult = {};
+
+                if (moduleEvent.timestamp != event_builder::TimestampExtractionFailed)
+                    matchResult = timestamp_match(mainModuleTimestamp, moduleEvent.timestamp, matchWindow);
+                else
+                {
+                    // FIXME: failed timestamp extraction handling
+                    matchResult.match = WindowMatch::in_window;
+                    matchResult.invscore = std::numeric_limits<u32>::max();
+                }
 
                 switch (matchResult.match)
                 {

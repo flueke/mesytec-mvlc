@@ -24,6 +24,10 @@ namespace event_builder
 static const auto DefaultMatchWindow = std::make_pair(-8, 8);
 static const size_t DefaultMemoryLimit = util::Gigabytes(1);
 
+static const u32 TimestampMax = 0x3fffffffu; // 30 bits
+static const u32 TimestampHalf = TimestampMax >> 1;
+static const u32 TimestampExtractionFailed = 0xffffffffu;
+
 }
 
 struct MESYTEC_MVLC_EXPORT IndexedTimestampFilterExtractor
