@@ -62,6 +62,16 @@ struct MESYTEC_MVLC_EXPORT TimestampFilterExtractor
         CacheEntry filterCache_;
 };
 
+// Always produces a TimestampExtractionFailed result. Used to skip over
+// modules which should be ignored in the EventBuilder.
+struct MESYTEC_MVLC_EXPORT InvalidTimestampExtractor
+{
+    u32 operator()(const u32 * /*data*/, size_t /*size*/)
+    {
+        return event_builder::TimestampExtractionFailed;
+    }
+};
+
 struct MESYTEC_MVLC_EXPORT EventSetup
 {
     struct CrateSetup
