@@ -84,6 +84,62 @@ class MESYTEC_MVLC_EXPORT ZipEntryWriteHandle: public WriteHandle
         ZipCreator *m_zipCreator = nullptr;
 };
 
+//class SplitZipWriteHandle;
+
+class MESYTEC_MVLC_EXPORT SplitZipCreator
+{
+    public:
+        SplitZipCreator();
+        ~SplitZipCreator();
+
+        void open(const std::string &filenamePrefix, );
+        bool isOpen() const;
+        void close();
+
+        ZipCreator *getCurrentZipCreator();
+
+        ZipEntryWriteHandle *createZIPEntry(const std::string &entryName, int compressLevel,
+                                            bool splitEnabled = true);
+
+        // compressLevel: 1: "super fast compression", 0: store/no compression
+        ZipEntryWriteHandle *createZIPEntry(const std::string &entryName,
+                                            bool splitEnabled = true)
+        { return createZIPEntry(entryName, 1, splitEnabled); }
+
+        ZipEntryWriteHandle *createLZ4Entry(const std::string &entryName, int compressLevel,
+                                            bool splitEnabled = true);
+
+        // compressLevel: 0: lz4 default compression
+        ZipEntryWriteHandle *createLZ4Entry(const std::string &entryName,
+                                            bool splitEnabled = true)
+        { return createLZ4Entry(entryName, 0, splitEnabled); };
+
+        bool hasOpenEntry() const;
+        const ZipEntryInfo &entryInfo() const;
+
+        size_t writeToCurrentEntry(const u8 *data, size_t size);
+
+        void closeCurrentEntry();
+
+    private:
+        struct Private;
+        std::unique_ptr<Private> d;
+};
+
+#if 0
+class MESYTEC_MVLC_EXPORT SplitZipWriteHandle: public WriteHandle
+{
+    public:
+        ~SplitZipWriteHandle() override;
+        size_t write(const u8 *data, size_t size) override;
+
+    private:
+        friend class SplitZipCreator;
+        explicit SplitZipWriteHandle(SplitZipCreator *creator);
+        SplitZipCreator *splitZipCreator_ = nullptr;
+};
+#endif
+
 class ZipReader;
 
 class MESYTEC_MVLC_EXPORT ZipReadHandle: public ReadHandle
