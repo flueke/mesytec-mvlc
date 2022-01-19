@@ -1,10 +1,14 @@
 #include "mvlc_listfile_zip.h"
 
 #include <cassert>
+#include <chrono>
 #include <cstring>
 #include <iostream>
 #include <regex>
+#include <stdexcept>
 #include <sys/stat.h>
+
+#include <fmt/format.h>
 #include <lz4frame.h>
 #include <mz.h>
 #include <mz_compat.h>
@@ -127,10 +131,9 @@ struct ZipCreator::Private
     void *mz_osStream = nullptr;
 
     ZipEntryInfo entryInfo;
-
     LZ4WriteContext lz4Ctx;
-
     ZipEntryWriteHandle entryWriteHandle;
+    std::string archiveName;
 };
 
 ZipCreator::ZipCreator()
@@ -152,13 +155,15 @@ ZipCreator::~ZipCreator()
     }
     catch (...)
     {}
-
 }
 
 void ZipCreator::createArchive(
     const std::string &zipFilename,
     const OverwriteMode &mode)
 {
+    if (isOpen())
+        throw std::runtime_error("ZipCreator has an open archive");
+
     if (mode == OverwriteMode::DontOverwrite && util::file_exists(zipFilename))
         throw std::runtime_error("output archive file exists");
 
@@ -169,6 +174,8 @@ void ZipCreator::createArchive(
 
     if (auto err = mz_zip_writer_open(d->mz_zipWriter, d->mz_bufStream))
         throw std::runtime_error("mz_zip_writer_open: " + std::to_string(err));
+
+    d->archiveName = zipFilename;
 }
 
 void ZipCreator::closeArchive()
@@ -178,6 +185,8 @@ void ZipCreator::closeArchive()
 
     if (auto err = mz_stream_close(d->mz_bufStream))
         throw std::runtime_error("mz_stream_close: " + std::to_string(err));
+
+    d->archiveName = {};
 }
 
 bool ZipCreator::isOpen() const
@@ -185,7 +194,12 @@ bool ZipCreator::isOpen() const
     return mz_stream_is_open(d->mz_bufStream) == MZ_OK;
 }
 
-ZipEntryWriteHandle *ZipCreator::createZIPEntry(const std::string &entryName, int compressLevel)
+std::string ZipCreator::archiveName() const
+{
+    return d->archiveName;
+}
+
+WriteHandle *ZipCreator::createZIPEntry(const std::string &entryName, int compressLevel)
 {
     if (hasOpenEntry())
         throw std::runtime_error("ZipCreator has open archive entry");
@@ -212,7 +226,7 @@ ZipEntryWriteHandle *ZipCreator::createZIPEntry(const std::string &entryName, in
     return &d->entryWriteHandle;
 }
 
-ZipEntryWriteHandle *ZipCreator::createLZ4Entry(const std::string &entryName_, int compressLevel)
+WriteHandle *ZipCreator::createLZ4Entry(const std::string &entryName_, int compressLevel)
 {
     if (hasOpenEntry())
         throw std::runtime_error("ZipCreator has open archive entry");
@@ -280,6 +294,7 @@ size_t ZipCreator::writeToCurrentEntry(const u8 *inputData, size_t inputSize)
     {
         case ZipEntryInfo::ZIP:
             bytesWritten = d->writeToCurrentZIPEntry(inputData, inputSize);
+            d->entryInfo.bytesWritten += bytesWritten;
             break;
 
         case ZipEntryInfo::LZ4:
@@ -344,6 +359,217 @@ void ZipCreator::closeCurrentEntry()
 }
 
 //
+// SplitZipCreator
+//
+
+struct SplitZipCreator::Private
+{
+    SplitZipCreator *q = nullptr;
+    ZipCreator zipCreator;
+    SplitZipWriteHandle splitWriteHandle;
+    SplitListfileSetup setup;
+    size_t partIndex = 0;
+    bool isSplitEntry = false;
+    std::chrono::time_point<std::chrono::steady_clock> partCreationTime;
+
+    Private(SplitZipCreator *q_)
+        : q(q_)
+        , splitWriteHandle(q)
+    { }
+
+    void createNextArchive();
+};
+
+SplitZipCreator::SplitZipCreator()
+    : d(std::make_unique<Private>(this))
+{
+}
+
+SplitZipCreator::~SplitZipCreator()
+{
+}
+
+void SplitZipCreator::createArchive(const SplitListfileSetup &setup)
+{
+    if (isOpen())
+        throw std::runtime_error("SplitZipCreator has an open archive");
+
+    d->setup = setup;
+
+    if (setup.splitMode == ZipSplitMode::DontSplit)
+    {
+        auto filename = setup.filenamePrefix + ".zip";
+        d->zipCreator.createArchive(filename, setup.overwriteMode);
+        if (setup.openArchiveCallback)
+            setup.openArchiveCallback(this);
+    }
+    else
+    {
+        d->partIndex = 0;
+        d->createNextArchive();
+    }
+
+    assert(isOpen());
+}
+
+void SplitZipCreator::Private::createNextArchive()
+{
+    assert(!q->isOpen());
+
+    auto filename = fmt::format("{}_part{:03d}.zip", setup.filenamePrefix, partIndex);
+    zipCreator.createArchive(filename, setup.overwriteMode);
+
+    assert(q->isOpen());
+
+    if (setup.openArchiveCallback)
+        setup.openArchiveCallback(q);
+}
+
+void SplitZipCreator::closeArchive()
+{
+    if (hasOpenEntry())
+        closeCurrentEntry();
+
+    if (d->setup.closeArchiveCallback)
+        d->setup.closeArchiveCallback(this);
+
+    d->zipCreator.closeArchive();
+}
+
+bool SplitZipCreator::isOpen() const
+{
+    return d->zipCreator.isOpen();
+}
+
+std::string SplitZipCreator::archiveName() const
+{
+    return d->zipCreator.archiveName();
+}
+
+WriteHandle *SplitZipCreator::createZIPEntry(const std::string &entryName, int compressLevel)
+{
+    auto ret = d->zipCreator.createZIPEntry(entryName, compressLevel);
+    d->isSplitEntry = false;
+    return ret;
+}
+
+WriteHandle *SplitZipCreator::createLZ4Entry(const std::string &entryName, int compressLevel)
+{
+    auto ret = d->zipCreator.createLZ4Entry(entryName, compressLevel);
+    d->isSplitEntry = false;
+    return ret;
+}
+
+WriteHandle *SplitZipCreator::createListfileEntry()
+{
+    if (hasOpenEntry())
+        throw std::runtime_error("SplitZipCreator has open archive entry");
+
+    WriteHandle *result = {};
+    std::string memberName;
+
+    if (d->setup.splitMode == ZipSplitMode::DontSplit)
+        memberName = d->setup.filenamePrefix + ".mvlclst";
+    else
+        memberName = fmt::format("{}_part{:03d}.mvlclst", d->setup.filenamePrefix, d->partIndex);
+
+    switch (d->setup.entryType)
+    {
+        case ZipEntryInfo::ZIP:
+            result = d->zipCreator.createZIPEntry(memberName, d->setup.compressLevel);
+            break;
+
+        case ZipEntryInfo::LZ4:
+            result = d->zipCreator.createLZ4Entry(memberName, d->setup.compressLevel);
+            break;
+    }
+
+    d->isSplitEntry = d->setup.splitMode != ZipSplitMode::DontSplit;
+    d->partCreationTime = std::chrono::steady_clock::now();
+
+    // Write the listfile preamble
+    result->write(d->setup.preamble.data(), d->setup.preamble.size());
+
+    // No splitting -> return the plain WriteHandle obtained from the ZipCreator
+    if (d->setup.splitMode == ZipSplitMode::DontSplit)
+        return result;
+
+    // Splitting active -> return a pointer to our ZipEntryWriteHandle
+    return &d->splitWriteHandle;
+}
+
+size_t SplitZipCreator::writeToCurrentEntry(const u8 *data, size_t size)
+{
+    if (!d->isSplitEntry)
+        return d->zipCreator.writeToCurrentEntry(data, size);
+
+    assert(d->setup.splitMode != ZipSplitMode::DontSplit);
+
+    bool needNewPart = false;
+
+    if (d->setup.splitMode == ZipSplitMode::SplitBySize)
+    {
+        needNewPart = entryInfo().bytesWrittenToFile() >= d->setup.splitSize;
+    }
+    else if (d->setup.splitMode == ZipSplitMode::SplitByTime)
+    {
+        auto partAge = std::chrono::steady_clock::now() - d->partCreationTime;
+        needNewPart = partAge >= d->setup.splitTime;
+    }
+
+    if (needNewPart)
+    {
+        closeArchive();
+        ++d->partIndex;
+        d->createNextArchive();
+        createListfileEntry();
+
+        assert(d->isSplitEntry);
+    }
+
+    return d->zipCreator.writeToCurrentEntry(data, size);
+}
+
+void SplitZipCreator::closeCurrentEntry()
+{
+    d->zipCreator.closeCurrentEntry();
+}
+
+bool SplitZipCreator::hasOpenEntry() const
+{
+    return d->zipCreator.hasOpenEntry();
+}
+
+const ZipEntryInfo &SplitZipCreator::entryInfo() const
+{
+    return d->zipCreator.entryInfo();
+}
+
+bool SplitZipCreator::isSplitEntry() const
+{
+    return hasOpenEntry() ? d->isSplitEntry : false;
+}
+
+ZipCreator *SplitZipCreator::getZipCreator()
+{
+    return &d->zipCreator;
+}
+
+SplitZipWriteHandle::SplitZipWriteHandle(SplitZipCreator *creator)
+    : creator_(creator)
+{ }
+
+SplitZipWriteHandle::~SplitZipWriteHandle()
+{ }
+
+size_t SplitZipWriteHandle::write(const u8 *data, size_t size)
+{
+    // Splitting is handled in the creator, no need to do anything special
+    // here.
+    return creator_->writeToCurrentEntry(data, size);
+}
+
+//
 // ZipReader
 //
 
@@ -365,7 +591,6 @@ void ZipReadHandle::seek(size_t pos)
         pos -= read(buffer.data(), std::min(buffer.size(), pos));
     }
 }
-
 
 struct ZipReader::Private
 {

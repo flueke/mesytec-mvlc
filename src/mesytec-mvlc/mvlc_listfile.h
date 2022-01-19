@@ -20,6 +20,9 @@ class MESYTEC_MVLC_EXPORT WriteHandle
 {
     public:
         virtual ~WriteHandle();
+        // Write the given data to the listfile. Return the number of bytes
+        // written. Error reporting must be done by throwing
+        // std::runtime_error.
         virtual size_t write(const u8 *data, size_t size) = 0;
 };
 
@@ -148,6 +151,22 @@ Preamble MESYTEC_MVLC_EXPORT read_preamble(
 // read complete section into buffer (including continuations)
 
 
+
+//
+// BufferedWriteHandle
+//
+
+class MESYTEC_MVLC_EXPORT BufferedWriteHandle: public WriteHandle
+{
+    public:
+        virtual size_t write(const u8 *data, size_t size) override;
+
+        const std::vector<u8> &getBuffer() const { return buffer_; }
+        std::vector<u8> getBuffer() { return buffer_; }
+
+    private:
+        std::vector<u8> buffer_;
+};
 
 } // end namespace listfile
 } // end namespace mvlc

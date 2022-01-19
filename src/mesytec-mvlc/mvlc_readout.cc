@@ -159,7 +159,7 @@ namespace
         {
             lfZip.createArchive(
                 lfParams.filepath,
-                lfParams.overwrite ? listfile::ZipCreator::Overwrite : listfile::ZipCreator::DontOverwrite);
+                lfParams.overwrite ? listfile::OverwriteMode::Overwrite : listfile::OverwriteMode::DontOverwrite);
 
             switch (lfParams.compression)
             {

@@ -34,37 +34,52 @@ struct ZipEntryInfo
 
     size_t compressedSize = 0u;
     size_t uncompressedSize = 0u;
+
+    size_t bytesWrittenToFile() const
+    {
+        if (type == ZIP)
+            return bytesWritten;
+        return lz4CompressedBytesWritten;
+    }
 };
 
-class ZipEntryWriteHandle;
+enum class OverwriteMode
+{
+    DontOverwrite,
+    Overwrite
+};
+
+//
+// ZipCreator
+//
 
 class MESYTEC_MVLC_EXPORT ZipCreator
 {
     public:
-        enum OverwriteMode { DontOverwrite, Overwrite };
 
         ZipCreator();
         ~ZipCreator();
 
-        void createArchive(const std::string &zipFilename, const OverwriteMode &mode = DontOverwrite);
+        void createArchive(const std::string &zipFilename,
+                           const OverwriteMode &mode = OverwriteMode::DontOverwrite);
         void closeArchive();
         bool isOpen() const;
+        std::string archiveName() const;
 
-        ZipEntryWriteHandle *createZIPEntry(const std::string &entryName, int compressLevel);
+        WriteHandle *createZIPEntry(const std::string &entryName, int compressLevel);
 
-        ZipEntryWriteHandle *createZIPEntry(const std::string &entryName)
+        WriteHandle *createZIPEntry(const std::string &entryName)
         { return createZIPEntry(entryName, 1); } // 1: "super fast compression", 0: store/no compression
 
-        ZipEntryWriteHandle *createLZ4Entry(const std::string &entryName, int compressLevel);
+        WriteHandle *createLZ4Entry(const std::string &entryName, int compressLevel);
 
-        ZipEntryWriteHandle *createLZ4Entry(const std::string &entryName)
+        WriteHandle *createLZ4Entry(const std::string &entryName)
         { return createLZ4Entry(entryName, 0); }; // 0: lz4 default compression
 
         bool hasOpenEntry() const;
         const ZipEntryInfo &entryInfo() const;
 
         size_t writeToCurrentEntry(const u8 *data, size_t size);
-
         void closeCurrentEntry();
 
     private:
@@ -84,7 +99,48 @@ class MESYTEC_MVLC_EXPORT ZipEntryWriteHandle: public WriteHandle
         ZipCreator *m_zipCreator = nullptr;
 };
 
-//class SplitZipWriteHandle;
+//
+// SplitZipCreator
+//
+
+class SplitZipCreator;
+
+enum class ZipSplitMode { DontSplit, SplitBySize, SplitByTime };
+
+// Callback invoked after a new archive is created either initially trough
+// createArchive() or automatically due to an archive split.
+using OpenArchiveCallback = std::function<void (SplitZipCreator *creator)>;
+
+// Callback function prototype invoked prior to closing the current
+// archive (either via closeArchive() or due to an archive split).
+// Can be used to add additional non-split entries to the archive via
+// createZIPEntry() and createLZ4Entry().
+// Important: do not call createListfileEntry() from this callback!
+using CloseArchiveCallback = std::function<void (SplitZipCreator *creator)>;
+
+struct MESYTEC_MVLC_EXPORT SplitListfileSetup
+{
+    ZipEntryInfo::Type entryType = ZipEntryInfo::ZIP;
+    int compressLevel = 0;
+    OverwriteMode overwriteMode = OverwriteMode::DontOverwrite;
+    ZipSplitMode splitMode = ZipSplitMode::DontSplit;
+    size_t splitSize = 0;
+    std::chrono::seconds splitTime;
+    // Archive filename and archive member name prefix.
+    // The complete resulting filename is: <prefix>_part<NNN>.zip
+    // The complete listfile member name is <prefix>_part<NNN>.mvmelst[.lz4]
+    std::string filenamePrefix;
+    std::string listfileExtension = ".mvlclst";
+    // Preamble for the listfile. Will be written to each newly started
+    // listfile part.
+    std::vector<u8> preamble;
+
+    OpenArchiveCallback openArchiveCallback;
+
+    // Called upon closing the current archive either manually via
+    // closeArchive() or automatically due to the file splitting setup.
+    CloseArchiveCallback closeArchiveCallback;
+};
 
 class MESYTEC_MVLC_EXPORT SplitZipCreator
 {
@@ -92,41 +148,41 @@ class MESYTEC_MVLC_EXPORT SplitZipCreator
         SplitZipCreator();
         ~SplitZipCreator();
 
-        void open(const std::string &filenamePrefix, );
+        void createArchive(const SplitListfileSetup &setup);
+        void closeArchive();
         bool isOpen() const;
-        void close();
+        std::string archiveName() const;
 
-        ZipCreator *getCurrentZipCreator();
+        // Normal archive entries. Writing to these will never cause an archive split.
 
-        ZipEntryWriteHandle *createZIPEntry(const std::string &entryName, int compressLevel,
-                                            bool splitEnabled = true);
+        WriteHandle *createZIPEntry(const std::string &entryName, int compressLevel);
 
-        // compressLevel: 1: "super fast compression", 0: store/no compression
-        ZipEntryWriteHandle *createZIPEntry(const std::string &entryName,
-                                            bool splitEnabled = true)
-        { return createZIPEntry(entryName, 1, splitEnabled); }
+        WriteHandle *createZIPEntry(const std::string &entryName)
+        { return createZIPEntry(entryName, 1); } // 1: "super fast compression", 0: store/no compression
 
-        ZipEntryWriteHandle *createLZ4Entry(const std::string &entryName, int compressLevel,
-                                            bool splitEnabled = true);
+        WriteHandle *createLZ4Entry(const std::string &entryName, int compressLevel);
 
-        // compressLevel: 0: lz4 default compression
-        ZipEntryWriteHandle *createLZ4Entry(const std::string &entryName,
-                                            bool splitEnabled = true)
-        { return createLZ4Entry(entryName, 0, splitEnabled); };
+        WriteHandle *createLZ4Entry(const std::string &entryName)
+        { return createLZ4Entry(entryName, 0); }; // 0: lz4 default compression
+
+        // Special method for creating a (split) listfile entry. Uses the
+        // information set in createArchive() to make the splitting decision
+        // and create new partial archives.
+        WriteHandle *createListfileEntry();
 
         bool hasOpenEntry() const;
         const ZipEntryInfo &entryInfo() const;
-
         size_t writeToCurrentEntry(const u8 *data, size_t size);
-
         void closeCurrentEntry();
+        bool isSplitEntry() const;
+
+        ZipCreator *getZipCreator();
 
     private:
         struct Private;
         std::unique_ptr<Private> d;
 };
 
-#if 0
 class MESYTEC_MVLC_EXPORT SplitZipWriteHandle: public WriteHandle
 {
     public:
@@ -136,9 +192,9 @@ class MESYTEC_MVLC_EXPORT SplitZipWriteHandle: public WriteHandle
     private:
         friend class SplitZipCreator;
         explicit SplitZipWriteHandle(SplitZipCreator *creator);
-        SplitZipCreator *splitZipCreator_ = nullptr;
+        // non-owning pointer to the parent SplitZipCreator
+        SplitZipCreator *creator_ = nullptr;
 };
-#endif
 
 class ZipReader;
 
