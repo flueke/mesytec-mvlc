@@ -47,6 +47,8 @@ TEST(event_builder, TimestampMatch)
     mr = timestamp_match(150, 201, { -50, 50 });
     ASSERT_EQ(mr.match, WindowMatch::too_new);
     ASSERT_EQ(mr.invscore, 51u);
+
+    // TODO: test the extreme cases where a difference of TimestampHalf is reached (and almost reached)
 }
 
 TEST(event_builder, ConstructDescruct)

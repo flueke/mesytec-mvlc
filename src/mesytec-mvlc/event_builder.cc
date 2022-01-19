@@ -99,6 +99,7 @@ WindowMatchResult timestamp_match(u32 tsMain, u32 tsModule, const std::pair<s32,
 
     if (std::abs(diff) > TimestampHalf)
     {
+        // overflow handling
         if (diff < 0)
             diff += TimestampMax;
         else
