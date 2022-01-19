@@ -107,22 +107,10 @@ MVLCReplay make_mvlc_replay(
 
     zr.openArchive(listfileFilename);
 
-    std::string entryName;
-
     // Try to find a listfile inside the archive.
-    auto entryNames = zr.entryNameList();
+    auto entryName = zr.firstListfileEntryName();
 
-    auto it = std::find_if(
-        std::begin(entryNames), std::end(entryNames),
-        [] (const std::string &entryName)
-        {
-            static const std::regex re(R"foo(.+\.mvlclst(\.lz4)?)foo");
-            return std::regex_search(entryName, re);
-        });
-
-    if (it != std::end(entryNames))
-        entryName = *it;
-    else
+    if (entryName.empty())
         throw std::runtime_error("No listfile found in archive");
 
     r.d->lfh = zr.openEntry(entryName);
