@@ -40,6 +40,11 @@ bool file_exists(const std::string &filepath)
     return mz_os_file_exists(filepath.c_str()) == MZ_OK;
 }
 
+bool delete_file(const std::string &filepath)
+{
+    return mz_os_unlink(filepath.c_str()) == MZ_OK;
+}
+
 }
 }
 }

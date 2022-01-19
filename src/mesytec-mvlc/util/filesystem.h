@@ -14,6 +14,7 @@ namespace util
 std::string MESYTEC_MVLC_EXPORT basename(const std::string &filepath);
 std::string MESYTEC_MVLC_EXPORT dirname(const std::string &filepath);
 bool MESYTEC_MVLC_EXPORT file_exists(const std::string &filepath);
+bool MESYTEC_MVLC_EXPORT delete_file(const std::string &filepath);
 
 }
 }
