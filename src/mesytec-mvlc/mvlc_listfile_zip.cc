@@ -368,7 +368,7 @@ struct SplitZipCreator::Private
     ZipCreator zipCreator;
     SplitZipWriteHandle splitWriteHandle;
     SplitListfileSetup setup;
-    size_t partIndex = 0;
+    size_t partIndex = 1;
     bool isSplitEntry = false;
     std::chrono::time_point<std::chrono::steady_clock> partCreationTime;
 
@@ -405,7 +405,7 @@ void SplitZipCreator::createArchive(const SplitListfileSetup &setup)
     }
     else
     {
-        d->partIndex = 0;
+        d->partIndex = 1;
         d->createNextArchive();
     }
 
