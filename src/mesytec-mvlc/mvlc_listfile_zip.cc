@@ -473,6 +473,8 @@ WriteHandle *SplitZipCreator::createListfileEntry()
     else
         memberName = fmt::format("{}_part{:03d}.mvlclst", d->setup.filenamePrefix, d->partIndex);
 
+    memberName = util::basename(memberName);
+
     switch (d->setup.entryType)
     {
         case ZipEntryInfo::ZIP:
