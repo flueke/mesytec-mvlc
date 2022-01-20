@@ -124,8 +124,8 @@ struct MESYTEC_MVLC_EXPORT SplitListfileSetup
     int compressLevel = 0;
     OverwriteMode overwriteMode = OverwriteMode::DontOverwrite;
     ZipSplitMode splitMode = ZipSplitMode::DontSplit;
-    size_t splitSize = 0;
-    std::chrono::seconds splitTime;
+    size_t splitSize = util::Gigabytes(1);
+    std::chrono::seconds splitTime = std::chrono::seconds(3600);
     // Archive filename and archive member name prefix.
     // The complete resulting filename is: <prefix>_part<NNN>.zip
     // The complete listfile member name is <prefix>_part<NNN>.mvmelst[.lz4]
