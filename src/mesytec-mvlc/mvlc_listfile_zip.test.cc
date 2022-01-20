@@ -1,6 +1,7 @@
 #include <chrono>
 #include <random>
 #include <iostream>
+#include <thread>
 #include <mz.h>
 #include <mz_os.h>
 #include <mz_strm.h>
@@ -139,6 +140,9 @@ TEST(mvlc_listfile_zip, CreateWriteRead)
             }
         }
     }
+
+    ASSERT_TRUE(util::file_exists(archiveName));
+    ASSERT_TRUE(util::delete_file(archiveName));
 }
 
 TEST(mvlc_listfile_zip, LZ4Data)
@@ -204,6 +208,9 @@ TEST(mvlc_listfile_zip, LZ4Data)
             //    << endl;
         }
     }
+
+    ASSERT_TRUE(util::file_exists(archiveName));
+    ASSERT_TRUE(util::delete_file(archiveName));
 }
 
 TEST(mvlc_listfile_zip, Split_CreateArchive)
@@ -279,9 +286,15 @@ TEST(mvlc_listfile_zip, Split_CreateArchive)
 
 TEST(mvlc_listfile_zip, Split_SplitBySize)
 {
-    ASSERT_FALSE(util::file_exists("splitzip_archive_part000.zip"));
-    ASSERT_FALSE(util::file_exists("splitzip_archive_part001.zip"));
-    ASSERT_FALSE(util::file_exists("splitzip_archive_part002.zip"));
+    const std::vector<std::string> expectedParts =
+    {
+        "splitzip_archive_part000.zip",
+        "splitzip_archive_part001.zip",
+        "splitzip_archive_part002.zip",
+    };
+
+    for (auto &part: expectedParts)
+        ASSERT_FALSE(util::file_exists(part));
 
     size_t openCallbackCalls = 0u;
     size_t closeCallbackCalls = 0u;
@@ -308,7 +321,7 @@ TEST(mvlc_listfile_zip, Split_SplitBySize)
     setup.openArchiveCallback = open_callback;
     setup.closeArchiveCallback = close_callback;
 
-    std::vector<u8> chunk(setup.splitSize);
+    std::vector<u8> chunk(1050); // 1050 bytes per chunk with a splitsize of 1024
 
     for (size_t i=0; i<chunk.size(); i++)
         chunk[i] = i % 255u;
@@ -324,8 +337,8 @@ TEST(mvlc_listfile_zip, Split_SplitBySize)
     for (size_t cycle=0; cycle<3; ++cycle)
     {
         wh->write(chunk.data(), chunk.size());
-        cout << fmt::format("cycle={}, entryInfo.bytesWrittenToFile={}\n",
-                            cycle, creator.entryInfo().bytesWrittenToFile());
+        //cout << fmt::format("cycle={}, entryInfo.bytesWrittenToFile={}\n",
+        //                    cycle, creator.entryInfo().bytesWrittenToFile());
     }
 
     creator.closeArchive();
@@ -333,13 +346,81 @@ TEST(mvlc_listfile_zip, Split_SplitBySize)
     ASSERT_EQ(openCallbackCalls, 3);
     ASSERT_EQ(closeCallbackCalls, 3);
 
-    ASSERT_TRUE(util::file_exists("splitzip_archive_part000.zip"));
-    ASSERT_TRUE(util::file_exists("splitzip_archive_part001.zip"));
-    ASSERT_TRUE(util::file_exists("splitzip_archive_part002.zip"));
+    for (auto &part: expectedParts)
+        ASSERT_TRUE(util::file_exists(part));
 
-    ASSERT_TRUE(util::delete_file("splitzip_archive_part000.zip"));
-    ASSERT_TRUE(util::delete_file("splitzip_archive_part001.zip"));
-    ASSERT_TRUE(util::delete_file("splitzip_archive_part002.zip"));
+    for (auto &part: expectedParts)
+        ASSERT_TRUE(util::delete_file(part));
+}
+
+TEST(mvlc_listfile_zip, Split_SplitByTime)
+{
+    const std::vector<std::string> expectedParts =
+    {
+        "splitzip_archive_part000.zip",
+        "splitzip_archive_part001.zip",
+        "splitzip_archive_part002.zip",
+    };
+
+    for (auto &part: expectedParts)
+        ASSERT_FALSE(util::file_exists(part));
+
+    size_t openCallbackCalls = 0u;
+    size_t closeCallbackCalls = 0u;
+
+    auto  open_callback = [&openCallbackCalls] (SplitZipCreator *creator)
+    {
+        ASSERT_TRUE(creator != nullptr);
+        ++openCallbackCalls;
+    };
+
+    auto  close_callback = [&closeCallbackCalls] (SplitZipCreator *creator)
+    {
+        ASSERT_TRUE(creator != nullptr);
+        ++closeCallbackCalls;
+    };
+
+    SplitZipCreator creator;
+    SplitListfileSetup setup;
+    setup.splitMode = ZipSplitMode::SplitByTime;
+    setup.splitTime = std::chrono::seconds(1);
+    setup.entryType = ZipEntryInfo::ZIP;
+    setup.compressLevel = 0; // Disable compression to make sure the raw bytes written end up in the file.
+    setup.filenamePrefix = "splitzip_archive";
+    setup.openArchiveCallback = open_callback;
+    setup.closeArchiveCallback = close_callback;
+
+    std::vector<u8> chunk(1050); // 1050 bytes per chunk with a splitsize of 1024
+
+    for (size_t i=0; i<chunk.size(); i++)
+        chunk[i] = i % 255u;
+
+    creator.createArchive(setup);
+    auto wh = creator.createListfileEntry();
+
+    ASSERT_TRUE(wh != nullptr);
+    ASSERT_TRUE(creator.hasOpenEntry());
+    ASSERT_TRUE(creator.isSplitEntry());
+    ASSERT_EQ(openCallbackCalls, 1);
+
+    for (size_t cycle=0; cycle<3; ++cycle)
+    {
+        wh->write(chunk.data(), chunk.size());
+        std::this_thread::sleep_for(std::chrono::seconds(2));
+        //cout << fmt::format("cycle={}, entryInfo.bytesWrittenToFile={}\n",
+        //                    cycle, creator.entryInfo().bytesWrittenToFile());
+    }
+
+    creator.closeArchive();
+
+    ASSERT_EQ(openCallbackCalls, 3);
+    ASSERT_EQ(closeCallbackCalls, 3);
+
+    for (auto &part: expectedParts)
+        ASSERT_TRUE(util::file_exists(part));
+
+    //for (auto &part: expectedParts)
+    //    ASSERT_TRUE(util::delete_file(part));
 }
 
 #if 0
