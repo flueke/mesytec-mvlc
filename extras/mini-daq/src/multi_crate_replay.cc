@@ -131,7 +131,7 @@ int main(int argc, char *argv[])
         parserCallbacks.eventData = [crateIndex, &eventBuilder] (
             void *, int /*crateIndex*/, int eventIndex, const ModuleData *moduleData, size_t moduleCount)
         {
-            // FIXME: swallows none eventbuilder events
+            // FIXME: swallows non-eventbuilder events (should be possible to forward these events with the updated eventbuilder now)
             if (eventBuilder.isEnabledFor(eventIndex))
                 eventBuilder.recordEventData(crateIndex, eventIndex, moduleData, moduleCount);
         };
