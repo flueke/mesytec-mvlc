@@ -681,8 +681,8 @@ namespace eth
 
 Impl::Impl(const std::string &host)
     : m_host(host)
-    , m_throttleCounters({})
-    , m_throttleContext({})
+    , m_throttleCounters()
+    , m_throttleContext()
 {
 #ifdef __WIN32
     WORD wVersionRequested;

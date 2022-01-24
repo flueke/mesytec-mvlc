@@ -123,7 +123,7 @@ int main(int argc, char *argv[])
 
 	std::vector<MVLCReplay> replays;
     int crateIndex = 0;
-    Protected<std::map<int, size_t>> recordedSystemEvents({});
+    Protected<std::map<int, size_t>> recordedSystemEvents;
 
 	for (const auto &listfilePath: listfilePaths)
 	{

@@ -34,7 +34,7 @@ struct MVLCReadout::Private
     ReadoutInitResults initResults;
 
     Private()
-        : parserCounters({})
+        : parserCounters()
         , parserQuit(false)
     {}
 };

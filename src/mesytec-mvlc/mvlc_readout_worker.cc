@@ -361,7 +361,7 @@ struct ReadoutWorker::Private
         : state({})
         , mvlc(mvlc_)
         , snoopQueues(snoopQueues_)
-        , counters({})
+        , counters()
         , listfileQueues(ListfileWriterBufferSize, ListfileWriterBufferCount)
         , localBuffer(ListfileWriterBufferSize)
         , previousData(ListfileWriterBufferSize)
@@ -534,7 +534,7 @@ void ReadoutWorker::Private::loop(std::promise<std::error_code> promise)
     mvlc.resetStackErrorCounters();
 
     // listfile writer thread
-    Protected<ListfileWriterCounters> writerCounters({});
+    Protected<ListfileWriterCounters> writerCounters;
 
     auto writerThread = std::thread(
         listfile_buffer_writer,

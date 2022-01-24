@@ -34,7 +34,7 @@ struct MVLCReplay::Private
     std::unique_ptr<ReplayWorker> replayWorker;
 
     Private()
-        : parserCounters({})
+        : parserCounters()
         , parserQuit(false)
     {}
 };

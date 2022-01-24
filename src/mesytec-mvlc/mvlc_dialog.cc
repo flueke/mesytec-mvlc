@@ -95,7 +95,7 @@ constexpr std::chrono::milliseconds MVLCDialog_internal::ReadResponseMaxWait;
 
 MVLCDialog_internal::MVLCDialog_internal(MVLCBasicInterface *mvlc)
     : m_mvlc(mvlc)
-    , m_stackErrorCounters({})
+    , m_stackErrorCounters()
 {
     assert(m_mvlc);
 }

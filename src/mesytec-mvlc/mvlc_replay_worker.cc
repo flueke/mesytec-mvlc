@@ -168,7 +168,7 @@ struct ReplayWorker::Private
         : state({})
         , snoopQueues(snoopQueues_)
         , lfh(lfh_)
-        , counters({})
+        , counters()
         , logger(get_logger("replay"))
     {}
 
