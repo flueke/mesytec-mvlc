@@ -246,8 +246,6 @@ TEST(mvlc_listfile_zip, Split_CreateArchive)
 
         creator.createArchive(setup);
 
-        ASSERT_TRUE(util::file_exists("splitzip_archive.zip"));
-        ASSERT_TRUE(util::delete_file("splitzip_archive.zip"));
         ASSERT_EQ(openCallbackCalls, 1);
         ASSERT_EQ(closeCallbackCalls, 0);
 
@@ -255,10 +253,13 @@ TEST(mvlc_listfile_zip, Split_CreateArchive)
 
         ASSERT_EQ(openCallbackCalls, 1);
         ASSERT_EQ(closeCallbackCalls, 1);
+
+        ASSERT_TRUE(util::file_exists("splitzip_archive.zip"));
+        ASSERT_TRUE(util::delete_file("splitzip_archive.zip"));
     }
 
     {
-        ASSERT_FALSE(util::file_exists("splitzip_archive_part000.zip"));
+        ASSERT_FALSE(util::file_exists("splitzip_archive_part001.zip"));
 
         SplitZipCreator creator;
         SplitListfileSetup setup;
@@ -272,8 +273,6 @@ TEST(mvlc_listfile_zip, Split_CreateArchive)
 
         creator.createArchive(setup);
 
-        ASSERT_TRUE(util::file_exists("splitzip_archive_part000.zip"));
-        ASSERT_TRUE(util::delete_file("splitzip_archive_part000.zip"));
         ASSERT_EQ(openCallbackCalls, 1);
         ASSERT_EQ(closeCallbackCalls, 0);
 
@@ -281,6 +280,9 @@ TEST(mvlc_listfile_zip, Split_CreateArchive)
 
         ASSERT_EQ(openCallbackCalls, 1);
         ASSERT_EQ(closeCallbackCalls, 1);
+
+        ASSERT_TRUE(util::file_exists("splitzip_archive_part001.zip"));
+        ASSERT_TRUE(util::delete_file("splitzip_archive_part001.zip"));
     }
 }
 
@@ -288,9 +290,9 @@ TEST(mvlc_listfile_zip, Split_SplitBySize)
 {
     const std::vector<std::string> expectedParts =
     {
-        "splitzip_archive_part000.zip",
         "splitzip_archive_part001.zip",
         "splitzip_archive_part002.zip",
+        "splitzip_archive_part003.zip",
     };
 
     for (auto &part: expectedParts)
@@ -357,9 +359,9 @@ TEST(mvlc_listfile_zip, Split_SplitByTime)
 {
     const std::vector<std::string> expectedParts =
     {
-        "splitzip_archive_part000.zip",
         "splitzip_archive_part001.zip",
         "splitzip_archive_part002.zip",
+        "splitzip_archive_part003.zip",
     };
 
     for (auto &part: expectedParts)
@@ -419,8 +421,8 @@ TEST(mvlc_listfile_zip, Split_SplitByTime)
     for (auto &part: expectedParts)
         ASSERT_TRUE(util::file_exists(part));
 
-    //for (auto &part: expectedParts)
-    //    ASSERT_TRUE(util::delete_file(part));
+    for (auto &part: expectedParts)
+        ASSERT_TRUE(util::delete_file(part));
 }
 
 #if 0
