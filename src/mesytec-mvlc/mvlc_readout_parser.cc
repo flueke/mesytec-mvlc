@@ -279,6 +279,7 @@ static const size_t InitialWorkerBufferSize = util::Megabytes(1) / sizeof(u32);
 
 MESYTEC_MVLC_EXPORT ReadoutParserState make_readout_parser(
     const std::vector<StackCommandBuilder> &readoutStacks,
+    int crateIndex,
     void *userContext)
 {
     ReadoutParserState result = {};
@@ -297,6 +298,7 @@ MESYTEC_MVLC_EXPORT ReadoutParserState make_readout_parser(
     ensure_free_space(result.workBuffer, InitialWorkerBufferSize);
 
     result.userContext = userContext;
+    result.crateIndex = crateIndex;
 
     return result;
 }
@@ -398,8 +400,11 @@ inline bool try_handle_system_event(
 
             // Pass the frame header itself and the contents to the system event
             // callback.
-            const int crateIndex = 0;
-            callbacks.systemEvent(state.userContext, crateIndex, input.data(), frameInfo.len + 1);
+            callbacks.systemEvent(
+                state.userContext,
+                state.crateIndex,
+                input.data(), frameInfo.len + 1);
+
             input.remove_prefix(frameInfo.len + 1);
             return true;
         }
@@ -806,8 +811,10 @@ ParseResult parse_readout_contents(
                     }
                 }
 
-                int crateIndex = 0;
-                callbacks.eventData(state.userContext, crateIndex, state.eventIndex, state.moduleDataBuffer.data(), moduleCount);
+                callbacks.eventData(
+                    state.userContext,
+                    state.crateIndex, state.eventIndex,
+                    state.moduleDataBuffer.data(), moduleCount);
 
                 ++counters.eventHits[state.eventIndex];
 

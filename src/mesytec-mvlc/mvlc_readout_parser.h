@@ -312,6 +312,7 @@ struct MESYTEC_MVLC_EXPORT ReadoutParserState
 
     std::exception_ptr eptr;
 
+    int crateIndex = 0;
     void *userContext = nullptr;
 };
 
@@ -322,6 +323,7 @@ struct MESYTEC_MVLC_EXPORT ReadoutParserState
 // 2 and so on. Stack 0 (the direct exec stack) must not be included.
 MESYTEC_MVLC_EXPORT ReadoutParserState make_readout_parser(
     const std::vector<StackCommandBuilder> &readoutStacks,
+    int crateIndex = 0,
     void *userContext = nullptr);
 
 // Functions for steering the parser. These should be called repeatedly with
