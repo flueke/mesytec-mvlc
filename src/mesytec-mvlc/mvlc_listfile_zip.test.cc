@@ -290,9 +290,9 @@ TEST(mvlc_listfile_zip, Split_SplitBySize)
 {
     const std::vector<std::string> expectedParts =
     {
-        "splitzip_archive_part001.zip",
-        "splitzip_archive_part002.zip",
-        "splitzip_archive_part003.zip",
+        "splitzip_bysize_archive_part001.zip",
+        "splitzip_bysize_archive_part002.zip",
+        "splitzip_bysize_archive_part003.zip",
     };
 
     for (auto &part: expectedParts)
@@ -319,7 +319,7 @@ TEST(mvlc_listfile_zip, Split_SplitBySize)
     setup.splitSize = 1024;
     setup.entryType = ZipEntryInfo::ZIP;
     setup.compressLevel = 0; // Disable compression to make sure the raw bytes written end up in the file.
-    setup.filenamePrefix = "splitzip_archive";
+    setup.filenamePrefix = "splitzip_bysize_archive";
     setup.openArchiveCallback = open_callback;
     setup.closeArchiveCallback = close_callback;
 
@@ -359,9 +359,9 @@ TEST(mvlc_listfile_zip, Split_SplitByTime)
 {
     const std::vector<std::string> expectedParts =
     {
-        "splitzip_archive_part001.zip",
-        "splitzip_archive_part002.zip",
-        "splitzip_archive_part003.zip",
+        "splitzip_bytime_archive_part001.zip",
+        "splitzip_bytime_archive_part002.zip",
+        "splitzip_bytime_archive_part003.zip",
     };
 
     for (auto &part: expectedParts)
@@ -388,7 +388,7 @@ TEST(mvlc_listfile_zip, Split_SplitByTime)
     setup.splitTime = std::chrono::seconds(1);
     setup.entryType = ZipEntryInfo::ZIP;
     setup.compressLevel = 0; // Disable compression to make sure the raw bytes written end up in the file.
-    setup.filenamePrefix = "splitzip_archive";
+    setup.filenamePrefix = "splitzip_bytime_archive";
     setup.openArchiveCallback = open_callback;
     setup.closeArchiveCallback = close_callback;
 
