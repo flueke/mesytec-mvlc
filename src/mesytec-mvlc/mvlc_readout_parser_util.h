@@ -17,9 +17,9 @@ namespace readout_parser
 {
 
 // Driver function intended to run the readout parser in its own thread.
-// Readout buffers are taken from the snoopQueues and are passed to the readout
+// Readout buffers are taken from the bufferQueues and are passed to the readout
 // parser. Once a buffer has been processed it is re-enqueued on the empty
-// snoop queue.
+// buffer queue.
 
 // Call like this:
 //  parserThread = std::thread(
@@ -33,7 +33,7 @@ namespace readout_parser
 void MESYTEC_MVLC_EXPORT run_readout_parser(
     readout_parser::ReadoutParserState &state,
     Protected<readout_parser::ReadoutParserCounters> &counters,
-    ReadoutBufferQueues &snoopQueues,
+    ReadoutBufferQueues &bufferQueues,
     readout_parser::ReadoutParserCallbacks &parserCallbacks,
     std::atomic<bool> &quit);
 

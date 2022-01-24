@@ -21,7 +21,7 @@ namespace readout_parser
 void run_readout_parser(
     readout_parser::ReadoutParserState &state,
     Protected<readout_parser::ReadoutParserCounters> &counters,
-    ReadoutBufferQueues &snoopQueues,
+    ReadoutBufferQueues &bufferQueues,
     readout_parser::ReadoutParserCallbacks &parserCallbacks,
     std::atomic<bool> &quit)
 {
@@ -31,8 +31,8 @@ void run_readout_parser(
 
     auto logger = get_logger("readout_parser");
 
-    auto &filled = snoopQueues.filledBufferQueue();
-    auto &empty = snoopQueues.emptyBufferQueue();
+    auto &filled = bufferQueues.filledBufferQueue();
+    auto &empty = bufferQueues.emptyBufferQueue();
 
 #ifndef NDEBUG
     const size_t countFilled = filled.size();
