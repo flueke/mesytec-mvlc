@@ -204,12 +204,15 @@ MVLCReadout make_mvlc_readout(
     readout_parser::ReadoutParserCallbacks parserCallbacks,
     void *userContext)
 {
+    const int crateIndex = 0;
+
     MVLCReadout r;
     r.d->mvlc = make_mvlc(crateConfig);
     r.d->crateConfig = crateConfig;
     r.d->lfh = setup_listfile(r.d->lfZip, lfParams);
     r.d->parserCallbacks = parserCallbacks;
-    r.d->readoutParser = readout_parser::make_readout_parser(crateConfig.stacks, userContext);
+    r.d->readoutParser = readout_parser::make_readout_parser(
+        crateConfig.stacks, crateIndex, userContext);
     init_common(r);
     return r;
 }
@@ -222,12 +225,15 @@ MVLCReadout make_mvlc_readout(
     readout_parser::ReadoutParserCallbacks parserCallbacks,
     void *userContext)
 {
+    const int crateIndex = 0;
+
     MVLCReadout r;
     r.d->mvlc = mvlc;
     r.d->crateConfig = crateConfig;
     r.d->lfh = setup_listfile(r.d->lfZip, lfParams);
     r.d->parserCallbacks = parserCallbacks;
-    r.d->readoutParser = readout_parser::make_readout_parser(crateConfig.stacks, userContext);
+    r.d->readoutParser = readout_parser::make_readout_parser(
+        crateConfig.stacks, crateIndex, userContext);
     init_common(r);
     return r;
 }
@@ -239,12 +245,15 @@ MVLCReadout make_mvlc_readout(
     readout_parser::ReadoutParserCallbacks parserCallbacks,
     void *userContext)
 {
+    const int crateIndex = 0;
+
     MVLCReadout r;
     r.d->mvlc = make_mvlc(crateConfig);
     r.d->crateConfig = crateConfig;
     r.d->lfh = listfileWriteHandle;
     r.d->parserCallbacks = parserCallbacks;
-    r.d->readoutParser = readout_parser::make_readout_parser(crateConfig.stacks, userContext);
+    r.d->readoutParser = readout_parser::make_readout_parser(
+        crateConfig.stacks, crateIndex, userContext);
     init_common(r);
     return r;
 }
@@ -257,12 +266,15 @@ MVLCReadout make_mvlc_readout(
     readout_parser::ReadoutParserCallbacks parserCallbacks,
     void *userContext)
 {
+    const int crateIndex = 0;
+
     MVLCReadout r;
     r.d->mvlc = mvlc;
     r.d->crateConfig = crateConfig;
     r.d->lfh = listfileWriteHandle;
     r.d->parserCallbacks = parserCallbacks;
-    r.d->readoutParser = readout_parser::make_readout_parser(crateConfig.stacks, userContext);
+    r.d->readoutParser = readout_parser::make_readout_parser(
+        crateConfig.stacks, crateIndex, userContext);
     init_common(r);
     return r;
 }
