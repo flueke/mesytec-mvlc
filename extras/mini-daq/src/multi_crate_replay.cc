@@ -123,7 +123,7 @@ int main(int argc, char *argv[])
 
 	std::vector<MVLCReplay> replays;
     int crateIndex = 0;
-    std::map<int, size_t> recordedSystemEvents;
+    Protected<std::map<int, size_t>> recordedSystemEvents({});
 
 	for (const auto &listfilePath: listfilePaths)
 	{
@@ -131,17 +131,15 @@ int main(int argc, char *argv[])
         parserCallbacks.eventData = [crateIndex, &eventBuilder] (
             void *, int /*crateIndex*/, int eventIndex, const ModuleData *moduleData, size_t moduleCount)
         {
-            // FIXME: swallows none eventbuilder events
-            if (eventBuilder.isEnabledFor(eventIndex))
-                eventBuilder.recordEventData(crateIndex, eventIndex, moduleData, moduleCount);
+            eventBuilder.recordEventData(crateIndex, eventIndex, moduleData, moduleCount);
         };
         parserCallbacks.systemEvent = [crateIndex, &eventBuilder, &recordedSystemEvents] (
             void *, int /*crateIndex*/, const u32 *data, u32 size)
         {
             eventBuilder.recordSystemEvent(crateIndex, data, size);
-            ++recordedSystemEvents[crateIndex]; // FIXME: this is not thread save and will be executd in parallel by each of the readout parsers
+            ++recordedSystemEvents.access().ref()[crateIndex];
         };
-        auto replay = make_mvlc_replay(listfilePath, parserCallbacks);
+        auto replay = make_mvlc_replay(listfilePath, parserCallbacks, crateIndex);
         replays.emplace_back(std::move(replay));
         ++crateIndex;
 	}
@@ -227,10 +225,12 @@ int main(int argc, char *argv[])
 
     cout << endl;
 
-    for (auto it=std::begin(recordedSystemEvents); it!=std::end(recordedSystemEvents); ++it)
+    auto sysEvents = recordedSystemEvents.access().copy();
+
+    for (auto it=std::begin(sysEvents); it!=std::end(sysEvents); ++it)
     {
         auto ci = it->first;
-        cout << fmt::format("ci={}, systemEvents={}", ci, recordedSystemEvents[ci]) << endl;
+        cout << fmt::format("ci={}, systemEvents={}", ci, sysEvents[ci]) << endl;
     }
 
     cout << "yieldedSystemEvents=" << systemEvents << endl;
