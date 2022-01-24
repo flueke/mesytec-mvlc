@@ -48,10 +48,12 @@ template<typename T>
 class Protected
 {
     public:
+        explicit Protected()
+        { }
+
         explicit Protected(T &&obj)
             : m_obj(std::move(obj))
-        {
-        }
+        { }
 
         Access<T> access()
         {
