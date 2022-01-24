@@ -53,36 +53,42 @@ class MESYTEC_MVLC_EXPORT MVLCReplay
         friend MVLCReplay make_mvlc_replay(
             const std::string &listfileFilename,
             readout_parser::ReadoutParserCallbacks parserCallbacks,
+            int crateIndex,
             void *userContext);
 
         friend MVLCReplay make_mvlc_replay(
             const std::string &listfileArchiveName,
             const std::string &listfileArchiveMemberName,
             readout_parser::ReadoutParserCallbacks parserCallbacks,
+            int crateIndex,
             void *userContext);
 
         friend MVLCReplay make_mvlc_replay(
             listfile::ReadHandle *lfh,
             readout_parser::ReadoutParserCallbacks parserCallbacks,
+            int crateIndex,
             void *userContext);
 
-        friend void init_common(MVLCReplay &rdo, void *userContext);
+        friend void init_common(MVLCReplay &rdo, int crateIndex, void *userContext);
 };
 
 MVLCReplay MESYTEC_MVLC_EXPORT make_mvlc_replay(
     const std::string &listfileArchiveName,
     readout_parser::ReadoutParserCallbacks parserCallbacks,
+    int crateIndex = 0,
     void *userContext = nullptr);
 
 MVLCReplay MESYTEC_MVLC_EXPORT make_mvlc_replay(
     const std::string &listfileArchiveName,
     const std::string &listfileArchiveMemberName,
     readout_parser::ReadoutParserCallbacks parserCallbacks,
+    int crateIndex = 0,
     void *userContext = nullptr);
 
 MVLCReplay MESYTEC_MVLC_EXPORT make_mvlc_replay(
     listfile::ReadHandle *lfh,
     readout_parser::ReadoutParserCallbacks parserCallbacks,
+    int crateIndex = 0,
     void *userContext = nullptr);
 
 } // end namespace mvlc
