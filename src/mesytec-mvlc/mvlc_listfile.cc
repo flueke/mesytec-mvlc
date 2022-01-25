@@ -75,9 +75,6 @@ void listfile_write_system_event(
     WriteHandle &lf_out, u8 subtype,
     const u32 *buffp, size_t totalWords)
 {
-    //if (!lf_out.isOpen())
-    //    return;
-
     if (totalWords == 0)
     {
         listfile_write_system_event(lf_out, subtype);
