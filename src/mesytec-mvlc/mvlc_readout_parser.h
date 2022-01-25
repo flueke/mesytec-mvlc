@@ -160,6 +160,7 @@ enum class ParseResult
 
     UnexpectedEndOfBuffer,
     UnhandledException,
+    UnknownBufferType,
 
     ParseResultMax
 };

@@ -227,6 +227,9 @@ const char *get_parse_result_name(const ParseResult &pr)
         case ParseResult::UnhandledException:
             return "UnhandledException";
 
+        case ParseResult::UnknownBufferType:
+            return "UnknownBufferType";
+
         case ParseResult::ParseResultMax:
             break;
     }
@@ -960,6 +963,10 @@ ParseResult parse_readout_buffer(
             case ConnectionType::USB:
                 result =  parse_readout_buffer_usb(
                     state, callbacks, counters, bufferNumber, buffer, bufferWords);
+                break;
+
+            default:
+                result = ParseResult::UnknownBufferType;
                 break;
         }
     }
