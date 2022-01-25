@@ -71,7 +71,7 @@ void run_readout_parser(
                 auto bufferView = buffer->viewU32();
 
                 readout_parser::parse_readout_buffer(
-                    buffer->type(),
+                    static_cast<ConnectionType>(buffer->type()),
                     state,
                     parserCallbacks,
                     counters.access().ref(),
