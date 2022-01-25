@@ -196,10 +196,10 @@ namespace frame_flags
 // format.
 namespace system_event
 {
-    // TTTT TTTT CUUU SSSS SSSL LLLL LLLL LLLL
+    // TTTT TTTT CIII SSSS SSSL LLLL LLLL LLLL
     // Type     [ 7:0] set to 0xFA
     // Continue [ 0:0] continue bit set for all but the last part
-    // Unused   [ 2:0] 3 unused flag bits
+    // CtrlId   [ 2:0] 3 bit MVLC controller id
     // Subtype  [ 6:0] 7 bit system event SubType
     // Length   [12:0] 13 bit length counted in 32-bit words
 
