@@ -16,15 +16,15 @@ namespace listfile
 // Implements the listfile::WriteHandle interface. Writes are directed to the
 // underlying ReadoutBuffer. The buffer is resized in write() if there's not
 // enough room available.
-class MESYTEC_MVLC_EXPORT BufferWriteHandle: public WriteHandle
+class MESYTEC_MVLC_EXPORT ReadoutBufferWriteHandle: public WriteHandle
 {
     public:
-        explicit BufferWriteHandle(ReadoutBuffer &buffer)
+        explicit ReadoutBufferWriteHandle(ReadoutBuffer &buffer)
             : m_buffer(buffer)
         {
         }
 
-        ~BufferWriteHandle() override {}
+        ~ReadoutBufferWriteHandle() override {}
 
         size_t write(const u8 *data, size_t size) override
         {

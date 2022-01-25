@@ -550,7 +550,7 @@ void ReadoutWorker::Private::loop(std::promise<std::error_code> promise)
 
     // Grab an output buffer and write an initial timestamp into it.
     {
-        listfile::BufferWriteHandle wh(*getOutputBuffer());
+        listfile::ReadoutBufferWriteHandle wh(*getOutputBuffer());
         listfile_write_timestamp_section(wh, system_event::subtype::BeginRun);
     }
     auto tTimestamp = tStart;
@@ -586,7 +586,7 @@ void ReadoutWorker::Private::loop(std::promise<std::error_code> promise)
 
                     if (elapsed >= TimestampInterval)
                     {
-                        listfile::BufferWriteHandle wh(*getOutputBuffer());
+                        listfile::ReadoutBufferWriteHandle wh(*getOutputBuffer());
                         listfile_write_timestamp_section(wh, system_event::subtype::UnixTimetick);
                         tTimestamp = now;
 
@@ -616,7 +616,7 @@ void ReadoutWorker::Private::loop(std::promise<std::error_code> promise)
                 else if (state_ == State::Running && desiredState == State::Paused)
                 {
                     terminateReadout();
-                    listfile::BufferWriteHandle wh(*getOutputBuffer());
+                    listfile::ReadoutBufferWriteHandle wh(*getOutputBuffer());
                     listfile_write_timestamp_section(wh, system_event::subtype::Pause);
                     setState(State::Paused);
                     logger->debug("MVLC readout paused");
@@ -625,7 +625,7 @@ void ReadoutWorker::Private::loop(std::promise<std::error_code> promise)
                 else if (state_ == State::Paused && desiredState == State::Running)
                 {
                     startReadout();
-                    listfile::BufferWriteHandle wh(*getOutputBuffer());
+                    listfile::ReadoutBufferWriteHandle wh(*getOutputBuffer());
                     listfile_write_timestamp_section(wh, system_event::subtype::Resume);
                     setState(State::Running);
                     logger->debug("MVLC readout resumed");
@@ -687,7 +687,7 @@ void ReadoutWorker::Private::loop(std::promise<std::error_code> promise)
     // and immediately flush the buffer.
     if (writerCounters.access()->state == ListfileWriterCounters::Running)
     {
-        listfile::BufferWriteHandle wh(*getOutputBuffer());
+        listfile::ReadoutBufferWriteHandle wh(*getOutputBuffer());
         listfile_write_timestamp_section(wh, system_event::subtype::EndRun);
         listfile_write_system_event(wh, system_event::subtype::EndOfFile);
         flushCurrentOutputBuffer();
