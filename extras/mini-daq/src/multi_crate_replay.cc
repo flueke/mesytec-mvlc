@@ -21,15 +21,17 @@ int main(int argc, char *argv[])
     spdlog::set_level(spdlog::level::warn);
     bool opt_showHelp = false;
     std::string opt_listfilePath;
-    bool opt_printCrateConfig = false;
+    //bool opt_printCrateConfig = false;
     std::vector<std::string> listfilePaths;
     std::vector<int> multicrateEvents;
 
     auto cli
         = lyra::help(opt_showHelp)
 
+        /*
         | lyra::opt(opt_printCrateConfig)
             ["--print-config"]("Print the MVLC CrateConfig extracted from the listfile and exit")
+        */
 
         | lyra::opt(listfilePaths, "listfile")
             .name("-l")
@@ -90,7 +92,7 @@ int main(int argc, char *argv[])
         if (!eventSetup.enabled)
             continue;
 
-        //eventSetup.mainModule = std::make_pair(0, 0); // FIXME
+        eventSetup.mainModule = std::make_pair(0, 0); // FIXME: this needs to be user-settable.
 
         for (size_t ci = 0; ci < crateConfigs.size(); ++ci)
         {
@@ -149,6 +151,7 @@ int main(int argc, char *argv[])
     size_t systemEvents = 0;
 
     readout_parser::ReadoutParserCallbacks eventBuilderCallbacks;
+
     eventBuilderCallbacks.eventData = [&eventCounts, &moduleCounts] (
         void *, int /*crateIndex*/, int eventIndex, const ModuleData *moduleData, size_t moduleCount)
     {
