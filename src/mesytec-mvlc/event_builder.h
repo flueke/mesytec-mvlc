@@ -90,6 +90,8 @@ struct MESYTEC_MVLC_EXPORT EventSetup
     std::vector<CrateSetup> crateSetups;
 
     // crate and crate-relative indexes of the main module which provides the reference timestamp
+    // mainModule.first  := crateIndex
+    // mainModule.second := moduleIndex
     std::pair<int, int> mainModule;
 };
 
