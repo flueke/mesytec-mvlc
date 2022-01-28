@@ -21,7 +21,7 @@ using timestamp_extractor = std::function<u32 (const u32 *data, size_t size)>;
 namespace event_builder
 {
 
-static const auto DefaultMatchWindow = std::make_pair(-8, 8);
+static const auto DefaultMatchWindow = std::make_pair<s32, s32>(-8, 8);
 static const size_t DefaultMemoryLimit = util::Gigabytes(1);
 
 static const u32 TimestampMax = 0x3fffffffu; // 30 bits
