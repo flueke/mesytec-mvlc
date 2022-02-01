@@ -150,24 +150,6 @@ Preamble MESYTEC_MVLC_EXPORT read_preamble(
 //
 // read complete section into buffer (including continuations)
 
-
-
-//
-// BufferedWriteHandle
-//
-
-class MESYTEC_MVLC_EXPORT BufferedWriteHandle: public WriteHandle
-{
-    public:
-        virtual size_t write(const u8 *data, size_t size) override;
-
-        const std::vector<u8> &getBuffer() const { return buffer_; }
-        std::vector<u8> getBuffer() { return buffer_; }
-
-    private:
-        std::vector<u8> buffer_;
-};
-
 } // end namespace listfile
 } // end namespace mvlc
 } // end namespace mesytec
