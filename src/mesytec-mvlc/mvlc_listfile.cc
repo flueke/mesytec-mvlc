@@ -233,16 +233,6 @@ Preamble read_preamble(ReadHandle &rh, const size_t preambleMaxSize)
     return result;
 }
 
-//
-// BufferedWriteHandle
-//
-
-size_t BufferedWriteHandle::write(const u8 *data, size_t size)
-{
-    std::copy(data, data+size, std::back_inserter(buffer_));
-    return size;
-}
-
 } // end namespace listfile
 } // end namespace mvlc
 } // end namespace mesytec

@@ -19,6 +19,7 @@ add_library(mesytec-mvlc SHARED
     mvlc_impl_support.cc
     mvlc_impl_usb.cc
     mvlc_listfile.cc
+    mvlc_listfile_util.cc
     mvlc_listfile_zip.cc
     mvlc_readout.cc
     mvlc_readout_config.cc

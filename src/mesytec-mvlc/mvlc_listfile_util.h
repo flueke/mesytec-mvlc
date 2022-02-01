@@ -13,6 +13,26 @@ namespace mvlc
 namespace listfile
 {
 
+//
+// BufferedWriteHandle
+//
+
+class MESYTEC_MVLC_EXPORT BufferedWriteHandle: public WriteHandle
+{
+    public:
+        size_t write(const u8 *data, size_t size) override
+        {
+            std::copy(data, data+size, std::back_inserter(buffer_));
+            return size;
+        }
+
+        const std::vector<u8> &getBuffer() const { return buffer_; }
+        std::vector<u8> getBuffer() { return buffer_; }
+
+    private:
+        std::vector<u8> buffer_;
+};
+
 // Implements the listfile::WriteHandle interface. Writes are directed to the
 // underlying ReadoutBuffer. The buffer is resized in write() if there's not
 // enough room available.
