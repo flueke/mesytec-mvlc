@@ -706,7 +706,9 @@ size_t EventBuilder::Private::buildEvents(int eventIndex, Callbacks &callbacks, 
                     matchResult = timestamp_match(mainModuleTimestamp, moduleEvent.timestamp, matchWindow);
                 else
                 {
-                    // TODO: explain what this does (failed timestamp extraction handling)
+                    // The extractor returned TimestampExtractionFailed. Either the module data
+                    // did not contain a timestamp or the InvalidTimestampExtractor is used to
+                    // make the EventBuilder ignore the module.
                     matchResult.match = WindowMatch::in_window;
                     matchResult.invscore = std::numeric_limits<u32>::max();
                 }
