@@ -154,6 +154,8 @@ class MESYTEC_MVLC_EXPORT EventBuilder
         void discardAllEventData();
         void reset();
 
+        size_t getLinearModuleIndex(int crateIndex, int eventIndex, unsigned moduleIndex) const;
+
     private:
         struct Private;
         std::unique_ptr<Private> d;

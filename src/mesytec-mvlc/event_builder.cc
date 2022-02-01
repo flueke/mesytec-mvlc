@@ -385,11 +385,17 @@ void EventBuilder::recordEventData(int crateIndex, int eventIndex,
         auto &moduleMemCounters = d->moduleMemCounters_.at(eventIndex);
         auto &timestampExtractors = d->moduleTimestampExtractors_.at(eventIndex);
         auto &emptyEvents = d->moduleEmptyEvents_.at(eventIndex);
+        auto &moduleHits = d->moduleTotalHits_.at(eventIndex);
 
         for (unsigned moduleIndex = 0; moduleIndex < moduleCount; ++moduleIndex)
         {
-            auto moduleData = moduleDataList[moduleIndex];
+            const auto linearModuleIndex = d->getLinearModuleIndex(crateIndex, eventIndex, moduleIndex);
 
+            assert(linearModuleIndex < moduleEventBuffers.size());
+
+            ++moduleHits.at(linearModuleIndex);
+
+            auto moduleData = moduleDataList[moduleIndex];
             auto &data = moduleData.data;
 
             // The readout parser can yield zero length data if a module is read
@@ -404,11 +410,9 @@ void EventBuilder::recordEventData(int crateIndex, int eventIndex,
             // data for module events.
             if (data.size == 0)
             {
-                ++emptyEvents.at(moduleIndex);
+                ++emptyEvents.at(linearModuleIndex);
                 continue;
             }
-
-            const auto linearModuleIndex = d->getLinearModuleIndex(crateIndex, eventIndex, moduleIndex);
 
             u32 timestamp = timestampExtractors.at(linearModuleIndex)(data.data, data.size);
             assert(timestamp <= event_builder::TimestampMax
@@ -856,6 +860,11 @@ void EventBuilder::reset()
     UniqueLock guard(d->mutex_);
     d->discardAllEventData();
     d->resetCounters();
+}
+
+size_t EventBuilder::getLinearModuleIndex(int crateIndex, int eventIndex, unsigned moduleIndex) const
+{
+    return d->getLinearModuleIndex(crateIndex, eventIndex, moduleIndex);
 }
 
 }
