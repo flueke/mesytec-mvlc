@@ -725,27 +725,41 @@ void ReadoutWorker::Private::loop(std::promise<std::error_code> promise)
 }
 
 // Start readout or resume after pause
-// Run the last part of the init sequence in parallel to reading from the data pipe.
-// The last part enables the stack triggers, runs the multicast daq start
-// sequence and enables MVLC daq mode.
+// Run the last part of the init sequence in parallel to reading from the data
+// pipe.
+// The last part enables the stack triggers, enables MVLC daq mode and runs the
+// multicast daq start sequence.
 std::error_code ReadoutWorker::Private::startReadout()
 {
     auto f = std::async(
         std::launch::async,
         [this] ()
         {
-            // enable readout stacks
+            // This is the correct order of operations to make multicrate
+            // setups work.
+            //
+            // The readout/stack triggers have to be setup before the global
+            // DAQ mode flag is enabled.
+            //
+            // Once the DAQ mode flag is enabled the Trigger/IO StackStart
+            // units will start working. This is required to be able to react
+            // to SlaveTrigger signals from the master.
+            //
+            // Finally the multicast daq start sequence (a combination of all
+            // the mcst start commands from all defined events) is run. This
+            // can make use of Trigger/IO stack processing.
+
+            // enable the readout stacks by setting the stack trigger registers
             if (auto ec = setup_readout_triggers(mvlc, stackTriggers))
+                return ec;
+
+            // enable daq mode
+            if (auto ec = enable_daq_mode(mvlc))
                 return ec;
 
             // multicast daq start
             auto execResults = run_commands(mvlc, mcstDaqStart);
-
-            if (auto ec = get_first_error(execResults))
-                return ec;
-
-            // enable daq mode
-            return enable_daq_mode(mvlc);
+            return get_first_error(execResults);
         });
 
     while (f.valid() && !is_ready(f))
@@ -766,27 +780,24 @@ std::error_code ReadoutWorker::Private::startReadout()
 
 // Cleanly end a running readout session. The code disables all triggers by
 // writing to the trigger registers via the command pipe while in parallel
-// reading and processing data from the data pipe until no more data
-// arrives. These things have to be done in parallel as otherwise in the
-// case of USB the data from the data pipe could clog the bus and no
-// replies could be received on the command pipe.
+// reading and processing data from the data pipe until no more data arrives.
+// These things have to be done in parallel as otherwise in the case of USB2
+// the data from the data pipe could clog the bus and no replies could be
+// received on the command pipe.
 std::error_code ReadoutWorker::Private::terminateReadout()
 {
     auto f = std::async(
         std::launch::async,
         [this] ()
         {
-            // disable daq mode
-            if (auto ec = disable_daq_mode(mvlc))
-                return ec;
-
+            // new order (see startReadout() above)
             // multicast daq stop
             auto execResults = run_commands(mvlc, mcstDaqStop);
 
             if (auto ec = get_first_error(execResults))
                 return ec;
 
-            // disable readout stacks
+            // disable daq mode and the readout stack triggers
             static const int DisableTriggerRetryCount = 5;
 
             for (int try_ = 0; try_ < DisableTriggerRetryCount; try_++)
