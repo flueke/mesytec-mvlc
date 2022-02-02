@@ -59,35 +59,34 @@ std::string format_frame_flags(u8 frameFlags)
 
 std::string decode_frame_header(u32 header)
 {
-    std::string result;
-    std::ostringstream ss(result);
+    std::ostringstream ss;
 
     auto headerInfo = extract_frame_info(header);
 
     switch (static_cast<frame_headers::FrameTypes>(headerInfo.type))
     {
         case frame_headers::SuperFrame:
-            ss << "Super Frame (len=" << headerInfo.len;
+            ss << "SuperFrame (len=" << headerInfo.len;
             break;
 
         case frame_headers::StackFrame:
-            ss << "Stack Result Frame (len=" << headerInfo.len;
+            ss << "StackResultFrame (len=" << headerInfo.len;
             break;
 
         case frame_headers::BlockRead:
-            ss << "Block Read Frame (len=" << headerInfo.len;
+            ss << "BlockReadFrame (len=" << headerInfo.len;
             break;
 
         case frame_headers::StackError:
-            ss << "Stack Error Frame (len=" << headerInfo.len;
+            ss << "StackErrorFrame (len=" << headerInfo.len;
             break;
 
         case frame_headers::StackContinuation:
-            ss << "Stack Result Continuation Frame (len=" << headerInfo.len;
+            ss << "StackResultContinuation Frame (len=" << headerInfo.len;
             break;
 
         case frame_headers::SystemEvent:
-            ss << "System Event (len=" << headerInfo.len;
+            ss << "SystemEvent (len=" << headerInfo.len;
             break;
     }
 
@@ -112,7 +111,7 @@ std::string decode_frame_header(u32 header)
 
     ss << ", frameFlags=" << format_frame_flags(frameFlags) << ")";
 
-    return result;
+    return ss.str();
 }
 
 const char *get_frame_flag_shift_name(u8 flag_shift)
