@@ -179,6 +179,12 @@ struct PairHash
 
 struct MESYTEC_MVLC_EXPORT ReadoutParserCounters
 {
+    ReadoutParserCounters()
+    {
+        systemEvents.fill(0);
+        parseResults.fill(0);
+    }
+
     // Counts internal buffer loss across calls to parse_readout_buffer()
     u32 internalBufferLoss = 0;
 
