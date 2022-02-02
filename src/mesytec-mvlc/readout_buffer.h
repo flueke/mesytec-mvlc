@@ -72,6 +72,17 @@ class MESYTEC_MVLC_EXPORT ReadoutBuffer
                 m_used / sizeof(u32));
         }
 
+        template<typename T>
+        void push_back(const T &t)
+        {
+            static_assert(std::is_trivial<T>::value, "T must be a trivial type");
+            ensureFreeSpace(sizeof(t));
+            auto begin = reinterpret_cast<const u8 *>(&t);
+            auto end = begin + sizeof(t);
+            std::copy(begin, end, data() + used());
+            use(sizeof(t));
+        }
+
     private:
         s32 m_type = static_cast<s32>(ConnectionType::ETH);
         size_t m_number = 0;
