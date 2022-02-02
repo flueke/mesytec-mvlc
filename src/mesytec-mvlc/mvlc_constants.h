@@ -137,7 +137,7 @@ namespace frame_headers
         BlockRead           = 0xF5, // Inner frame for block reads. Always contained within a StackFrame.
         StackError          = 0xF7, // Error notification frame embedded either between readout data or
                                     // sent to the command port for monitoring.
-        StackContinuation   = 0xF9, // Continuation frame for BlockRead frames with the Continue bit set.
+        StackContinuation   = 0xF9, // Continuation frame for StackFrame frames with the Continue bit set.
                                     // The last F9 frame in a sequence has the Continue bit cleared.
         SystemEvent         = 0xFA, // Software generated frames used for transporting additional
                                     // information. See the system_event namespace below for details.
