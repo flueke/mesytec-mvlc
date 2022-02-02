@@ -18,3 +18,9 @@ target_link_libraries(mvlc-reconnect-test
     PRIVATE BFG::Lyra
     PRIVATE spdlog::spdlog
     )
+
+add_executable(decode-mvlc-frame-header decode_mvlc_frame_header.cc)
+target_link_libraries(decode-mvlc-frame-header
+    PRIVATE mesytec-mvlc
+    PRIVATE BFG::Lyra
+    PRIVATE spdlog::spdlog)
