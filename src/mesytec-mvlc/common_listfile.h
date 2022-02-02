@@ -8,9 +8,9 @@
  * storing the merged data from a multi crate readout.
  */
 
-#include "readout_buffer.h"
 #include "mvlc_listfile.h"
 #include "mvlc_readout_parser.h"
+#include "readout_buffer.h"
 
 namespace mesytec
 {
@@ -19,11 +19,8 @@ namespace mvlc
 namespace common_listfile
 {
 
-
 // Note: always emits a BlockRead frame for each module
-// FIXME: Probably not the right API. Use an output iterator instead.
-template<typename Dest>
-void write_module_data(Dest &dest, int crateIndex, int eventIndex,
+inline void write_module_data(ReadoutBuffer &dest, int crateIndex, int eventIndex,
                        const readout_parser::ModuleData *moduleDataList, unsigned moduleCount)
 {
     assert(crateIndex < frame_headers::CtrlIdMask);
@@ -41,8 +38,6 @@ void write_module_data(Dest &dest, int crateIndex, int eventIndex,
 
     // -1 because the event header itself is not counted in the frames size field
     assert(outputWordCount - 1 < frame_headers::LengthMask);
-
-    dest.reserve(dest.size() + outputWordCount);
 
     u32 eventHeader = (frame_headers::StackFrame << frame_headers::TypeShift
                        | (eventIndex + 1) << frame_headers::StackNumShift
@@ -64,27 +59,29 @@ void write_module_data(Dest &dest, int crateIndex, int eventIndex,
 
         dest.push_back(moduleHeader);
 
-        std::copy(moduleData.data, moduleData.data + moduleData.size,
-                  std::back_inserter(dest));
+        for (auto it=moduleData.data; it<moduleData.data + moduleData.size; ++it)
+            dest.push_back(*it);
     }
 }
 
-template<typename Dest>
-void write_system_event(Dest &dest, int crateIndex, const u32 *header, u32 size)
+
+// Writes out an adjusted header containing the specified crateIndex, followed by the unmodified
+// system event data.
+//template<typename Dest>
+//void write_system_event(Dest &dest, int crateIndex, const u32 *header, u32 size)
+inline void write_system_event(ReadoutBuffer &dest, int crateIndex, const u32 *header, u32 size)
 {
     assert(crateIndex < frame_headers::CtrlIdMask);
+    assert(size > 0);
     assert(size < frame_headers::LengthMask);
+    assert(get_frame_type(*header) == frame_headers::SystemEvent);
 
-    dest.reserve(dest.size() + size + 1);
+    u32 headerWithCrateIndex = *header | crateIndex << frame_headers::CtrlIdShift;
 
-    u32 eventHeader = (frame_headers::SystemEvent << frame_headers::TypeShift
-                       | crateIndex << frame_headers::CtrlIdShift
-                       | size
-                      );
+    dest.push_back(headerWithCrateIndex);
 
-    dest.push_back(eventHeader);
-
-    std::copy(header, header + size, std::back_inserter(dest));
+    for (auto it=header+1; it<header+size; ++it)
+        dest.push_back(*it);
 }
 
 
