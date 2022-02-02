@@ -244,6 +244,7 @@ class end_of_buffer: public std::runtime_error
 {
     public:
         explicit end_of_buffer(const char *arg): std::runtime_error(arg) {}
+        explicit end_of_buffer(const std::string &s): std::runtime_error(s) {}
         end_of_buffer(): std::runtime_error("end_of_buffer") {}
 };
 
@@ -433,6 +434,11 @@ inline const u32 *find_stack_frame_header(
                 || frameType == frame_headers::StackContinuation);
     };
 
+    if (!input.empty())
+    {
+        assert(is_accepted_frame_type(extract_frame_info(input[0]).type));
+    }
+
     while (!input.empty())
     {
         auto frameInfo = extract_frame_info(input[0]);
@@ -444,7 +450,17 @@ inline const u32 *find_stack_frame_header(
             return nullptr;
 
         if (input.size() <= frameInfo.len)
-            throw end_of_buffer("find_stack_frame_header: buffer size exceeded");
+        {
+            // The frame does not fit into the current input sequence so we
+            // cannot skip past it. As an example this can happen when parsing
+            // a lossfull sequence of eth packets and trying to find the next
+            // StackFrame to continue parsing.
+            // Old handling was to throw and count the exception on the outside.
+            // New handling is to return nullptr and count the result as
+            // NoStackFrameFound.
+            //throw end_of_buffer("find_stack_frame_header: buffer size exceeded");
+            return nullptr;
+        }
 
         input.remove_prefix(frameInfo.len + 1);
     }
