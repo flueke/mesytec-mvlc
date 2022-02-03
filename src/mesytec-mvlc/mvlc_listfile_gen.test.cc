@@ -8,29 +8,17 @@ using namespace mesytec::mvlc::listfile;
 
 TEST(listfile_gen, First)
 {
+    mesytec::mvlc::listfile::FrameMaxWords = 1;
+
     std::vector<std::vector<u32>> dataStorage
     {
         {
             0x10000001,
             0x10000002,
-            0x10000003,
-            0x10000004,
-            0x10000005,
-            0x10000006,
-            0x10000007,
-            0x10000008,
-            0x10000009,
         },
         {
             0x20000001,
             0x20000002,
-            0x20000003,
-            0x20000004,
-            0x20000005,
-            0x20000006,
-            0x20000007,
-            0x20000008,
-            0x20000009,
         },
     };
 

@@ -27,6 +27,8 @@ size_t calculate_output_size(const readout_parser::ModuleData *moduleDataList, u
 }
 #endif
 
+static u32 FrameMaxWords = frame_headers::LengthMask;
+
 // Goal: write out all ModuleData blocks. Respect max frame sizes and use continuation frames
 // and continue bits accordingly.
 // Outer framing: F3 followed by optional F9 stack frames
@@ -48,7 +50,6 @@ inline void write_module_data2(
 
     // FIXME: using a small value for testing
     //static const u32 FrameMaxWords = frame_headers::LengthMask;
-    static const u32 FrameMaxWords = 10;
 
     u32 stackFrameWordsWritten = 0;
     u32 blockFrameWordsWritten = 0;
