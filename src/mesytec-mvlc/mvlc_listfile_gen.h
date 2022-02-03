@@ -1,6 +1,7 @@
 #ifndef __MESYTEC_MVLC_LISTFILE_GEN_H__
 #define __MESYTEC_MVLC_LISTFILE_GEN_H__
 
+#include "mesytec-mvlc/mvlc_constants.h"
 #include "mvlc_listfile.h"
 #include "mvlc_readout_parser.h"
 #include "readout_buffer.h"
@@ -12,13 +13,143 @@ namespace mvlc
 namespace listfile
 {
 
+#if 0
+size_t calculate_output_size(const readout_parser::ModuleData *moduleDataList, unsigned moduleCount)
+{
+    size_t res = 1u; // first StackFrame
+
+    for (unsigned mi=0; mi<moduleCount;++mi)
+    {
+
+    }
+
+    return res;
+}
+#endif
+
+// Goal: write out all ModuleData blocks. Respect max frame sizes and use continuation frames
+// and continue bits accordingly.
+// Outer framing: F3 followed by optional F9 stack frames
+// Inner framing: F5 block read frames
+// All header types need to have the Continue bit if there is follow-up data.
+inline void write_module_data2(
+    ReadoutBuffer &dest, int crateIndex, int eventIndex,
+    const readout_parser::ModuleData *moduleDataList, unsigned moduleCount)
+{
+    assert(crateIndex <= frame_headers::CtrlIdMask);
+    // +1 because the standard readout stack for event 0 is stack 1
+    assert(eventIndex + 1 <= frame_headers::StackNumMask);
+
+
+    // Store header offsets from the start of the dest buffer. Stored pointers would get
+    // invalidated if the underlying buffer had to grow.
+    s64 stackHeaderOffset = -1; // offset to the current F3/F9 frame from dest.data() in bytes
+    s64 blockHeaderOffset = -1; // offset to the current F5 frame from dest.data() in bytes
+
+    // FIXME: using a small value for testing
+    //static const u32 FrameMaxWords = frame_headers::LengthMask;
+    static const u32 FrameMaxWords = 10;
+
+    u32 stackFrameWordsWritten = 0;
+    u32 blockFrameWordsWritten = 0;
+
+    auto get_cur_stack_header = [&dest, &stackHeaderOffset] () -> u32 *
+    {
+        assert(stackHeaderOffset >= 0);
+        if (stackHeaderOffset < 0) return nullptr;
+        auto addr = dest.data() + stackHeaderOffset;
+        assert(addr + sizeof(u32) < dest.data() + dest.capacity());
+        return reinterpret_cast<u32 *>(addr);
+    };
+
+    auto get_cur_block_header = [&dest, &blockHeaderOffset] () -> u32 *
+    {
+        assert(blockHeaderOffset >= 0);
+        if (blockHeaderOffset < 0) return nullptr;
+        auto addr = dest.data() + blockHeaderOffset;
+        assert(addr + sizeof(u32) < dest.data() + dest.capacity());
+        return reinterpret_cast<u32 *>(addr);
+    };
+
+    auto start_new_stack_frame = [&] (u8 frameType)
+    {
+        assert(blockHeaderOffset < 0);
+        u32 stackHeader = (frameType << frame_headers::TypeShift
+                           | (eventIndex + 1) << frame_headers::StackNumShift
+                           | crateIndex << frame_headers::CtrlIdShift
+                          );
+        dest.push_back(stackHeader);
+        stackHeaderOffset = dest.used() - sizeof(stackHeader);
+        assert(stackHeaderOffset >= 0);
+        stackFrameWordsWritten = 0;
+    };
+
+    auto start_new_block_frame = [&] ()
+    {
+        assert(stackHeaderOffset >= 0);
+        u32 blockHeader = (frame_headers::BlockRead << frame_headers::TypeShift);
+        dest.push_back(blockHeader);
+        blockHeaderOffset = dest.used() - sizeof(blockHeader);
+        assert(blockHeaderOffset >= 0);
+        blockFrameWordsWritten = 0;
+        ++stackFrameWordsWritten;
+    };
+
+    for (unsigned mi=0; mi<moduleCount; ++mi)
+    {
+        auto moduleData = moduleDataList[mi].data;
+        //const auto moduleBegin = moduleData.data;
+        const auto moduleEnd = moduleData.data + moduleData.size;
+        auto moduleIter = moduleData.data;
+
+        while (moduleIter != moduleEnd)
+        {
+            if (stackHeaderOffset < 0)
+                start_new_stack_frame(frame_headers::StackFrame);
+
+            if (blockHeaderOffset < 0)
+                start_new_block_frame();
+
+            while (moduleIter != moduleEnd
+                   && stackFrameWordsWritten < FrameMaxWords
+                   && blockFrameWordsWritten < FrameMaxWords)
+            {
+                dest.push_back(*moduleIter++);
+                ++blockFrameWordsWritten;
+                ++stackFrameWordsWritten;
+            }
+
+            *get_cur_block_header() |= blockFrameWordsWritten;
+
+            if (moduleIter != moduleEnd)
+            {
+                // Set Continue in the block frame header and close the frame.
+                *get_cur_block_header() |= frame_flags::Continue << frame_headers::FrameFlagsShift;
+                blockHeaderOffset = -1;
+
+                // Set Continue for the stack frame too and open a new StackContinuation frame.
+                *get_cur_stack_header() |= frame_flags::Continue << frame_headers::FrameFlagsShift;
+                *get_cur_stack_header() |= stackFrameWordsWritten; // size
+
+                stackHeaderOffset = -1;
+                start_new_stack_frame(frame_headers::StackContinuation);
+            }
+        }
+    }
+
+    if (stackHeaderOffset >= 0)
+    {
+        *get_cur_stack_header() |= stackFrameWordsWritten; // size
+    }
+}
+
 // Note: always emits a BlockRead frame for each module
 inline void write_module_data(ReadoutBuffer &dest, int crateIndex, int eventIndex,
                        const readout_parser::ModuleData *moduleDataList, unsigned moduleCount)
 {
     assert(crateIndex < frame_headers::CtrlIdMask);
 
-    // +1 because the readout stack for event 0 is stack 1
+    // +1 because the standard readout stack for event 0 is stack 1
     assert(eventIndex + 1 < frame_headers::StackNumMask);
 
     size_t outputWordCount = 1u; // event header

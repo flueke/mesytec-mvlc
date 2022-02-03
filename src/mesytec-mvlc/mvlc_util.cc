@@ -93,7 +93,6 @@ std::string decode_frame_header(u32 header)
     switch (static_cast<frame_headers::FrameTypes>(headerInfo.type))
     {
         case frame_headers::StackFrame:
-        case frame_headers::BlockRead:
         case frame_headers::StackError:
         case frame_headers::StackContinuation:
             {
@@ -102,6 +101,7 @@ std::string decode_frame_header(u32 header)
             }
             break;
 
+        case frame_headers::BlockRead:
         case frame_headers::SuperFrame:
         case frame_headers::SystemEvent:
             break;

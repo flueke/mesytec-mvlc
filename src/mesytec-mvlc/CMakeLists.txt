@@ -19,6 +19,7 @@ add_library(mesytec-mvlc SHARED
     mvlc_impl_support.cc
     mvlc_impl_usb.cc
     mvlc_listfile.cc
+    mvlc_listfile_gen.cc
     mvlc_listfile_util.cc
     mvlc_listfile_zip.cc
     mvlc_readout.cc
@@ -145,5 +146,6 @@ if (MVLC_BUILD_TESTS)
     add_gtest(test_protected util/protected.test.cc)
     add_gtest(test_mvlc_error mvlc_error.test.cc)
     add_gtest(test_event_builder event_builder.test.cc)
+    add_gtest(test_listfile_gen mvlc_listfile_gen.test.cc)
     #target_link_libraries(test_mvlc_error PRIVATE ftd3xx)
 endif(MVLC_BUILD_TESTS)
