@@ -98,18 +98,39 @@ std::string decode_frame_header(u32 header)
             {
                 u16 stackNum = (header >> frame_headers::StackNumShift) & frame_headers::StackNumMask;
                 ss << ", stackNum=" << stackNum;
+
+                u16 ctrlId = (header >> frame_headers::CtrlIdShift) & frame_headers::CtrlIdMask;
+                ss << ", ctrlId=" << ctrlId;
+            }
+            break;
+
+        case frame_headers::SystemEvent:
+            {
+                u16 subType = (header >> system_event::SubtypeShift) & system_event::SubtypeMask;
+                u16 ctrlId = (header >> system_event::CtrlIdShift) & system_event::CtrlIdMask;
+
+                ss << ", subType=" << subType;
+                ss << ", ctrlId=" << ctrlId;
             }
             break;
 
         case frame_headers::BlockRead:
         case frame_headers::SuperFrame:
-        case frame_headers::SystemEvent:
             break;
     }
 
-    u8 frameFlags = (header >> frame_headers::FrameFlagsShift) & frame_headers::FrameFlagsMask;
-
-    ss << ", frameFlags=" << format_frame_flags(frameFlags) << ")";
+    if (static_cast<frame_headers::FrameTypes>(headerInfo.type) != frame_headers::SystemEvent)
+    {
+        u8 frameFlags = (header >> frame_headers::FrameFlagsShift) & frame_headers::FrameFlagsMask;
+        ss << ", frameFlags=" << format_frame_flags(frameFlags) << ")";
+    }
+    else
+    {
+        if ((header >> system_event::ContinueShift) & system_event::ContinueMask)
+            ss << ", frameFlags=Continue" << ")";
+        else
+            ss << ", frameFlags=none" << ")";
+    }
 
     return ss.str();
 }
