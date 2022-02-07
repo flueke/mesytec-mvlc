@@ -210,11 +210,13 @@ TEST(listfile_gen, GenModuleDataAndParse)
 
 TEST(listfile_gen, GenSystemEventAndParse)
 {
-    int crateIndex = 1;
+    int crateIndex = 2;
 
     // Note: not adding the crateIndex here because currently the SystemEvent producing code
     // (ReadoutWorker) does not know the crateIndex and thus leaves the field cleared.
-    u32 systemEventHeader = (frame_headers::SystemEvent << frame_headers::TypeShift);
+    u32 systemEventHeader = ((frame_headers::SystemEvent << frame_headers::TypeShift)
+                             | (system_event::subtype::MVMEConfig  << system_event::SubtypeShift)
+                            );
 
     std::vector<u32> eventStorage =
     {
@@ -235,7 +237,7 @@ TEST(listfile_gen, GenSystemEventAndParse)
         log_buffer(buffer);
         const std::vector<u32> expected =
         {
-            0xFA100003, // SystemEvent (len=3, subType=0, ctrlId=1, frameFlags=none)
+            0xFA220003, // SystemEvent (len=3, subType=16 (MVMEConfig), ctrlId=2, frameFlags=none)
             0x10000001,
             0x10000002,
             0x10000003,
@@ -254,12 +256,15 @@ TEST(listfile_gen, GenSystemEventAndParse)
         log_buffer(buffer);
         const std::vector<u32> expected =
         {
-            0xFA900002, // SystemEvent (len=2, subType=0, ctrlId=1, frameFlags=Continue)
+            0xFAA20002, // SystemEvent (len=2, subType=16 (MVMEConfig), ctrlId=2, frameFlags=Continue)
             0x10000001,
             0x10000002,
-            0xFA100001, // SystemEvent (len=1, subType=0, ctrlId=1, frameFlags=none)
+            0xFA220001, // SystemEvent (len=1, subType=16 (MVMEConfig), ctrlId=2, frameFlags=none)
             0x10000003,
         };
         ASSERT_EQ(buffer.viewU32(), BufferView(expected.data(), expected.size()));
+
+        auto frameInfo = extract_frame_info(expected[0]);
+        std::cout << frameInfo.len << std::endl;
     }
 }
