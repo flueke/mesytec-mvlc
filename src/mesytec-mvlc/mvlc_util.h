@@ -39,23 +39,30 @@ struct FrameInfo
     u8 flags;
     u8 stack;
     u8 ctrl;
+    u8 sysEventSubType;
 };
 
 inline FrameInfo extract_frame_info(u32 header)
 {
     using namespace frame_headers;
 
-    FrameInfo result;
+    FrameInfo result = {};
 
-    result.len   = (header >> LengthShift) & LengthMask;
     result.type  = (header >> TypeShift) & TypeMask;
-    result.flags = (header >> FrameFlagsShift) & FrameFlagsMask;
-    result.stack = (header >> StackNumShift) & StackNumMask;
+    result.len   = (header >> LengthShift) & LengthMask;
 
     if (result.type == frame_headers::SystemEvent)
+    {
         result.ctrl = (header >> system_event::CtrlIdShift) & system_event::CtrlIdMask;
+        result.sysEventSubType = (header >> system_event::SubtypeShift) & system_event::SubtypeMask;
+        result.flags = ((header >> system_event::ContinueShift) & system_event::ContinueMask) << frame_flags::shifts::Continue;
+    }
     else
+    {
+        result.flags = (header >> FrameFlagsShift) & FrameFlagsMask;
+        result.stack = (header >> StackNumShift) & StackNumMask;
         result.ctrl = (header >> CtrlIdShift) & CtrlIdMask;
+    }
 
     return result;
 }

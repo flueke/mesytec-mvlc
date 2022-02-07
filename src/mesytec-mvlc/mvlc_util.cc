@@ -109,7 +109,7 @@ std::string decode_frame_header(u32 header)
                 u16 subType = (header >> system_event::SubtypeShift) & system_event::SubtypeMask;
                 u16 ctrlId = (header >> system_event::CtrlIdShift) & system_event::CtrlIdMask;
 
-                ss << ", subType=" << subType;
+                ss << ", subType=" << subType << " (" << system_event_type_to_string(subType) << ")";
                 ss << ", ctrlId=" << ctrlId;
             }
             break;
@@ -199,7 +199,7 @@ std::string system_event_type_to_string(u8 eventType)
             break;
     }
 
-    return fmt::format("unknown/custom (0x{:02x})", eventType);
+    return fmt::format("custom (0x{:02x})", eventType);
 }
 
 
