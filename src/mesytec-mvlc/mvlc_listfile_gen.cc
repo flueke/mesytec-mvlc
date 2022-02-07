@@ -34,7 +34,8 @@ auto close_frame = [] (FrameState &frameState, ReadoutBuffer &dest)
     // Assert that the value of the size field is 0, then set it to the number of words
     // written into the frame.
     auto hdrPtr = get_frame_header(frameState, dest);
-    assert(get_frame_length(*hdrPtr) == 0);
+    *hdrPtr &= ~frame_headers::LengthMask; // zero out the length field
+    *hdrPtr |= frameState.wordsWritten & frame_headers::LengthMask;
     *get_frame_header(frameState, dest) |= frameState.wordsWritten;
     frameState.headerOffset = -1;
     frameState.wordsWritten = 0;
