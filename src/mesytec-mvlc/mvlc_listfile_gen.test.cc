@@ -233,6 +233,14 @@ TEST(listfile_gen, GenSystemEventAndParse)
             frameMaxWords);
 
         log_buffer(buffer);
+        const std::vector<u32> expected =
+        {
+            0xFA100003, // SystemEvent (len=3, subType=0, ctrlId=1, frameFlags=none)
+            0x10000001,
+            0x10000002,
+            0x10000003,
+        };
+        ASSERT_EQ(buffer.viewU32(), BufferView(expected.data(), expected.size()));
     }
 
     {
@@ -244,7 +252,14 @@ TEST(listfile_gen, GenSystemEventAndParse)
             frameMaxWords);
 
         log_buffer(buffer);
+        const std::vector<u32> expected =
+        {
+            0xFA900002, // SystemEvent (len=2, subType=0, ctrlId=1, frameFlags=Continue)
+            0x10000001,
+            0x10000002,
+            0xFA100001, // SystemEvent (len=1, subType=0, ctrlId=1, frameFlags=none)
+            0x10000003,
+        };
+        ASSERT_EQ(buffer.viewU32(), BufferView(expected.data(), expected.size()));
     }
-
-    // XXX: leftoff here: check the buffers!
 }
