@@ -218,7 +218,7 @@ void MESYTEC_MVLC_EXPORT listfile_buffer_writer(
     auto &filled = bufferQueues.filledBufferQueue();
     auto &empty = bufferQueues.emptyBufferQueue();
 
-    logger->info("listfile_writer entering write loop");
+    logger->debug("listfile_writer entering write loop");
 
     size_t bytesWritten = 0u;
     size_t writes = 0u;
@@ -294,7 +294,7 @@ void MESYTEC_MVLC_EXPORT listfile_buffer_writer(
         state->tEnd = ListfileWriterCounters::Clock::now();
     }
 
-    logger->info("listfile_writer left write loop, #writes={}, bytesWritten={}",
+    logger->debug("listfile_writer left write loop, #writes={}, bytesWritten={}",
                  writes, bytesWritten);
 }
 
