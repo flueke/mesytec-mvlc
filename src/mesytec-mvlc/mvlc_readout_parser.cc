@@ -145,8 +145,8 @@ namespace
             else
             {
                 auto logger = get_logger("readout_parser");
-                logger->debug("parse_module_readout_commands: unhandled command {}",
-                             to_string(cmd));
+                logger->debug("parse_module_readout_commands: ignoring unhandled readout command {}",
+                              to_string(cmd));
             }
         }
 
