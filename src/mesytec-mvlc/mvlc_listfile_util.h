@@ -2,6 +2,7 @@
 #define __MESYTEC_MVLC_MVLC_LISTFILE_UTIL_H__
 
 #include <cstring>
+#include <ostream>
 
 #include "mvlc_listfile.h"
 #include "readout_buffer.h"
@@ -13,10 +14,7 @@ namespace mvlc
 namespace listfile
 {
 
-//
-// BufferedWriteHandle
-//
-
+// BufferedWriteHandle: writes are directed to an underlying std::vector<u8> buffer.
 class MESYTEC_MVLC_EXPORT BufferedWriteHandle: public WriteHandle
 {
     public:
@@ -58,6 +56,22 @@ class MESYTEC_MVLC_EXPORT ReadoutBufferWriteHandle: public WriteHandle
 
     private:
         ReadoutBuffer &m_buffer;
+};
+
+// WriteHandle working on a std::ostream.
+struct OStreamWriteHandle: public mvlc::listfile::WriteHandle
+{
+    OStreamWriteHandle(std::ostream &out_)
+        : out(out_)
+    { }
+
+    size_t write(const u8 *data, size_t size) override
+    {
+        out.write(reinterpret_cast<const char *>(data), size);
+        return size;
+    }
+
+    std::ostream &out;
 };
 
 } // end namespace listfile
