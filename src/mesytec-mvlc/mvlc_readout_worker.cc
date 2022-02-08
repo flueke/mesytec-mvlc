@@ -683,13 +683,12 @@ void ReadoutWorker::Private::loop(std::promise<std::error_code> promise)
 
     logger->debug("terminateReadout() took {}ms to complete", terminateDuration.count());
 
-    // Write EndRun and EndOfFile system event sections into a ReadoutBuffer
-    // and immediately flush the buffer.
+    // Write an EndRun system event section into a ReadoutBuffer and
+    // immediately flush the buffer.
     if (writerCounters.access()->state == ListfileWriterCounters::Running)
     {
         listfile::ReadoutBufferWriteHandle wh(*getOutputBuffer());
         listfile_write_timestamp_section(wh, system_event::subtype::EndRun);
-        listfile_write_system_event(wh, system_event::subtype::EndOfFile);
         flushCurrentOutputBuffer();
     }
 
