@@ -47,7 +47,7 @@ void run_readout_parser(
         {
             if (quit)
             {
-                logger->info("run_readout_parser(): quit is set, leaving loop");
+                logger->debug("run_readout_parser(): quit is set, leaving loop");
                 break;
             }
 

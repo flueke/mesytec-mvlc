@@ -86,7 +86,7 @@ namespace
     {
         auto logger = get_logger("mvlc_blocking_api");
 
-        logger->info("monitor() waiting for idle producer");
+        logger->debug("monitor() waiting for idle producer");
 
         // Wait until the readout/replay data producer transitioned to idle state.
         worker.waitableState().wait(
@@ -96,19 +96,19 @@ namespace
             });
 
         // Ensure that all buffers have been processed by the parserThread
-        logger->info("monitor() waiting for filled buffer queue to become empty");
+        logger->debug("monitor() waiting for filled buffer queue to become empty");
 
         while (!worker.snoopQueues().filledBufferQueue().empty())
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
 
         // Tell the parser to quit and wait for it to exit.
-        logger->info("monitor() telling parserThread to quit");
+        logger->debug("monitor() telling parserThread to quit");
         parserQuit = true;
 
         if (parserThread.joinable())
             parserThread.join();
 
-        logger->info("monitor() creating final event and notifying main");
+        logger->debug("monitor() creating final event and notifying main");
 
         {
             // Wait until the last event has been processed.
@@ -129,7 +129,7 @@ namespace
         // Notify the main thread (blocked in next_event()).
         ctx.cv_.notify_one();
 
-        logger->info("monitor() done");
+        logger->debug("monitor() done");
     }
 } // end anon namespace
 
@@ -362,6 +362,12 @@ std::error_code BlockingReplay::start()
 
     return {};
 }
+
+const CrateConfig &BlockingReplay::crateConfig() const
+{
+    return d->rdo_->crateConfig();
+}
+
 
 BlockingReplay make_mvlc_replay_blocking(
     const std::string &listfileArchiveName)
