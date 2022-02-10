@@ -434,10 +434,12 @@ inline const u32 *find_stack_frame_header(
                 || frameType == frame_headers::StackContinuation);
     };
 
+#if 0
     if (!input.empty())
     {
         assert(is_accepted_frame_type(extract_frame_info(input[0]).type));
     }
+#endif
 
     while (!input.empty())
     {
