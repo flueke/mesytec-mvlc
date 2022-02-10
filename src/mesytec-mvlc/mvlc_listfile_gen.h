@@ -1,6 +1,7 @@
 #ifndef __MESYTEC_MVLC_LISTFILE_GEN_H__
 #define __MESYTEC_MVLC_LISTFILE_GEN_H__
 
+#include "mesytec-mvlc/mesytec-mvlc_export.h"
 #include "mvlc_constants.h"
 #include "mvlc_listfile.h"
 #include "mvlc_readout_parser.h"
@@ -20,12 +21,12 @@ namespace listfile
 //
 // The crateIndex argument is used for the CtrlId field in the frame headers.
 
-void write_module_data(
+void MESYTEC_MVLC_EXPORT write_module_data(
     ReadoutBuffer &dest, int crateIndex, int eventIndex,
     const readout_parser::ModuleData *moduleDataList, unsigned moduleCount,
     u32 frameMaxWords = frame_headers::LengthMask);
 
-void write_system_event(
+void MESYTEC_MVLC_EXPORT write_system_event(
     ReadoutBuffer &dest, int crateIndex, const u32 *header, u32 size,
     u32 frameMaxWords = frame_headers::LengthMask);
 
