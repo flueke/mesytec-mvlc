@@ -133,9 +133,9 @@ int main(int argc, char *argv[])
         writerContext.mvlc = mvlc.get();
         writerContext.quit = false;
 
-        WriterContext writerContext1 = {};
-        writerContext1.mvlc = mvlc.get();
-        writerContext1.quit = false;
+        //WriterContext writerContext1 = {};
+        //writerContext1.mvlc = mvlc.get();
+        //writerContext1.quit = false;
 
 
         ReaderContext readerContext = {};
