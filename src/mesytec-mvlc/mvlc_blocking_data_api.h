@@ -123,6 +123,8 @@ class MESYTEC_MVLC_EXPORT BlockingReplay
 
         std::error_code start();
 
+        const CrateConfig &crateConfig() const;
+
     private:
         BlockingReplay();
 
