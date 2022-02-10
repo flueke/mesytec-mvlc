@@ -78,7 +78,7 @@ using ErrorInfoCounts = std::unordered_map<StackErrorInfo, size_t>;
 struct StackErrorCounters
 {
     std::array<ErrorInfoCounts, stacks::StackCount> stackErrors;
-    size_t nonErrorFrames;
+    size_t nonErrorFrames = 0u;
     std::unordered_map<u32, size_t> nonErrorHeaderCounts; // headerValue -> count
 };
 
