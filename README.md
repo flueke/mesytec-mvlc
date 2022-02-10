@@ -93,7 +93,7 @@ The library works on Linux and Windows. The only external dependency is zlib,
 all other dependencies are included in the source tree.
 
 Windows builds currently only work in an [MSYS2](https://www.msys2.org/)
-enviroment. Add ``-G"MSYS Makefiles"`` to the cmake command line to generate a
+environment. Add ``-G"MSYS Makefiles"`` to the cmake command line to generate a
 working build system.
 
     git clone https://github.com/flueke/mesytec-mvlc
