@@ -16,6 +16,10 @@ namespace mvlc
 class MESYTEC_MVLC_EXPORT ReadoutBuffer
 {
     public:
+        // BufferType value which can be used to indicate the end of the buffer
+        // stream.
+        static const s32 EndOfStream = -1;
+
         explicit ReadoutBuffer(size_t capacity = 0)
             : m_buffer(capacity)
         { }
