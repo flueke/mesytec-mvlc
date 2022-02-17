@@ -56,8 +56,8 @@ namespace
     {
         using StackCT = StackCommand::CommandType;
 
-        enum State { Initial, Fixed, Dynamic };
-        State state = Initial;
+        enum State { Prefix, Dynamic, Suffix };
+        State state = Prefix;
         ModuleReadoutStructure modParts = {};
 
         // Tracks state of the MVLC stack accumulator functionality.
@@ -83,23 +83,34 @@ namespace
 
                 switch (state)
                 {
-                    case Initial:
-                        state = Fixed;
-                        ++modParts.len;
-                        break;
-                    case Fixed:
-                        ++modParts.len;
+                    case Prefix:
+                        modParts.prefixLen++;
                         break;
                     case Dynamic:
-                        throw std::runtime_error("fixed read after block read in module readout");
+                        modParts.suffixLen++;
+                        state = Suffix;
+                        break;
+                    case Suffix:
+                        modParts.suffixLen++;
+                        break;
                 }
             }
             else if (cmd.type == StackCT::VMERead || cmd.type == StackCT::VMEMBLTSwapped)
             {
                 // Handles vme block reads making the structure have a dynamic size.
+                assert(vme_amods::is_block_mode(cmd.amod) || accumulatorActive);
 
                 switch (state)
                 {
+                    case Prefix:
+                        modParts.hasDynamic = true;
+                        state = Dynamic;
+                        break;
+                    case Dynamic:
+                        throw std::runtime_error("multiple block reads in module readout");
+                    case Suffix:
+                        throw std::runtime_error("block read inside the suffix part in module readout");
+#if 0
                     case Initial:
                         state = Dynamic;
                         assert(modParts.len == 0);
@@ -109,6 +120,7 @@ namespace
                         throw std::runtime_error("block read after fixed reads in module readout");
                     case Dynamic:
                         throw std::runtime_error("multiple block reads in module readout");
+#endif
                 }
                 accumulatorActive = false;
             }
@@ -120,6 +132,17 @@ namespace
                 // produced by the custom stack command.
                 switch (state)
                 {
+                    case Prefix:
+                        modParts.prefixLen += cmd.transfers;
+                        break;
+                    case Dynamic:
+                        modParts.suffixLen += cmd.transfers;
+                        state = Suffix;
+                        break;
+                    case Suffix:
+                        modParts.suffixLen += cmd.transfers;
+                        break;
+#if 0
                     case Initial:
                         state = Fixed;
                         modParts.len += cmd.transfers;
@@ -129,6 +152,7 @@ namespace
                         break;
                     case Dynamic:
                         throw std::runtime_error("custom stack command after block read in module readout");
+#endif
                 }
             }
             else if (cmd.type == StackCT::SetAccu
@@ -323,7 +347,7 @@ inline void parser_clear_event_state(ReadoutParserState &state)
     state.moduleIndex = -1;
     state.curStackFrame = ReadoutParserState::FrameParseState{};
     state.curBlockFrame = ReadoutParserState::FrameParseState{};
-    state.groupParseState = ReadoutParserState::Initial;
+    state.groupParseState = ReadoutParserState::Prefix;
     assert(!is_event_in_progress(state));
 }
 
@@ -354,7 +378,7 @@ inline ParseResult parser_begin_event(ReadoutParserState &state, u32 frameHeader
 
     state.eventIndex = eventIndex;
     state.moduleIndex = 0;
-    state.groupParseState = ReadoutParserState::Initial;
+    state.groupParseState = ReadoutParserState::Prefix;
     state.curStackFrame = ReadoutParserState::FrameParseState{ frameHeader };
     state.curBlockFrame = ReadoutParserState::FrameParseState{};
 
@@ -673,6 +697,7 @@ ParseResult parse_readout_contents(
             {
                 assert(!is_empty(moduleReadoutInfos[state.moduleIndex]));
 
+#if 0
                 if (state.groupParseState == ReadoutParserState::Initial)
                 {
                     if (!is_dynamic(moduleReadoutInfos[state.moduleIndex]))
@@ -680,21 +705,22 @@ ParseResult parse_readout_contents(
                     else
                         state.groupParseState = ReadoutParserState::Dynamic;
                 }
+#endif
 
                 auto &moduleSpans = state.readoutDataSpans[state.moduleIndex];
 
-                if (state.groupParseState == ReadoutParserState::Fixed)
+                if (state.groupParseState == ReadoutParserState::Prefix)
                 {
-                    assert(!is_dynamic(moduleReadoutInfos[state.moduleIndex]));
-                    assert(moduleParts.len >= 0);
+                    //assert(!is_dynamic(moduleReadoutInfos[state.moduleIndex]));
+                    //assert(moduleParts.len >= 0);
 
-                    if (moduleSpans.dataSpan.size < static_cast<u32>(moduleParts.len))
+                    if (moduleSpans.prefixSpan.size < static_cast<u32>(moduleParts.prefixLen))
                     {
                         // record the offset of the first word of this span
-                        if (moduleSpans.dataSpan.size == 0)
-                            moduleSpans.dataSpan.offset = state.workBuffer.used;
+                        if (moduleSpans.prefixSpan.size == 0)
+                            moduleSpans.prefixSpan.offset = state.workBuffer.used;
 
-                        u32 wordsLeftInSpan = moduleParts.len - moduleSpans.dataSpan.size;
+                        u32 wordsLeftInSpan = moduleParts.prefixLen - moduleSpans.prefixSpan.size;
                         assert(wordsLeftInSpan);
                         u32 wordsToCopy = std::min({
                             wordsLeftInSpan,
@@ -702,22 +728,34 @@ ParseResult parse_readout_contents(
                                 static_cast<u32>(input.size())});
 
                         copy_to_workbuffer(state, input, wordsToCopy);
-                        moduleSpans.dataSpan.size += wordsToCopy;
+                        moduleSpans.prefixSpan.size += wordsToCopy;
                     }
 
-                    assert(moduleSpans.dataSpan.size <= static_cast<u32>(moduleParts.len));
+                    assert(moduleSpans.prefixSpan.size <= static_cast<u32>(moduleParts.prefixLen));
 
-                    if (moduleSpans.dataSpan.size == static_cast<u32>(moduleParts.len))
+                    if (moduleSpans.prefixSpan.size == static_cast<u32>(moduleParts.prefixLen))
                     {
-                        // We're done with this module.
-                        state.moduleIndex++;
-                        state.groupParseState = ReadoutParserState::Initial;
+                        if (moduleParts.hasDynamic)
+                        {
+                            state.groupParseState = ReadoutParserState::Dynamic;
+                            continue;
+                        }
+                        else if (moduleParts.suffixLen != 0)
+                        {
+                            state.groupParseState = ReadoutParserState::Suffix;
+                            continue;
+                        }
+                        else
+                        {
+                            // We're done with this module as it does have neither
+                            // dynamic nor suffix parts.
+                            state.moduleIndex++;
+                            state.groupParseState = ReadoutParserState::Prefix;
+                        }
                     }
                 }
                 else if (state.groupParseState == ReadoutParserState::Dynamic)
                 {
-                    assert(is_dynamic(moduleReadoutInfos[state.moduleIndex]));
-
                     if (state.curStackFrame.wordsLeft > 0 && !state.curBlockFrame)
                     {
                         if (input.empty())
@@ -766,23 +804,57 @@ ParseResult parse_readout_contents(
                     }
 
                     // record the offset of the first word of this span
-                    if (moduleSpans.dataSpan.size == 0)
-                        moduleSpans.dataSpan.offset = state.workBuffer.used;
+                    if (moduleSpans.dynamicSpan.size == 0)
+                        moduleSpans.dynamicSpan.offset = state.workBuffer.used;
 
                     u32 wordsToCopy = std::min(
                         static_cast<u32>(state.curBlockFrame.wordsLeft),
                         static_cast<u32>(input.size()));
 
                     copy_to_workbuffer(state, input, wordsToCopy);
-                    moduleSpans.dataSpan.size += wordsToCopy;
+                    moduleSpans.dynamicSpan.size += wordsToCopy;
                     state.curBlockFrame.wordsLeft -= wordsToCopy;
 
                     if (state.curBlockFrame.wordsLeft == 0
                         && !(state.curBlockFrame.info().flags & frame_flags::Continue))
                     {
-                        // We're done with the module
+                        if (moduleParts.suffixLen == 0)
+                        {
+                            // No suffix, we're done with the module
+                            state.moduleIndex++;
+                            state.groupParseState = ReadoutParserState::Prefix;
+                        }
+                        else
+                        {
+                            state.groupParseState = ReadoutParserState::Suffix;
+                            continue;
+                        }
+                    }
+                }
+                else if (state.groupParseState == ReadoutParserState::Suffix)
+                {
+                    if (moduleSpans.suffixSpan.size < moduleParts.suffixLen)
+                    {
+                        // record the offset of the first word of this span
+                        if (moduleSpans.suffixSpan.size == 0)
+                            moduleSpans.suffixSpan.offset = state.workBuffer.used;
+
+                        u32 wordsLeftInSpan = moduleParts.suffixLen - moduleSpans.suffixSpan.size;
+                        assert(wordsLeftInSpan);
+                        u32 wordsToCopy = std::min({
+                            wordsLeftInSpan,
+                                static_cast<u32>(state.curStackFrame.wordsLeft),
+                                static_cast<u32>(input.size())});
+
+                        copy_to_workbuffer(state, input, wordsToCopy);
+                        moduleSpans.suffixSpan.size += wordsToCopy;
+                    }
+
+                    if (moduleSpans.suffixSpan.size >= moduleParts.suffixLen)
+                    {
+                        // Done with the module
                         state.moduleIndex++;
-                        state.groupParseState = ReadoutParserState::Initial;
+                        state.groupParseState = ReadoutParserState::Prefix;
                     }
                 }
             }
@@ -816,19 +888,31 @@ ParseResult parse_readout_contents(
                     const auto &moduleSpans = state.readoutDataSpans[mi];
                     auto &moduleData = state.moduleDataBuffer[mi];
 
+                    u32 startOffset = 0;
+
+                    if (moduleSpans.prefixSpan.size)
+                        startOffset = moduleSpans.prefixSpan.offset;
+                    else if (moduleSpans.dynamicSpan.size)
+                        startOffset = moduleSpans.dynamicSpan.offset;
+                    else if (moduleSpans.suffixSpan.size)
+                        startOffset = moduleSpans.suffixSpan.offset;
+
+                    u32 dataSize = (moduleSpans.prefixSpan.size
+                                    + moduleSpans.dynamicSpan.size
+                                    + moduleSpans.suffixSpan.size);
+
                     moduleData.data =
                     {
-                        state.workBuffer.buffer.data() + moduleSpans.dataSpan.offset,
-                        moduleSpans.dataSpan.size
+                        state.workBuffer.buffer.data() + startOffset,
+                        dataSize
                     };
 
                     const auto partIndex = std::make_pair(state.eventIndex, mi);
 
-                    if (moduleSpans.dataSpan.size)
+                    if (dataSize)
                     {
                         ++counters.groupHits[partIndex];
-                        update_part_size_info(
-                            counters.groupSizes[partIndex], moduleSpans.dataSpan.size);
+                        update_part_size_info(counters.groupSizes[partIndex], dataSize);
                     }
                 }
 

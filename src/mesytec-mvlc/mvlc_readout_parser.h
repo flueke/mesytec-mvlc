@@ -103,20 +103,22 @@ struct ReadoutParserCallbacks
 
 struct ModuleReadoutStructure
 {
-    // case >= 0: length of the output producing single_read/marker commands of this module
-    // case  < 0: the readout is a dynamically sized block read command.
-    s16 len;
+    u8 prefixLen; // length in 32 bit words of the fixed part prefix
+    u8 suffixLen; // length in 32 bit words of the fixed part suffix
+    bool hasDynamic; // true if a dynamic part (block read) is present
 };
 
 inline bool is_empty(const ModuleReadoutStructure &mrs)
 {
-    return mrs.len == 0;
+    return mrs.prefixLen == 0 && mrs.suffixLen == 0 && !mrs.hasDynamic;
 }
 
+#if 0
 inline bool is_dynamic(const ModuleReadoutStructure &mrs)
 {
     return mrs.len < 0;
 }
+#endif
 
 struct Span
 {
@@ -126,12 +128,23 @@ struct Span
 
 struct ModuleReadoutSpans
 {
-    Span dataSpan;
+    //Span dataSpan;
+    Span prefixSpan;
+    Span dynamicSpan;
+    Span suffixSpan;
 };
 
+#if 0
 inline bool is_empty(const ModuleReadoutSpans &spans)
 {
     return spans.dataSpan.size == 0;
+}
+#endif
+inline bool is_empty(const ModuleReadoutSpans &spans)
+{
+    return (spans.prefixSpan.size == 0
+            && spans.dynamicSpan.size == 0
+            && spans.suffixSpan.size == 0);
 }
 
 struct end_of_frame: public std::exception {};
@@ -269,7 +282,8 @@ struct MESYTEC_MVLC_EXPORT ReadoutParserState
         u16 wordsLeft;
     };
 
-    enum GroupParseState { Initial, Fixed, Dynamic };
+    //enum GroupParseState { Initial, Fixed, Dynamic };
+    enum GroupParseState { Prefix, Dynamic, Suffix };
 
     using ReadoutStructure = std::vector<std::vector<ModuleReadoutStructure>>;
 
@@ -303,7 +317,7 @@ struct MESYTEC_MVLC_EXPORT ReadoutParserState
 
     int eventIndex = -1;
     int moduleIndex = -1;
-    GroupParseState groupParseState = Initial;
+    GroupParseState groupParseState = Prefix;
 
     // Parsing state of the current 0xF3 stack frame. This is always active
     // when parsing readout data.
