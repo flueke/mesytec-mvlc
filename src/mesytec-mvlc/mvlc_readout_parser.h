@@ -45,33 +45,34 @@ namespace mvlc
 namespace readout_parser
 {
 
-// Note: the first parser version accepted group/module readouts consisting of
-// a fixed size prefix, a dynamic part and a fixed size suffix. This
-// functionality was removed in Nov. 2021 to simplify both the parser and any
-// consumers working with the parsed data.
-
 // Purpose: The reaodut_parser system is used to parse a possibly lossfull
-// sequence of MVLC readout buffers into complete readout event data
-// and make this data available to a consumer.
+// sequence of MVLC readout buffers into complete readout event data and make
+// this data available to a consumer via callbacks.
 //
-// StackCommands that produce output:
-//   marker         -> one word
-//   single_read    -> one word
-//   block_read     -> dynamic part (0xF5 framed)
+// MVLC StackCommands that produce output:
+//   marker                         -> one word
+//   single_read                    -> one word
+//   block_read                     -> dynamic part (0xF5 framed)
+//   single_read when accu is used  -> dynamic part (0xF5 framed)
 //
 // Restrictions applying to the structure of each stack command group:
-//   - the group may consist of either a number of single_read/marker commands
-//   or
-//   - a single block read command producing dynamically sized output
-//
-// These restrictions are in place to keep the readout_parser code simple and
-// to make it easy to pass around readout data (pointer + size is enough). If
-// more complex readout schemes are needed one can just add more readout groups
-// to achieve the desired effect, e.g. one group for a fixed prefix, one group
-// for the dynamic part and another group for the suffix.
+//   - an optional fixed size prefix part (single value read and marker commands)
+//   - an optional dynamic block part (a single block read command)
+//   - an optional fixed size suffix part (single value read and marker commands)
 //
 // A stack group is typically used to read out a single VME module, so groups
-// are synonymous with modules in the parser code.
+// are synonymous with VME modules in the parser code.
+//
+// Note: the {prefix, dynamic, suffix} structure is not present in the output
+// callbacks anymore. Instead the parsed module/group data is presented as a
+// linear buffer (DataBlock structure).
+//
+// The restrictions on the readout structure are in place to keep the
+// readout_parser code simple and to make it easy to pass around readout data
+// (pointer + size is enough). If more complex readout schemes are needed one
+// can add more readout groups to achieve the desired effect, e.g. one group
+// for a fixed prefix, one group for the dynamic part and another group for the
+// suffix.
 
 struct DataBlock
 {
@@ -87,16 +88,35 @@ struct ModuleData
     DataBlock data;
 };
 
+// Callbacks invoked by the parser once a full event has been parsed and assembled.
 struct ReadoutParserCallbacks
 {
     // Parameters: index of the VME event the data belongs to, pointer to an
     // array of ModuleData allowing access to the actual module readout data and
     // the moduleCount, specifying the number of elements in the groups array.
-    std::function<void (void *userContext, int crateIndex, int eventIndex, const ModuleData *moduleDataList, unsigned moduleCount)>
+
+    // Invoked for each readout event that was fully parsed.
+    // Parameters are:
+    // - userContext as passed to make_readout_parser()
+    // - crateIndex as passed to make_readout_parser(), starts from 0
+    // - eventIndex starting from 0
+    // - moduleDataList: pointer to ModuleData structures
+    // - number of ModuleData structures stored in moduleDataList
+
+    std::function<void (void *userContext, int crateIndex, int eventIndex,
+                        const ModuleData *moduleDataList, unsigned moduleCount)>
         eventData = [] (void *, int, int, const ModuleData *, size_t) {};
 
     // Parameters: pointer to the system event header, number of words in the
     // system event
+
+
+    // Invoked for each system event that was parsed.
+    // Parameters are:
+    // - userContext as passed to make_readout_parser()
+    // - crateIndex as passed to make_readout_parser(), starts from 0
+    // - header: pointer to the system_event header
+    // - number of words in the system event
     std::function<void (void *userContext, int crateIndex, const u32 *header, u32 size)>
         systemEvent = [] (void *, int, const u32 *, u32) {};
 };
@@ -113,13 +133,6 @@ inline bool is_empty(const ModuleReadoutStructure &mrs)
     return mrs.prefixLen == 0 && mrs.suffixLen == 0 && !mrs.hasDynamic;
 }
 
-#if 0
-inline bool is_dynamic(const ModuleReadoutStructure &mrs)
-{
-    return mrs.len < 0;
-}
-#endif
-
 struct Span
 {
     u32 offset;
@@ -128,18 +141,11 @@ struct Span
 
 struct ModuleReadoutSpans
 {
-    //Span dataSpan;
     Span prefixSpan;
     Span dynamicSpan;
     Span suffixSpan;
 };
 
-#if 0
-inline bool is_empty(const ModuleReadoutSpans &spans)
-{
-    return spans.dataSpan.size == 0;
-}
-#endif
 inline bool is_empty(const ModuleReadoutSpans &spans)
 {
     return (spans.prefixSpan.size == 0

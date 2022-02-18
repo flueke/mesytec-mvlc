@@ -48,8 +48,6 @@ namespace mvlc
 namespace readout_parser
 {
 
-    // TODO: check that all (block) reads are handled including the stack accumulator one
-
 namespace
 {
     ModuleReadoutStructure parse_module_readout_commands(const std::vector<StackCommand> &commands)
@@ -64,7 +62,7 @@ namespace
         // This is set to true on encountering SetAccu, ReadToAccu or CompareLoopAccu.
         // It is reset once a vme read is encountered.
         // The reason why this needs to be tracked is that using the accu turns
-        // the following single(!) read vme instruction into a fake block
+        // the following single-read vme instruction into a fake block
         // transfer: the MVLC takes the number of single reads to perform from
         // the accu and packages the resulting data into a standard 0xF5 block
         // frame.
@@ -97,7 +95,9 @@ namespace
             }
             else if (cmd.type == StackCT::VMERead || cmd.type == StackCT::VMEMBLTSwapped)
             {
-                // Handles vme block reads making the structure have a dynamic size.
+                // Handles vme block reads and reads with active accu, making
+                // the structure have a dynamic size.
+
                 assert(vme_amods::is_block_mode(cmd.amod) || accumulatorActive);
 
                 switch (state)
@@ -110,18 +110,8 @@ namespace
                         throw std::runtime_error("multiple block reads in module readout");
                     case Suffix:
                         throw std::runtime_error("block read inside the suffix part in module readout");
-#if 0
-                    case Initial:
-                        state = Dynamic;
-                        assert(modParts.len == 0);
-                        modParts.len = -1; // negative values mean "dynamic"
-                        break;
-                    case Fixed:
-                        throw std::runtime_error("block read after fixed reads in module readout");
-                    case Dynamic:
-                        throw std::runtime_error("multiple block reads in module readout");
-#endif
                 }
+
                 accumulatorActive = false;
             }
             else if (cmd.type == StackCT::Custom)
@@ -142,17 +132,6 @@ namespace
                     case Suffix:
                         modParts.suffixLen += cmd.transfers;
                         break;
-#if 0
-                    case Initial:
-                        state = Fixed;
-                        modParts.len += cmd.transfers;
-                        break;
-                    case Fixed:
-                        modParts.len += cmd.transfers;
-                        break;
-                    case Dynamic:
-                        throw std::runtime_error("custom stack command after block read in module readout");
-#endif
                 }
             }
             else if (cmd.type == StackCT::SetAccu
