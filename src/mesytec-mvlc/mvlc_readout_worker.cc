@@ -479,7 +479,6 @@ void ReadoutWorker::setMcstDaqStopCommands(const StackCommandBuilder &commands)
     d->mcstDaqStop = commands;
 }
 
-// FIXME: exceptions
 void ReadoutWorker::Private::loop(std::promise<std::error_code> promise)
 {
 #ifdef __linux__
@@ -723,16 +722,20 @@ void ReadoutWorker::Private::loop(std::promise<std::error_code> promise)
     setState(State::Idle);
 }
 
-// Start readout or resume after pause
+// Start readout or resume after pause.
 // Run the last part of the init sequence in parallel to reading from the data
 // pipe.
 // The last part enables the stack triggers, enables MVLC daq mode and runs the
 // multicast daq start sequence.
 std::error_code ReadoutWorker::Private::startReadout()
 {
+    // Error reporting is done via throwing either std::error_code or
+    // std::vector<CommandExecResult> (which is the return type of
+    // run_commands()).
+
     auto f = std::async(
         std::launch::async,
-        [this] ()
+        [this] () -> void
         {
             // This is the correct order of operations to make multicrate
             // setups work.
@@ -750,15 +753,17 @@ std::error_code ReadoutWorker::Private::startReadout()
 
             // enable the readout stacks by setting the stack trigger registers
             if (auto ec = setup_readout_triggers(mvlc, stackTriggers))
-                return ec;
+                throw ec;
 
             // enable daq mode
             if (auto ec = enable_daq_mode(mvlc))
-                return ec;
+                throw ec;
 
             // multicast daq start
             auto execResults = run_commands(mvlc, mcstDaqStart);
-            return get_first_error(execResults);
+
+            if (get_first_error(execResults))
+                throw execResults;
         });
 
     while (f.valid() && !is_ready(f))
@@ -767,14 +772,29 @@ std::error_code ReadoutWorker::Private::startReadout()
         this->readout(bytesTransferred);
     }
 
-    std::error_code ec = f.get();
-
-    if (ec)
+    try
     {
-        logger->error("startReadout: error running daq start sequence: {}", ec.message());
+        f.get();
+    }
+    catch (const std::error_code &ec)
+    {
+        logger->error("error running MCST DAQ start sequence: {}", ec.message());
+        return ec;
+    }
+    catch (const std::vector<CommandExecResult> &execResults)
+    {
+        for (auto &res: execResults)
+        {
+            if (res.ec)
+            {
+                logger->error("error running MCST DAQ start command '{}': {}",
+                              to_string(res.cmd), res.ec.message());
+                return res.ec;
+            }
+        }
     }
 
-    return ec;
+    return {};
 }
 
 // Cleanly end a running readout session. The code disables all triggers by
@@ -787,14 +807,14 @@ std::error_code ReadoutWorker::Private::terminateReadout()
 {
     auto f = std::async(
         std::launch::async,
-        [this] ()
+        [this] () -> void
         {
             // new order (see startReadout() above)
             // multicast daq stop
             auto execResults = run_commands(mvlc, mcstDaqStop);
 
-            if (auto ec = get_first_error(execResults))
-                return ec;
+            if (get_first_error(execResults))
+                throw execResults;
 
             // disable daq mode and the readout stack triggers
             static const int DisableTriggerRetryCount = 5;
@@ -804,12 +824,10 @@ std::error_code ReadoutWorker::Private::terminateReadout()
                 if (auto ec = disable_all_triggers_and_daq_mode(this->mvlc))
                 {
                     if (ec == ErrorType::ConnectionError)
-                        return ec;
+                        throw ec;
                 }
                 else break;
             }
-
-            return std::error_code{};
         });
 
     using Clock = std::chrono::high_resolution_clock;
@@ -830,14 +848,30 @@ std::error_code ReadoutWorker::Private::terminateReadout()
 
     } while (bytesTransferred > 0);
 
-    std::error_code ec = f.get();
-
-    if (ec)
+    try
     {
-        logger->error("terminateReadout: error running daq stop sequence: {}", ec.message());
+        f.get();
     }
 
-    return ec;
+    catch (const std::error_code &ec)
+    {
+        logger->error("error running MCST DAQ stop sequence: {}", ec.message());
+        return ec;
+    }
+    catch (const std::vector<CommandExecResult> &execResults)
+    {
+        for (auto &res: execResults)
+        {
+            if (res.ec)
+            {
+                logger->error("error running MCST DAQ stop command '{}': {}",
+                              to_string(res.cmd), res.ec.message());
+                return res.ec;
+            }
+        }
+    }
+
+    return {};
 }
 
 // Note: in addition to stack frames this includes SystemEvent frames. These
