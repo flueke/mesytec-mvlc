@@ -129,8 +129,9 @@ class MESYTEC_MVLC_EXPORT Impl: public MVLCBasicInterface, public MVLC_ETH_Inter
 
         EthThrottleCounters getThrottleCounters() const override;
 
-    private:
         int getSocket(Pipe pipe) { return pipe == Pipe::Command ? m_cmdSock : m_dataSock; }
+
+    private:
 
         std::string m_host;
         int m_cmdSock = -1;
