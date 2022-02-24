@@ -52,7 +52,7 @@ char *mvlc_format_error_alloc(const mvlc_err_t err);
 // =====================================================================
 
 /**
- * %Handle type representing an MVLC controller.
+ * Handle type representing an MVLC controller.
  */
 typedef struct mvlc_ctrl mvlc_ctrl_t;
 
