@@ -123,6 +123,20 @@ MVLC_ConnectionType get_mvlc_ctrl_connection_type(const mvlc_ctrl_t *mvlc)
     return MVLC_ConnectionType_USB;
 }
 
+int mvlc_ctrl_eth_get_command_socket(mvlc_ctrl_t *mvlc)
+{
+    if (auto impl = dynamic_cast<eth::Impl *>(mvlc->instance.getImpl()))
+        return impl->getSocket(Pipe::Command);
+    return -1;
+}
+
+int mvlc_ctrl_eth_get_data_socket(mvlc_ctrl_t *mvlc)
+{
+    if (auto impl = dynamic_cast<eth::Impl *>(mvlc->instance.getImpl()))
+        return impl->getSocket(Pipe::Data);
+    return -1;
+}
+
 u32 get_mvlc_ctrl_hardware_id(mvlc_ctrl_t *mvlc)
 {
     return mvlc->instance.hardwareId();
@@ -147,7 +161,7 @@ mvlc_err_t mvlc_ctrl_read_register(mvlc_ctrl_t *mvlc, u16 address, u32 *value)
 
 mvlc_err_t mvlc_ctrl_write_register(mvlc_ctrl_t *mvlc, u16 address, u32 value)
 {
-    assert(value);
+    assert(mvlc);
     auto ec = mvlc->instance.writeRegister(address, value);
     return make_mvlc_error(ec);
 }
@@ -373,6 +387,42 @@ const char *mvlc_stackbuilder_get_group_name(
         return nullptr;
 
     return strdup(sb->sb.getGroup(groupIndex).name.c_str());
+}
+
+u16 mvlc_get_stack_offset_register(u8 stackId)
+{
+    return stacks::get_offset_register(stackId);
+}
+
+u16 mvlc_get_stack_trigger_register(u8 stackId)
+{
+    return stacks::get_trigger_register(stackId);
+}
+
+size_t mvlc_get_stack_size_words(const mvlc_stackbuilder_t *sb)
+{
+    return make_stack_buffer(sb->sb).size();
+}
+
+mvlc_err_t mvlc_upload_stack(
+    mvlc_ctrl_t *mvlc, u8 outputPipe, u16 stackMemoryOffset, const mvlc_stackbuilder_t *sb)
+{
+    assert(mvlc);
+    assert(sb);
+
+    auto ec = mvlc->instance.uploadStack(outputPipe, stackMemoryOffset, sb->sb);
+    return make_mvlc_error(ec);
+}
+
+u16 mvlc_calculate_trigger_value(MVLC_StackTriggerType trigger, u8 irq)
+{
+    return trigger_value(static_cast<stacks::TriggerType>(trigger), irq);
+}
+
+mvlc_err_t mvlc_set_daq_mode(mvlc_ctrl_t *mvlc, bool enable)
+{
+    auto ec = mvlc->instance.writeRegister(DAQModeEnableRegister, enable);
+    return make_mvlc_error(ec);
 }
 
 struct mvlc_crateconfig

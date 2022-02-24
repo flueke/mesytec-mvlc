@@ -181,7 +181,8 @@ class MESYTEC_MVLC_EXPORT StackCommandBuilder
         // Note: these methods each add a single command to the currently open
         // group. If there exists no open group a new group with an empty name
         // will be created.
-        StackCommandBuilder &addVMERead(u32 address, u8 amod, VMEDataWidth dataWidth, bool slowMode = false);
+        StackCommandBuilder &addVMERead(u32 address, u8 amod, VMEDataWidth dataWidth,
+                                        bool slowMode = false);
         StackCommandBuilder &addVMEBlockRead(u32 address, u8 amod, u16 maxTransfers);
         StackCommandBuilder &addVMEMBLTSwapped(u32 address, u8 amod, u16 maxTransfers);
         // Overload of addVMEMBLTSwapped() using vme_amods::MBLT64 as the VME address modifier.

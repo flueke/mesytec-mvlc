@@ -91,6 +91,9 @@ typedef enum
 
 MVLC_ConnectionType get_mvlc_ctrl_connection_type(const mvlc_ctrl_t *mvlc);
 
+int mvlc_ctrl_eth_get_command_socket(mvlc_ctrl_t *mvlc);
+int mvlc_ctrl_eth_get_data_socket(mvlc_ctrl_t *mvlc);
+
 // Info
 // ---------------------------------------------------------------------
 u32 get_mvlc_ctrl_hardware_id(mvlc_ctrl_t *mvlc);
@@ -105,14 +108,24 @@ mvlc_err_t mvlc_ctrl_write_register(mvlc_ctrl_t *mvlc, u16 address, u32 value);
 
 // VME bus access
 // ---------------------------------------------------------------------
+
+// The slow bit for VME reads is required for modules that are not 100% VME
+// conformant, e.g. Triva7.
+#define MVLC_SlowReadBit 2u
+
 typedef enum
 {
     MVLC_VMEDataWidth_D16 = 0x1,
-    MVLC_VMEDataWidth_D32 = 0x2
+    MVLC_VMEDataWidth_D32 = 0x2,
+    MVLC_VMEDataWidth_D16_slow = 0x1 | (1u << MVLC_SlowReadBit),
+    MVLC_VMEDataWidth_D32_slow = 0x2 | (1u << MVLC_SlowReadBit)
 } MVLC_VMEDataWidth;
 
-mvlc_err_t mvlc_ctrl_vme_read(mvlc_ctrl_t *mvlc, u32 address, u32 *value, u8 amod, MVLC_VMEDataWidth dataWidth);
-mvlc_err_t mvlc_ctrl_vme_write(mvlc_ctrl_t *mvlc, u32 address, u32 value, u8 amod, MVLC_VMEDataWidth dataWidth);
+mvlc_err_t mvlc_ctrl_vme_read(
+    mvlc_ctrl_t *mvlc, u32 address, u32 *value, u8 amod, MVLC_VMEDataWidth dataWidth);
+
+mvlc_err_t mvlc_ctrl_vme_write(
+    mvlc_ctrl_t *mvlc, u32 address, u32 value, u8 amod, MVLC_VMEDataWidth dataWidth);
 
 // Allocates memory into *buf, stores the allocated size (in number of 32-bit
 // words) into bufsize. The buffer needs to be free()d by the caller.
@@ -155,7 +168,7 @@ typedef struct stack_error_collection
 
 stack_error_collection_t mvlc_ctrl_get_stack_errors(mvlc_ctrl_t *mvlc);
 void mvlc_ctrl_stack_errors_destroy(stack_error_collection_t stackErrors);
-// Note: uses strdup() interally so you have to free() the returned string after use.
+// Note: uses strdup() internally so you have to free() the returned string after use.
 char *mvlc_format_frame_flags(u8 flags);
 
 // Readout abstractions
@@ -232,10 +245,10 @@ mvlc_stackbuilder_t *mvlc_stackbuilder_add_vme_write(
 mvlc_stackbuilder_t *mvlc_stackbuilder_add_write_marker(
     mvlc_stackbuilder_t *sb, u32 value);
 
+// Partial support for stack groups
 mvlc_stackbuilder_t *mvlc_stackbuilder_begin_group(
     mvlc_stackbuilder_t *sb, const char *name);
 
-// Partial support for stack groups
 bool mvlc_stackbuilder_has_open_group(
     const mvlc_stackbuilder_t *sb);
 
@@ -246,6 +259,49 @@ size_t mvlc_stackbuilder_get_group_count(
 const char *mvlc_stackbuilder_get_group_name(
     const mvlc_stackbuilder_t *sb,
     size_t groupIndex);
+
+// Stack uploading and setup
+//
+// Note: stackId=0 is reserved for direct/immediate command execution.  Library
+// convention: The immedate stack starts at word offset 1 from the beginning of
+// the stack memory and a total of 127 words is reserved for the stack.
+// The first word of the stack memory is left free so that unused stack offset
+// registers, which default to 0, do not point to a valid StackStart command.
+#define MVLC_ImmediateStackStartOffset 1
+#define MVLC_ImmedateStackReservedWords 127
+
+// Returns the address of the stack offset register for the given stackId.
+u16 mvlc_get_stack_offset_register(u8 stackId);
+
+// Returns the address of the stack trigger register for the given stackId.
+u16 mvlc_get_stack_trigger_register(u8 stackId);
+
+// Returns the number of 32-bit words the stack would occupy in MVLC stack
+// memory.
+size_t mvlc_get_stack_size_in_words(const mvlc_stackbuilder_t *sb);
+
+// Output pipes are:
+#define MVLC_CommandPipe 0
+#define MVLC_DataPipe 1
+#define MVLC_SuppressPipeOutput 2
+
+// Creates a stack buffer from the stack builder and uploads the stack starting
+// at the given memory offset.
+mvlc_err_t mvlc_upload_stack(
+    mvlc_ctrl_t *mvlc, u8 outputPipe, u16 stackMemoryOffset,
+    const mvlc_stackbuilder_t *sb);
+
+typedef enum
+{
+    StackTrigger_NoTrigger   = 0, // No autonomous execution of the stack.
+    StackTrigger_IRQWithIACK = 1, // IRQ based; slow version for modules requiring the VME IACK
+    StackTrigger_IRQNoIACK   = 2, // IRQ based; fast version without IACK, works with mesytec modules
+    StackTrigger_External    = 3, // via the Trigger/IO system
+} MVLC_StackTriggerType;
+
+u16 mvlc_calculate_trigger_value(MVLC_StackTriggerType trigger, u8 irq);
+
+mvlc_err_t mvlc_set_daq_mode(mvlc_ctrl_t *mvlc, bool enable);
 
 // Crateconfig
 // ---------------------------------------------------------------------
