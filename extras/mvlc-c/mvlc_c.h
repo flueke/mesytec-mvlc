@@ -91,6 +91,7 @@ typedef enum
 
 MVLC_ConnectionType get_mvlc_ctrl_connection_type(const mvlc_ctrl_t *mvlc);
 
+// Ethernet specific
 int mvlc_ctrl_eth_get_command_socket(mvlc_ctrl_t *mvlc);
 int mvlc_ctrl_eth_get_data_socket(mvlc_ctrl_t *mvlc);
 
