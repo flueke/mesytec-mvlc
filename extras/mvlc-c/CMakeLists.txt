@@ -42,4 +42,8 @@ if (MVLC_BUILD_C_WRAPPER)
     add_executable(mvlc_c_replay mvlc_c_replay.c)
     target_link_libraries(mvlc_c_replay mesytec-mvlc-c)
     target_compile_options(mvlc_c_replay PRIVATE -Wall -Wextra -Wpedantic)
+
+    add_executable(mvlc_test_advanced mvlc_test_advance.c)
+    target_link_libraries(mvlc_test_advanced mesytec-mvlc-c)
+    target_compile_options(mvlc_test_advanced PRIVATE -Wall -Wextra -Wpedantic)
 endif(MVLC_BUILD_C_WRAPPER)
