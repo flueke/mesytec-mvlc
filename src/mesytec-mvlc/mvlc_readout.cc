@@ -111,7 +111,7 @@ std::error_code MVLCReadout::resume()
 bool MVLCReadout::finished()
 {
     return (d->readoutWorker->state() == ReadoutWorker::State::Idle
-            && d->readoutWorker->snoopQueues().filledBufferQueue().empty());
+            && d->readoutWorker->snoopQueues()->filledBufferQueue().empty());
 }
 
 ReadoutWorker::State MVLCReadout::workerState() const

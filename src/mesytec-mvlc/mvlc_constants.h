@@ -335,6 +335,9 @@ namespace stacks
     // divide the 1024 words into 8 sections of 128 words each.
     static const u16 ImmediateStackReservedWords = 128 - ImmediateStackStartOffsetWords;
     static const u16 ImmediateStackReservedBytes = ImmediateStackReservedWords * 4;
+    // Constant for the standard layout where every stack is allocated 128
+    // words of stack memory.
+    static const u16 StackMemorySegmentSize = 128;
 
     // All stacks other than the one reserved for immediate execution can be
     // used as readout stacks activated by IRQ or via the Trigger/IO system.

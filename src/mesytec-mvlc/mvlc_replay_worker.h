@@ -44,7 +44,7 @@ class MESYTEC_MVLC_EXPORT ReplayWorker
         std::error_code stop();
         std::error_code pause();
         std::error_code resume();
-        ReadoutBufferQueues &snoopQueues();
+        ReadoutBufferQueues *snoopQueues();
 
     private:
         struct Private;

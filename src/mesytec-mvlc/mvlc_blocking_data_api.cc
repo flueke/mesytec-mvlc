@@ -98,7 +98,7 @@ namespace
         // Ensure that all buffers have been processed by the parserThread
         logger->debug("monitor() waiting for filled buffer queue to become empty");
 
-        while (!worker.snoopQueues().filledBufferQueue().empty())
+        while (!worker.snoopQueues()->filledBufferQueue().empty())
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
 
         // Tell the parser to quit and wait for it to exit.

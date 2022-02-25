@@ -91,7 +91,7 @@ class MESYTEC_MVLC_EXPORT ReadoutWorker
             // of the termination procedure.
             // The (tEnd - tStart) time will more closely reflect the real-time
             // spent in the readout loop but it will yield lower data rates
-            // because it includes at least one read timeout at the very end of
+            // because it includes at least one read-timeout at the very end of
             // the DAQ run.
             // For long DAQ runs the calculated rates should be almost the
             // same.
@@ -123,12 +123,12 @@ class MESYTEC_MVLC_EXPORT ReadoutWorker
 
             // Number of buffers that could not be added to the snoop queue
             // because no free buffer was available. This is the number of
-            // buffers the analysis side did not see.
+            // buffers the analysis/snoop side did not see.
             size_t snoopMissedBuffers;
 
             // Number of times we did not land on an expected frame header
             // while following the framing structure. To recover from this case
-            // the readotu data is searched for a new frame header.
+            // the readout data is searched for a new frame header.
             size_t usbFramingErrors;
 
             // Number of bytes that where moved into temporary storage so that
@@ -165,9 +165,36 @@ class MESYTEC_MVLC_EXPORT ReadoutWorker
             listfile::WriteHandle *lfh
             );
 
+        // Simple version without stack triggers. Assumes that stack triggers
+        // are enabled externally prior to calling start().
+        ReadoutWorker(
+            MVLC mvlc,
+            ReadoutBufferQueues &snoopQueues,
+            listfile::WriteHandle *lfh
+            );
+
+        // Simple versions removing the need to pass in snoopQueues if snooping
+        // is not needed.
+        ReadoutWorker(
+            MVLC mvlc,
+            listfile::WriteHandle *lfh);
+
+        ReadoutWorker(
+            MVLC mvlc,
+            const std::vector<u32> &stackTriggers,
+            listfile::WriteHandle *lfh);
+
         ~ReadoutWorker();
 
+        // Optional: set a list of commands that should be run directly after
+        // switching the MVLC to autonomous DAQ mode. The commands typically
+        // use VME writes to multicast addresses to reset VME module
+        // simultaneously.
         void setMcstDaqStartCommands(const StackCommandBuilder &commands);
+
+        // Similar to the above but for the DAQ stop sequence. The commands
+        // will be run right before disabling stack trigger processing and
+        // leaving autonomous DAQ mode.
         void setMcstDaqStopCommands(const StackCommandBuilder &commands);
 
         State state() const;
@@ -177,7 +204,7 @@ class MESYTEC_MVLC_EXPORT ReadoutWorker
         std::error_code stop();
         std::error_code pause();
         std::error_code resume();
-        ReadoutBufferQueues &snoopQueues();
+        ReadoutBufferQueues *snoopQueues();
 
     private:
         struct Private;

@@ -410,9 +410,9 @@ std::error_code ReplayWorker::resume()
     return {};
 }
 
-ReadoutBufferQueues &ReplayWorker::snoopQueues()
+ReadoutBufferQueues *ReplayWorker::snoopQueues()
 {
-    return d->snoopQueues;
+    return &d->snoopQueues;
 }
 
 ReplayWorker::~ReplayWorker()

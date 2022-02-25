@@ -34,7 +34,7 @@
 #include "mesytec-mvlc/util/protected.h"
 
 // Higher level MVLC dialog (request/response) layer. Builds on top of the
-// AbstractImpl abstraction.
+// MVLCBasicInterface abstraction.
 
 namespace mesytec
 {

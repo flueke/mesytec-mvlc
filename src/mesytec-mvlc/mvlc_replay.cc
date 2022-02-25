@@ -194,7 +194,7 @@ std::error_code MVLCReplay::resume()
 bool MVLCReplay::finished()
 {
     return (d->replayWorker->state() == ReplayWorker::State::Idle
-            && d->replayWorker->snoopQueues().filledBufferQueue().empty());
+            && d->replayWorker->snoopQueues()->filledBufferQueue().empty());
 }
 
 ReplayWorker::State MVLCReplay::workerState() const

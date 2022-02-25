@@ -68,6 +68,7 @@
 #include <exception>
 #include <iostream>
 #include <fmt/format.h>
+#include <iterator>
 
 #ifdef __linux__
 #include <sys/prctl.h>
@@ -310,7 +311,19 @@ class ReadoutErrorCategory: public std::error_category
 
     std::string message(int ev) const override
     {
-        return std::to_string(ev); // TODO: strings here
+        switch (static_cast<ReadoutWorkerError>(ev))
+        {
+            case ReadoutWorkerError::NoError:
+                return "No Error";
+            case ReadoutWorkerError::ReadoutNotIdle:
+                return "Readout not idle";
+            case ReadoutWorkerError::ReadoutNotRunning:
+                return "Readout not running";
+            case ReadoutWorkerError::ReadoutNotPaused:
+                return "Readout not paused";
+        }
+
+        return fmt::format("unrecognized ReadoutWorkerError (code={})", ev);
     }
 
     std::error_condition default_error_condition(int ev) const noexcept override
@@ -341,8 +354,8 @@ struct ReadoutWorker::Private
     MVLC mvlc;
     eth::MVLC_ETH_Interface *mvlcETH = nullptr;
     usb::MVLC_USB_Interface *mvlcUSB = nullptr;
-    ReadoutBufferQueues &snoopQueues;
-    std::array<u32, stacks::ReadoutStackCount> stackTriggers;
+    ReadoutBufferQueues *snoopQueues = nullptr;
+    std::vector<u32> stackTriggers;
     StackCommandBuilder mcstDaqStart;
     StackCommandBuilder mcstDaqStop;
     std::chrono::seconds timeToRun;
@@ -357,7 +370,7 @@ struct ReadoutWorker::Private
 
     std::shared_ptr<spdlog::logger> logger;
 
-    Private(MVLC &mvlc_, ReadoutBufferQueues &snoopQueues_)
+    Private(MVLC &mvlc_, ReadoutBufferQueues *snoopQueues_)
         : state({})
         , mvlc(mvlc_)
         , snoopQueues(snoopQueues_)
@@ -385,7 +398,8 @@ struct ReadoutWorker::Private
     {
         if (!outputBuffer_)
         {
-            outputBuffer_ = snoopQueues.emptyBufferQueue().dequeue();
+            if (snoopQueues)
+                outputBuffer_ = snoopQueues->emptyBufferQueue().dequeue();
 
             if (!outputBuffer_)
                 outputBuffer_ = &localBuffer;
@@ -401,7 +415,10 @@ struct ReadoutWorker::Private
     void maybePutBackSnoopBuffer()
     {
         if (outputBuffer_ && outputBuffer_ != &localBuffer)
-            snoopQueues.emptyBufferQueue().enqueue(outputBuffer_);
+        {
+            assert(snoopQueues);
+            snoopQueues->emptyBufferQueue().enqueue(outputBuffer_);
+        }
 
         outputBuffer_ = nullptr;
     }
@@ -416,7 +433,10 @@ struct ReadoutWorker::Private
             listfileQueues.filledBufferQueue().enqueue(listfileBuffer);
 
             if (outputBuffer_ != &localBuffer)
-                snoopQueues.filledBufferQueue().enqueue(outputBuffer_);
+            {
+                assert(snoopQueues);
+                snoopQueues->filledBufferQueue().enqueue(outputBuffer_);
+            }
             else
                 counters.access()->snoopMissedBuffers++;
 
@@ -442,11 +462,14 @@ ReadoutWorker::ReadoutWorker(
     ReadoutBufferQueues &snoopQueues,
     listfile::WriteHandle *lfh
     )
-    : d(std::make_unique<Private>(mvlc, snoopQueues))
+    : d(std::make_unique<Private>(mvlc, &snoopQueues))
 {
     d->state.access().ref() = State::Idle;
     d->desiredState = State::Idle;
-    d->stackTriggers = stackTriggers;
+
+    std::copy(std::begin(stackTriggers), std::end(stackTriggers),
+              std::back_inserter(d->stackTriggers));
+
     d->lfh = lfh;
 }
 
@@ -456,16 +479,45 @@ ReadoutWorker::ReadoutWorker(
     ReadoutBufferQueues &snoopQueues,
     listfile::WriteHandle *lfh
     )
-    : d(std::make_unique<Private>(mvlc, snoopQueues))
+    : d(std::make_unique<Private>(mvlc, &snoopQueues))
 {
     d->state.access().ref() = State::Idle;
     d->desiredState = State::Idle;
+    d->stackTriggers = stackTriggers;
+    d->lfh = lfh;
+}
 
-    d->stackTriggers.fill(0u);
-    std::copy_n(std::begin(stackTriggers),
-                std::min(stackTriggers.size(), d->stackTriggers.size()),
-                std::begin(d->stackTriggers));
+ReadoutWorker::ReadoutWorker(
+    MVLC mvlc,
+    ReadoutBufferQueues &snoopQueues,
+    listfile::WriteHandle *lfh
+    )
+    : d(std::make_unique<Private>(mvlc, &snoopQueues))
+{
+    d->state.access().ref() = State::Idle;
+    d->desiredState = State::Idle;
+    d->lfh = lfh;
+}
 
+ReadoutWorker::ReadoutWorker(
+    MVLC mvlc,
+    listfile::WriteHandle *lfh)
+    : d(std::make_unique<Private>(mvlc, nullptr))
+{
+    d->state.access().ref() = State::Idle;
+    d->desiredState = State::Idle;
+    d->lfh = lfh;
+}
+
+ReadoutWorker::ReadoutWorker(
+    MVLC mvlc,
+    const std::vector<u32> &stackTriggers,
+    listfile::WriteHandle *lfh)
+    : d(std::make_unique<Private>(mvlc, nullptr))
+{
+    d->state.access().ref() = State::Idle;
+    d->desiredState = State::Idle;
+    d->stackTriggers = stackTriggers;
     d->lfh = lfh;
 }
 
@@ -729,10 +781,9 @@ void ReadoutWorker::Private::loop(std::promise<std::error_code> promise)
 // multicast daq start sequence.
 std::error_code ReadoutWorker::Private::startReadout()
 {
-    // Error reporting is done via throwing either std::error_code or
+    // Error reporting is done by throwing either std::error_code or
     // std::vector<CommandExecResult> (which is the return type of
     // run_commands()).
-
     auto f = std::async(
         std::launch::async,
         [this] () -> void
@@ -751,9 +802,12 @@ std::error_code ReadoutWorker::Private::startReadout()
             // the mcst start commands from all defined events) is run. This
             // can make use of Trigger/IO stack processing.
 
-            // enable the readout stacks by setting the stack trigger registers
-            if (auto ec = setup_readout_triggers(mvlc, stackTriggers))
-                throw ec;
+            if (!stackTriggers.empty())
+            {
+                // enable the readout stacks by writing the stack trigger registers
+                if (auto ec = setup_readout_triggers(mvlc, stackTriggers))
+                    throw ec;
+            }
 
             // enable daq mode
             if (auto ec = enable_daq_mode(mvlc))
@@ -813,8 +867,9 @@ std::error_code ReadoutWorker::Private::terminateReadout()
             // multicast daq stop
             auto execResults = run_commands(mvlc, mcstDaqStop);
 
-            if (get_first_error(execResults))
-                throw execResults;
+            // Do not yet check for errors from running the stop sequence.
+            // Instead try to disable trigger processing and leave DAQ mode
+            // even if errors occured.
 
             // disable daq mode and the readout stack triggers
             static const int DisableTriggerRetryCount = 5;
@@ -823,11 +878,16 @@ std::error_code ReadoutWorker::Private::terminateReadout()
             {
                 if (auto ec = disable_all_triggers_and_daq_mode(this->mvlc))
                 {
+                    // Lost connection -> error out immediately
                     if (ec == ErrorType::ConnectionError)
                         throw ec;
                 }
                 else break;
             }
+
+            // Now check if the stop sequence produced an error.
+            if (get_first_error(execResults))
+                throw execResults;
         });
 
     using Clock = std::chrono::high_resolution_clock;
@@ -1253,7 +1313,7 @@ std::error_code ReadoutWorker::resume()
     return {};
 }
 
-ReadoutBufferQueues &ReadoutWorker::snoopQueues()
+ReadoutBufferQueues *ReadoutWorker::snoopQueues()
 {
     return d->snoopQueues;
 }

@@ -282,6 +282,7 @@ MESYTEC_MVLC_EXPORT size_t get_encoded_size(const StackCommand &command);
 
 // Returns the sum of the sizes of the encoded commands plus 2 for StackStart and StackEnd.
 MESYTEC_MVLC_EXPORT size_t get_encoded_stack_size(const std::vector<StackCommand> &commands);
+
 inline size_t get_encoded_stack_size(const StackCommandBuilder &sb)
 {
     return get_encoded_stack_size(sb.getCommands());
