@@ -121,6 +121,12 @@ class MVLCErrorCategory: public std::error_category
             case MVLCErrorCode::StackSyntaxError:
                  return "Stack syntax error";
 
+            case MVLCErrorCode::StackSegmentSizeExceeded:
+                 return "Stack segment size (128 words) exceeded";
+
+             case MVLCErrorCode::Stack0IsReserved:
+                 return "Stack 0 is reserved for immediate commands";
+
             case MVLCErrorCode::MirrorTransactionMaxWordsExceeded:
                  return "Mirror transaction max words exceeded";
 
@@ -204,6 +210,8 @@ class MVLCErrorCategory: public std::error_category
             case MVLCErrorCode::StackMemoryExceeded:
             case MVLCErrorCode::ImmediateStackReservedMemoryExceeded:
             case MVLCErrorCode::StackSyntaxError:
+            case MVLCErrorCode::StackSegmentSizeExceeded:
+            case MVLCErrorCode::Stack0IsReserved:
             case MVLCErrorCode::MirrorTransactionMaxWordsExceeded:
             case MVLCErrorCode::InvalidStackHeader:
             case MVLCErrorCode::TimerCountExceeded: // FIXME: does not belong here (used in mvlc_daq.cc)

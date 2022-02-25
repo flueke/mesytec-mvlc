@@ -130,6 +130,8 @@ std::error_code read_daq_mode(DIALOG_API &mvlc, u32 &daqMode)
     return mvlc.readRegister(DAQModeEnableRegister, daqMode);
 }
 
+// Disables MVLC DAQ mode and all stack triggers, all in a single stack
+// transaction. Used to end a DAQ run.
 template<typename DIALOG_API>
 std::error_code disable_all_triggers_and_daq_mode(DIALOG_API &mvlc)
 {
@@ -163,7 +165,8 @@ std::error_code reset_stack_offsets(DIALOG_API &mvlc)
 }
 
 // Builds, uploads and sets up the readout stack for each event in the vme
-// config.
+// config. Stacks are written in order to MVLC stack memory with a 1 word gap
+// between stacks.
 template<typename DIALOG_API>
 std::error_code setup_readout_stacks(
     DIALOG_API &mvlc,
@@ -215,6 +218,43 @@ std::error_code write_stack_trigger_value(
     return mvlc.writeRegister(triggerReg, triggerVal);
 }
 
+// Combines uploading the command stack, setting up the stack memory offset
+// register and the stack trigger register.
+// Stack output is directed to the DataPipe unless
+// stackBuilder.suppressPipeOutput() is true.
+// Assumes a memory layout where the stack memory is divided into equal sized
+// parts of 128 words each. So stack1 is written to the memory starting at
+// offset 128, stack2 at offset 256.
+// This function is not intended to be used for stack0, the stack reserved for
+// immediate command execution.
+template<typename DIALOG_API>
+std::error_code setup_readout_stack(
+    DIALOG_API &mvlc,
+    const StackCommandBuilder &stackBuilder,
+    u8 stackId,
+    u32 stackTriggerValue)
+{
+    if (stackId == 0)
+        return make_error_code(MVLCErrorCode::Stack0IsReserved);
+
+    if (get_encoded_stack_size(stackBuilder) > stacks::StackMemorySegmentSize)
+        return make_error_code(MVLCErrorCode::StackMemoryExceeded);
+
+    u16 uploadWordOffset = stackId * stacks::StackMemorySegmentSize;
+    u16 uploadAddress = uploadWordOffset * AddressIncrement;
+    u8 stackOutputPipe = stackBuilder.suppressPipeOutput() ? SuppressPipeOutput : DataPipe;
+
+    if (auto ec = mvlc.uploadStack(stackOutputPipe, uploadAddress, stackBuilder))
+        return ec;
+
+    if (auto ec = mvlc.writeRegister(
+            stacks::get_offset_register(stackId),
+            uploadAddress & stacks::StackOffsetBitMaskBytes))
+        return ec;
+
+    return write_stack_trigger_value(mvlc, stackId, stackTriggerValue);
+}
+
 inline u32 trigger_value(const StackTrigger &st)
 {
     return trigger_value(st.triggerType, st.irqLevel); // in mvlc_util.h
@@ -252,6 +292,21 @@ std::error_code setup_readout_triggers(
     std::vector<u32> responseBuffer;
 
     return mvlc.superTransaction(sb, responseBuffer);
+}
+
+template<typename DIALOG_API>
+std::error_code setup_readout_triggers(
+    DIALOG_API &mvlc,
+    const std::vector<u32> &triggerValues)
+{
+    std::array<u32, stacks::ReadoutStackCount> triggersArray;
+    triggersArray.fill(0);
+
+    std::copy_n(std::begin(triggerValues),
+                std::min(triggerValues.size(), triggersArray.size()),
+                std::begin(triggersArray));
+
+    return setup_readout_triggers(mvlc, triggersArray);
 }
 
 template<typename DIALOG_API>

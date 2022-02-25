@@ -41,6 +41,8 @@ enum class MVLCErrorCode
     StackMemoryExceeded,
     ImmediateStackReservedMemoryExceeded,
     StackSyntaxError,
+    StackSegmentSizeExceeded,
+    Stack0IsReserved,
     MirrorTransactionMaxWordsExceeded,
     InvalidStackHeader,
     NonBlockAddressMode,
