@@ -134,7 +134,7 @@ int main(int argc, char *argv[])
   //u16 nextStackUploadOffset = stackUploadOffset + get_stack_size_in_words(stack) + 1;
 
   printf("Enabling MVLC DAQ mode\n");
-  err = mvlc_set_daq_mode(mvlc, 1);
+  err = mvlc_ctrl_set_daq_mode(mvlc, 1);
   assert(!mvlc_is_error(err));
 
   // Low-level readout loop
@@ -165,7 +165,7 @@ int main(int argc, char *argv[])
   }
 
   printf("Disabling MVLC DAQ mode\n");
-  err = mvlc_set_daq_mode(mvlc, 0);
+  err = mvlc_ctrl_set_daq_mode(mvlc, 0);
   assert(!mvlc_is_error(err));
 
   printf("Received %lu data packets from MVLC\n", dataPacketsReceived);

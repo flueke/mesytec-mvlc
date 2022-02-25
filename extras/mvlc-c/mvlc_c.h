@@ -39,8 +39,8 @@ typedef int64_t s64;
  */
 typedef struct mvlc_err
 {
-    int ec;
-    const void *cat;
+    int ec;             // std::error_code::value()
+    const void *cat;    // &std::error_code::category()
 } mvlc_err_t;
 
 bool mvlc_is_error(const mvlc_err_t err);
@@ -59,10 +59,14 @@ typedef struct mvlc_ctrl mvlc_ctrl_t;
 /** MVLC controller factory function using the first MVLC_USB found on the system. */
 mvlc_ctrl_t *mvlc_ctrl_create_usb(void);
 
-/** MVLC controller factory function using the MVLC_USB with the specified index. */
+/** MVLC controller factory function using the MVLC_USB with the specified
+ * zero-based index. */
 mvlc_ctrl_t *mvlc_ctrl_create_usb_index(unsigned index);
 
-/** MVLC controller factory function using the MVLC_USB with the specified serial. */
+/** MVLC controller factory function using the MVLC_USB with the specified
+ * serial number string.
+ * Example: mvlc_ctrl_create_usb_serial("02220066");
+ */
 mvlc_ctrl_t *mvlc_ctrl_create_usb_serial(const char *serial);
 
 /** MVLC controller factory function for an MVLC_ETH with the given hostname/ip address. */
@@ -107,11 +111,15 @@ char *get_mvlc_ctrl_connection_info(mvlc_ctrl_t *mvlc);
 mvlc_err_t mvlc_ctrl_read_register(mvlc_ctrl_t *mvlc, u16 address, u32 *value);
 mvlc_err_t mvlc_ctrl_write_register(mvlc_ctrl_t *mvlc, u16 address, u32 value);
 
+// Enable/disable DAQ mode (autonomous processing of triggers and stack command execution).
+mvlc_err_t mvlc_ctrl_set_daq_mode(mvlc_ctrl_t *mvlc, bool enable);
+
+
 // VME bus access
 // ---------------------------------------------------------------------
 
 // The slow bit for VME reads is required for modules that are not 100% VME
-// conformant, e.g. Triva7.
+// conformant.
 #define MVLC_SlowReadBit 2u
 
 typedef enum
@@ -122,27 +130,32 @@ typedef enum
     MVLC_VMEDataWidth_D32_slow = 0x2 | (1u << MVLC_SlowReadBit)
 } MVLC_VMEDataWidth;
 
+// Single register VME read
 mvlc_err_t mvlc_ctrl_vme_read(
     mvlc_ctrl_t *mvlc, u32 address, u32 *value, u8 amod, MVLC_VMEDataWidth dataWidth);
 
+// Single register VME write
 mvlc_err_t mvlc_ctrl_vme_write(
     mvlc_ctrl_t *mvlc, u32 address, u32 value, u8 amod, MVLC_VMEDataWidth dataWidth);
 
+// VME block read (BLT/MBLT)
 // Allocates memory into *buf, stores the allocated size (in number of 32-bit
 // words) into bufsize. The buffer needs to be free()d by the caller.
 mvlc_err_t mvlc_ctrl_vme_block_read_alloc(
     mvlc_ctrl_t *mvlc, u32 address, u8 amod, u16 maxTransfers,
     u32 **buf, size_t *bufsize);
 
+// VME block read (BLT/MBLT)
 // Reads into the given buffer, storing a maximum of bufsize words. Any
 // additional data from the VME block read is discarded. bufsize must contain
-// the number of words available in the buffer. After the function return
+// the number of words available in the buffer. After the function returns
 // bufsize will contain the actual number of 32-bit words stored in the buffer.
 mvlc_err_t mvlc_ctrl_vme_block_read_buffer(
     mvlc_ctrl_t *mvlc, u32 address, u8 amod, u16 maxTransfers,
     u32 *buf, size_t *bufsize);
 
-// Like the block read functions above but perform a 32-bit word swap on the 64-bit VME MBLT data.
+// Like the block read functions above but perform a 32-bit word swap on the
+// 64-bit VME MBLT data. Required for some VME modules.
 mvlc_err_t mvlc_ctrl_vme_mblt_swapped_alloc(
     mvlc_ctrl_t *mvlc, u32 address, u16 maxTransfers,
     u32 **buf, size_t *bufsize);
@@ -172,82 +185,81 @@ void mvlc_ctrl_stack_errors_destroy(stack_error_collection_t stackErrors);
 // Note: uses strdup() internally so you have to free() the returned string after use.
 char *mvlc_format_frame_flags(u8 flags);
 
-// Readout abstractions
+// Command stack and readout abstractions
 // =====================================================================
 
 // StackCommandBuilder
 // ---------------------------------------------------------------------
 typedef struct mvlc_stackbuilder mvlc_stackbuilder_t;
 
-#if 0
-typedef enum
-{
-        MVLC_StackCommand_Invalid             = 0,
-
-        MVLC_StackCommand_StackStart          = 0xF3, // First word in a command stack.
-        MVLC_StackCommand_StackEnd            = 0xF4, // Last word in a command stack.
-        MVLC_StackCommand_VMERead             = 0x12, // VME read requests including block reads.
-
-        MVLC_StackCommand_VMEMBLTSwapped      = 0x13, // Special MBLT read command which swaps the order of the two 32-bit
-                                                      // words in each received 64-bit word. Argument wise it's the same as
-                                                      // the VMERead command but should only be used with the MBLT64 address
-                                                      // modifier.
-                                                      //
-        MVLC_StackCommand_VMEWrite            = 0x23, // VME write requests.
-        MVLC_StackCommand_WriteMarker         = 0xC2, // Writes a 32-bit marker value into the output data stream.
-        MVLC_StackCommand_WriteSpecial        = 0xC1, // Write a special value into the output data stream (not implemented).
-
-        MVLC_StackCommand_AddressIncMode      = 0xC3, // Address increment for block reads: 0=FIFO read, 1=memory read
-        MVLC_StackCommand_Wait                = 0xC4, // Delay in units of MVLC clocks. The number of clocks to delay is
-                                                      // specified as a 24-bit number.
-
-        MVLC_StackCommand_SignalAccu          = 0xC6, // Constant data word used to activate the interal signal array.
-        MVLC_StackCommand_MaskShiftAccu       = 0xC5, // first mask is applied, then the left rotation
-        MVLC_StackCommand_SetAccu             = 0xC8, // Set the accumulator to a specific 32 bit value.
-        MVLC_StackCommand_ReadToAccu          = 0x14, // Single register VME read into the accumulator.
-        MVLC_StackCommand_CompareLoopAccu     = 0xC7, // CompareMode, 0=eq, 1=lt, 2=gt. Loops to previous command if false.
-
-
-        // A value not in use by the MVLC protocol is used for the
-        // SoftwareDelay command.
-        MVLC_StackCommand_SoftwareDelay       = 0xEDu,
-
-        // Special value for custom (binary) stack data. The stack data word is
-        // stored in the 'value' member.
-        MVLC_StackCommand_Custom              = 0xEEu
-} MVLC_StackCommandType;
-#endif
-
 #define MVLC_TotalStackCount 8u
 #define MVLC_ReadoutStackCount 7u
 
-mvlc_stackbuilder_t *mvlc_stackbuilder_create(const char *name);
+mvlc_stackbuilder_t *mvlc_stackbuilder_create();
+mvlc_stackbuilder_t *mvlc_stackbuilder_create2(const char *name);
 void mvlc_stackbuilder_destroy(mvlc_stackbuilder_t *sb);
 mvlc_stackbuilder_t *mvlc_stackbuilder_copy(const mvlc_stackbuilder_t *sb);
 bool mvlc_stackbuilder_equals(const mvlc_stackbuilder_t *sba, const mvlc_stackbuilder_t *sbb);
 
 // Note: uses strdup() interally so you have to free() the returned string after use.
 const char *mvlc_stackbuilder_get_name(const mvlc_stackbuilder_t *sb);
+void mvlc_stackbuilder_set_name(mvlc_stackbuilder_t *sb, const char *name);
 
 bool mvlc_stackbuilder_is_empty(const mvlc_stackbuilder_t *sb);
 
-mvlc_stackbuilder_t *mvlc_stackbuilder_add_vme_read(
+void mvlc_stackbuilder_add_vme_read(
     mvlc_stackbuilder_t *sb, u32 address, u8 amod, MVLC_VMEDataWidth dataWidth);
 
-mvlc_stackbuilder_t *mvlc_stackbuilder_add_vme_block_read(
+void mvlc_stackbuilder_add_vme_block_read(
     mvlc_stackbuilder_t *sb, u32 address, u8 amod, u16 maxTransfers);
 
-mvlc_stackbuilder_t *mvlc_stackbuilder_add_vme_mblt_swapped(
+void mvlc_stackbuilder_add_vme_mblt_swapped(
     mvlc_stackbuilder_t *sb, u32 address, u8 amod, u16 maxTransfers);
 
-mvlc_stackbuilder_t *mvlc_stackbuilder_add_vme_write(
+void mvlc_stackbuilder_add_vme_write(
     mvlc_stackbuilder_t *sb, u32 address, u32 value, u8 amod, MVLC_VMEDataWidth dataWidth);
 
-mvlc_stackbuilder_t *mvlc_stackbuilder_add_write_marker(
+void mvlc_stackbuilder_add_write_marker(
     mvlc_stackbuilder_t *sb, u32 value);
 
-// Partial support for stack groups
-mvlc_stackbuilder_t *mvlc_stackbuilder_begin_group(
+// Set the address increment mode for subsequent VME block reads.
+typedef enum
+{
+    MVLC_AddressIncrement_FIFO,
+    MVLC_AddressIncrement_Memory
+} MVLC_AddressIncrementMode;
+
+void mvlc_stackbuilder_add_set_address_increment_mode(
+    mvlc_stackbuilder_t *sb, MVLC_AddressIncrementMode mode);
+
+void mvlc_stackbuilder_add_wait(mvlc_stackbuilder_t *sb, u32 clocks);
+void mvlc_stackbuilder_add_signal_accu(mvlc_stackbuilder_t *sb);
+void mvlc_stackbuilder_add_mask_shift_accu(mvlc_stackbuilder_t *sb, u32 mask, u8 shift);
+void mvlc_stackbuilder_add_set_accu(mvlc_stackbuilder_t *sb, u32 accuValue);
+void mvlc_stackbuilder_add_read_to_accu(
+    mvlc_stackbuilder_t *sb, u32 address, u8 amod, MVLC_VMEDataWidth dataWidth);
+
+typedef enum
+{
+    MVLC_AccuComparator_EQ, // ==
+    MVLC_AccuComparator_LT, // <
+    MVLC_AccuComparator_GT, // >
+} MVLC_AccuComparator;
+
+void mvlc_stackbuilder_add_compare_loop_accu(
+    mvlc_stackbuilder_t *sb, MVLC_AccuComparator comparator, u32 compareValue);
+
+typedef enum
+{
+    MVLC_SpecialWord_Timestamp,
+    MVLC_SpecialWord_Accu
+} MVLC_SpecialWord;
+
+void mvlc_stackbuilder_add_writespecial(
+    mvlc_stackbuilder_t *sb, u32 specialValue);
+
+// Support for stack groups
+void mvlc_stackbuilder_begin_group(
     mvlc_stackbuilder_t *sb, const char *name);
 
 bool mvlc_stackbuilder_has_open_group(
@@ -261,7 +273,8 @@ const char *mvlc_stackbuilder_get_group_name(
     const mvlc_stackbuilder_t *sb,
     size_t groupIndex);
 
-// Stack uploading and setup
+// Low level command stack uploading and setup
+// ---------------------------------------------------------------------
 //
 // Note: stackId=0 is reserved for direct/immediate command execution.  Library
 // convention: The immedate stack starts at word offset 1 from the beginning of
@@ -300,9 +313,30 @@ typedef enum
     StackTrigger_External    = 3, // via the Trigger/IO system
 } MVLC_StackTriggerType;
 
+// Calculate the final value for the stack trigger register. The 'irq'
+// parameter is ignored for non-irq trigger types.
 u16 mvlc_calculate_trigger_value(MVLC_StackTriggerType trigger, u8 irq);
 
-mvlc_err_t mvlc_set_daq_mode(mvlc_ctrl_t *mvlc, bool enable);
+// Higher level readout stack handling
+// ---------------------------------------------------------------------
+
+// Combines uploading the command stack, setting up the stack memory offset
+// register and writing the stack trigger register.
+// Assumes a memory layout where the stack memory is divided into equal sized
+// parts of 128 words each. So stack1 is written to the memory starting at
+// offset 128, stack2 at offset 256..
+// This function is not intended to be used for stack0, the stack reserved for
+// immediate command execution.
+mvlc_err_t mvlc_setup_readout_stack(
+    mvlc_ctrl_t *mvlc, const mvlc_stackbuilder_t *sb,
+    u8 stackId, u32 triggerValue);
+
+// Same as above but takes a triggerType and an irq value instead of a
+// precalculated triggerValue.
+mvlc_err_t mvlc_setup_readout_stack2(
+    mvlc_ctrl_t *mvlc, const mvlc_stackbuilder_t *sb,
+    u8 stackId, MVLC_StackTriggerType trigger, u8 irq);
+
 
 // Crateconfig
 // ---------------------------------------------------------------------

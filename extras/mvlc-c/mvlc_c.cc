@@ -166,6 +166,11 @@ mvlc_err_t mvlc_ctrl_write_register(mvlc_ctrl_t *mvlc, u16 address, u32 value)
     return make_mvlc_error(ec);
 }
 
+mvlc_err_t mvlc_ctrl_set_daq_mode(mvlc_ctrl_t *mvlc, bool enable)
+{
+    return mvlc_ctrl_write_register(mvlc, DAQModeEnableRegister, enable);
+}
+
 mvlc_err_t mvlc_ctrl_vme_read(mvlc_ctrl_t *mvlc, u32 address, u32 *value, u8 amod, MVLC_VMEDataWidth dataWidth)
 {
     auto ec = mvlc->instance.vmeRead(address, *value, amod, static_cast<mesytec::mvlc::VMEDataWidth>(dataWidth));
@@ -290,7 +295,14 @@ struct mvlc_stackbuilder
     StackCommandBuilder sb;
 };
 
-mvlc_stackbuilder_t *mvlc_stackbuilder_create(const char *name)
+mvlc_stackbuilder_t *mvlc_stackbuilder_create()
+{
+    auto ret = std::make_unique<mvlc_stackbuilder_t>();
+    ret->sb = StackCommandBuilder();
+    return ret.release();
+}
+
+mvlc_stackbuilder_t *mvlc_stackbuilder_create2(const char *name)
 {
     auto ret = std::make_unique<mvlc_stackbuilder_t>();
     ret->sb = StackCommandBuilder(name);
@@ -319,51 +331,85 @@ const char *mvlc_stackbuilder_get_name(const mvlc_stackbuilder_t *sb)
     return strdup(sb->sb.getName().c_str());
 }
 
+void mvlc_stackbuilder_set_name(mvlc_stackbuilder_t *sb, const char *name)
+{
+    sb->sb.setName(name);
+}
+
 bool mvlc_stackbuilder_is_empty(const mvlc_stackbuilder_t *sb)
 {
     return sb->sb.empty();
 }
 
-mvlc_stackbuilder_t *mvlc_stackbuilder_add_vme_read(
+void mvlc_stackbuilder_add_vme_read(
     mvlc_stackbuilder_t *sb, u32 address, u8 amod, MVLC_VMEDataWidth dataWidth)
 {
     sb->sb.addVMERead(address, amod, static_cast<VMEDataWidth>(dataWidth));
-    return sb;
 }
 
-mvlc_stackbuilder_t *mvlc_stackbuilder_add_vme_block_read(
+void mvlc_stackbuilder_add_vme_block_read(
     mvlc_stackbuilder_t *sb, u32 address, u8 amod, u16 maxTransfers)
 {
     sb->sb.addVMEBlockRead(address, amod, maxTransfers);
-    return sb;
 }
 
-mvlc_stackbuilder_t *mvlc_stackbuilder_add_vme_mblt_swapped(
+void mvlc_stackbuilder_add_vme_mblt_swapped(
     mvlc_stackbuilder_t *sb, u32 address, u8 amod, u16 maxTransfers)
 {
     sb->sb.addVMEMBLTSwapped(address, amod, maxTransfers);
-    return sb;
 }
 
-mvlc_stackbuilder_t *mvlc_stackbuilder_add_vme_write(
+void mvlc_stackbuilder_add_vme_write(
     mvlc_stackbuilder_t *sb, u32 address, u32 value, u8 amod, MVLC_VMEDataWidth dataWidth)
 {
     sb->sb.addVMEWrite(address, value, amod, static_cast<VMEDataWidth>(dataWidth));
-    return sb;
 }
 
-mvlc_stackbuilder_t *mvlc_stackbuilder_add_write_marker(
+void mvlc_stackbuilder_add_write_marker(
     mvlc_stackbuilder_t *sb, u32 value)
 {
     sb->sb.addWriteMarker(value);
-    return sb;
 }
 
-mvlc_stackbuilder_t *mvlc_stackbuilder_begin_group(
+void mvlc_stackbuilder_add_set_address_increment_mode(mvlc_stackbuilder_t *sb, MVLC_AddressIncrementMode mode)
+{
+    sb->sb.addSetAddressIncMode(static_cast<AddressIncrementMode>(mode));
+}
+
+void mvlc_stackbuilder_add_wait(mvlc_stackbuilder_t *sb, u32 clocks)
+{
+    sb->sb.addWait(clocks);
+}
+
+void mvlc_stackbuilder_add_signal_accu(mvlc_stackbuilder_t *sb)
+{
+    sb->sb.addSignalAccu();
+}
+
+void mvlc_stackbuilder_add_mask_shift_accu(mvlc_stackbuilder_t *sb, u32 mask, u8 shift)
+{
+    sb->sb.addMaskShiftAccu(mask, shift);
+}
+
+void mvlc_stackbuilder_add_set_accu(mvlc_stackbuilder_t *sb, u32 accuValue)
+{
+    sb->sb.addSetAccu(accuValue);
+}
+
+void mvlc_stackbuilder_add_read_to_accu(mvlc_stackbuilder_t *sb, u32 address, u8 amod, MVLC_VMEDataWidth dataWidth)
+{
+    sb->sb.addReadToAccu(address, amod, static_cast<VMEDataWidth>(dataWidth));
+}
+
+void mvlc_stackbuilder_add_writespecial(mvlc_stackbuilder_t *sb, u32 specialValue)
+{
+    sb->sb.addWriteSpecial(specialValue);
+}
+
+void mvlc_stackbuilder_begin_group(
     mvlc_stackbuilder_t *sb, const char *name)
 {
     sb->sb.beginGroup(name);
-    return sb;
 }
 
 bool mvlc_stackbuilder_has_open_group(
@@ -419,10 +465,24 @@ u16 mvlc_calculate_trigger_value(MVLC_StackTriggerType trigger, u8 irq)
     return trigger_value(static_cast<stacks::TriggerType>(trigger), irq);
 }
 
-mvlc_err_t mvlc_set_daq_mode(mvlc_ctrl_t *mvlc, bool enable)
+mvlc_err_t mvlc_setup_readout_stack(
+    mvlc_ctrl_t *mvlc, const mvlc_stackbuilder_t *sb,
+    u8 stackId, u32 triggerValue)
 {
-    auto ec = mvlc->instance.writeRegister(DAQModeEnableRegister, enable);
+    auto ec = setup_readout_stack(
+        mvlc->instance,
+        sb->sb,
+        stackId,
+        triggerValue);
     return make_mvlc_error(ec);
+}
+
+mvlc_err_t mvlc_setup_readout_stack2(
+    mvlc_ctrl_t *mvlc, const mvlc_stackbuilder_t *sb,
+    u8 stackId, MVLC_StackTriggerType trigger, u8 irq)
+{
+    auto triggerValue = mvlc_calculate_trigger_value(trigger, irq);
+    return mvlc_setup_readout_stack(mvlc, sb, stackId, triggerValue);
 }
 
 struct mvlc_crateconfig

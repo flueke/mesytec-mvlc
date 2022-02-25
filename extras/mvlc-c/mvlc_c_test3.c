@@ -5,7 +5,8 @@
 
 /**
  * \file
- * MVLC listfile replay tool using the blocking API instead of callbacks.
+ * MVLC listfile replay tool using the blocking API instead of the callback
+ * based API.
  *
  * \ingroup mvlc-c
  * \{
