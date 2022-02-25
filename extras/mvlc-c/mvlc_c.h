@@ -140,7 +140,7 @@ mvlc_err_t mvlc_ctrl_vme_block_read_alloc(
 // bufsize will contain the actual number of 32-bit words stored in the buffer.
 mvlc_err_t mvlc_ctrl_vme_block_read_buffer(
     mvlc_ctrl_t *mvlc, u32 address, u8 amod, u16 maxTransfers,
-    u32 *buf, size_t bufsize);
+    u32 *buf, size_t *bufsize);
 
 // Like the block read functions above but perform a 32-bit word swap on the 64-bit VME MBLT data.
 mvlc_err_t mvlc_ctrl_vme_mblt_swapped_alloc(
