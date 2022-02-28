@@ -94,9 +94,9 @@ namespace stack_commands
     static const u32 CmdArg1Mask  = 0x0000FFFF;
     static const u32 CmdArg1Shift = 0;
 
-    // 'Slow' flag for vme_read and read_to_accu stored in bit 3 of the VME
+    // 'late' flag for vme_read and read_to_accu stored in bit 3 of the VME
     // data width arg.
-    static const u32 SlowReadShift = 2;
+    static const u32 LateReadShift = 2;
 
     enum class StackCommandType: u8
     {
