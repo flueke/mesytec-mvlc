@@ -144,6 +144,7 @@ namespace frame_headers
     };
 
     // Header: Type[7:0] Continue[0:0] ErrorFlags[2:0] StackNum[3:0] CtrlId[2:0] Length[12:0]
+    // TTTT TTTT CEEE SSSS IIIL LLLLLLLLLLLL
     // The Continue bit and the ErrorFlags are combined into a 4 bit
     // FrameFlags field.
 

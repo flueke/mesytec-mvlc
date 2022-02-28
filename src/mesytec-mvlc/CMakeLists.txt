@@ -56,8 +56,8 @@ target_include_directories(mesytec-mvlc
 target_link_libraries(mesytec-mvlc
     PRIVATE lz4_static
     PRIVATE minizip
-    PUBLIC spdlog::spdlog
     PRIVATE yaml-cpp
+    PUBLIC spdlog::spdlog
     PUBLIC fmt::fmt
     PUBLIC Threads::Threads
     )
