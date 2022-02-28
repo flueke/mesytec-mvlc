@@ -53,9 +53,18 @@ struct MESYTEC_MVLC_EXPORT CrateConfig
     inline bool operator!=(const CrateConfig &o) const { return !(*this == o); }
 };
 
+// Cratecconfig serialization to/from YAML
 std::string MESYTEC_MVLC_EXPORT to_yaml(const CrateConfig &crateConfig);
 CrateConfig MESYTEC_MVLC_EXPORT crate_config_from_yaml(const std::string &yaml);
 CrateConfig MESYTEC_MVLC_EXPORT crate_config_from_yaml(std::istream &input);
+CrateConfig MESYTEC_MVLC_EXPORT crate_config_from_yaml_file(const std::string &filename);
+
+// StackCommandBuilder serialization to/from YAML
+std::string MESYTEC_MVLC_EXPORT to_yaml(const StackCommandBuilder &sb);
+StackCommandBuilder MESYTEC_MVLC_EXPORT stack_command_builder_from_yaml(const std::string &yaml);
+StackCommandBuilder MESYTEC_MVLC_EXPORT stack_command_builder_from_yaml(std::istream &input);
+StackCommandBuilder MESYTEC_MVLC_EXPORT stack_command_builder_from_yaml_file(const std::string &filename);
+
 
 } // end namespace mvlc
 } // end namespace mesytec

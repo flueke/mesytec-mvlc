@@ -1,6 +1,7 @@
 #include "mvlc_readout_config.h"
 
 #include <cassert>
+#include <fstream>
 #include <yaml-cpp/yaml.h>
 #include <yaml-cpp/emittermanip.h>
 
@@ -171,7 +172,7 @@ CrateConfig crate_config_from_yaml(std::istream &input)
     YAML::Node yRoot = YAML::Load(input);
 
     if (!yRoot)
-        throw std::runtime_error("CrateConfig YAML is empty");
+        throw std::runtime_error("CrateConfig YAML data is empty");
 
     if (!yRoot["crate"])
         throw std::runtime_error("No 'crate' node found in YAML input");
@@ -213,6 +214,47 @@ CrateConfig crate_config_from_yaml(std::istream &input)
     }
 
     return result;
+}
+
+CrateConfig MESYTEC_MVLC_EXPORT crate_config_from_yaml_file(const std::string &filename)
+{
+    std::ifstream input(filename);
+    input.exceptions(std::ios::failbit | std::ios::badbit);
+    return crate_config_from_yaml(input);
+}
+
+std::string to_yaml(const StackCommandBuilder &sb)
+{
+    YAML::Emitter out;
+    out << YAML::Hex;
+    assert(out.good());
+    out << sb;
+    assert(out.good());
+    return out.c_str();
+}
+
+StackCommandBuilder stack_command_builder_from_yaml(const std::string &yaml)
+{
+    std::istringstream iss(yaml);
+    return stack_command_builder_from_yaml(iss);
+}
+
+StackCommandBuilder stack_command_builder_from_yaml(std::istream &input)
+{
+    YAML::Node yRoot = YAML::Load(input);
+
+    if (!yRoot)
+        throw std::runtime_error("StackCommandBuilder YAML data is empty");
+
+    return stack_command_builder_from_yaml(yRoot);
+}
+
+StackCommandBuilder MESYTEC_MVLC_EXPORT stack_command_builder_from_yaml_file(
+    const std::string &filename)
+{
+    std::ifstream input(filename);
+    input.exceptions(std::ios::failbit | std::ios::badbit);
+    return stack_command_builder_from_yaml(input);
 }
 
 } // end namespace mvlc
