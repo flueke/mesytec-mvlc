@@ -92,6 +92,7 @@ if (MVLC_BUILD_TESTS)
     #    include_directories("${gtest_SOURCE_DIR}/include")
     #  endif()
 
+    option(INSTALL_GTEST "Enable installation of googletest." OFF)
     add_subdirectory(external/googletest)
 
     message("-- Building tests")
