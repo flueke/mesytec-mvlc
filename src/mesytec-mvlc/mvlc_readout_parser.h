@@ -37,6 +37,7 @@
 #include "mesytec-mvlc/mvlc_command_builders.h"
 #include "mesytec-mvlc/mvlc_constants.h"
 #include "mesytec-mvlc/mvlc_util.h"
+#include "mesytec-mvlc/readout_buffer.h"
 
 namespace mesytec
 {
@@ -105,7 +106,7 @@ struct ReadoutParserCallbacks
 
     std::function<void (void *userContext, int crateIndex, int eventIndex,
                         const ModuleData *moduleDataList, unsigned moduleCount)>
-        eventData = [] (void *, int, int, const ModuleData *, size_t) {};
+        eventData = [] (void *, int, int, const ModuleData *, unsigned) {};
 
     // Parameters: pointer to the system event header, number of words in the
     // system event
@@ -363,6 +364,30 @@ MESYTEC_MVLC_EXPORT ParseResult parse_readout_buffer(
     ReadoutParserCallbacks &callbacks,
     ReadoutParserCounters &counters,
     u32 bufferNumber, const u32 *buffer, size_t bufferWords);
+
+inline ParseResult parse_readout_buffer(
+    s32 bufferType,
+    ReadoutParserState &state,
+    ReadoutParserCallbacks &callbacks,
+    ReadoutParserCounters &counters,
+    u32 bufferNumber, const u32 *buffer, size_t bufferWords)
+{
+    return parse_readout_buffer(
+        static_cast<ConnectionType>(bufferType),
+        state, callbacks, counters, bufferNumber, buffer, bufferWords);
+}
+
+inline ParseResult parse_readout_buffer(
+    const ReadoutBuffer &buffer,
+    ReadoutParserState &state,
+    ReadoutParserCallbacks &callbacks,
+    ReadoutParserCounters &counters)
+{
+    auto bufferView = buffer.viewU32();
+    return parse_readout_buffer(
+        buffer.type(), state, callbacks, counters,
+        buffer.bufferNumber(), bufferView.data(), bufferView.size());
+}
 
 MESYTEC_MVLC_EXPORT ParseResult parse_readout_buffer_eth(
     ReadoutParserState &state,
