@@ -261,6 +261,35 @@ inline u32 trigger_value(const StackTrigger &st)
 }
 
 template<typename DIALOG_API>
+std::error_code setup_readout_stack(
+    DIALOG_API &mvlc,
+    const StackCommandBuilder &stackBuilder,
+    u8 stackId,
+    const stacks::TriggerType &triggerType,
+    u8 irqLevel = 0)
+{
+    return setup_readout_stack(
+        mvlc,
+        stackBuilder,
+        stackId,
+        trigger_value({triggerType, irqLevel}));
+}
+
+template<typename DIALOG_API>
+std::error_code setup_readout_stack(
+    DIALOG_API &mvlc,
+    const StackCommandBuilder &stackBuilder,
+    u8 stackId,
+    const StackTrigger &trigger)
+{
+    return setup_readout_stack(
+        mvlc,
+        stackBuilder,
+        stackId,
+        trigger_value(trigger));
+}
+
+template<typename DIALOG_API>
 std::error_code setup_stack_trigger(
     DIALOG_API &mvlc, u8 stackId, const StackTrigger &st)
 {
