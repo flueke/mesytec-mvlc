@@ -89,13 +89,28 @@ int main(int argc, char *argv[])
   assert(!mvlc_is_error(err));
 
 
-  mvlc_stackbuilder_t *stack = mvlc_stackbuilder_create("readout_test");
+  mvlc_stackbuilder_t *stack = mvlc_stackbuilder_create();
   //mvlc_stackbuilder_add_vme_read(stack, modBase + fwReg, amod,  MVLC_VMEDataWidth_D32_slow);
 
   // MBLT FIFO read from the module base address
   mvlc_stackbuilder_add_vme_block_read(stack, modBase, 0x08, 65535);
   // For mesytec modules: write the "readout reset" register.
   mvlc_stackbuilder_add_vme_write(stack, modBase + 0x6034, 1, amod, MVLC_VMEDataWidth_D16);
+
+#if 0
+  sleep(2);
+  // Do a block read
+  u32 blockBuffer[1024 * 1024];
+  size_t blockBufferSize = 1024 * 1024;
+  err = mvlc_ctrl_vme_block_read_buffer(
+      mvlc, modBase, 0x08, (1u << 16) - 1, blockBuffer, &blockBufferSize);
+  assert(!mvlc_is_error(err));
+
+  printf("Block read done: received %lu words\n", blockBufferSize);
+    print_buffer((u32 *) blockBuffer, blockBufferSize);
+
+  return 0;
+#endif
 
   // Upload the stack
 

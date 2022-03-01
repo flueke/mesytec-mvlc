@@ -26,6 +26,13 @@ target_link_libraries(mvlc-multi-crate-replay
     PRIVATE spdlog::spdlog
     )
 
+add_executable(mdpp16_readout_example1 mdpp16-readout-example1.cc)
+target_link_libraries(mdpp16_readout_example1
+    PRIVATE mesytec-mvlc
+    PRIVATE BFG::Lyra
+    PRIVATE spdlog::spdlog
+    )
+
 install(TARGETS
     mvlc-mini-daq
     mvlc-mini-daq-replay

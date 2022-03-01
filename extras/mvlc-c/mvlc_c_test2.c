@@ -195,8 +195,8 @@ int main(int argc, char *argv[])
     if (opt_overwriteListfile)
         listfileParams.overwrite = true;
 
-    // Note: NULL callbacks would also be ok. In this case the readout data is only
-    // passed written to the listfile.
+    // Note: NULL callbacks would also be ok. In this case the readout data is
+    // only written to the listfile.
     //readout_parser_callbacks_t parserCallbacks = {NULL, NULL};
 
     readout_parser_callbacks_t parserCallbacks =

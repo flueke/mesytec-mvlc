@@ -201,6 +201,9 @@ void mvlc_stackbuilder_destroy(mvlc_stackbuilder_t *sb);
 mvlc_stackbuilder_t *mvlc_stackbuilder_copy(const mvlc_stackbuilder_t *sb);
 bool mvlc_stackbuilder_equals(const mvlc_stackbuilder_t *sba, const mvlc_stackbuilder_t *sbb);
 
+mvlc_stackbuilder_t *mvlc_read_stackbuilder_from_file(const char *filename);
+mvlc_err_t mvlc_write_stackbuilder_to_file(const mvlc_stackbuilder_t *sb, const char *filename);
+
 // Note: uses strdup() interally so you have to free() the returned string after use.
 const char *mvlc_stackbuilder_get_name(const mvlc_stackbuilder_t *sb);
 void mvlc_stackbuilder_set_name(mvlc_stackbuilder_t *sb, const char *name);
@@ -256,7 +259,7 @@ typedef enum
 } MVLC_SpecialWord;
 
 void mvlc_stackbuilder_add_writespecial(
-    mvlc_stackbuilder_t *sb, u32 specialValue);
+    mvlc_stackbuilder_t *sb, u32 specialWord);
 
 // Support for stack groups
 void mvlc_stackbuilder_begin_group(
@@ -313,8 +316,8 @@ typedef enum
     StackTrigger_External    = 3, // via the Trigger/IO system
 } MVLC_StackTriggerType;
 
-// Calculate the final value for the stack trigger register. The 'irq'
-// parameter is ignored for non-irq trigger types.
+// Calculate the value for the stack trigger register. The 'irq' parameter is
+// ignored for non-irq trigger types.
 u16 mvlc_calculate_trigger_value(MVLC_StackTriggerType trigger, u8 irq);
 
 // Higher level readout stack handling
@@ -572,10 +575,7 @@ typedef struct event_container
     system_event_t system;
 } event_container_t;
 
-static inline bool is_valid_event(const event_container_t *event)
-{
-    return event->type != MVLC_EventType_None;
-}
+bool is_valid_event(const event_container_t *event);
 
 typedef struct mvlc_blocking_readout mvlc_blocking_readout_t;
 typedef struct mvlc_blocking_replay mvlc_blocking_replay_t;

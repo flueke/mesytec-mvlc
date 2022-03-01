@@ -3,6 +3,7 @@
 #include <cassert>
 #include <exception>
 #include <memory>
+#include <stdexcept>
 #include <system_error>
 
 #include <mesytec-mvlc/mesytec-mvlc.h>
@@ -326,6 +327,39 @@ bool mvlc_stackbuilder_equals(const mvlc_stackbuilder_t *sba, const mvlc_stackbu
     return sba->sb == sbb->sb;
 }
 
+mvlc_stackbuilder_t *mvlc_read_stackbuilder_from_file(const char *filename)
+{
+    try
+    {
+        auto ret = std::make_unique<mvlc_stackbuilder_t>();
+        ret->sb = stack_command_builder_from_yaml_file(filename);
+        return ret.release();
+    } catch (const std::exception &e)
+    {
+        spdlog::error("Error reading StackCommandBuilder from file '{}': {}",
+                      filename, e.what());
+    }
+
+    return nullptr;
+}
+
+mvlc_err_t mvlc_write_stackbuilder_to_file(const mvlc_stackbuilder_t *sb, const char *filename)
+{
+    std::ofstream of;
+
+    of.open(filename, std::ios_base::out);
+
+    if (of.fail())
+        return mvlc_err_t { errno, &std::system_category() };
+
+    of << to_yaml(sb->sb);
+
+    if (of.fail())
+        return mvlc_err_t { errno, &std::system_category() };
+
+    return {};
+}
+
 const char *mvlc_stackbuilder_get_name(const mvlc_stackbuilder_t *sb)
 {
     return strdup(sb->sb.getName().c_str());
@@ -497,18 +531,37 @@ mvlc_crateconfig_t *mvlc_read_crateconfig_from_file(const char *filename)
     if (!in.is_open())
         return nullptr;
 
-    auto ret = std::make_unique<mvlc_crateconfig_t>();
-    ret->cfg = crate_config_from_yaml(in);
-    return ret.release();
+    try
+    {
+        auto ret = std::make_unique<mvlc_crateconfig_t>();
+        ret->cfg = crate_config_from_yaml(in);
+        return ret.release();
+    }
+    catch (const std::exception &e)
+    {
+        spdlog::error("Error reading CrateConfig from file '{}': {}",
+                      filename, e.what());
+    }
+
+    return nullptr;
 }
 
 mvlc_crateconfig_t *mvlc_read_crateconfig_from_string(const char *str)
 {
     std::string in(str);
 
-    auto ret = std::make_unique<mvlc_crateconfig_t>();
-    ret->cfg = crate_config_from_yaml(in);
-    return ret.release();
+    try
+    {
+        auto ret = std::make_unique<mvlc_crateconfig_t>();
+        ret->cfg = crate_config_from_yaml(in);
+        return ret.release();
+    } catch (const std::exception &e)
+    {
+        spdlog::error("Error parsing CrateConfig from string: {}",
+                      e.what());
+    }
+
+    return nullptr;
 }
 
 void mvlc_crateconfig_destroy(mvlc_crateconfig_t *cfg)
@@ -672,7 +725,7 @@ struct ListfileWriteHandleWrapper: public listfile::WriteHandle
     {
         ssize_t res = listfile_handle(userContext, data, size);
         if (res < 0)
-            throw std::runtime_error("wrapped listfile write failed: " + std::to_string(res));
+            throw std::runtime_error("wrapped listfile write failed with code " + std::to_string(res));
         return res;
     }
 
@@ -1033,6 +1086,11 @@ namespace
 
         return ret;
     }
+}
+
+bool is_valid_event(const event_container_t *event)
+{
+    return event->type != MVLC_EventType_None;
 }
 
 event_container_t next_readout_event(mvlc_blocking_readout_t *r)

@@ -18,7 +18,7 @@ void run_some_mvlc_functions(mvlc_ctrl_t *mvlc)
 {
     char errbuf[errbufsize];
 
-    printf("Running a few of the MVLC functions..\n");
+    printf("Running a few MVLC functions..\n");
 
     printf("\tisConnected: %d\n", mvlc_ctrl_is_connected(mvlc));
     printf("\thardwareId: 0x%04x\n", get_mvlc_ctrl_hardware_id(mvlc));

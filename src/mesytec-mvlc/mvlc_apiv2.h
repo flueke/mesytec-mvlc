@@ -20,7 +20,7 @@ namespace mvlc
 namespace apiv2
 {
 
-struct CmdPipeCounters
+struct MESYTEC_MVLC_EXPORT CmdPipeCounters
 {
     size_t reads;
     size_t bytesRead;
