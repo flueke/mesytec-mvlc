@@ -560,57 +560,16 @@ std::error_code CmdApi::uploadStack(
     auto cmdBuffer = make_command_buffer(superBuilder);
     std::vector<u32> superResponse;
 
-    auto superFuture = set_pending_response(readerContext_.pendingSuper, superResponse, superRef);
+    get_logger("mvlc")->info("uploadStack: command buffer size: {} words, {} bytes",
+                              cmdBuffer.size(), cmdBuffer.size() * sizeof(u32));
 
-    size_t bytesWritten = 0;
-
-    auto ec = readerContext_.mvlc->write(
-        Pipe::Command,
-        reinterpret_cast<const u8 *>(cmdBuffer.data()),
-        cmdBuffer.size() * sizeof(u32),
-        bytesWritten);
-
-    if (ec)
-        return fullfill_pending_response(readerContext_.pendingSuper, ec);
-
-    if (superFuture.wait_for(ResultWaitTimeout) != std::future_status::ready)
-        return fullfill_pending_response(readerContext_.pendingSuper, make_error_code(MVLCErrorCode::CommandTimeout));
-
-    return superFuture.get();
+    return superTransaction(superRef, cmdBuffer, superResponse);
 }
 
 std::error_code CmdApi::uploadStack(
     u8 stackOutputPipe, u16 stackMemoryOffset, const std::vector<StackCommand> &commands)
 {
-#if 0
-    u16 superRef = readerContext_.nextSuperReference++;
-
-    SuperCommandBuilder superBuilder;
-    superBuilder.addReferenceWord(superRef);
-    superBuilder.addStackUpload(make_stack_buffer(commands), stackOutputPipe, stackMemoryOffset);
-    auto cmdBuffer = make_command_buffer(superBuilder);
-    std::vector<u32> superResponse;
-
-    auto superFuture = set_pending_response(readerContext_.pendingSuper, superResponse, superRef);
-
-    size_t bytesWritten = 0;
-
-    auto ec = readerContext_.mvlc->write(
-        Pipe::Command,
-        reinterpret_cast<const u8 *>(cmdBuffer.data()),
-        cmdBuffer.size() * sizeof(u32),
-        bytesWritten);
-
-    if (ec)
-        return fullfill_pending_response(readerContext_.pendingSuper, ec);
-
-    if (superFuture.wait_for(ResultWaitTimeout) != std::future_status::ready)
-        return fullfill_pending_response(readerContext_.pendingSuper, make_error_code(MVLCErrorCode::CommandTimeout));
-
-    return superFuture.get();
-#else
     return uploadStack(stackOutputPipe, stackMemoryOffset, make_stack_buffer(commands));
-#endif
 }
 
 std::error_code CmdApi::readRegister(u16 address, u32 &value)
