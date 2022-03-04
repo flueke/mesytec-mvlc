@@ -2,6 +2,7 @@
 #include <fmt/format.h>
 #include <iostream>
 #include <spdlog/spdlog.h>
+#include <stdlib.h>
 
 #include <mesytec-mvlc/mesytec-mvlc.h>
 
@@ -14,17 +15,22 @@ class MVLCTestBase: public ::testing::TestWithParam<const char *>
     public:
         MVLCTestBase()
         {
-            std::string mvlcType = GetParam();
+            const std::string mvlcType = GetParam();
 
             if (mvlcType == "usb")
             {
-                spdlog::info("usb");
+                spdlog::info("MVLCTestBase using MVLC_USB");
                 mvlc = make_mvlc_usb();
             }
             else if (mvlcType == "eth")
             {
-                spdlog::info("eth");
-                mvlc = make_mvlc_eth("mvlc-0007");
+                std::string address("mvlc-0066");
+
+                if (char *envAddress = getenv("MVLC_TEST_ETH_ADDR"))
+                    address = envAddress;
+
+                spdlog::info("MVLCTestBase using MVLC_ETH (address={})", address);
+                mvlc = make_mvlc_eth(address);
             }
         }
 
@@ -147,4 +153,4 @@ TEST_P(MVLCTestBase, TestUploadLongStack)
     ASSERT_TRUE(!ec) << ec.message();
 }
 
-INSTANTIATE_TEST_CASE_P(MVLCTest, MVLCTestBase, ::testing::Values(/*"eth",*/ "usb"));
+INSTANTIATE_TEST_CASE_P(MVLCTest, MVLCTestBase, ::testing::Values("eth", "usb"));
