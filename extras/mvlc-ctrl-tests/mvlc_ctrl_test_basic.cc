@@ -111,4 +111,40 @@ TEST_P(MVLCTestBase, TestRegisterReadWriteMultiThreaded)
 }
 #endif
 
-INSTANTIATE_TEST_CASE_P(MVLCTest, MVLCTestBase, ::testing::Values("eth", "usb"));
+TEST_P(MVLCTestBase, TestUploadShortStack)
+{
+    auto ec = mvlc.connect();
+    ASSERT_TRUE(!ec) << ec.message();
+    ASSERT_TRUE(mvlc.isConnected());
+
+    StackCommandBuilder sb;
+
+    for (int i=0; i<10; ++i)
+        sb.addVMEBlockRead(0, 0x09, 65535);
+
+    auto stackBuffer = make_stack_buffer(sb);
+
+    ec = mvlc.uploadStack(DataPipe, stacks::ImmediateStackEndWord, stackBuffer);
+
+    ASSERT_TRUE(!ec) << ec.message();
+}
+
+TEST_P(MVLCTestBase, TestUploadLongStack)
+{
+    auto ec = mvlc.connect();
+    ASSERT_TRUE(!ec) << ec.message();
+    ASSERT_TRUE(mvlc.isConnected());
+
+    StackCommandBuilder sb;
+
+    for (int i=0; i<1000; ++i)
+        sb.addVMEBlockRead(0, 0x09, 65535);
+
+    auto stackBuffer = make_stack_buffer(sb);
+
+    ec = mvlc.uploadStack(DataPipe, stacks::ImmediateStackEndWord, stackBuffer);
+
+    ASSERT_TRUE(!ec) << ec.message();
+}
+
+INSTANTIATE_TEST_CASE_P(MVLCTest, MVLCTestBase, ::testing::Values(/*"eth",*/ "usb"));
