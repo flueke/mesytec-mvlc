@@ -336,6 +336,9 @@ namespace stacks
     // divide the 1024 words into 8 sections of 128 words each.
     static const u16 ImmediateStackReservedWords = 128 - ImmediateStackStartOffsetWords;
     static const u16 ImmediateStackReservedBytes = ImmediateStackReservedWords * 4;
+    // One past the end of the immediate stack reserved segment.
+    static const u16 ImmediateStackEndWord       = 129u;
+    static const u16 ImmediateStackEndByte       = ImmediateStackEndWord * 4;
     // Constant for the standard layout where every stack is allocated 128
     // words of stack memory.
     static const u16 StackMemorySegmentSize = 128;
