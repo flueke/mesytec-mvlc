@@ -559,17 +559,89 @@ std::error_code CmdApi::stackTransaction(
 std::error_code CmdApi::uploadStack(
     u8 stackOutputPipe, u16 stackMemoryOffset, const std::vector<u32> &stackContents)
 {
-    u16 superRef = readerContext_.nextSuperReference++;
-    SuperCommandBuilder superBuilder;
-    superBuilder.addReferenceWord(superRef);
-    superBuilder.addStackUpload(stackContents, stackOutputPipe, stackMemoryOffset);
-    auto cmdBuffer = make_command_buffer(superBuilder);
+    // Uploading a command stack requires writing the following to the stack memory area:
+    // - StackStart with the correct output pipe set
+    // - each word of StackContents
+    // - StackEnd
+    //
+    // The maximum size of a single super command transaction is 255 words.
+    // Each memory write requires two super command words: the WriteLocal
+    // command and the value being written. To stay below the 255 word limit
+    // the stackContents are split into parts of max size 125, guaranteeing
+    // that we stay at or below the limit even when both StackStart and
+    // StackEnd are written out in the same part.
+
+    auto logger = get_logger("mvlc_uploadStack");
+    static const size_t PartMaxSize = 125;
+    size_t stackWordsWritten = 0u;
+    const auto stackBegin = std::begin(stackContents);
+    const auto stackEnd = std::end(stackContents);
+    auto partIter = stackBegin;
+    u16 writeAddress = stacks::StackMemoryBegin + stackMemoryOffset;
     std::vector<u32> superResponse;
 
-    get_logger("mvlc")->info("uploadStack: command buffer size: {} words, {} bytes",
-                              cmdBuffer.size(), cmdBuffer.size() * sizeof(u32));
+    while (partIter != stackEnd)
+    {
+        auto partEnd = std::min(partIter + PartMaxSize, stackEnd);
 
-    return superTransaction(superRef, cmdBuffer, superResponse);
+        //for (auto tmp=partIter; tmp!=partEnd; ++tmp)
+        //    logger->trace("part: 0x{:08X}", *tmp);
+
+        u16 superRef = readerContext_.nextSuperReference++;
+        SuperCommandBuilder super;
+        super.addReferenceWord(superRef);
+
+        if (partIter == stackBegin)
+        {
+            if (writeAddress >= stacks::StackMemoryEnd)
+                return make_error_code(MVLCErrorCode::StackMemoryExceeded);
+
+            // This is the first part being uploaded -> add the StackStart command.
+            super.addWriteLocal(
+                writeAddress,
+                (static_cast<u32>(StackCommandType::StackStart) << stack_commands::CmdShift
+                 | (stackOutputPipe << stack_commands::CmdArg0Shift)));
+
+            writeAddress += AddressIncrement;
+        }
+
+        // Add a write for each data word of current part.
+        while (partIter != partEnd)
+        {
+            if (writeAddress >= stacks::StackMemoryEnd)
+                return make_error_code(MVLCErrorCode::StackMemoryExceeded);
+
+            super.addWriteLocal(writeAddress, *partIter++);
+            writeAddress += AddressIncrement;
+            ++stackWordsWritten;
+        }
+
+        if (partIter == stackEnd)
+        {
+            if (writeAddress >= stacks::StackMemoryEnd)
+                return make_error_code(MVLCErrorCode::StackMemoryExceeded);
+
+            // This is the final part being uploaded -> add the StackEnd word.
+            super.addWriteLocal(
+                writeAddress,
+                static_cast<u32>(StackCommandType::StackEnd) << stack_commands::CmdShift);
+            writeAddress += AddressIncrement;
+        }
+
+        auto superBuffer = make_command_buffer(super);
+        logger->trace("stack part superBuffer.size()={}", superBuffer.size());
+        assert(superBuffer.size() <= MirrorTransactionMaxWords);
+
+        if (auto ec = superTransaction(superRef, superBuffer, superResponse))
+            return ec;
+    }
+
+    assert(partIter == stackEnd);
+    logger->trace("stackWordsWritten={}, stackContents.size()={}",
+                 stackWordsWritten, stackContents.size());
+    assert(stackWordsWritten == stackContents.size());
+
+    return {};
 }
 
 std::error_code CmdApi::uploadStack(
