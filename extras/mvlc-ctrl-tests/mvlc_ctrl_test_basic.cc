@@ -15,6 +15,7 @@ class MVLCTestBase: public ::testing::TestWithParam<const char *>
     public:
         MVLCTestBase()
         {
+            get_logger("mvlc_uploadStack")->set_level(spdlog::level::trace);
             const std::string mvlcType = GetParam();
 
             if (mvlcType == "usb")
@@ -117,6 +118,51 @@ TEST_P(MVLCTestBase, TestRegisterReadWriteMultiThreaded)
 }
 #endif
 
+
+namespace
+{
+    // Starts reading from stackMemoryOffset.
+    // Checks for StackStart, reads until StackEnd is found or StackMemoryEnd
+    // is reached. Does not place StackStart and StackEnd in the result buffer,
+    // meaning only the actual stack contents are returned.
+    std::vector<u32> read_stack_from_memory(MVLC &mvlc, u16 stackMemoryOffset)
+    {
+        u16 readAddress = stacks::StackMemoryBegin + stackMemoryOffset;
+        u32 stackWord = 0u;
+
+        if (auto ec = mvlc.readRegister(readAddress, stackWord))
+            throw ec;
+
+        readAddress += AddressIncrement;
+
+        if (extract_frame_info(stackWord).type !=
+            static_cast<u8>(stack_commands::StackCommandType::StackStart))
+        {
+            throw std::runtime_error(
+                fmt::format("Stack memory does not begin with StackStart (0xF3): 0x{:08X}",
+                            stackWord));
+        }
+
+        std::vector<u32> result;
+
+        while (readAddress < stacks::StackMemoryEnd)
+        {
+            if (auto ec = mvlc.readRegister(readAddress, stackWord))
+                throw  ec;
+
+            readAddress += AddressIncrement;
+
+            if (extract_frame_info(stackWord).type ==
+                static_cast<u8>(stack_commands::StackCommandType::StackEnd))
+                break;
+
+            result.push_back(stackWord);
+        }
+
+        return result;
+    }
+}
+
 TEST_P(MVLCTestBase, TestUploadShortStack)
 {
     auto ec = mvlc.connect();
@@ -126,13 +172,19 @@ TEST_P(MVLCTestBase, TestUploadShortStack)
     StackCommandBuilder sb;
 
     for (int i=0; i<10; ++i)
-        sb.addVMEBlockRead(0, 0x09, 65535);
+        sb.addVMEBlockRead(i*4, 0x09, 65535);
 
     auto stackBuffer = make_stack_buffer(sb);
 
     ec = mvlc.uploadStack(DataPipe, stacks::ImmediateStackEndWord, stackBuffer);
 
     ASSERT_TRUE(!ec) << ec.message();
+
+    auto readBuffer = read_stack_from_memory(mvlc, stacks::ImmediateStackEndWord);
+
+    //log_buffer(get_logger("test"), spdlog::level::info, readBuffer, "stack memory");
+
+    ASSERT_EQ(stackBuffer, readBuffer);
 }
 
 TEST_P(MVLCTestBase, TestUploadLongStack)
@@ -143,14 +195,39 @@ TEST_P(MVLCTestBase, TestUploadLongStack)
 
     StackCommandBuilder sb;
 
-    for (int i=0; i<1000; ++i)
-        sb.addVMEBlockRead(0, 0x09, 65535);
+    for (int i=0; i<400; ++i)
+        sb.addVMEBlockRead(i*4, 0x09, 65535);
 
     auto stackBuffer = make_stack_buffer(sb);
 
     ec = mvlc.uploadStack(DataPipe, stacks::ImmediateStackEndWord, stackBuffer);
 
     ASSERT_TRUE(!ec) << ec.message();
+
+    auto readBuffer = read_stack_from_memory(mvlc, stacks::ImmediateStackEndWord);
+
+    //log_buffer(get_logger("test"), spdlog::level::info, readBuffer, "stack memory");
+
+    ASSERT_EQ(stackBuffer, readBuffer);
+}
+
+TEST_P(MVLCTestBase, TestUploadExceedStackMem)
+{
+    auto ec = mvlc.connect();
+    ASSERT_TRUE(!ec) << ec.message();
+    ASSERT_TRUE(mvlc.isConnected());
+
+    StackCommandBuilder sb;
+
+    for (int i=0; i<1000; ++i)
+        sb.addVMEBlockRead(i*4, 0x09, 65535);
+
+    auto stackBuffer = make_stack_buffer(sb);
+
+    ec = mvlc.uploadStack(DataPipe, stacks::ImmediateStackEndWord, stackBuffer);
+
+    // Should fail due to exceeding the stack memory area
+    ASSERT_TRUE(ec) << ec.message();
 }
 
 INSTANTIATE_TEST_CASE_P(MVLCTest, MVLCTestBase, ::testing::Values("eth", "usb"));
