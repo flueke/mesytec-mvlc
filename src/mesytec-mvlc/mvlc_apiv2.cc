@@ -478,6 +478,9 @@ std::error_code CmdApi::superTransaction(
     std::vector<u32> cmdBuffer,
     std::vector<u32> &responseBuffer)
 {
+    if (cmdBuffer.size() > MirrorTransactionMaxWords)
+        return make_error_code(MVLCErrorCode::MirrorTransactionMaxWordsExceeded);
+
     auto rf = set_pending_response(readerContext_.pendingSuper, responseBuffer, ref);
 
     size_t bytesWritten = 0;
@@ -509,6 +512,9 @@ std::error_code CmdApi::stackTransaction(
     superBuilder.addWriteLocal(stacks::Stack0OffsetRegister, stacks::ImmediateStackStartOffsetBytes);
     superBuilder.addWriteLocal(stacks::Stack0TriggerRegister, 1u << stacks::ImmediateShift);
     auto cmdBuffer = make_command_buffer(superBuilder);
+
+    if (cmdBuffer.size() > MirrorTransactionMaxWords)
+        return make_error_code(MVLCErrorCode::MirrorTransactionMaxWordsExceeded);
 
     std::vector<u32> superResponse;
 
