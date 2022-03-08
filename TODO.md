@@ -1,5 +1,10 @@
 TODO {#todo}
 ============
+* Fix zmq::socket_t.send() deprecation warning
+
+* Maybe return std::unique_ptr<WriteHandle> from the ZipCreator. Since the
+  ganil changes these objects are dynamically allocated! Will have to change
+  the c-layer too!
 
 * Better mvlc factory to create an mvlc based on a connection string
 

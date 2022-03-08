@@ -62,6 +62,14 @@ target_link_libraries(mesytec-mvlc
     PUBLIC Threads::Threads
     )
 
+find_package(ZMQ)
+if(ZMQ_FOUND)
+    #set(HAVE_ZMQ_H yes)
+    include_directories(${ZMQ_INCLUDE_DIRS})
+    target_sources(mesytec-mvlc PRIVATE mvlc_listfile_zmq.cc)
+    target_link_libraries(mesytec-mvlc PUBLIC ${ZMQ_LIBRARIES})
+endif(ZMQ_FOUND)
+
 if (UNIX AND NOT APPLE)
     target_link_libraries(mesytec-mvlc PRIVATE ftd3xx-static)
 else()
