@@ -9,8 +9,8 @@ namespace mvlc
 namespace listfile
 {
 
-static const std::string Port = "5575";
-static const std::string Url = "tcp://*" + Port;
+static const std::string ZmqPort = "5575";
+static const std::string ZmqUrl = "tcp://*:" + ZmqPort;
 //static const int ZmqIoThreads = 1;
 
 struct ZmqWriteHandle::Private
@@ -34,15 +34,15 @@ ZmqWriteHandle::ZmqWriteHandle()
 
     try
     {
-        d->pub.bind(Url.c_str());
+        d->pub.bind(ZmqUrl.c_str());
+        d->logger->info("zmq server listening on {}", ZmqUrl);
     }
     catch (const zmq::error_t &e)
     {
-        d->logger->error("Error binding zmq socket to {}: {}", Url, e.what());
-        throw std::runtime_error(fmt::format("Error binding zmq socket to {}: {}", Url, e.what()));
+        d->logger->error("Error binding zmq socket to {}: {}", ZmqUrl, e.what());
+        throw std::runtime_error(
+            fmt::format("Error binding zmq socket to {}: {}", ZmqUrl, e.what()));
     }
-
-    d->logger->info("zmq server listening on {}", Url);
 }
 
 ZmqWriteHandle::~ZmqWriteHandle()
@@ -57,9 +57,10 @@ size_t ZmqWriteHandle::write(const u8 *data, size_t size)
         // TODO: fix the depcrecation warning
         return d->pub.send(data, size);
     }
-    catch (const zmq::error_t &)
+    catch (const zmq::error_t &e)
     {
-        throw std::runtime_error("Failed publishing listfile data on zmq socket.");
+        throw std::runtime_error(
+            fmt::format("Failed publishing listfile data on zmq socket: {}", e.what()));
     }
 }
 
