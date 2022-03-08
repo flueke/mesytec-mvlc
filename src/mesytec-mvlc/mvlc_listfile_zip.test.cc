@@ -54,16 +54,16 @@ TEST(mvlc_listfile_zip, CreateWriteRead)
 
         {
             // Write outData0 two times
-            auto &writeHandle = *creator.createZIPEntry("outfile0.data", 1);
-            writeHandle.write(outData0.data(), outData0.size());
-            writeHandle.write(outData0.data(), outData0.size());
+            std::unique_ptr<WriteHandle> writeHandle(creator.createZIPEntry("outfile0.data", 1));
+            writeHandle->write(outData0.data(), outData0.size());
+            writeHandle->write(outData0.data(), outData0.size());
             creator.closeCurrentEntry();
         }
 
         {
             // Write outData1 one time
-            auto &writeHandle = *creator.createLZ4Entry("outfile1.data", 1);
-            writeHandle.write(outData1.data(), outData1.size());
+            std::unique_ptr<WriteHandle> writeHandle(creator.createLZ4Entry("outfile1.data", 1));
+            writeHandle->write(outData1.data(), outData1.size());
             creator.closeCurrentEntry();
         }
     }
@@ -160,9 +160,9 @@ TEST(mvlc_listfile_zip, LZ4Data)
         ZipCreator creator;
         creator.createArchive(archiveName, OverwriteMode::Overwrite);
 
-        auto &writeHandle = *creator.createLZ4Entry("outfile0.data", 0);
+        std::unique_ptr<WriteHandle> writeHandle(creator.createLZ4Entry("outfile0.data", 0));
 
-        size_t bytesWritten = writeHandle.write(outData0.data(), outData0.size());
+        size_t bytesWritten = writeHandle->write(outData0.data(), outData0.size());
 
         ASSERT_EQ(bytesWritten, outData0.size());
     }
@@ -329,7 +329,7 @@ TEST(mvlc_listfile_zip, Split_SplitBySize)
         chunk[i] = i % 255u;
 
     creator.createArchive(setup);
-    auto wh = creator.createListfileEntry();
+    std::unique_ptr<WriteHandle> wh(creator.createListfileEntry());
 
     ASSERT_TRUE(wh != nullptr);
     ASSERT_TRUE(creator.hasOpenEntry());
@@ -398,7 +398,7 @@ TEST(mvlc_listfile_zip, Split_SplitByTime)
         chunk[i] = i % 255u;
 
     creator.createArchive(setup);
-    auto wh = creator.createListfileEntry();
+    std::unique_ptr<WriteHandle> wh(creator.createListfileEntry());
 
     ASSERT_TRUE(wh != nullptr);
     ASSERT_TRUE(creator.hasOpenEntry());

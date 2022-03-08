@@ -92,8 +92,7 @@ struct ZipCreator::Private
         }
     };
 
-    explicit Private(ZipCreator *q_)
-        : entryWriteHandle(q_)
+    explicit Private()
     {
         mz_stream_os_create(&mz_osStream);
         mz_stream_buffered_create(&mz_bufStream);
@@ -132,12 +131,11 @@ struct ZipCreator::Private
 
     ZipEntryInfo entryInfo;
     LZ4WriteContext lz4Ctx;
-    ZipEntryWriteHandle entryWriteHandle;
     std::string archiveName;
 };
 
 ZipCreator::ZipCreator()
-    : d(std::make_unique<Private>(this))
+    : d(std::make_unique<Private>())
 {}
 
 ZipCreator::~ZipCreator()
@@ -223,7 +221,7 @@ WriteHandle *ZipCreator::createZIPEntry(const std::string &entryName, int compre
     d->entryInfo.name = entryName;
     d->entryInfo.isOpen = true;
 
-    return &d->entryWriteHandle;
+    return new ZipEntryWriteHandle(this);
 }
 
 WriteHandle *ZipCreator::createLZ4Entry(const std::string &entryName_, int compressLevel)
@@ -270,7 +268,7 @@ WriteHandle *ZipCreator::createLZ4Entry(const std::string &entryName_, int compr
     d->entryInfo.bytesWritten += lz4BufferBytes;
     d->entryInfo.lz4CompressedBytesWritten += lz4BufferBytes;
 
-    return &d->entryWriteHandle;
+    return new ZipEntryWriteHandle(this);
 }
 
 bool ZipCreator::hasOpenEntry() const
@@ -366,7 +364,6 @@ struct SplitZipCreator::Private
 {
     SplitZipCreator *q = nullptr;
     ZipCreator zipCreator;
-    SplitZipWriteHandle splitWriteHandle;
     SplitListfileSetup setup;
     size_t partIndex = 1;
     bool isSplitEntry = false;
@@ -374,7 +371,6 @@ struct SplitZipCreator::Private
 
     Private(SplitZipCreator *q_)
         : q(q_)
-        , splitWriteHandle(q)
     { }
 
     void createNextArchive();
@@ -497,7 +493,7 @@ WriteHandle *SplitZipCreator::createListfileEntry()
         return result;
 
     // Splitting active -> return a pointer to our ZipEntryWriteHandle
-    return &d->splitWriteHandle;
+    return new SplitZipWriteHandle(this);
 }
 
 size_t SplitZipCreator::writeToCurrentEntry(const u8 *data, size_t size)
