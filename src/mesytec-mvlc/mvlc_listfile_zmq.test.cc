@@ -27,7 +27,7 @@ TEST(mvlc_listfile_zmq, TestListfileZmq)
     // receive tests below fail.
     std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
-    // Publish 10 messages of increasing size
+    // Publish N messages of increasing size.
     for (int i=1; i<=100; ++i)
     {
         std::vector<int> buffer(i, i);
@@ -35,6 +35,7 @@ TEST(mvlc_listfile_zmq, TestListfileZmq)
         pub.write(reinterpret_cast<const u8 *>(buffer.data()), buffer.size() * sizeof(int));
     }
 
+    // Now attempt to receive and verify the messages on the subscriber.
     for (int i=1; i<=100; ++i)
     {
         zmq::message_t msg;
