@@ -1,7 +1,6 @@
 #include <chrono>
-#include <set>
-#include <zmq.hpp>
 #include <thread>
+#include <zmq.hpp>
 #include "gtest/gtest.h"
 #include "mvlc_listfile_zmq.h"
 
