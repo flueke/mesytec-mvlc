@@ -20,7 +20,7 @@ namespace util
  * I added calls to intrinsics where available.
  */
 
-static inline u32 bit_gather(u32 w, u32 m)
+inline u32 bit_gather(u32 w, u32 m)
 // Return  word with bits of w collected as indicated by m:
 // Example:
 //  w = 00A0BC00
@@ -45,7 +45,7 @@ static inline u32 bit_gather(u32 w, u32 m)
 }
 // -------------------------
 
-static inline u32 bit_scatter(u32 w, u32 m)
+inline u32 bit_scatter(u32 w, u32 m)
 // Return  word with bits of w distributed as indicated by m:
 // Example:
 //  w = 00000ABC
