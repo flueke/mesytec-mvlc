@@ -73,8 +73,7 @@ if (MVLC_BUILD_C_WRAPPER)
     install(TARGETS
         mvlc_c_test1
         mvlc_c_test2
-        mvlc_c_test3
-        mvlc_test_advanced)
+        mvlc_c_test3)
 
     if (NOT WIN32)
         add_executable(mvlc_test_advanced mvlc_test_advance.c)
