@@ -70,9 +70,11 @@ if (MVLC_BUILD_C_WRAPPER)
     target_link_libraries(mvlc_c_replay mesytec-mvlc-c)
     target_compile_options(mvlc_c_replay PRIVATE -Wall -Wextra -Wpedantic)
 
-    add_executable(mvlc_test_advanced mvlc_test_advance.c)
-    target_link_libraries(mvlc_test_advanced mesytec-mvlc-c)
-    target_compile_options(mvlc_test_advanced PRIVATE -Wall -Wextra -Wpedantic)
+    if (NOT WIN32)
+        add_executable(mvlc_test_advanced mvlc_test_advance.c)
+        target_link_libraries(mvlc_test_advanced mesytec-mvlc-c)
+        target_compile_options(mvlc_test_advanced PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
 
     install(TARGETS
         mvlc_c_test1
