@@ -54,6 +54,7 @@ size_t ZmqWriteHandle::write(const u8 *data, size_t size)
 {
     try
     {
+        d->logger->trace("Publishing message of size {}", size);
         // TODO: fix the depcrecation warning
         return d->pub.send(data, size);
     }
