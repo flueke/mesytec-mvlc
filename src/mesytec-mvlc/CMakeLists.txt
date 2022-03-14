@@ -64,11 +64,15 @@ target_link_libraries(mesytec-mvlc
 
 find_package(ZMQ)
 if(ZMQ_FOUND)
+    option(MVLC_ENABLE_ZMQ "Enable ZMQ support in the library" ${ZMQ_FOUND})
+endif(ZMQ_FOUND)
+
+if(MVLC_ENABLE_ZMQ)
     include_directories(${ZMQ_INCLUDE_DIRS})
     target_sources(mesytec-mvlc PRIVATE mvlc_listfile_zmq.cc)
     target_link_libraries(mesytec-mvlc PUBLIC ${ZMQ_LIBRARIES})
     target_compile_definitions(mesytec-mvlc PUBLIC MVLC_HAVE_ZMQ)
-endif(ZMQ_FOUND)
+endif(MVLC_ENABLE_ZMQ)
 
 if (UNIX AND NOT APPLE)
     target_link_libraries(mesytec-mvlc PRIVATE ftd3xx-static)
