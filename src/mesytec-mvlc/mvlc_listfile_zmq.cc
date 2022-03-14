@@ -1,3 +1,5 @@
+#include <chrono>
+#include <thread>
 #include <zmq.hpp>
 #include "mesytec-mvlc/mvlc_listfile_zmq.h"
 #include "mesytec-mvlc/util/logging.h"
@@ -36,6 +38,8 @@ ZmqWriteHandle::ZmqWriteHandle()
     {
         d->pub.bind(ZmqUrl.c_str());
         d->logger->info("zmq server listening on {}", ZmqUrl);
+        // Hack to give clients time to connect. TODO: implement a real solution
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));
     }
     catch (const zmq::error_t &e)
     {
