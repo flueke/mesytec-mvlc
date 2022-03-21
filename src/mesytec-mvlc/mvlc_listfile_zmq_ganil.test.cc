@@ -2,15 +2,15 @@
 #include <thread>
 #include <zmq.hpp>
 #include "gtest/gtest.h"
-#include "mvlc_listfile_zmq.h"
+#include "mvlc_listfile_zmq_ganil.h"
 
 using namespace mesytec::mvlc;
 using namespace mesytec::mvlc::listfile;
 
-TEST(mvlc_listfile_zmq, TestListfileZmq)
+TEST(mvlc_listfile_zmq_ganil, TestListfileZmqGanil)
 {
     // The write handle is the publisher side
-    ZmqWriteHandle pub;
+    ZmqGanilWriteHandle pub;
 
     // Create and connect a subscriber socket
     zmq::context_t ctx;

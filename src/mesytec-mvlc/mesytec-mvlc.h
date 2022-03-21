@@ -41,7 +41,7 @@
 #include "mvlc_listfile_util.h"
 #include "mvlc_listfile_zip.h"
 #ifdef MVLC_HAVE_ZMQ
-#include "mvlc_listfile_zmq.h"
+#include "mvlc_listfile_zmq_ganil.h"
 #endif
 #include "mvlc_readout.h"
 #include "mvlc_readout_parser.h"

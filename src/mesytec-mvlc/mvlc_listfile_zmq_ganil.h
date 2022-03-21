@@ -11,11 +11,11 @@ namespace mvlc
 namespace listfile
 {
 
-class MESYTEC_MVLC_EXPORT ZmqWriteHandle: public WriteHandle
+class MESYTEC_MVLC_EXPORT ZmqGanilWriteHandle: public WriteHandle
 {
     public:
-        ZmqWriteHandle();
-        ~ZmqWriteHandle() override;
+        ZmqGanilWriteHandle();
+        ~ZmqGanilWriteHandle() override;
         size_t write(const u8 *data, size_t size) override;
 
     private:

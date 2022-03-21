@@ -1,7 +1,7 @@
 #include <chrono>
 #include <thread>
 #include <zmq.hpp>
-#include "mesytec-mvlc/mvlc_listfile_zmq.h"
+#include "mesytec-mvlc/mvlc_listfile_zmq_ganil.h"
 #include "mesytec-mvlc/util/logging.h"
 
 namespace mesytec
@@ -15,17 +15,17 @@ static const std::string ZmqPort = "5575";
 static const std::string ZmqUrl = "tcp://*:" + ZmqPort;
 //static const int ZmqIoThreads = 1;
 
-struct ZmqWriteHandle::Private
+struct ZmqGanilWriteHandle::Private
 {
     std::shared_ptr<spdlog::logger> logger;
     zmq::context_t ctx;
     zmq::socket_t pub;
 };
 
-ZmqWriteHandle::ZmqWriteHandle()
+ZmqGanilWriteHandle::ZmqGanilWriteHandle()
     : d(std::make_unique<Private>())
 {
-    d->logger = get_logger("mvlc_listfile_zmq");
+    d->logger = get_logger("mvlc_listfile_zmq_ganil");
     //d->ctx = zmq::context_t(ZmqIoThreads);
     d->ctx = zmq::context_t();
     d->pub = zmq::socket_t(d->ctx, ZMQ_PUB);
@@ -49,12 +49,12 @@ ZmqWriteHandle::ZmqWriteHandle()
     }
 }
 
-ZmqWriteHandle::~ZmqWriteHandle()
+ZmqGanilWriteHandle::~ZmqGanilWriteHandle()
 {
     d->logger->info("Closing zmq server");
 }
 
-size_t ZmqWriteHandle::write(const u8 *data, size_t size)
+size_t ZmqGanilWriteHandle::write(const u8 *data, size_t size)
 {
     try
     {
