@@ -30,6 +30,6 @@ if (DOXYGEN_FOUND)
 
     install(FILES
         ${CMAKE_CURRENT_SOURCE_DIR}/../README.md
-        ${CMAKE_CURRENT_SOURCE_DIR}/usage-guide.md
+        #${CMAKE_CURRENT_SOURCE_DIR}/usage-guide.md
         DESTINATION share/doc/mesytec-mvlc)
 endif (DOXYGEN_FOUND)
