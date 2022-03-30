@@ -10,8 +10,6 @@ target_link_libraries(request_queue_playground
     PRIVATE BFG::Lyra
     PRIVATE spdlog::spdlog
     )
-#target_compile_definitions(request_queue_playground PRIVATE SPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_TRACE)
-
 add_executable(mvlc-reconnect-test reconnect-test.cc)
 target_link_libraries(mvlc-reconnect-test
     PRIVATE mesytec-mvlc
@@ -21,6 +19,36 @@ target_link_libraries(mvlc-reconnect-test
 
 add_executable(decode-mvlc-frame-header decode_mvlc_frame_header.cc)
 target_link_libraries(decode-mvlc-frame-header
+    PRIVATE mesytec-mvlc
+    PRIVATE BFG::Lyra
+    PRIVATE spdlog::spdlog)
+
+add_executable(mvlc-mvp-read-page mvlc_mvp_read_page.cc mvlc_mvp_lib.cc)
+target_link_libraries(mvlc-mvp-read-page
+    PRIVATE mesytec-mvlc
+    PRIVATE BFG::Lyra
+    PRIVATE spdlog::spdlog)
+
+add_executable(mvlc-mvp-write-page mvlc_mvp_write_page.cc mvlc_mvp_lib.cc)
+target_link_libraries(mvlc-mvp-write-page
+    PRIVATE mesytec-mvlc
+    PRIVATE BFG::Lyra
+    PRIVATE spdlog::spdlog)
+
+add_executable(mvlc-mvp-erase-section mvlc_mvp_erase_section.cc mvlc_mvp_lib.cc)
+target_link_libraries(mvlc-mvp-erase-section
+    PRIVATE mesytec-mvlc
+    PRIVATE BFG::Lyra
+    PRIVATE spdlog::spdlog)
+
+add_executable(mvlc-mvp-flash-write-test mvlc_mvp_flash_write_test.cc mvlc_mvp_lib.cc)
+target_link_libraries(mvlc-mvp-flash-write-test
+    PRIVATE mesytec-mvlc
+    PRIVATE BFG::Lyra
+    PRIVATE spdlog::spdlog)
+
+add_executable(mvlc-mvp-flash-write-test2 mvlc_mvp_flash_write_test2.cc mvlc_mvp_lib.cc)
+target_link_libraries(mvlc-mvp-flash-write-test2
     PRIVATE mesytec-mvlc
     PRIVATE BFG::Lyra
     PRIVATE spdlog::spdlog)
