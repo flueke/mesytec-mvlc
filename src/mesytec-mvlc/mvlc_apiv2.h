@@ -3,6 +3,7 @@
 
 #include <atomic>
 #include <deque>
+#include <future>
 #include <memory>
 
 #include "mesytec-mvlc/mesytec-mvlc_export.h"
@@ -109,7 +110,7 @@ class MESYTEC_MVLC_EXPORT MVLC
         MVLCBasicInterface *getImpl();
         Locks &getLocks();
 
-        // Low level super and stack transactions. Note: both the super and
+        // Lower level super and stack transactions. Note: both the super and
         // stack command builders have to start with a reference or marker
         // command respectively.
         std::error_code superTransaction(const SuperCommandBuilder &superBuilder, std::vector<u32> &dest);
@@ -118,6 +119,9 @@ class MESYTEC_MVLC_EXPORT MVLC
         // Eth specific
         std::error_code enableJumboFrames(bool b);
         std::pair<bool, std::error_code> jumboFramesEnabled();
+
+        // Experimental: interact with the low level future/promise/cmd_pipe_reader system.
+        //std::future<std::error_code> setPendingStackResponse(std::vector<u32> &dest, u32 stackRef);
 
     private:
         struct Private;
