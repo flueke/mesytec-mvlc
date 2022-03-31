@@ -35,11 +35,10 @@ int main(int argc, char *argv[])
     const auto ErasedPage = make_erased_page();
     auto TestPage = make_test_page_incrementing();
 
-    // TODO:
-    // - erase calib section
-    // - verify all pages in calib section to be 0xff
-    // - write all pages in the calib section using some test pattern
-    // - verify all pages in the calib section to be equal to the test pattern
+    // Assumes test pattern has been written previously by
+    // mvlc_mvp_flash_write_test2
+    // loop:
+    //  - verify all pages in the calib section to be equal to the test pattern
 
     try
     {
@@ -70,50 +69,6 @@ int main(int argc, char *argv[])
 
         for (size_t testLoop=0; testLoop<MaxLoops; ++testLoop)
         {
-            // erase
-            if (auto ec = erase_section(mvlc, moduleBase, CalibSection))
-                throw ec;
-
-            // read and verify the whole calib section has been erased
-            for (size_t pageIndex=0; pageIndex<CalibPages; ++pageIndex)
-            {
-                u32 byteOffset = pageIndex * PageSize;
-                auto addr = flash_address_from_byte_offset(byteOffset);
-
-                spdlog::info("Reading and verifying erased page {} of {}",
-                             pageIndex+1, CalibPages);
-                pageReadBuffer.clear();
-                if (auto ec = read_page(mvlc, moduleBase, addr, CalibSection, PageSize, pageReadBuffer))
-                    throw ec;
-
-                if (ErasedPage != pageReadBuffer)
-                {
-                    spdlog::error("Unexpected page contents after erasing");
-                    log_page_buffer(pageReadBuffer);
-                    break;
-                }
-            }
-
-            // write test data to all pages in the calib section
-            for (size_t pageIndex=0; pageIndex<CalibPages; ++pageIndex)
-            {
-                u32 byteOffset = pageIndex * PageSize;
-                auto addr = flash_address_from_byte_offset(byteOffset);
-
-                spdlog::info("Writing page {} of {}, addr={:02x}",
-                             pageIndex+1, CalibPages, fmt::join(addr, ", "));
-
-                // Set the first bytes of the test page to the current page
-                // address to have some variation in the test data.
-                std::copy(addr.begin(), addr.end(), TestPage.begin());
-
-                if (auto ec = write_page2(mvlc, moduleBase, addr, CalibSection, TestPage))
-                {
-                    spdlog::error("Error writing page: {}", ec.message());
-                    break;
-                }
-            }
-
             // verify all pages in the calib section
             for (size_t pageIndex=0; pageIndex<CalibPages; ++pageIndex)
             {
@@ -133,7 +88,7 @@ int main(int argc, char *argv[])
 
                 if (TestPage != pageReadBuffer)
                 {
-                    spdlog::error("Unexpected page contents after writing test pages");
+                    spdlog::error("Unexpected page contents");
                     log_page_buffer(pageReadBuffer);
                     break;
                 }
@@ -148,3 +103,4 @@ int main(int argc, char *argv[])
 
     return 0;
 }
+

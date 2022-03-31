@@ -294,9 +294,14 @@ std::error_code read_page(
 
     fill_page_buffer_from_stack_output(pageBuffer, readBuffer);
 
+    if (pageBuffer.size() != bytesToRead)
+        spdlog::warn("read_page(): wanted {} bytes, got {} bytes",
+                     bytesToRead, pageBuffer.size());
+
     return {};
 }
 
+// Write a full page or less using single vme write commands.
 std::error_code write_page(
     MVLC &mvlc, u32 moduleBase,
     const FlashAddress &addr, u8 section,
@@ -313,6 +318,8 @@ std::error_code write_page(
 
     u8 lenByte = pageBuffer.size() == PageSize ? 0 : pageBuffer.size();
 
+    auto tStart = std::chrono::steady_clock::now();
+
     std::vector<std::pair<u32, u16>> writes =
     {
         { moduleBase + InputFifoRegister, 0xA0 },
@@ -328,12 +335,111 @@ std::error_code write_page(
 
     for (u8 data: pageBuffer)
     {
-        if (auto ec = mvlc.vmeWrite(moduleBase + InputFifoRegister, data, vme_amods::A32, VMEDataWidth::D16))
+        if (auto ec = mvlc.vmeWrite(moduleBase + InputFifoRegister, data,
+                                    vme_amods::A32, VMEDataWidth::D16))
             return ec;
     }
 
     if (auto ec = clear_output_fifo(mvlc, moduleBase))
         return ec;
+
+    auto tEnd = std::chrono::steady_clock::now();
+    auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(tEnd - tStart);
+    spdlog::info("write_page(): took {} ms to write {} bytes of data",
+                 elapsed.count(), pageBuffer.size());
+
+    return {};
+}
+
+// Write a full page or less by uploading and executing command stacks
+// containing the write commands.
+// TODO: add the enable_flash_write() commands to the first stack to save on a stack transaction
+std::error_code write_page2(
+    MVLC &mvlc, u32 moduleBase,
+    const FlashAddress &addr, u8 section,
+    const std::vector<u8> &pageBuffer)
+{
+    if (pageBuffer.empty())
+        throw std::invalid_argument("write_page2: empty data given");
+
+    if (pageBuffer.size() > PageSize)
+        throw std::invalid_argument("write_page2: data size > page size");
+
+    //if (auto ec = enable_flash_write(mvlc, moduleBase))
+    //    return ec;
+
+    u8 lenByte = pageBuffer.size() == PageSize ? 0 : pageBuffer.size();
+
+    auto tStart = std::chrono::steady_clock::now();
+
+    StackCommandBuilder sb;
+    sb.addWriteMarker(0x13370001u);
+    // EFW - enable flash write
+    sb.addVMEWrite(moduleBase + InputFifoRegister, 0x80,     vme_amods::A32, VMEDataWidth::D16);
+    sb.addVMEWrite(moduleBase + InputFifoRegister, 0xCD,  vme_amods::A32, VMEDataWidth::D16);
+    sb.addVMEWrite(moduleBase + InputFifoRegister, 0xAB,  vme_amods::A32, VMEDataWidth::D16);
+    // WRF - write flash
+    sb.addVMEWrite(moduleBase + InputFifoRegister, 0xA0,     vme_amods::A32, VMEDataWidth::D16);
+    sb.addVMEWrite(moduleBase + InputFifoRegister, addr[0],  vme_amods::A32, VMEDataWidth::D16);
+    sb.addVMEWrite(moduleBase + InputFifoRegister, addr[1],  vme_amods::A32, VMEDataWidth::D16);
+    sb.addVMEWrite(moduleBase + InputFifoRegister, addr[2],  vme_amods::A32, VMEDataWidth::D16);
+    sb.addVMEWrite(moduleBase + InputFifoRegister, section,  vme_amods::A32, VMEDataWidth::D16);
+    sb.addVMEWrite(moduleBase + InputFifoRegister, lenByte,  vme_amods::A32, VMEDataWidth::D16);
+
+    auto pageIter = pageBuffer.begin();
+
+    while (pageIter != pageBuffer.end())
+    {
+        while (get_encoded_stack_size(sb) < MirrorTransactionMaxContentsWords / 2 - 2
+               && pageIter != pageBuffer.end())
+        {
+            sb.addVMEWrite(moduleBase + InputFifoRegister, *pageIter++,
+                           vme_amods::A32, VMEDataWidth::D16);
+        }
+
+        std::vector<u32> stackResponse;
+
+        spdlog::info("write_page2(): performing stackTransaction with stack of size {}",
+                     get_encoded_stack_size(sb));
+
+        if (auto ec = mvlc.stackTransaction(sb, stackResponse))
+        {
+            spdlog::error("write_page2(): stackTransaction failed: {}",
+                          ec.message());
+            return ec;
+        }
+
+        spdlog::trace("write_page(): response from stackTransaction: size={}, data={:08x}",
+                      stackResponse.size(), fmt::join(stackResponse, ", "));
+
+        //  Expect the 0xF3 stack frame and the marker word
+        if (stackResponse.size() != 2)
+            return make_error_code(MVLCErrorCode::UnexpectedResponseSize);
+
+        if (extract_frame_info(stackResponse[0]).flags & frame_flags::AllErrorFlags)
+        {
+            if (extract_frame_info(stackResponse[0]).flags & frame_flags::Timeout)
+                return MVLCErrorCode::NoVMEResponse;
+
+            if (extract_frame_info(stackResponse[0]).flags & frame_flags::SyntaxError)
+                return MVLCErrorCode::StackSyntaxError;
+
+            // Note: BusError can not happen as there's no block read in the stack
+        }
+
+        sb = {};
+        sb.addWriteMarker(0x13370001u);
+    }
+
+    assert(pageIter == pageBuffer.end());
+
+    if (auto ec = clear_output_fifo(mvlc, moduleBase))
+        return ec;
+
+    auto tEnd = std::chrono::steady_clock::now();
+    auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(tEnd - tStart);
+    spdlog::info("write_page2(): took {} ms to write {} bytes of data",
+                 elapsed.count(), pageBuffer.size());
 
     return {};
 }

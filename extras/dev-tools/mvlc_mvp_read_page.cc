@@ -12,7 +12,7 @@ int main(int argc, char *argv[])
     std::string hostname = "mvlc-0056";
     u32 moduleBase = 0;
     unsigned area = 3;
-    unsigned section = 12;
+    unsigned section = 3;
     FlashAddress addr = { 0, 0, 0 };
 
     //try

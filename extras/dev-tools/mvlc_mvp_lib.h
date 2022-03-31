@@ -2,6 +2,7 @@
 #define __MESYTEC_MVLC_MVP_LIB_H__
 
 #include <mesytec-mvlc/mesytec-mvlc.h>
+#include <stdexcept>
 
 namespace mesytec
 {
@@ -17,6 +18,8 @@ static const u16 StatusRegister = 0x6206;
 static const size_t PageSize = 256;
 static const size_t SectorSize = util::Kilobytes(64);
 static const size_t PagesPerSector = SectorSize / PageSize;
+static const size_t FlashAddressBits = 24;
+static const size_t FlashMaxAddress = (1u << FlashAddressBits) - 1;
 
 namespace output_fifo_flags
 {
@@ -45,6 +48,21 @@ inline void log_page_buffer(const std::vector<u8> &page)
     std::cout << std::endl;
 }
 
+inline FlashAddress flash_address_from_byte_offset(u32 byteOffset)
+{
+    if (byteOffset > FlashMaxAddress)
+        throw std::invalid_argument("byteOffset exceeds FlashMaxAddress");
+
+    FlashAddress addr =
+    {
+        static_cast<u8>((byteOffset & 0x0000ff) >>  0),
+        static_cast<u8>((byteOffset & 0x00ff00) >>  8),
+        static_cast<u8>((byteOffset & 0xff0000) >> 16),
+    };
+
+    return addr;
+}
+
 std::error_code enable_flash_interface(MVLC &mvlc, u32 moduleBase);
 std::error_code disable_flash_interface(MVLC &mvlc, u32 moduleBase);
 std::error_code read_output_fifo(MVLC &mvlc, u32 moduleBase, unsigned bytesToRead, std::vector<u32> &dest);
@@ -66,6 +84,11 @@ std::error_code read_page(
     std::vector<u8> &pageBuffer);
 
 std::error_code write_page(
+    MVLC &mvlc, u32 moduleBase,
+    const FlashAddress &addr, u8 section,
+    const std::vector<u8> &pageBuffer);
+
+std::error_code write_page2(
     MVLC &mvlc, u32 moduleBase,
     const FlashAddress &addr, u8 section,
     const std::vector<u8> &pageBuffer);

@@ -11,7 +11,7 @@ int main(int argc, char *argv[])
     std::string hostname = "mvlc-0056";
     u32 moduleBase = 0;
     unsigned area = 3;
-    unsigned section = 12;
+    unsigned section = 3;
     FlashAddress addr = { 0, 0, 0 };
 
     try
@@ -47,7 +47,7 @@ int main(int argc, char *argv[])
         for (unsigned i=0; i<PageSize; ++i)
             writePage.push_back(i);
 
-        if (auto ec = write_page(mvlc, moduleBase, addr, section, writePage))
+        if (auto ec = write_page2(mvlc, moduleBase, addr, section, writePage))
             throw ec;
 
         std::vector<u8> readPage;

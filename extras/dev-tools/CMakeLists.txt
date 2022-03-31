@@ -52,3 +52,9 @@ target_link_libraries(mvlc-mvp-flash-write-test2
     PRIVATE mesytec-mvlc
     PRIVATE BFG::Lyra
     PRIVATE spdlog::spdlog)
+
+add_executable(mvlc-mvp-flash-check-test-pages mvlc_mvp_flash_check_test_pages.cc mvlc_mvp_lib.cc)
+target_link_libraries(mvlc-mvp-flash-check-test-pages
+    PRIVATE mesytec-mvlc
+    PRIVATE BFG::Lyra
+    PRIVATE spdlog::spdlog)
