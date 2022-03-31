@@ -35,11 +35,11 @@ int main(int argc, char *argv[])
     const auto ErasedPage = make_erased_page();
     auto TestPage = make_test_page_incrementing();
 
-    // TODO:
-    // - erase calib section
-    // - verify all pages in calib section to be 0xff
-    // - write all pages in the calib section using some test pattern
-    // - verify all pages in the calib section to be equal to the test pattern
+    // loop:
+    //  - erase calib section
+    //  - verify all pages in calib section to be 0xff
+    //  - write all pages in the calib section using some test pattern
+    //  - verify all pages in the calib section to be equal to the test pattern
 
     try
     {

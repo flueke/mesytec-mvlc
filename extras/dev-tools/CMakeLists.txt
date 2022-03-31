@@ -58,3 +58,9 @@ target_link_libraries(mvlc-mvp-flash-check-test-pages
     PRIVATE mesytec-mvlc
     PRIVATE BFG::Lyra
     PRIVATE spdlog::spdlog)
+
+add_executable(mvlc-mvp-erase-unprotect-23bytes mvlc_mvp_erase_unprotect_23bytes.cc mvlc_mvp_lib.cc)
+target_link_libraries(mvlc-mvp-erase-unprotect-23bytes
+    PRIVATE mesytec-mvlc
+    PRIVATE BFG::Lyra
+    PRIVATE spdlog::spdlog)

@@ -83,12 +83,23 @@ std::error_code read_page(
     const FlashAddress &addr, u8 section, unsigned bytesToRead,
     std::vector<u8> &pageBuffer);
 
+// Write a full page or less using single vme write commands.
 std::error_code write_page(
     MVLC &mvlc, u32 moduleBase,
     const FlashAddress &addr, u8 section,
     const std::vector<u8> &pageBuffer);
 
+// Write a full page or less by uploading and executing command stacks
+// containing the write commands. Each command stack uses the max size that can
+// be uploaded in a single MirrorTransaction.
 std::error_code write_page2(
+    MVLC &mvlc, u32 moduleBase,
+    const FlashAddress &addr, u8 section,
+    const std::vector<u8> &pageBuffer);
+
+// Write a full page or less by uploading and executing command stacks using
+// all the available stack memory.
+std::error_code write_page3(
     MVLC &mvlc, u32 moduleBase,
     const FlashAddress &addr, u8 section,
     const std::vector<u8> &pageBuffer);

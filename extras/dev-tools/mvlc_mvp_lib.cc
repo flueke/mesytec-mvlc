@@ -24,6 +24,9 @@ std::error_code read_output_fifo(MVLC &mvlc, u32 moduleBase, u32 &dest)
     return mvlc.vmeRead(moduleBase + OutputFifoRegister, dest, vme_amods::A32, VMEDataWidth::D16);
 }
 
+// FIXME: clear_output_fifo() is dangerous as it might never return!
+// FIXME: do not use this function. instead correctly read and parse the
+// expected response
 std::error_code clear_output_fifo(MVLC &mvlc, u32 moduleBase)
 {
     spdlog::info("Clearing output fifo on 0x{:08x}", moduleBase);
@@ -132,7 +135,7 @@ std::error_code write_instruction(MVLC &mvlc, u32 moduleBase, const std::vector<
 
 std::error_code read_response(MVLC &mvlc, u32 moduleBase, std::vector<u8> &dest)
 {
-    while (true)
+    while (true) // FIXME: dangerous. do time out at some point
     {
         u32 fifoValue = 0;
 
@@ -157,6 +160,12 @@ std::error_code read_response(MVLC &mvlc, u32 moduleBase, std::vector<u8> &dest)
 bool check_response(const std::vector<u8> &request,
                     const std::vector<u8> &response)
 {
+    if (response.size() < 2)
+    {
+        spdlog::warn("short response (size<2)");
+        return false;
+    }
+
     if (response.size() < request.size())
     {
         spdlog::warn("response too short (len={}) for request (len={})",
@@ -167,12 +176,6 @@ bool check_response(const std::vector<u8> &request,
     if (!std::equal(std::begin(request), std::end(request), std::begin(response)))
     {
         spdlog::warn("request contents != response contents");
-        return false;
-    }
-
-    if (response.size() < 2)
-    {
-        spdlog::warn("short response (size<2)");
         return false;
     }
 
@@ -187,7 +190,7 @@ bool check_response(const std::vector<u8> &request,
 
     if (!(status & 0x01))
     {
-        spdlog::warn("instruction failed (status bit 0 not set)");
+        spdlog::warn("instruction failed (status bit 0 not set): 0x{02x}", status);
         return false;
     }
 
@@ -353,29 +356,31 @@ std::error_code write_page(
 
 // Write a full page or less by uploading and executing command stacks
 // containing the write commands.
-// TODO: add the enable_flash_write() commands to the first stack to save on a stack transaction
 std::error_code write_page2(
     MVLC &mvlc, u32 moduleBase,
     const FlashAddress &addr, u8 section,
     const std::vector<u8> &pageBuffer)
 {
+    static const bool useVerbose = false;
+
     if (pageBuffer.empty())
         throw std::invalid_argument("write_page2: empty data given");
 
     if (pageBuffer.size() > PageSize)
         throw std::invalid_argument("write_page2: data size > page size");
 
-    //if (auto ec = enable_flash_write(mvlc, moduleBase))
-    //    return ec;
-
     u8 lenByte = pageBuffer.size() == PageSize ? 0 : pageBuffer.size();
 
     auto tStart = std::chrono::steady_clock::now();
 
+    if (useVerbose)
+        if (auto ec = set_verbose_mode(mvlc, moduleBase, true))
+            return ec;
+
     StackCommandBuilder sb;
     sb.addWriteMarker(0x13370001u);
     // EFW - enable flash write
-    sb.addVMEWrite(moduleBase + InputFifoRegister, 0x80,     vme_amods::A32, VMEDataWidth::D16);
+    sb.addVMEWrite(moduleBase + InputFifoRegister, 0x80,  vme_amods::A32, VMEDataWidth::D16);
     sb.addVMEWrite(moduleBase + InputFifoRegister, 0xCD,  vme_amods::A32, VMEDataWidth::D16);
     sb.addVMEWrite(moduleBase + InputFifoRegister, 0xAB,  vme_amods::A32, VMEDataWidth::D16);
     // WRF - write flash
@@ -433,8 +438,40 @@ std::error_code write_page2(
 
     assert(pageIter == pageBuffer.end());
 
+    // Read all the response data. Check the response code and status in the
+    // final two words.
+    if (useVerbose)
+    {
+        std::vector<u8> response;
+
+        if (auto ec = read_response(mvlc, moduleBase, response))
+            return ec;
+
+        if (response.size() < 2)
+            throw std::runtime_error("short response");
+
+        u8 codeStart = *(response.end() - 2);
+        u8 status    = *(response.end() - 1);
+
+        if (codeStart != 0xff)
+        {
+            spdlog::warn("invalid response code start 0x{:02} (expected 0xff)", codeStart);
+            throw std::runtime_error("invalid response code");
+        }
+
+        if (!(status & 0x01))
+        {
+            spdlog::warn("instruction failed (status bit 0 not set): 0x{02x}", status);
+            throw std::runtime_error("instruction failed");
+        }
+    }
+
     if (auto ec = clear_output_fifo(mvlc, moduleBase))
         return ec;
+
+    if (useVerbose)
+        if (auto ec = set_verbose_mode(mvlc, moduleBase, false))
+            return ec;
 
     auto tEnd = std::chrono::steady_clock::now();
     auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(tEnd - tStart);
