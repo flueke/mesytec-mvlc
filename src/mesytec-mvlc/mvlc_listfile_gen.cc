@@ -31,12 +31,11 @@ auto get_frame_header = [] (const FrameState &frameState, ReadoutBuffer &dest) -
 auto close_frame = [] (FrameState &frameState, ReadoutBuffer &dest)
 {
     assert(frameState.headerOffset >= 0);
-    // Assert that the value of the size field is 0, then set it to the number of words
-    // written into the frame.
+    // Get the frame header, clear the length field and set it to
+    // frameState.wordsWritten.
     auto hdrPtr = get_frame_header(frameState, dest);
     *hdrPtr &= ~frame_headers::LengthMask; // zero out the length field
     *hdrPtr |= frameState.wordsWritten & frame_headers::LengthMask;
-    *get_frame_header(frameState, dest) |= frameState.wordsWritten;
     frameState.headerOffset = -1;
     frameState.wordsWritten = 0;
 };
@@ -84,7 +83,7 @@ void write_module_data(
 
     auto start_new_block_frame = [&] ()
     {
-        // Cano only open a new block frame if there is an open stack frame.
+        // Can only open a new block frame if there is an open stack frame.
         assert(stackFrameState.headerOffset >= 0);
 
         u32 blockHeader = (frame_headers::BlockRead << frame_headers::TypeShift);

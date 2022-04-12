@@ -142,7 +142,7 @@ TEST(listfile_gen, GenModuleDataAndParse)
     }
 
     {
-        // Shorted possible frames that should still work -> one word of module data per
+        // Shortest possible frames that should still work -> one word of module data per
         // BlockReadFrame
         u32 frameMaxWords = 2;
         ReadoutBuffer buffer;
