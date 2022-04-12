@@ -73,13 +73,15 @@ if (MVLC_BUILD_C_WRAPPER)
     install(TARGETS
         mvlc_c_test1
         mvlc_c_test2
-        mvlc_c_test3)
+        mvlc_c_test3
+        RUNTIME DESTINATION bin)
 
     if (NOT WIN32)
         add_executable(mvlc_test_advanced mvlc_test_advance.c)
         target_link_libraries(mvlc_test_advanced mesytec-mvlc-c)
         target_compile_options(mvlc_test_advanced PRIVATE -Wall -Wextra -Wpedantic)
-        install(TARGETS mvlc_test_advanced)
+        install(TARGETS mvlc_test_advanced
+        RUNTIME DESTINATION bin)
     endif()
 
 endif(MVLC_BUILD_C_WRAPPER)

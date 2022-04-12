@@ -248,7 +248,11 @@ class MESYTEC_MVLC_EXPORT StackCommandBuilder
         StackCommandBuilder &setName(const std::string &name) { m_name = name; return *this; }
 
         bool suppressPipeOutput() const { return m_suppressPipeOutput; }
-        StackCommandBuilder &setSuppressPipeOutput(bool suppress) { m_suppressPipeOutput = suppress; return *this; }
+
+        StackCommandBuilder &setSuppressPipeOutput(bool suppress)
+        {
+            m_suppressPipeOutput = suppress; return *this;
+        }
 
         bool empty() const
         {

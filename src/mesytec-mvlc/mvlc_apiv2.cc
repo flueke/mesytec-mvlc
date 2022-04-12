@@ -219,7 +219,7 @@ void cmd_pipe_reader(ReaderContext &context)
 #endif
     auto logger = get_logger("cmd_pipe_reader");
 
-    logger->info("cmd_pipe_reader starting");
+    logger->debug("cmd_pipe_reader starting");
 
     auto mvlcUsb = dynamic_cast<usb::MVLC_USB_Interface *>(context.mvlc);
     auto mvlcEth = dynamic_cast<eth::MVLC_ETH_Interface *>(context.mvlc);
@@ -420,7 +420,7 @@ void cmd_pipe_reader(ReaderContext &context)
         context.pendingStack.access().ref(),
         ec ? ec : make_error_code(MVLCErrorCode::IsDisconnected));
 
-    logger->info("cmd_pipe_reader exiting");
+    logger->trace("cmd_pipe_reader exiting");
 }
 
 // ============================================
@@ -466,7 +466,7 @@ class CmdApi
             u32 stackRef, const StackCommandBuilder &stackBuilder, std::vector<u32> &stackResponse);
 
     private:
-        static constexpr std::chrono::milliseconds ResultWaitTimeout = std::chrono::milliseconds(1000);
+        static constexpr std::chrono::milliseconds ResultWaitTimeout = std::chrono::milliseconds(2000);
 
         ReaderContext &readerContext_;
 };
@@ -1109,6 +1109,13 @@ std::pair<bool, std::error_code> MVLC::jumboFramesEnabled()
 
     return std::make_pair(static_cast<bool>(value), ec);
 }
+
+// Experimental: interact with the low level future/promise/cmd_pipe_reader system.
+//std::future<std::error_code> MVLC::setPendingStackResponse(std::vector<u32> &dest, u32 stackRef)
+//{
+//    auto guard = d->locks_.lockCmd();
+//    return set_pending_response(d->readerContext_.pendingStack, dest, stackRef);
+//}
 
 } // end namespace apiv2
 } // end namespace mvlc
