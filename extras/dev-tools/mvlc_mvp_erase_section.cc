@@ -13,7 +13,6 @@ int main(int argc, char *argv[])
     u32 moduleBase = 0;
     unsigned area = 3;
     unsigned section = 12;
-    FlashAddress addr = { 0, 0, 0 };
 
     //try
     //{
