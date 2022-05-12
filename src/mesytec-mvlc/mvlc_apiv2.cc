@@ -414,7 +414,7 @@ void cmd_pipe_reader(ReaderContext &context)
 
     fullfill_pending_response(
         context.pendingSuper.access().ref(),
-        ec ? ec :make_error_code(MVLCErrorCode::IsDisconnected));
+        ec ? ec : make_error_code(MVLCErrorCode::IsDisconnected));
 
     fullfill_pending_response(
         context.pendingStack.access().ref(),

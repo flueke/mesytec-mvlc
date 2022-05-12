@@ -112,6 +112,7 @@ namespace stack_commands
         VMEWrite            = 0x23, // VME write requests.
         WriteMarker         = 0xC2, // Writes a 32-bit marker value into the output data stream.
         WriteSpecial        = 0xC1, // Write a special value into the output data stream.
+                                    // Values: 0=timestamp, 1=accumulator
 
         SetAddressIncMode   = 0xC3, // Address increment for block reads: 0=FIFO read, 1=memory read
         Wait                = 0xC4, // Delay in units of MVLC clocks. The number of clocks to delay is

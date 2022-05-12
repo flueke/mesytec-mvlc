@@ -767,7 +767,7 @@ ParseResult parse_readout_contents(
                             //std::terminate();
 #endif
 
-                            logger->warn("NotABlockFrame: type=0x{:x}, frameHeader=0x{:008x}",
+                            logger->warn("NotABlockFrame: frameType=0x{:x}, frameHeader=0x{:008x}",
                                       state.curBlockFrame.info().type,
                                       state.curBlockFrame.header);
 
