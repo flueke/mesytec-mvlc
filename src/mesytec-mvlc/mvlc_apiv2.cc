@@ -399,6 +399,9 @@ void cmd_pipe_reader(ReaderContext &context)
             buffer.used += packet.payloadEnd() - packet.payloadBegin();
         }
 
+        if (ec)
+            logger->trace("cmd_pipe_reader: error from read(): {}", ec.message());
+
         if (bytesTransferred > 0)
             logger->trace("received {} bytes", bytesTransferred);
 
@@ -466,7 +469,7 @@ class CmdApi
             u32 stackRef, const StackCommandBuilder &stackBuilder, std::vector<u32> &stackResponse);
 
     private:
-        static constexpr std::chrono::milliseconds ResultWaitTimeout = std::chrono::milliseconds(2000);
+        static constexpr std::chrono::milliseconds ResultWaitTimeout = std::chrono::milliseconds(5000);
 
         ReaderContext &readerContext_;
 };
@@ -495,7 +498,10 @@ std::error_code CmdApi::superTransaction(
         return fullfill_pending_response(readerContext_.pendingSuper, ec);
 
     if (rf.wait_for(ResultWaitTimeout) != std::future_status::ready)
+    {
+        get_logger("mvlc_apiv2")->warn("superTransaction super future not ready -> CommandTimeout");
         return fullfill_pending_response(readerContext_.pendingSuper, make_error_code(MVLCErrorCode::CommandTimeout));
+    }
 
     return rf.get();
 }
@@ -538,6 +544,7 @@ std::error_code CmdApi::stackTransaction(
 
     if (superFuture.wait_for(ResultWaitTimeout) != std::future_status::ready)
     {
+        get_logger("mvlc_apiv2")->warn("stackTransaction super future not ready -> CommandTimeout");
         ec = make_error_code(MVLCErrorCode::CommandTimeout);
         fullfill_pending_response(readerContext_.pendingSuper, ec);
         return fullfill_pending_response(readerContext_.pendingStack, ec);
@@ -549,6 +556,7 @@ std::error_code CmdApi::stackTransaction(
     // stack response
     if (stackFuture.wait_for(ResultWaitTimeout) != std::future_status::ready)
     {
+        get_logger("mvlc_apiv2")->warn("stackTransaction stack future not ready -> CommandTimeout");
         ec = make_error_code(MVLCErrorCode::CommandTimeout);
         return fullfill_pending_response(readerContext_.pendingStack, ec);
     }

@@ -15,6 +15,7 @@ class MVLCTestBase: public ::testing::TestWithParam<const char *>
     public:
         MVLCTestBase()
         {
+            spdlog::set_level(spdlog::level::trace);
             get_logger("mvlc_uploadStack")->set_level(spdlog::level::trace);
             const std::string mvlcType = GetParam();
 
@@ -199,6 +200,9 @@ TEST_P(MVLCTestBase, TestUploadLongStack)
         sb.addVMEBlockRead(i*4, 0x09, 65535);
 
     auto stackBuffer = make_stack_buffer(sb);
+
+    spdlog::info("uploading stack of size {} (bytes={})",
+                 stackBuffer.size(), stackBuffer.size() * sizeof(stackBuffer[0]));
 
     ec = mvlc.uploadStack(DataPipe, stacks::ImmediateStackEndWord, stackBuffer);
 
