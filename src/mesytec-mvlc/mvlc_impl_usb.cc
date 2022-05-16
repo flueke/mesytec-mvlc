@@ -465,59 +465,68 @@ std::error_code Impl::connect()
         return ec;
 #endif
 
+    const int MaxOpenAttempts = 3;
     DeviceInfo devInfo = {};
 
-    switch (m_connectMode.mode)
+    for (int attempt=0; attempt<MaxOpenAttempts; ++attempt)
     {
-        case ConnectMode::First:
-            {
-                st = FT_DEVICE_NOT_FOUND;
-                auto infoList = get_device_info_list();
-
-                if (!infoList.empty())
+        switch (m_connectMode.mode)
+        {
+            case ConnectMode::First:
                 {
-                    devInfo = infoList[0];
-                    st = FT_Create(reinterpret_cast<void *>(devInfo.index),
-                                   FT_OPEN_BY_INDEX, &m_handle);
-                }
-            }
-            break;
+                    st = FT_DEVICE_NOT_FOUND;
+                    auto infoList = get_device_info_list();
 
-        case ConnectMode::ByIndex:
-            {
-                st = FT_DEVICE_NOT_FOUND;
-                auto infoList = get_device_info_list();
-
-                for (auto &info: infoList)
-                {
-                    if (info.index == static_cast<int>(m_connectMode.index))
+                    if (!infoList.empty())
                     {
-                        devInfo = info;
+                        devInfo = infoList[0];
                         st = FT_Create(reinterpret_cast<void *>(devInfo.index),
                                        FT_OPEN_BY_INDEX, &m_handle);
-                        break;
                     }
                 }
-            }
-            break;
+                break;
 
-        case ConnectMode::BySerial:
-            {
-                st = FT_DEVICE_NOT_FOUND;
-
-                if ((devInfo = get_device_info_by_serial(m_connectMode.serial)))
+            case ConnectMode::ByIndex:
                 {
+                    st = FT_DEVICE_NOT_FOUND;
+                    auto infoList = get_device_info_list();
 
-                    st = FT_Create(reinterpret_cast<void *>(devInfo.index),
-                                   FT_OPEN_BY_INDEX, &m_handle);
+                    for (auto &info: infoList)
+                    {
+                        if (info.index == static_cast<int>(m_connectMode.index))
+                        {
+                            devInfo = info;
+                            st = FT_Create(reinterpret_cast<void *>(devInfo.index),
+                                           FT_OPEN_BY_INDEX, &m_handle);
+                            break;
+                        }
+                    }
                 }
-            }
+                break;
+
+            case ConnectMode::BySerial:
+                {
+                    st = FT_DEVICE_NOT_FOUND;
+
+                    if ((devInfo = get_device_info_by_serial(m_connectMode.serial)))
+                    {
+
+                        st = FT_Create(reinterpret_cast<void *>(devInfo.index),
+                                       FT_OPEN_BY_INDEX, &m_handle);
+                    }
+                }
+                break;
+        }
+
+        if (st == FT_OK)
             break;
     }
 
-    logger->trace("FT_Create done");
+    auto ec = make_error_code(st);
 
-    if (auto ec = make_error_code(st))
+    logger->trace("FT_Create done: {}", ec.message());
+
+    if (ec)
         return ec;
 
     m_deviceInfo = devInfo;
@@ -536,7 +545,9 @@ std::error_code Impl::connect()
     // post_connect_cleanup() work.
     for (auto pipe: { Pipe::Command, Pipe::Data})
     {
-        if (auto ec = set_endpoint_timeout(m_handle, get_endpoint(pipe, EndpointDirection::In), 100))
+        if (auto ec = set_endpoint_timeout(
+                m_handle, get_endpoint(pipe, EndpointDirection::In),
+                DefaultReadTimeout_ms))
         {
             closeHandle();
             return ec;
@@ -929,12 +940,32 @@ std::error_code Impl::read(Pipe pipe, u8 *buffer, size_t size,
 
     ULONG transferred = 0; // FT API wants a ULONG* parameter
 
-    FT_STATUS st = FT_ReadPipe(
-        m_handle,
-        get_endpoint(pipe, EndpointDirection::In),
-        buffer, size,
-        &transferred,
-        nullptr);
+    FT_STATUS st = {};
+
+//#if 0
+    if (getDeviceInfo().flags & DeviceInfo::Flags::USB2)
+    {
+        // Possible fix for USB2 CommandTimeout issues with older USB chipsets:
+        // explicitly specify a read timeout here.
+        // -> Makes USB communication very slow.
+        st = FT_ReadPipeEx(
+            m_handle,
+            get_fifo_id(pipe),
+            buffer, size,
+            &transferred,
+            1);
+    }
+    else
+//#else
+    {
+        st = FT_ReadPipe(
+            m_handle,
+            get_endpoint(pipe, EndpointDirection::In),
+            buffer, size,
+            &transferred,
+            nullptr);
+    }
+//#endif
 
     bytesTransferred = transferred;
 

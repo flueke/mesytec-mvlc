@@ -72,8 +72,8 @@ struct DeviceInfo
 {
     struct Flags
     {
-        // Set if the device is opened by some process at the time the info
-        // is queried.
+        // Opened is set if the device is opened by some process at the time
+        // the info is queried.
         static const u8 Opened = 1;
         static const u8 USB2   = 2;
         static const u8 USB3   = 4;
