@@ -39,23 +39,5 @@ std::shared_ptr<spdlog::logger>
     return logger;
 }
 
-const std::vector<std::string> &get_known_logger_names()
-{
-    static const std::vector<std::string> mvlc_lib_logger_names =
-    {
-        "cmd_pipe_reader",
-        "listfile",
-        "mvlc",
-        "mvlc_blocking_api",
-        "mvlc_eth",
-        "mvlc_usb",
-        "readout",
-        "readout_parser",
-        "replay",
-    };
-
-    return mvlc_lib_logger_names;
-}
-
 } // end namespace mvlc
 } // end namespace mesytec
