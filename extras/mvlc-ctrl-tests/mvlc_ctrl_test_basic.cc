@@ -15,7 +15,7 @@ class MVLCTestBase: public ::testing::TestWithParam<const char *>
     public:
         MVLCTestBase()
         {
-            spdlog::set_level(spdlog::level::trace);
+            //spdlog::set_level(spdlog::level::trace);
             get_logger("mvlc_uploadStack")->set_level(spdlog::level::trace);
             const std::string mvlcType = GetParam();
 

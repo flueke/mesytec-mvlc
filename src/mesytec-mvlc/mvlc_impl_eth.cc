@@ -44,6 +44,7 @@
 #include "util/string_view.hpp"
 #include "util/logging.h"
 
+#define MVLC_ENABLE_ETH_THROTTLE 0
 #define MVLC_ETH_THROTTLE_WRITE_DEBUG_FILE 0
 
 namespace
@@ -1036,10 +1037,12 @@ std::error_code Impl::connect()
     m_throttleCounters.access().ref() = {};
 
 //#ifdef __linux__
+#if MVLC_ENABLE_ETH_THROTTLE
     m_throttleThread = std::thread(
         mvlc_eth_throttler,
         std::ref(m_throttleContext),
         std::ref(m_throttleCounters));
+#endif
 //#endif
 
     spdlog::trace("end {}", __PRETTY_FUNCTION__);
@@ -1187,6 +1190,16 @@ PacketReadResult Impl::read_packet(Pipe pipe_, u8 *buffer, size_t size)
 
     if (res.ec && res.bytesTransferred == 0)
         return res;
+
+    if (res.bytesTransferred >= sizeof(u32)
+        && logger->should_log(spdlog::level::trace))
+    {
+        auto view = basic_string_view<const u32>(
+            reinterpret_cast<const u32 *>(res.buffer),
+            res.bytesTransferred / sizeof(u32));
+
+        log_buffer(logger, spdlog::level::trace, view, "read_packet(): 32 bit words in packet");
+    }
 
     {
         UniqueLock guard(m_statsMutex);

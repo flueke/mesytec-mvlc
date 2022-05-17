@@ -31,6 +31,7 @@
 #include "mesytec-mvlc/mvlc_buffer_validators.h"
 #include "mesytec-mvlc/mvlc_command_builders.h"
 #include "mesytec-mvlc/mvlc_stack_errors.h"
+#include "mesytec-mvlc/util/logging.h"
 #include "mesytec-mvlc/util/protected.h"
 
 // Higher level MVLC dialog (request/response) layer. Builds on top of the
@@ -183,6 +184,7 @@ class MESYTEC_MVLC_EXPORT MVLCDialog_internal
         u16 m_referenceWord = 1;
         std::vector<u32> m_responseBuffer;
         mutable Protected<StackErrorCounters> m_stackErrorCounters;
+        std::shared_ptr<spdlog::logger> m_logger;
 };
 
 } // end namespace mvlc

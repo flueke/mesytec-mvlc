@@ -469,7 +469,7 @@ class CmdApi
             u32 stackRef, const StackCommandBuilder &stackBuilder, std::vector<u32> &stackResponse);
 
     private:
-        static constexpr std::chrono::milliseconds ResultWaitTimeout = std::chrono::milliseconds(5000);
+        static constexpr std::chrono::milliseconds ResultWaitTimeout = std::chrono::milliseconds(2000);
 
         ReaderContext &readerContext_;
 };
@@ -592,6 +592,9 @@ std::error_code CmdApi::uploadStack(
     {
         auto partEnd = std::min(partIter + PartMaxSize, stackEnd);
 
+        //basic_string_view<u32> partView(&(*partIter), partEnd - partIter);
+        //log_buffer(logger, spdlog::level::trace, partView, "stack part to upload");
+
         //for (auto tmp=partIter; tmp!=partEnd; ++tmp)
         //    logger->trace("part: 0x{:08X}", *tmp);
 
@@ -638,6 +641,7 @@ std::error_code CmdApi::uploadStack(
 
         auto superBuffer = make_command_buffer(super);
         logger->trace("stack part superBuffer.size()={}", superBuffer.size());
+        log_buffer(logger, spdlog::level::trace, superBuffer, "partial stack upload");
         assert(superBuffer.size() <= MirrorTransactionMaxWords);
 
         if (auto ec = superTransaction(superRef, superBuffer, superResponse))

@@ -96,6 +96,7 @@ constexpr std::chrono::milliseconds MVLCDialog_internal::ReadResponseMaxWait;
 MVLCDialog_internal::MVLCDialog_internal(MVLCBasicInterface *mvlc)
     : m_mvlc(mvlc)
     , m_stackErrorCounters()
+    , m_logger(get_logger("MVLCDialog"))
 {
     assert(m_mvlc);
 }
@@ -344,8 +345,8 @@ std::error_code MVLCDialog_internal::writeRegister(u16 address, u32 value)
     return {};
 }
 
-std::error_code MVLCDialog_internal::superTransaction(const std::vector<u32> &cmdBuffer,
-                                              std::vector<u32> &dest)
+std::error_code MVLCDialog_internal::superTransaction(
+    const std::vector<u32> &cmdBuffer, std::vector<u32> &dest)
 {
     if (cmdBuffer.size() > MirrorTransactionMaxWords)
         return make_error_code(MVLCErrorCode::MirrorTransactionMaxWordsExceeded);
@@ -358,6 +359,7 @@ std::error_code MVLCDialog_internal::superTransaction(const std::vector<u32> &cm
         if (auto ec = doWrite(cmdBuffer))
         {
             ret = ec;
+
             LOG_WARN("write error: %s (attempt %u of %u)",
                      ec.message().c_str(),
                      tries+1, MirrorMaxRetries);
@@ -372,14 +374,15 @@ std::error_code MVLCDialog_internal::superTransaction(const std::vector<u32> &cm
         if (auto ec = readResponse(is_super_buffer, dest))
         {
             ret = ec;
+
             LOG_WARN("read error: %s (attempt %u of %u)",
                      ec.message().c_str(),
                      tries+1, MirrorMaxRetries);
-            logBuffer(dest, "wanted is_super_buffer :-(");
 
             if (ec == ErrorType::Timeout)
                 continue;
 
+            log_buffer(m_logger, spdlog::level::trace, dest, "expected SuperFrame (0xF1)");
             return ec;
         }
 
