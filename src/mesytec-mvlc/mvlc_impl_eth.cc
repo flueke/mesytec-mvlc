@@ -44,7 +44,7 @@
 #include "util/string_view.hpp"
 #include "util/logging.h"
 
-#define MVLC_ENABLE_ETH_THROTTLE 0
+#define MVLC_ENABLE_ETH_THROTTLE 1
 #define MVLC_ETH_THROTTLE_WRITE_DEBUG_FILE 0
 
 namespace
@@ -366,7 +366,7 @@ void mvlc_eth_throttler(
     Protected<eth::EthThrottleContext> &ctx,
     Protected<eth::EthThrottleCounters> &counters)
 {
-    auto logger = get_logger("mvlc_eth");
+    auto logger = get_logger("mvlc_eth_throttler");
 
     auto send_query = [&logger] (int netlinkSock)
     {
@@ -409,7 +409,7 @@ void mvlc_eth_throttler(
                 if (errno == EINTR)
                     continue;
 
-                logger->warn("mvlc_eth_throttler: sendmsg failed: {}", strerror(errno));
+                logger->warn("send_query: netlink sendmsg failed: {}", strerror(errno));
                 return -1;
             }
 
@@ -424,13 +424,13 @@ void mvlc_eth_throttler(
 
         if (len < NLMSG_LENGTH(sizeof(*diag)))
         {
-            logger->warn("mvlc_eth_throttler: NLMSG_LENGTH");
+            logger->warn("netlink: len < NLMSG_LENGTH(diag)");
             return ret;
         }
 
         if (diag->idiag_family != AF_INET)
         {
-            logger->warn("mvlc_eth_throttler: idiag_family != AF_INET");
+            logger->warn("netlink: idiag_family != AF_INET");
             return ret;
         }
 
@@ -457,7 +457,7 @@ void mvlc_eth_throttler(
             }
         }
 
-        logger->warn("mvlc_eth_throttler: defaulted return in get_buffer_snapshot()");
+        logger->warn("defaulted return in get_buffer_snapshot()");
         return ret;
     };
 
@@ -549,12 +549,12 @@ void mvlc_eth_throttler(
 
     if (diagSocket < 0)
     {
-        logger->warn("mvlc_eth_throttler: could not create netlink diag socket: {}",
-                 strerror(errno));
+        logger->warn("could not create netlink diag socket: {}", strerror(errno));
         return;
     }
 
     u32 dataSocketInode = ctx.access()->dataSocketInode;
+    s32 lastSentDelay = -1;
 
     logger->info("mvlc_eth_throttler entering loop");
 
@@ -567,7 +567,14 @@ void mvlc_eth_throttler(
             if (res.second)
             {
                 u16 delay = theThrottleFunc(ctx.access().ref(), res.first);
-                send_delay_command(ctx.access()->delaySocket, delay);
+
+                if (lastSentDelay != static_cast<s32>(delay))
+                {
+                    logger->debug("sending delay command, lastSentDelay={}, newDelay={}",
+                                  lastSentDelay, delay);
+                    send_delay_command(ctx.access()->delaySocket, delay);
+                    lastSentDelay = delay;
+                }
 
                 auto ca = counters.access();
                 ca->currentDelay = delay;
@@ -608,6 +615,7 @@ void mvlc_eth_throttler(
     // Use timeBeginPeriod and timeEndPeriod to get better sleep granularity.
     static const unsigned Win32TimePeriod = 1;
     timeBeginPeriod(Win32TimePeriod);
+    s32 lastSentDelay = -1;
 
     logger->info("mvlc_eth_throttler entering loop");
 
@@ -630,7 +638,14 @@ void mvlc_eth_throttler(
         if (res == 0)
         {
             u16 delay = theThrottleFunc(ctx.access().ref(), rbs);
-            send_delay_command(ctx.access()->delaySocket, delay);
+
+            if (lastSentDelay != static_cast<s32>(delay))
+            {
+                logger->debug("sending delay command, lastSentDelay={}, newDelay={}",
+                              lastSentDelay, delay);
+                send_delay_command(ctx.access()->delaySocket, delay);
+                lastSentDelay = delay;
+            }
 
             auto ca = counters.access();
             ca->currentDelay = delay;
