@@ -607,7 +607,7 @@ void mvlc_eth_throttler(
     Protected<eth::EthThrottleContext> &ctx,
     Protected<eth::EthThrottleCounters> &counters)
 {
-    auto logger = get_logger("mvlc_eth");
+    auto logger = get_logger("mvlc_eth_throttler");
 
     int dataSocket = ctx.access()->dataSocket;
     ReceiveBufferSnapshot rbs = { 0u, static_cast<u32>(ctx.access()->dataSocketReceiveBufferSize) };
