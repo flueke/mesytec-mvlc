@@ -1,4 +1,5 @@
 #include "gtest/gtest.h"
+#include <chrono>
 #include <fmt/format.h>
 #include <iostream>
 #include <spdlog/spdlog.h>
@@ -15,8 +16,9 @@ class MVLCTestBase: public ::testing::TestWithParam<const char *>
     public:
         MVLCTestBase()
         {
-            //spdlog::set_level(spdlog::level::trace);
-            //get_logger("mvlc_uploadStack")->set_level(spdlog::level::trace);
+            spdlog::set_level(spdlog::level::trace);
+            get_logger("mvlc_uploadStack")->set_level(spdlog::level::debug);
+            get_logger("cmd_pipe_reader")->set_level(spdlog::level::debug);
             const std::string mvlcType = GetParam();
 
             if (mvlcType == "usb")
@@ -204,11 +206,23 @@ TEST_P(MVLCTestBase, TestUploadLongStack)
     spdlog::info("uploading stack of size {} (bytes={})",
                  stackBuffer.size(), stackBuffer.size() * sizeof(stackBuffer[0]));
 
+    auto tStart = std::chrono::steady_clock::now();
     ec = mvlc.uploadStack(DataPipe, stacks::ImmediateStackEndWord, stackBuffer);
+    auto elapsed = std::chrono::steady_clock::now() - tStart;
+
+    spdlog::info("stack upload took {} ms",
+                 std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count());
 
     ASSERT_TRUE(!ec) << ec.message();
 
+    spdlog::info("reading back stack memory");
+
+    tStart = std::chrono::steady_clock::now();
     auto readBuffer = read_stack_from_memory(mvlc, stacks::ImmediateStackEndWord);
+    elapsed = std::chrono::steady_clock::now() - tStart;
+
+    spdlog::info("stack memory read took {} ms",
+                 std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count());
 
     //log_buffer(get_logger("test"), spdlog::level::info, readBuffer, "stack memory");
 

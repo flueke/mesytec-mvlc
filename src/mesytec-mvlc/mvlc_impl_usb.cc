@@ -50,8 +50,8 @@ namespace
 {
 using namespace mesytec::mvlc;
 
-static const unsigned DefaultWriteTimeout_ms = 500;
-static const unsigned DefaultReadTimeout_ms  = 500;
+static const unsigned WriteTimeout_ms = 500;
+static const unsigned ReadTimeout_ms  = 500;
 
 class FTErrorCategory: public std::error_category
 {
@@ -450,6 +450,10 @@ std::error_code Impl::connect()
     FT_STATUS st = FT_OK;
 
 #ifndef __WIN32
+    // Linux only: Enables non thread-safe transfers for the data pipe. This is
+    // ok as long as there is only one reader thread and increases performance.
+    // TODO: benchmark again in release mode
+
     // Initialzing the struct to zero will make the FTD3xx library use default
     // values for all parameters.
     FT_TRANSFER_CONF transferConf = {};
@@ -465,6 +469,8 @@ std::error_code Impl::connect()
         return ec;
 #endif
 
+    // Open the USB device. Try multiple times because with USB2 FT_Create()
+    // sometimes fails the first time.
     const int MaxOpenAttempts = 3;
     DeviceInfo devInfo = {};
 
@@ -547,14 +553,22 @@ std::error_code Impl::connect()
     {
         if (auto ec = set_endpoint_timeout(
                 m_handle, get_endpoint(pipe, EndpointDirection::In),
-                DefaultReadTimeout_ms))
+                ReadTimeout_ms))
+        {
+            closeHandle();
+            return ec;
+        }
+
+        if (auto ec = set_endpoint_timeout(
+                m_handle, get_endpoint(pipe, EndpointDirection::Out),
+                WriteTimeout_ms))
         {
             closeHandle();
             return ec;
         }
     }
 
-    logger->trace("set CommandPipe timeout done");
+    logger->trace("set pipe timeouts done");
 
 #ifdef __WIN32
     // clean up the pipes
@@ -743,7 +757,7 @@ std::error_code Impl::write(Pipe pipe, const u8 *buffer, size_t size,
     FT_STATUS st = FT_WritePipeEx(m_handle, get_fifo_id(pipe),
                                   const_cast<u8 *>(buffer), size,
                                   &transferred,
-                                  DefaultWriteTimeout_ms);
+                                  WriteTimeout_ms);
 
     bytesTransferred = transferred;
 
