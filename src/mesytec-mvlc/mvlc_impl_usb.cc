@@ -449,26 +449,6 @@ std::error_code Impl::connect()
 
     FT_STATUS st = FT_OK;
 
-#ifndef __WIN32
-    // Linux only: Enables non thread-safe transfers for the data pipe. This is
-    // ok as long as there is only one reader thread and increases performance.
-    // TODO: benchmark again in release mode
-
-    // Initialzing the struct to zero will make the FTD3xx library use default
-    // values for all parameters.
-    FT_TRANSFER_CONF transferConf = {};
-    transferConf.wStructSize = sizeof(FT_TRANSFER_CONF);
-
-    FT_PIPE_TRANSFER_CONF &pipeConf = transferConf.pipe[FT_PIPE_DIR_IN];
-
-    pipeConf.fNonThreadSafeTransfer = true;
-
-    st = FT_SetTransferParams(&transferConf, get_fifo_id(Pipe::Data));
-
-    if (auto ec = make_error_code(st))
-        return ec;
-#endif
-
     // Open the USB device. Try multiple times because with USB2 FT_Create()
     // sometimes fails the first time.
     const int MaxOpenAttempts = 3;
