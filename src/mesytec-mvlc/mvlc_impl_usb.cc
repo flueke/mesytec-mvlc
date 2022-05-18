@@ -909,8 +909,8 @@ std::error_code Impl::read(Pipe pipe, u8 *buffer, size_t size,
     auto ec = make_error_code(st);
 
     logger->trace("pipe={}, requestedSize={}, remainingSize={}, read result: ec={}, transferred={}",
-              static_cast<unsigned>(pipe), requestedSize, size,
-              ec.message().c_str(), transferred);
+                  static_cast<unsigned>(pipe), requestedSize, size,
+                  ec.message().c_str(), transferred);
 
     readBuffer.first = readBuffer.data.data();
     readBuffer.last  = readBuffer.first + transferred;
@@ -932,7 +932,7 @@ std::error_code Impl::read(Pipe pipe, u8 *buffer, size_t size,
     }
 
     logger->trace("pipe={}, size={}, read request satisfied after read from MVLC. new buffer size={}",
-              static_cast<unsigned>(pipe), requestedSize, readBuffer.size());
+                  static_cast<unsigned>(pipe), requestedSize, readBuffer.size());
 
     return {};
 }
@@ -988,9 +988,9 @@ std::error_code Impl::read(Pipe pipe, u8 *buffer, size_t size,
     if (ec && ec != ErrorType::Timeout)
     {
         logger->warn("pipe={}, read {} of {} bytes, result={}",
-                 static_cast<unsigned>(pipe),
-                 bytesTransferred, size,
-                 ec.message().c_str());
+                     static_cast<unsigned>(pipe),
+                     bytesTransferred, size,
+                     ec.message().c_str());
     }
 
     return ec;
@@ -1096,18 +1096,20 @@ std::error_code Impl::abortPipe(Pipe pipe, EndpointDirection dir)
 #ifdef __WIN32
     auto logger = get_logger("mvlc_usb");
 
-    logger->warn("FT_AbortPipe on pipe={}, dir={}",
-              static_cast<unsigned>(pipe),
-              static_cast<unsigned>(dir));
+    logger->trace(
+        "FT_AbortPipe on pipe={}, dir={}",
+        static_cast<unsigned>(pipe),
+        static_cast<unsigned>(dir));
 
     auto st = FT_AbortPipe(m_handle, get_endpoint(pipe, dir));
 
     if (auto ec = make_error_code(st))
     {
-        logger->trace("FT_AbortPipe on pipe={}, dir={} returned an error: {}",
-                  static_cast<unsigned>(pipe),
-                  static_cast<unsigned>(dir),
-                  ec.message().c_str());
+        logger->warn(
+            "FT_AbortPipe on pipe={}, dir={} returned an error: {}",
+            static_cast<unsigned>(pipe),
+            static_cast<unsigned>(dir),
+            ec.message().c_str());
         return ec;
     }
 #else // !__WIN32
