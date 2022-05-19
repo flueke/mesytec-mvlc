@@ -781,6 +781,7 @@ void ReadoutWorker::Private::loop(std::promise<std::error_code> promise)
 // multicast daq start sequence.
 std::error_code ReadoutWorker::Private::startReadout()
 {
+#if 1
     // Error reporting is done by throwing either std::error_code or
     // std::vector<CommandExecResult> (which is the return type of
     // run_commands()).
@@ -832,23 +833,69 @@ std::error_code ReadoutWorker::Private::startReadout()
     }
     catch (const std::error_code &ec)
     {
-        logger->error("error running MCST DAQ start sequence: {}", ec.message());
+        logger->error("error running MCST DAQ start sequence (async): {}", ec.message());
         return ec;
     }
     catch (const std::vector<CommandExecResult> &execResults)
     {
+        std::error_code ec = {};
         for (auto &res: execResults)
         {
             if (res.ec)
             {
-                logger->error("error running MCST DAQ start command '{}': {}",
+                logger->error("error running MCST DAQ start command (async) '{}': {}",
                               to_string(res.cmd), res.ec.message());
-                return res.ec;
+                ec = res.ec;
             }
         }
+
+        return ec;
     }
 
     return {};
+#else
+    try
+    {
+        if (!stackTriggers.empty())
+        {
+            // enable the readout stacks by writing the stack trigger registers
+            if (auto ec = setup_readout_triggers(mvlc, stackTriggers))
+                throw ec;
+        }
+
+        // enable daq mode
+        if (auto ec = enable_daq_mode(mvlc))
+            throw ec;
+
+        // multicast daq start
+        auto execResults = run_commands(mvlc, mcstDaqStart);
+
+        if (get_first_error(execResults))
+            throw execResults;
+    }
+    catch (const std::error_code &ec)
+    {
+        logger->error("error running MCST DAQ start sequence (sync): {}", ec.message());
+        return ec;
+    }
+    catch (const std::vector<CommandExecResult> &execResults)
+    {
+        std::error_code ec = {};
+        for (auto &res: execResults)
+        {
+            if (res.ec)
+            {
+                logger->error("error running MCST DAQ start command (sync) '{}': {}",
+                              to_string(res.cmd), res.ec.message());
+                ec = res.ec;
+            }
+        }
+
+        return ec;
+    }
+
+    return {};
+#endif
 }
 
 // Cleanly end a running readout session. The code disables all triggers by
