@@ -522,6 +522,9 @@ std::error_code CmdApi::stackTransaction(
     if (cmdBuffer.size() > MirrorTransactionMaxWords)
         return make_error_code(MVLCErrorCode::MirrorTransactionMaxWordsExceeded);
 
+    log_buffer(get_logger("mvlc_apiv2"), spdlog::level::trace,
+        cmdBuffer, "stackTransaction: upload command buffer");
+
     std::vector<u32> superResponse;
 
     auto superFuture = set_pending_response(readerContext_.pendingSuper, superResponse, superRef);
