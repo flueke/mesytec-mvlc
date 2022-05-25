@@ -248,8 +248,6 @@ void cmd_pipe_reader(ReaderContext &context)
 
         while (buffer.used && !context.quit.load(std::memory_order_relaxed))
         {
-            log_buffer(logger, spdlog::level::trace, buffer, "cmd_pipe_reader buffer");
-
             while (!buffer.empty() && !is_good_header(buffer[0]))
             {
                 buffer.consume(1);
@@ -426,11 +424,14 @@ void cmd_pipe_reader(ReaderContext &context)
 #endif
         }
 
-        if (ec)
+        if (ec && ec != ErrorType::Timeout)
             logger->trace("cmd_pipe_reader: error from read(): {}", ec.message());
 
         if (bytesTransferred > 0)
+        {
             logger->trace("received {} bytes", bytesTransferred);
+            log_buffer(logger, spdlog::level::trace, buffer, "cmd_pipe_reader read buffer");
+        }
 
         ++counters.reads;
         counters.bytesRead += bytesTransferred;
