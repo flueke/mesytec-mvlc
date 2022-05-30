@@ -607,6 +607,7 @@ void ReadoutWorker::Private::loop(std::promise<std::error_code> promise)
     auto tTimestamp = tStart;
 
     std::error_code ec = startReadout();
+    logger->debug("startReadout() returned: {}", ec.message());
 
     // Set the promises value now to unblock anyone waiting for startup to
     // complete.
@@ -870,6 +871,11 @@ std::error_code ReadoutWorker::Private::startReadout()
         // multicast daq start
         auto execResults = run_commands(mvlc, mcstDaqStart);
 
+        for (const auto &res: execResults)
+        {
+            logger->info("MCST DAQ Start Command (sync): '{}': {}", to_string(res.cmd), res.ec.message());
+        }
+
         if (get_first_error(execResults))
             throw execResults;
     }
@@ -913,6 +919,12 @@ std::error_code ReadoutWorker::Private::terminateReadout()
             // new order (see startReadout() above)
             // multicast daq stop
             auto execResults = run_commands(mvlc, mcstDaqStop);
+
+            // XXX: Debug code. The check is usually done after disabling
+            // triggers and daq mode.
+            // Now check if the stop sequence produced an error.
+            if (get_first_error(execResults))
+                throw execResults;
 
             // Do not yet check for errors from running the stop sequence.
             // Instead try to disable trigger processing and leave DAQ mode
