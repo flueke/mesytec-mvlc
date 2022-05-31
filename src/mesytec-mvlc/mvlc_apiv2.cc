@@ -723,8 +723,13 @@ std::error_code CmdApi::vmeRead(
     if (stackResponse.size() != 3)
         return make_error_code(MVLCErrorCode::UnexpectedResponseSize);
 
-    if (extract_frame_info(stackResponse[0]).flags & frame_flags::Timeout)
+    auto frameFlags = extract_frame_flags(stackResponse[0]);
+
+    if (frameFlags & frame_flags::Timeout)
         return MVLCErrorCode::NoVMEResponse;
+
+    if (frameFlags & frame_flags::BusError)
+        return MVLCErrorCode::VMEBusError;
 
     const u32 Mask = (dataWidth == VMEDataWidth::D16 ? 0x0000FFFF : 0xFFFFFFFF);
 
@@ -752,8 +757,13 @@ std::error_code CmdApi::vmeWrite(
     if (stackResponse.size() != 2)
         return make_error_code(MVLCErrorCode::UnexpectedResponseSize);
 
-    if (extract_frame_info(stackResponse[0]).flags & frame_flags::Timeout)
+    auto frameFlags = extract_frame_flags(stackResponse[0]);
+
+    if (frameFlags & frame_flags::Timeout)
         return MVLCErrorCode::NoVMEResponse;
+
+    if (frameFlags & frame_flags::BusError)
+        return MVLCErrorCode::VMEBusError;
 
     return {};
 }
@@ -774,6 +784,17 @@ std::error_code CmdApi::vmeBlockRead(
         return ec;
 
     log_buffer(get_logger("mvlc"), spdlog::level::trace, dest, "vmeBlockRead(): stackResponse");
+
+    if (!dest.empty())
+    {
+        auto frameFlags = extract_frame_flags(dest[0]);
+
+        if (frameFlags & frame_flags::Timeout)
+            return MVLCErrorCode::NoVMEResponse;
+
+        if (frameFlags & frame_flags::BusError)
+            return MVLCErrorCode::VMEBusError;
+    }
 
     return {};
 }
