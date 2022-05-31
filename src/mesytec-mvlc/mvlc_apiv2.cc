@@ -1,4 +1,5 @@
 #include "mvlc_apiv2.h"
+#include "mvlc_constants.h"
 
 #include <future>
 
@@ -230,19 +231,18 @@ void cmd_pipe_reader(ReaderContext &context)
     Buffer buffer;
     buffer.ensureFreeSpace(util::Megabytes(1)/sizeof(u32));
 
-    while (!context.quit)
+    while (!context.quit.load(std::memory_order_relaxed))
     {
         auto countersAccess = context.counters.access();
         auto &counters = countersAccess.ref();
 
-        while (buffer.used)
+        while (buffer.used && !context.quit.load(std::memory_order_relaxed))
         {
             log_buffer(logger, spdlog::level::trace, buffer, "cmd_pipe_reader buffer");
 
             while (!buffer.empty() && !is_good_header(buffer[0]))
             {
                 buffer.consume(1);
-                // FIXME: these variables are only incremented here
                 ++counters.invalidHeaders;
                 ++counters.wordsSkipped;
             }
@@ -363,6 +363,9 @@ void cmd_pipe_reader(ReaderContext &context)
                 break;
             }
         }
+
+        if (context.quit.load(std::memory_order_relaxed))
+            break;
 
         size_t bytesTransferred = 0;
 
