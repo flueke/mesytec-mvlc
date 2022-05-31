@@ -22,6 +22,9 @@ void log_buffer(const std::shared_ptr<spdlog::logger> &logger,
                 const spdlog::level::level_enum &level,
                 const View &buffer, const std::string &header)
 {
+    if (!logger->should_log(level))
+        return;
+
     logger->log(level, "begin buffer '{}' (size={})", header, buffer.size());
 
     for (const auto &value: buffer)
