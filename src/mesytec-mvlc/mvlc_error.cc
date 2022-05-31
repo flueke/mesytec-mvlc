@@ -41,10 +41,10 @@ class MVLCErrorCategory: public std::error_category
                 return "No Error";
 
             case MVLCErrorCode::IsConnected:
-                return "Device is connected";
+                return "MVLC is connected";
 
             case MVLCErrorCode::IsDisconnected:
-                return "Device is disconnected";
+                return "MVLC is disconnected";
 
             case MVLCErrorCode::ShortWrite:
                 return "Short write";
@@ -68,7 +68,7 @@ class MVLCErrorCategory: public std::error_category
                 return "mirror transaction: max retries exceeded (possibly a network issue)";
 
             case MVLCErrorCode::InvalidBufferHeader:
-                return "invalid buffer header";
+                return "invalid MVLC buffer header";
 
             case MVLCErrorCode::ReadResponseMaxWaitExceeded:
                 return "no command response received from MVLC";
@@ -81,6 +81,9 @@ class MVLCErrorCategory: public std::error_category
 
             case MVLCErrorCode::NoVMEResponse:
                 return "no VME response";
+
+            case MVLCErrorCode::VMEBusError:
+                return "VME bus error (BERR)";
 
             case MVLCErrorCode::HostLookupError:
                 return "host lookup failed";
@@ -152,7 +155,7 @@ class MVLCErrorCategory: public std::error_category
                  return "Incorrect USB chip configuration (FTDI)";
 
             case MVLCErrorCode::CommandTimeout:
-                 return "CommandTimeout";
+                 return "MVLC CommandTimeout";
 
             case MVLCErrorCode::ShortSuperFrame:
                  return "ShortSuperFrame";
@@ -228,6 +231,7 @@ class MVLCErrorCategory: public std::error_category
                 return ErrorType::ProtocolError;
 
             case MVLCErrorCode::NoVMEResponse:
+            case MVLCErrorCode::VMEBusError:
                 return ErrorType::VMEError;
 
             case MVLCErrorCode::SocketReadTimeout:

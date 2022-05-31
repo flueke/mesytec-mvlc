@@ -29,6 +29,7 @@ enum class MVLCErrorCode
     CommandArgOutOfRange,
     InvalidPipe,
     NoVMEResponse,
+    VMEBusError,
     HostLookupError,
     EmptyHostname,
     BindLocalError,
