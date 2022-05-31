@@ -813,7 +813,18 @@ std::error_code CmdApi::vmeMBLTSwapped(
 
     log_buffer(get_logger("mvlc"), spdlog::level::trace, dest, "vmeMBLTSwapped(): stackResponse");
 
-    return stackTransaction(stackRef, stackBuilder, dest);
+    if (!dest.empty())
+    {
+        auto frameFlags = extract_frame_flags(dest[0]);
+
+        if (frameFlags & frame_flags::Timeout)
+            return MVLCErrorCode::NoVMEResponse;
+
+        if (frameFlags & frame_flags::BusError)
+            return MVLCErrorCode::VMEBusError;
+    }
+
+    return {};
 }
 } // end anon namespace
 
