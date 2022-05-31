@@ -67,6 +67,11 @@ inline FrameInfo extract_frame_info(u32 header)
     return result;
 }
 
+inline u8 extract_frame_flags(u32 header)
+{
+    return extract_frame_info(header).flags;
+}
+
 MESYTEC_MVLC_EXPORT std::string decode_frame_header(u32 header);
 MESYTEC_MVLC_EXPORT std::string format_frame_flags(u8 frameFlags);
 
