@@ -2,6 +2,7 @@
 #include "mvlc_constants.h"
 
 #include <future>
+#include <fstream>
 
 #ifdef __linux__
 #include <sys/prctl.h>
@@ -215,6 +216,9 @@ void cmd_pipe_reader(ReaderContext &context)
         return true;
     };
 
+#define CMD_PIPE_RECORD_DATA 0
+#define CMD_PIPE_RECORD_FILE "cmd_pipe_stream.dat"
+
 #ifdef __linux__
     prctl(PR_SET_NAME,"cmd_pipe_reader",0,0,0);
 #endif
@@ -230,6 +234,12 @@ void cmd_pipe_reader(ReaderContext &context)
     std::error_code ec;
     Buffer buffer;
     buffer.ensureFreeSpace(util::Megabytes(1)/sizeof(u32));
+
+#if CMD_PIPE_RECORD_DATA
+    std::ofstream recordOut(CMD_PIPE_RECORD_FILE, std::ios_base::out | std::ios_base::trunc | std::ios_base::binary);
+    if (recordOut.fail())
+        throw std::runtime_error("Error opening cmd_pipe_reader debug file");
+#endif
 
     while (!context.quit.load(std::memory_order_relaxed))
     {
@@ -381,6 +391,11 @@ void cmd_pipe_reader(ReaderContext &context)
                 bytesTransferred);
 
             buffer.used += bytesTransferred / sizeof(u32);
+
+#if CMD_PIPE_RECORD_DATA
+            auto partBegin = reinterpret_cast<const char *>(buffer.end()) - bytesTransferred;
+            recordOut.write(partBegin, bytesTransferred);
+#endif
         }
         else if (mvlcEth)
         {
@@ -400,6 +415,10 @@ void cmd_pipe_reader(ReaderContext &context)
             // Actual payload goes to the buffer.
             std::copy(packet.payloadBegin(), packet.payloadEnd(), buffer.writeBegin());
             buffer.used += packet.payloadEnd() - packet.payloadBegin();
+
+#if CMD_PIPE_RECORD_DATA
+            recordOut.write(reinterpret_cast<const char *>(packet.buffer), packet.bytesTransferred);
+#endif
         }
 
         if (ec)
