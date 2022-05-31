@@ -154,8 +154,11 @@ class MVLCErrorCategory: public std::error_category
             case MVLCErrorCode::USBChipConfigError:
                  return "Incorrect USB chip configuration (FTDI)";
 
-            case MVLCErrorCode::CommandTimeout:
-                 return "MVLC CommandTimeout";
+            case MVLCErrorCode::SuperCommandTimeout:
+                 return "MVLC Super Command Timeout";
+
+            case MVLCErrorCode::StackCommandTimeout:
+                 return "MVLC Stack Command Timeout";
 
             case MVLCErrorCode::ShortSuperFrame:
                  return "ShortSuperFrame";
@@ -237,7 +240,8 @@ class MVLCErrorCategory: public std::error_category
             case MVLCErrorCode::SocketReadTimeout:
             case MVLCErrorCode::SocketWriteTimeout:
             case MVLCErrorCode::ReadResponseMaxWaitExceeded:
-            case MVLCErrorCode::CommandTimeout:
+            case MVLCErrorCode::SuperCommandTimeout:
+            case MVLCErrorCode::StackCommandTimeout:
                 return ErrorType::Timeout;
         }
         assert(false);

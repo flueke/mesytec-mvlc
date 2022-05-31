@@ -502,8 +502,8 @@ std::error_code CmdApi::superTransaction(
 
     if (rf.wait_for(ResultWaitTimeout) != std::future_status::ready)
     {
-        get_logger("mvlc_apiv2")->warn("superTransaction super future not ready -> CommandTimeout");
-        return fullfill_pending_response(readerContext_.pendingSuper, make_error_code(MVLCErrorCode::CommandTimeout));
+        get_logger("mvlc_apiv2")->warn("superTransaction super future not ready -> SuperCommandTimeout");
+        return fullfill_pending_response(readerContext_.pendingSuper, make_error_code(MVLCErrorCode::SuperCommandTimeout));
     }
 
     return rf.get();
@@ -550,8 +550,8 @@ std::error_code CmdApi::stackTransaction(
 
     if (superFuture.wait_for(ResultWaitTimeout) != std::future_status::ready)
     {
-        get_logger("mvlc_apiv2")->warn("stackTransaction super future not ready -> CommandTimeout");
-        ec = make_error_code(MVLCErrorCode::CommandTimeout);
+        get_logger("mvlc_apiv2")->warn("stackTransaction super future not ready -> SuperCommandTimeout");
+        ec = make_error_code(MVLCErrorCode::SuperCommandTimeout);
         fullfill_pending_response(readerContext_.pendingSuper, ec);
         return fullfill_pending_response(readerContext_.pendingStack, ec);
     }
@@ -562,8 +562,8 @@ std::error_code CmdApi::stackTransaction(
     // stack response
     if (stackFuture.wait_for(ResultWaitTimeout) != std::future_status::ready)
     {
-        get_logger("mvlc_apiv2")->warn("stackTransaction stack future not ready -> CommandTimeout");
-        ec = make_error_code(MVLCErrorCode::CommandTimeout);
+        get_logger("mvlc_apiv2")->warn("stackTransaction stack future not ready -> StackCommandTimeout");
+        ec = make_error_code(MVLCErrorCode::StackCommandTimeout);
         return fullfill_pending_response(readerContext_.pendingStack, ec);
     }
 

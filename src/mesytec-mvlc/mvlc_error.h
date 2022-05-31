@@ -63,7 +63,8 @@ enum class MVLCErrorCode
     USBChipConfigError,
 
     // Added for mvlc_apiv2.cc
-    CommandTimeout,
+    SuperCommandTimeout,
+    StackCommandTimeout,
     ShortSuperFrame,
     SuperFormatError,
     StackFormatError,
