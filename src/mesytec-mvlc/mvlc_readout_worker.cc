@@ -790,6 +790,7 @@ std::error_code ReadoutWorker::Private::startReadout()
         std::launch::async,
         [this] () -> void
         {
+#if 1
             // This is the correct order of operations to make multicrate
             // setups work.
             //
@@ -820,6 +821,32 @@ std::error_code ReadoutWorker::Private::startReadout()
 
             if (get_first_error(execResults))
                 throw execResults;
+#else
+            SuperCommandBuilder sb;
+            sb.addReferenceWord(0x1337);
+
+            // setup_readout_triggers()
+            u8 stackId = stacks::ImmediateStackID + 1;
+            for (u32 triggerVal: stackTriggers)
+            {
+                u16 triggerReg = stacks::get_trigger_register(stackId);
+                sb.addWriteLocal(triggerReg, triggerVal);
+                ++stackId;
+            }
+
+            // enable daq mode
+            sb.addWriteLocal(DAQModeEnableRegister, 1);
+
+            // mcst daq start commands
+            // TODO: make sure the mcstDaqStart commands do not exceed the
+            // immediate stack size sb.addStackUpload(mcstDaqStart, CommandPipe, stacks::ImmediateStackStartOffsetBytes);
+            sb.addWriteLocal(stacks::Stack0OffsetRegister, stacks::ImmediateStackStartOffsetBytes);
+            sb.addWriteLocal(stacks::Stack0TriggerRegister, 1u << stacks::ImmediateShift);
+
+            std::vector<u32> dest;
+            auto ec = mvlc.superTransaction(sb, dest);
+            if (ec) throw ec;
+#endif
         });
 
     while (f.valid() && !is_ready(f))

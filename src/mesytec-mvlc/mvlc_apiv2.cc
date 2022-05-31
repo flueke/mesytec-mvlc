@@ -563,6 +563,7 @@ std::error_code CmdApi::stackTransaction(
     // super response
     if (ec)
     {
+        // On write error use the same error_code to fullfill both responses.
         fullfill_pending_response(readerContext_.pendingSuper, ec);
         return fullfill_pending_response(readerContext_.pendingStack, ec);
     }
@@ -570,6 +571,33 @@ std::error_code CmdApi::stackTransaction(
     if (superFuture.wait_for(ResultWaitTimeout) != std::future_status::ready)
     {
         get_logger("mvlc_apiv2")->warn("stackTransaction super future not ready -> SuperCommandTimeout");
+
+#if 1
+        {
+            get_logger("mvlc_apiv2")->warn("Starting super command error recovery");
+            SuperCommandBuilder superBuilder;
+            superBuilder.addReferenceWord(0x0000); // fixed 0 reference for error recovery
+            superBuilder.addReferenceWord(0xfedc);
+            superBuilder.addReferenceWord(0xfedd);
+            superBuilder.addReferenceWord(0xfede);
+            superBuilder.addReferenceWord(0xfedf);
+            superBuilder.addReferenceWord(0xfee0);
+            superBuilder.addReferenceWord(0xfee1);
+            superBuilder.addReferenceWord(0xfee2);
+            superBuilder.addReferenceWord(0xfee3);
+            superBuilder.addReferenceWord(0xfee4);
+            auto cmdBuffer = make_command_buffer(superBuilder);
+            auto ec = readerContext_.mvlc->write(
+                Pipe::Command,
+                reinterpret_cast<const u8 *>(cmdBuffer.data()),
+                cmdBuffer.size() * sizeof(u32),
+                bytesWritten);
+
+            if (ec)
+                get_logger("mvlc_apiv2")->error("Write error during recovery: {}", ec.message());
+        }
+#endif
+
         ec = make_error_code(MVLCErrorCode::SuperCommandTimeout);
         fullfill_pending_response(readerContext_.pendingSuper, ec);
         return fullfill_pending_response(readerContext_.pendingStack, ec);
