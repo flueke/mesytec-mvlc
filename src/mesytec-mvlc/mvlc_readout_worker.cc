@@ -629,7 +629,7 @@ void ReadoutWorker::Private::loop(std::promise<std::error_code> promise)
 
                     if (timeToRun.count() != 0 && totalElapsed >= timeToRun)
                     {
-                        logger->debug("MVLC readout timeToRun reached");
+                        logger->info("MVLC readout timeToRun reached");
                         break;
                     }
                 }
