@@ -101,7 +101,9 @@ void run_readout_parser(
     }
 
 #ifndef NDEBUG
-    assert(filled.size() + empty.size() == countFilled + countEmpty);
+    // FIXME: may not be true as the buffer queue consumer on the other side
+    // may hold a buffer while this assertion runs
+    //assert(filled.size() + empty.size() == countFilled + countEmpty);
 #endif
 
     logger->debug("run_readout_parser() left loop");
