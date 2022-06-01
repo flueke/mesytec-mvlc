@@ -50,8 +50,8 @@ namespace
 {
 using namespace mesytec::mvlc;
 
-static const unsigned WriteTimeout_ms = 500;
-static const unsigned ReadTimeout_ms  = 500;
+static const unsigned WriteTimeout_ms = 2000;
+static const unsigned ReadTimeout_ms  = 2000;
 
 class FTErrorCategory: public std::error_category
 {
