@@ -257,10 +257,10 @@ int main(int argc, char *argv[])
 
     // logging setup
     if (opt_logDebug)
-        spdlog::set_level(spdlog::level::debug);
+        set_global_log_level(spdlog::level::debug);
 
     if (opt_logTrace)
-        spdlog::set_level(spdlog::level::trace);
+        set_global_log_level(spdlog::level::trace);
 
 
     std::ifstream inConfig(opt_crateConfig);
