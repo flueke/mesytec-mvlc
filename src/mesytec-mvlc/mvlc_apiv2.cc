@@ -302,12 +302,12 @@ void cmd_pipe_reader(ReaderContext &context)
                         }
                         else
                         {
-                            u32 ref = buffer[1] & SuperCmdArgMask;
+                            u32 superRef = buffer[1] & SuperCmdArgMask;
 
-                            if (ref != pendingResponse->reference)
+                            if (superRef != pendingResponse->reference)
                             {
-                                logger->warn("cmd_pipe_reader: super ref mismatch, wanted={}, got={}",
-                                             pendingResponse->reference, ref);
+                                logger->warn("cmd_pipe_reader: super ref mismatch, wanted={:#x}, got={:#x}",
+                                             pendingResponse->reference, superRef);
                                 ec = make_error_code(MVLCErrorCode::SuperReferenceMismatch);
                                 ++counters.superRefMismatches;
                             }
@@ -342,6 +342,8 @@ void cmd_pipe_reader(ReaderContext &context)
 
                         if (stackRef != pendingResponse->reference)
                         {
+                            logger->warn("cmd_pipe_reader: stack ref mismatch, wanted={:#x}, got={:#x}",
+                                         pendingResponse->reference, stackRef);
                             ec = make_error_code(MVLCErrorCode::StackReferenceMismatch);
                             ++counters.stackRefMismatches;
                         }
@@ -366,6 +368,9 @@ void cmd_pipe_reader(ReaderContext &context)
 
                     buffer.consume(toConsume);
                 }
+                else
+                    // TODO: consume it!?
+                    assert(!"cmd_pipe_reader: unknown frame in buffer");
             }
             else
             {
