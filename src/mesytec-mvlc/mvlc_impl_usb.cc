@@ -898,6 +898,7 @@ std::error_code Impl::read(Pipe pipe, u8 *buffer, size_t size,
     copy_and_update();
 
 
+#if 0
     if (ec && ec != ErrorType::Timeout)
         return ec;
 
@@ -910,6 +911,7 @@ std::error_code Impl::read(Pipe pipe, u8 *buffer, size_t size,
 
         return make_error_code(FT_TIMEOUT);
     }
+#endif
 
     logger->trace("pipe={}, size={}, read request satisfied after read from MVLC. new buffer size={}",
                   static_cast<unsigned>(pipe), requestedSize, readBuffer.size());
