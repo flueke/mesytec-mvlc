@@ -602,7 +602,7 @@ std::error_code CmdApi::stackTransaction(
         }
 #endif
         // XXX: debug code, leads to doubled timeout
-        if (superFuture.wait_for(ResultWaitTimeout) != std::future_status::ready)
+        //if (superFuture.wait_for(ResultWaitTimeout) != std::future_status::ready)
         {
             get_logger("mvlc_apiv2")->warn("stackTransaction super future still not ready -> SuperCommandTimeout");
             ec = make_error_code(MVLCErrorCode::SuperCommandTimeout);
@@ -644,7 +644,7 @@ std::error_code CmdApi::stackTransaction(
         }
 #endif
         // XXX: debug code, leads to doubled timeout
-        if (stackFuture.wait_for(ResultWaitTimeout) != std::future_status::ready)
+        //if (stackFuture.wait_for(ResultWaitTimeout) != std::future_status::ready)
         {
             get_logger("mvlc_apiv2")->warn("stackTransaction stack future still not ready -> StackCommandTimeout");
             ec = make_error_code(MVLCErrorCode::StackCommandTimeout);
