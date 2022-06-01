@@ -118,7 +118,7 @@ ReadoutInitResults MESYTEC_MVLC_EXPORT init_readout(
     MVLC &mvlc, const CrateConfig &crateConfig,
     const CommandExecOptions stackExecOptions)
 {
-    auto logger = get_logger("readout");
+    auto logger = get_logger("readout_worker");
 
     ReadoutInitResults ret;
 
@@ -216,7 +216,7 @@ void MESYTEC_MVLC_EXPORT listfile_buffer_writer(
     prctl(PR_SET_NAME,"listfile_writer",0,0,0);
 #endif
 
-    auto logger = get_logger("listfile");
+    auto logger = get_logger("listfile_writer");
 
     auto &filled = bufferQueues.filledBufferQueue();
     auto &empty = bufferQueues.emptyBufferQueue();
@@ -380,7 +380,7 @@ struct ReadoutWorker::Private
         , listfileQueues(ListfileWriterBufferSize, ListfileWriterBufferCount)
         , localBuffer(ListfileWriterBufferSize)
         , previousData(ListfileWriterBufferSize)
-        , logger(get_logger("readout"))
+        , logger(get_logger("readout_worker"))
     {}
 
     ~Private()
@@ -1087,7 +1087,7 @@ inline void fixup_usb_buffer(
 
             if (!is_valid_readout_frame(frameInfo))
             {
-                auto logger = get_logger("readout");
+                auto logger = get_logger("readout_worker");
                 cout << fmt::format("non valid readout frame: frameHeader=0x{:08x}", frameHeader) << endl;
 
                 // The above loop was not able to find a valid readout frame.
