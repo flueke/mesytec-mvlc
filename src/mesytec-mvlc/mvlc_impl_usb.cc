@@ -330,8 +330,8 @@ std::error_code post_connect_cleanup(mesytec::mvlc::usb::Impl &impl)
 
     ec = f.get(); // wait here for disable_all_triggers() to complete
 
-    logger->info("end post_connect_cleanup, totalBytesTransferred={}, ec={}" ,
-             totalBytesTransferred, ec.message().c_str());
+    logger->debug("end post_connect_cleanup, totalBytesTransferred={}, ec={}" ,
+                  totalBytesTransferred, ec.message().c_str());
 
     return ec;
 }
@@ -650,13 +650,36 @@ std::error_code Impl::write(Pipe pipe, const u8 *buffer, size_t size,
 #if !USB_WIN_USE_ASYNC
 
 #if USB_WIN_USE_EX_FUNCTIONS
-    logger->trace("sync write (Ex variant)");
 
-    FT_STATUS st = FT_WritePipeEx(
-        m_handle, get_endpoint(pipe, EndpointDirection::Out),
-        const_cast<u8 *>(buffer), size,
-        &transferred,
-        nullptr);
+    static const int MaxWriteAttempts = 3;
+    FT_STATUS st = FT_OK;
+
+    for (int writeAttempt=0;
+         writeAttempt<MaxWriteAttempts;
+         ++writeAttempt)
+    {
+        logger->trace("sync write (Ex variant), attempt {}/{}", writeAttempt+1, MaxWriteAttempts);
+
+        st = FT_WritePipeEx(
+            m_handle, get_endpoint(pipe, EndpointDirection::Out),
+            const_cast<u8 *>(buffer), size,
+            &transferred,
+            nullptr);
+
+        if (st != FT_OK && st != FT_IO_PENDING)
+        {
+            if (auto ec = abortPipe(pipe, EndpointDirection::Out))
+                return ec;
+        }
+
+        if (st == FT_TIMEOUT && transferred == 0)
+        {
+            logger->warn("retrying write of size {}, attempt={}/{}", size, writeAttempt+1, MaxWriteAttempts);
+            continue;
+        }
+        break;
+    }
+
 #else // !USB_WIN_USE_EX_FUNCTIONS
     logger->trace("sync write");
     FT_STATUS st = FT_WritePipe(
@@ -701,7 +724,6 @@ std::error_code Impl::write(Pipe pipe, const u8 *buffer, size_t size,
 
     if (st != FT_OK && st != FT_IO_PENDING)
         abortPipe(pipe, EndpointDirection::Out);
-
 
     bytesTransferred = transferred;
 
@@ -916,7 +938,7 @@ std::error_code Impl::read(Pipe pipe, u8 *buffer, size_t size,
     logger->trace("pipe={}, size={}, read request satisfied after read from MVLC. new buffer size={}",
                   static_cast<unsigned>(pipe), requestedSize, readBuffer.size());
 
-    return {};
+    return ec;
 }
 #else // Impl::read() linux
 std::error_code Impl::read(Pipe pipe, u8 *buffer, size_t size,
