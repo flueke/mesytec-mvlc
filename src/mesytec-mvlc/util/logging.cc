@@ -39,5 +39,10 @@ std::shared_ptr<spdlog::logger>
     return logger;
 }
 
+void set_global_log_level(spdlog::level::level_enum level)
+{
+    spdlog::set_level(level);
+}
+
 } // end namespace mvlc
 } // end namespace mesytec
