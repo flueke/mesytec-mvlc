@@ -150,6 +150,7 @@ ReadoutInitResults MESYTEC_MVLC_EXPORT init_readout(
 
         if (auto ec = get_first_error(ret.triggerIo))
         {
+            ret.ec = ec;
             logger->error("Error running init_trigger_io: {}", ec.message());
             return ret;
         }
@@ -175,6 +176,7 @@ ReadoutInitResults MESYTEC_MVLC_EXPORT init_readout(
 
         if (auto ec = get_first_error(ret.init))
         {
+            ret.ec = ec;
             logger->error("Error running init_commands: {}", ec.message());
             return ret;
         }
