@@ -64,3 +64,9 @@ target_link_libraries(mvlc-mvp-erase-unprotect-23bytes
     PRIVATE mesytec-mvlc
     PRIVATE BFG::Lyra
     PRIVATE spdlog::spdlog)
+
+if(MVLC_ENABLE_ZMQ)
+    add_executable(mvlc-zmq-test-receiver mvlc_zmq_test_receiver.cc)
+    target_link_libraries(mvlc-zmq-test-receiver
+        PRIVATE mesytec-mvlc)
+endif(MVLC_ENABLE_ZMQ)
