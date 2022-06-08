@@ -7,12 +7,12 @@ using namespace mesytec::mvlc;
 
 static volatile bool g_signal_received = false;
 
+#ifndef _WIN32
 void signal_handler(int signum)
 {
-#ifndef _WIN32
     g_signal_received = true;
-#endif
 }
+#endif
 
 void setup_signal_handlers()
 {
@@ -38,9 +38,16 @@ int main(int argc, char *argv[])
     zmq::context_t ctx;
     zmq::socket_t sub(ctx, ZMQ_SUB);
     int timeout = 500; // milliseconds
+
+#ifdef ZMQ_CPP11
+    sub.set(zmq::sockopt::rcvtimeo, timeout);
+    sub.set(zmq::sockopt::subscribe, "");
+#else
     sub.setsockopt(ZMQ_RCVTIMEO, &timeout, sizeof(int));
-    std::string pubUrl = "tcp://localhost:5575";
     sub.setsockopt(ZMQ_SUBSCRIBE, "", 0);
+#endif
+
+    std::string pubUrl = "tcp://localhost:5575";
 
     while (true)
     {
@@ -56,9 +63,12 @@ int main(int argc, char *argv[])
         }
     }
 
+    spdlog::info("Connected to publisher {}, ready to receive data.", pubUrl);
+
     size_t nMessages = 0;
     size_t nBytes = 0;
     auto tStart = std::chrono::steady_clock::now();
+    auto lastReportTime = tStart;
 
     while (true)
     {
@@ -72,6 +82,7 @@ int main(int argc, char *argv[])
 
             spdlog::debug("Calling sub.recv()");
             zmq::message_t msg;
+
             if (sub.recv(msg))
             {
 #if 0
@@ -102,7 +113,23 @@ int main(int argc, char *argv[])
             {
                 spdlog::debug("Timeout waiting for message from publisher");
             }
-        } catch (const std::exception &e)
+
+            auto now = std::chrono::steady_clock::now();
+
+            if (std::chrono::duration_cast<std::chrono::seconds>(now - lastReportTime).count() >= 5)
+            {
+                spdlog::info("Received a total of {} zmq messages, {} bytes", nMessages, nBytes);
+                lastReportTime = now;
+            }
+        }
+#ifndef __WIN32
+        catch (const zmq::error_t &e)
+        {
+            if (e.num() != EINTR)
+                spdlog::warn("Error from sub.recv(): {}", e.what());
+        }
+#endif
+        catch (const std::exception &e)
         {
             spdlog::warn("Error from sub.recv(): {}", e.what());
         }
