@@ -344,15 +344,112 @@ std::error_code make_error_code(ReadoutWorkerError error)
     return { static_cast<int>(error), theReadoutErrorCateogry };
 }
 
+// Core plugins
+namespace
+{
+
+// Requests termination of the DAQ run after a certain run duration has been
+// reached.
+class ReadoutDurationPlugin: public ReadoutLoopPlugin
+{
+    public:
+        void setTimeToRun(const std::chrono::seconds &timeToRun)
+        {
+            timeToRun_ = timeToRun;
+        }
+
+        void readoutStart(Arguments &) override
+        {
+            tReadoutStart_ = std::chrono::steady_clock::now();
+        }
+
+        void readoutStop(Arguments &) override {};
+
+        Result operator()(Arguments &) override
+        {
+            if (timeToRun_.count() != 0)
+            {
+                auto elapsed = std::chrono::steady_clock::now() - tReadoutStart_;
+
+                if (elapsed >= timeToRun_)
+                {
+                    get_logger("readout_worker")->debug(
+                        "ReadoutDurationPlugin: timeToRun reached, requesting readout to stop");
+                    return Result::StopReadout;
+                }
+            }
+
+            return Result::ContinueReadout;
+        }
+
+        std::string pluginName() const override { return "ReadoutDurationPlugin"; }
+
+    private:
+        std::chrono::time_point<std::chrono::steady_clock> tReadoutStart_ = {};
+        std::chrono::seconds timeToRun_ = {};
+};
+
+// Periodically writes a system_event::UnixTimetick section to the listfile.
+class TimetickPlugin: public ReadoutLoopPlugin
+{
+    public:
+        const std::chrono::seconds TimetickInterval = std::chrono::seconds(1);
+
+        void readoutStart(Arguments &args) override
+        {
+            get_logger("readout_worker")->debug(
+                "TimetickPlugin: writing initial BeginRun timetick");
+            // Write the initial timestamp in a BeginRun section
+            listfile_write_timestamp_section(
+                args.listfileHandle, system_event::subtype::BeginRun);
+
+            tLastTick_ = std::chrono::steady_clock::now();
+        }
+
+        void readoutStop(Arguments &args) override
+        {
+            get_logger("readout_worker")->debug(
+                "TimetickPlugin: writing final EndRun timetick");
+            // Write the final timestamp in an EndRun section.
+            listfile_write_timestamp_section(
+                args.listfileHandle, system_event::subtype::EndRun);
+        }
+
+        Result operator()(Arguments &args) override
+        {
+            auto now = std::chrono::steady_clock::now();
+            auto elapsed = now - tLastTick_;
+
+            if (elapsed >= TimetickInterval)
+            {
+                get_logger("readout_worker")->debug(
+                    "TimetickPlugin: writing periodic timetick");
+                listfile_write_timestamp_section(
+                    args.listfileHandle, system_event::subtype::UnixTimetick);
+                tLastTick_ = now;
+            }
+
+            return {};
+        }
+
+        std::string pluginName() const override { return "TimetickPlugin"; }
+
+    private:
+        std::chrono::time_point<std::chrono::steady_clock> tLastTick_ = {};
+};
+
+} // end namspace readout_worker_plugins
+
+
 struct ReadoutWorker::Private
 {
     static constexpr size_t ListfileWriterBufferSize = util::Megabytes(1);
     static constexpr size_t ListfileWriterBufferCount = 10;
     static constexpr std::chrono::seconds ShutdownReadoutMaxWait = std::chrono::seconds(10);
 
+    ReadoutWorker *q = nullptr;
     WaitableProtected<ReadoutWorker::State> state;
     std::atomic<ReadoutWorker::State> desiredState;
-
     MVLC mvlc;
     eth::MVLC_ETH_Interface *mvlcETH = nullptr;
     usb::MVLC_USB_Interface *mvlcUSB = nullptr;
@@ -360,7 +457,6 @@ struct ReadoutWorker::Private
     std::vector<u32> stackTriggers;
     StackCommandBuilder mcstDaqStart;
     StackCommandBuilder mcstDaqStop;
-    std::chrono::seconds timeToRun;
     Protected<Counters> counters;
     std::thread readoutThread;
     ReadoutBufferQueues listfileQueues;
@@ -371,9 +467,12 @@ struct ReadoutWorker::Private
     u32 nextOutputBufferNumber = 1u;
 
     std::shared_ptr<spdlog::logger> logger;
+    std::vector<std::shared_ptr<ReadoutLoopPlugin>> plugins_;
+    std::shared_ptr<ReadoutDurationPlugin> runDurationPlugin_;
 
-    Private(MVLC &mvlc_, ReadoutBufferQueues *snoopQueues_)
-        : state({})
+    Private(ReadoutWorker *q_, MVLC &mvlc_, ReadoutBufferQueues *snoopQueues_)
+        : q(q_)
+        , state({})
         , mvlc(mvlc_)
         , snoopQueues(snoopQueues_)
         , counters()
@@ -381,7 +480,11 @@ struct ReadoutWorker::Private
         , localBuffer(ListfileWriterBufferSize)
         , previousData(ListfileWriterBufferSize)
         , logger(get_logger("readout_worker"))
-    {}
+        , runDurationPlugin_(std::make_shared<ReadoutDurationPlugin>())
+    {
+        registerPlugin(runDurationPlugin_);
+        registerPlugin(std::make_shared<TimetickPlugin>());
+    }
 
     ~Private()
     {
@@ -454,6 +557,17 @@ struct ReadoutWorker::Private
     std::error_code readout(size_t &bytesTransferred);
     std::error_code readout_usb(usb::MVLC_USB_Interface *mvlcUSB, size_t &bytesTransferred);
     std::error_code readout_eth(eth::MVLC_ETH_Interface *mvlcETH, size_t &bytesTransferred);
+
+    bool registerPlugin(std::shared_ptr<ReadoutLoopPlugin> plugin)
+    {
+        auto stateAccess = state.access();
+
+        if (stateAccess.ref() != ReadoutWorker::State::Idle)
+            return false;
+
+        plugins_.emplace_back(plugin);
+        return true;
+    }
 };
 
 constexpr std::chrono::seconds ReadoutWorker::Private::ShutdownReadoutMaxWait;
@@ -464,7 +578,7 @@ ReadoutWorker::ReadoutWorker(
     ReadoutBufferQueues &snoopQueues,
     listfile::WriteHandle *lfh
     )
-    : d(std::make_unique<Private>(mvlc, &snoopQueues))
+    : d(std::make_unique<Private>(this, mvlc, &snoopQueues))
 {
     d->state.access().ref() = State::Idle;
     d->desiredState = State::Idle;
@@ -481,7 +595,7 @@ ReadoutWorker::ReadoutWorker(
     ReadoutBufferQueues &snoopQueues,
     listfile::WriteHandle *lfh
     )
-    : d(std::make_unique<Private>(mvlc, &snoopQueues))
+    : d(std::make_unique<Private>(this, mvlc, &snoopQueues))
 {
     d->state.access().ref() = State::Idle;
     d->desiredState = State::Idle;
@@ -494,7 +608,7 @@ ReadoutWorker::ReadoutWorker(
     ReadoutBufferQueues &snoopQueues,
     listfile::WriteHandle *lfh
     )
-    : d(std::make_unique<Private>(mvlc, &snoopQueues))
+    : d(std::make_unique<Private>(this, mvlc, &snoopQueues))
 {
     d->state.access().ref() = State::Idle;
     d->desiredState = State::Idle;
@@ -504,7 +618,7 @@ ReadoutWorker::ReadoutWorker(
 ReadoutWorker::ReadoutWorker(
     MVLC mvlc,
     listfile::WriteHandle *lfh)
-    : d(std::make_unique<Private>(mvlc, nullptr))
+    : d(std::make_unique<Private>(this, mvlc, nullptr))
 {
     d->state.access().ref() = State::Idle;
     d->desiredState = State::Idle;
@@ -515,7 +629,7 @@ ReadoutWorker::ReadoutWorker(
     MVLC mvlc,
     const std::vector<u32> &stackTriggers,
     listfile::WriteHandle *lfh)
-    : d(std::make_unique<Private>(mvlc, nullptr))
+    : d(std::make_unique<Private>(this, mvlc, nullptr))
 {
     d->state.access().ref() = State::Idle;
     d->desiredState = State::Idle;
@@ -595,18 +709,21 @@ void ReadoutWorker::Private::loop(std::promise<std::error_code> promise)
         std::ref(listfileQueues),
         std::ref(writerCounters));
 
-    const auto TimestampInterval = std::chrono::seconds(1);
+    // Invoke readoutStart() on the plugins
+    {
+        // Create a listfile write handle working on an initial output buffer.
+        listfile::ReadoutBufferWriteHandle wh(*getOutputBuffer());
+
+        // Prepare plugin args for the readoutStart() call.
+        ReadoutLoopPlugin::Arguments pluginArgs { *q, wh };
+
+        for (auto &plugin: plugins_)
+            plugin->readoutStart(pluginArgs);
+    }
 
     auto tStart = std::chrono::steady_clock::now();
     counters.access()->tStart = tStart;
     setState(State::Running);
-
-    // Grab an output buffer and write an initial timestamp into it.
-    {
-        listfile::ReadoutBufferWriteHandle wh(*getOutputBuffer());
-        listfile_write_timestamp_section(wh, system_event::subtype::BeginRun);
-    }
-    auto tTimestamp = tStart;
 
     std::error_code ec = startReadout();
     logger->debug("startReadout() returned: {}", ec.message());
@@ -621,34 +738,31 @@ void ReadoutWorker::Private::loop(std::promise<std::error_code> promise)
         {
             while (ec != ErrorType::ConnectionError)
             {
-                const auto now = std::chrono::steady_clock::now();
-
-                // check if timeToRun has elapsed
+                // Invoke plugins
                 {
-                    auto totalElapsed = now - tStart;
+                    listfile::ReadoutBufferWriteHandle wh(*getOutputBuffer());
+                    ReadoutLoopPlugin::Arguments pluginArgs { *q, wh };
+                    bool stopReadout = false;
 
-                    if (timeToRun.count() != 0 && totalElapsed >= timeToRun)
+                    for (auto &plugin: plugins_)
                     {
-                        logger->info("MVLC readout timeToRun reached");
+                        auto result = (*plugin)(pluginArgs);
+
+                        if (result == ReadoutLoopPlugin::Result::StopReadout)
+                        {
+                            logger->info("MVLC readout requested to stop by plugin '{}'",
+                                         plugin->pluginName());
+                            stopReadout = true;
+                            break;
+                        }
+                    }
+
+                    if (stopReadout)
                         break;
-                    }
                 }
 
-                // check if we need to write a timestamp
-                {
-                    auto elapsed = now - tTimestamp;
-
-                    if (elapsed >= TimestampInterval)
-                    {
-                        listfile::ReadoutBufferWriteHandle wh(*getOutputBuffer());
-                        listfile_write_timestamp_section(wh, system_event::subtype::UnixTimetick);
-                        tTimestamp = now;
-
-                        // Also copy the ListfileWriterCounters into our
-                        // ReadoutWorker::Counters structure.
-                        counters.access()->listfileWriterCounters = writerCounters.access().ref();
-                    }
-                }
+                // Copy counters from the listfile writer thread into our counters structure.
+                counters.access()->listfileWriterCounters = writerCounters.access().ref();
 
                 auto state_ = state.access().copy();
 
@@ -712,8 +826,14 @@ void ReadoutWorker::Private::loop(std::promise<std::error_code> promise)
                 }
             }
         }
+        catch (const std::exception &e)
+        {
+            logger->error("Exception in MVLC readout loop: {}. Terminating readout.", e.what());
+            counters.access()->eptr = std::current_exception();
+        }
         catch (...)
         {
+            logger->error("Unknown exception in MVLC readout loop. Terminating readout.");
             counters.access()->eptr = std::current_exception();
         }
     }
@@ -737,14 +857,18 @@ void ReadoutWorker::Private::loop(std::promise<std::error_code> promise)
 
     logger->debug("terminateReadout() took {}ms to complete", terminateDuration.count());
 
-    // Write an EndRun system event section into a ReadoutBuffer and
-    // immediately flush the buffer.
-    if (writerCounters.access()->state == ListfileWriterCounters::Running)
+    // Invoke readoutStop() on the plugins
     {
         listfile::ReadoutBufferWriteHandle wh(*getOutputBuffer());
-        listfile_write_timestamp_section(wh, system_event::subtype::EndRun);
-        flushCurrentOutputBuffer();
+        ReadoutLoopPlugin::Arguments pluginArgs { *q, wh };
+
+        for (auto &plugin: plugins_)
+            plugin->readoutStop(pluginArgs);
     }
+
+    // If the listfile writer thread is still running flush the current output buffer.
+    if (writerCounters.access()->state == ListfileWriterCounters::Running)
+        flushCurrentOutputBuffer();
 
     maybePutBackSnoopBuffer();
 
@@ -952,8 +1076,8 @@ std::error_code ReadoutWorker::Private::terminateReadout()
             // XXX: Debug code. The check is usually done after disabling
             // triggers and daq mode.
             // Now check if the stop sequence produced an error.
-            if (get_first_error(execResults))
-                throw execResults;
+            //if (get_first_error(execResults))
+            //    throw execResults;
 
             // Do not yet check for errors from running the stop sequence.
             // Instead try to disable trigger processing and leave DAQ mode
@@ -981,6 +1105,7 @@ std::error_code ReadoutWorker::Private::terminateReadout()
     using Clock = std::chrono::high_resolution_clock;
     auto tStart = Clock::now();
     size_t bytesTransferred = 0u;
+
     // The loop could hang forever if disabling the readout triggers does
     // not work for some reason. To circumvent this the total time spent in
     // the loop is limited to ShutdownReadoutMaxWait.
@@ -1000,7 +1125,6 @@ std::error_code ReadoutWorker::Private::terminateReadout()
     {
         f.get();
     }
-
     catch (const std::error_code &ec)
     {
         logger->error("error running MCST DAQ stop sequence: {}", ec.message());
@@ -1058,8 +1182,8 @@ inline void fixup_usb_buffer(
 
             while (view.size() >= sizeof(u32))
             {
-                frameHeader = *reinterpret_cast<const u32 *>(&view[0]);
                 // Can peek and check the next frame header
+                frameHeader = *reinterpret_cast<const u32 *>(&view[0]);
                 frameInfo = extract_frame_info(frameHeader);
 
                 if (is_valid_readout_frame(frameInfo))
@@ -1088,7 +1212,7 @@ inline void fixup_usb_buffer(
             if (!is_valid_readout_frame(frameInfo))
             {
                 auto logger = get_logger("readout_worker");
-                cout << fmt::format("non valid readout frame: frameHeader=0x{:08x}", frameHeader) << endl;
+                logger->warn("usb: invalid readout frame: frameHeader=0x{:08x}", frameHeader);
 
                 // The above loop was not able to find a valid readout frame.
                 // Go to the top of the outer loop and let that handle any
@@ -1349,6 +1473,31 @@ ReadoutWorker::Counters ReadoutWorker::counters()
     return counters.copy();
 }
 
+ReadoutBufferQueues *ReadoutWorker::snoopQueues()
+{
+    return d->snoopQueues;
+}
+
+MVLC &ReadoutWorker::mvlc()
+{
+    return d->mvlc;
+}
+
+bool ReadoutWorker::registerReadoutLoopPlugin(const std::shared_ptr<ReadoutLoopPlugin> &plugin)
+{
+    return d->registerPlugin(plugin);
+}
+
+std::vector<std::shared_ptr<ReadoutLoopPlugin>> ReadoutWorker::readoutLoopPlugins() const
+{
+    auto stateAccess = d->state.access();
+
+    if (stateAccess.ref() != ReadoutWorker::State::Idle)
+        return {};
+
+    return d->plugins_;
+}
+
 std::future<std::error_code> ReadoutWorker::start(const std::chrono::seconds &timeToRun)
 {
     std::promise<std::error_code> promise;
@@ -1361,7 +1510,7 @@ std::future<std::error_code> ReadoutWorker::start(const std::chrono::seconds &ti
     }
 
     d->setState(State::Starting);
-    d->timeToRun = timeToRun;
+    d->runDurationPlugin_->setTimeToRun(timeToRun);
 
     d->readoutThread = std::thread(&Private::loop, d.get(), std::move(promise));
 
@@ -1399,11 +1548,6 @@ std::error_code ReadoutWorker::resume()
 
     d->desiredState = State::Running;
     return {};
-}
-
-ReadoutBufferQueues *ReadoutWorker::snoopQueues()
-{
-    return d->snoopQueues;
 }
 
 bool count_stack_hits(const eth::PacketReadResult &prr, StackHits &stackHits)

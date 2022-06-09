@@ -20,6 +20,7 @@ namespace mesytec
 namespace mvlc
 {
 
+// TODO: find a better place for this function
 MVLC MESYTEC_MVLC_EXPORT make_mvlc(const CrateConfig &crateConfig);
 
 
@@ -74,6 +75,30 @@ enum class ReadoutWorkerError
 };
 
 std::error_code MESYTEC_MVLC_EXPORT make_error_code(ReadoutWorkerError error);
+
+class ReadoutWorker;
+
+class ReadoutLoopPlugin
+{
+    public:
+        enum class Result
+        {
+            ContinueReadout,
+            StopReadout,
+        };
+
+        struct Arguments
+        {
+            ReadoutWorker &readoutWorker;
+            listfile::WriteHandle &listfileHandle;
+        };
+
+        virtual ~ReadoutLoopPlugin() {};
+        virtual void readoutStart(Arguments &args) = 0;
+        virtual void readoutStop(Arguments &args) = 0;
+        virtual Result operator()(Arguments &args) = 0;
+        virtual std::string pluginName() const = 0;
+};
 
 class MESYTEC_MVLC_EXPORT ReadoutWorker
 {
@@ -188,7 +213,7 @@ class MESYTEC_MVLC_EXPORT ReadoutWorker
 
         // Optional: set a list of commands that should be run directly after
         // switching the MVLC to autonomous DAQ mode. The commands typically
-        // use VME writes to multicast addresses to reset VME module
+        // use VME writes to multicast addresses to reset VME modules
         // simultaneously.
         void setMcstDaqStartCommands(const StackCommandBuilder &commands);
 
@@ -197,14 +222,19 @@ class MESYTEC_MVLC_EXPORT ReadoutWorker
         // leaving autonomous DAQ mode.
         void setMcstDaqStopCommands(const StackCommandBuilder &commands);
 
+        bool registerReadoutLoopPlugin(const std::shared_ptr<ReadoutLoopPlugin> &plugin);
+        std::vector<std::shared_ptr<ReadoutLoopPlugin>> readoutLoopPlugins() const;
+
         State state() const;
         WaitableProtected<State> &waitableState();
         Counters counters();
+        ReadoutBufferQueues *snoopQueues();
+        MVLC &mvlc();
+
         std::future<std::error_code> start(const std::chrono::seconds &timeToRun = {});
         std::error_code stop();
         std::error_code pause();
         std::error_code resume();
-        ReadoutBufferQueues *snoopQueues();
 
     private:
         struct Private;
