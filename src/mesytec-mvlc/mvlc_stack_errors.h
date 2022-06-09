@@ -74,10 +74,12 @@ namespace mvlc
 // Records the number of errors for each distinct combination of
 // (error_line, error_flags).
 using ErrorInfoCounts = std::unordered_map<StackErrorInfo, size_t>;
+using StackErrors = std::array<ErrorInfoCounts, stacks::StackCount>;
 
 struct StackErrorCounters
 {
-    std::array<ErrorInfoCounts, stacks::StackCount> stackErrors;
+    // Per stack error info
+    StackErrors stackErrors;
     size_t nonErrorFrames = 0u;
     std::unordered_map<u32, size_t> nonErrorHeaderCounts; // headerValue -> count
 };
@@ -117,6 +119,76 @@ void update_stack_error_counters(StackErrorCounters &counters, const C &errorFra
         ++counters.nonErrorFrames;
         ++counters.nonErrorHeaderCounts[errorFrame[0]];
     }
+}
+
+// Stores stack error information in a single 32-bit word. Used for
+// system_event::StackErrors listfile sections.
+inline u32 stack_error_info_to_sysevent_data(
+    u8 stackId, const StackErrorInfo &errorInfo, size_t errorCount)
+{
+    // Keep large error counts at max value instead of letting the stored
+    // 16-bit error counter overflow.
+    if (errorCount > 0xffff)
+        errorCount = 0xffff;
+
+    u32 ret = ((stackId & 0xf) << 28
+               | (errorInfo.flags & 0xf) << 24
+               | (errorInfo.line & 0xff) << 16
+               | (errorCount & 0xffff) << 0);
+
+    return ret;
+}
+
+// Returns a buffer containing formatted stack error information for stack and
+// entry in stackErrors where the error count is non-zero.
+// Use the returned buffer as the contents for system_event::StackErrors
+// listfile sections.
+inline std::vector<u32> stack_errors_to_sysevent_data(const StackErrors &stackErrors)
+{
+    std::vector<u32> buffer;
+
+    for (size_t stackId = 0; stackId < stackErrors.size(); ++stackId)
+    {
+        const auto &errorInfoCounts = stackErrors[stackId];
+
+        for (auto it = errorInfoCounts.begin(); it != errorInfoCounts.end(); ++it)
+        {
+            auto errorInfo = it->first;
+            auto errorCount = it->second;
+
+            if (!errorCount)
+                continue;
+
+            u32 outWord = stack_error_info_to_sysevent_data(
+                stackId, errorInfo, errorCount);
+
+            buffer.emplace_back(outWord);
+        }
+    }
+
+    return buffer;
+}
+
+// Decodes formatted stack error information, filling and returning a
+// StackErrors object.
+template<typename Buffer>
+StackErrors decode_stack_errors_sysevent_data(const Buffer &data)
+{
+    StackErrorInfo errorInfo = {};
+    StackErrors result = {};
+
+    for (u32 word: data)
+    {
+        u8 stackId = (word >> 28) & 0xf;
+        errorInfo.flags = (word >> 24) & 0xf;
+        errorInfo.line = (word >> 16) & 0xff;
+        size_t errorCount = (word >> 0) & 0xffff;
+
+        if (stackId < result.size())
+            result[stackId][errorInfo] = errorCount;
+    }
+
+    return result;
 }
 
 } // end namespace mvlc

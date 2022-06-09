@@ -438,6 +438,72 @@ class TimetickPlugin: public ReadoutLoopPlugin
         std::chrono::time_point<std::chrono::steady_clock> tLastTick_ = {};
 };
 
+// Periodically writes a system_event::StackErrors section to the listfile.
+// These sections store information about the stack error notifications
+// received on the MVLC command pipe.
+class StackErrorsPlugin: public ReadoutLoopPlugin
+{
+    public:
+        const std::chrono::seconds MinRecordingInterval = std::chrono::seconds(1);
+
+        void readoutStart(Arguments &args) override
+        {
+            // record the initial state of the stack error counters
+            get_logger("readout_worker")->debug(
+                "StackErrorsPlugin: recording initial error counters");
+            prevCounters_ = args.readoutWorker.mvlc().getStackErrorCounters();
+            tLastCheck_ = std::chrono::steady_clock::now();
+        }
+
+        void readoutStop(Arguments &) override {}
+
+        Result operator()(Arguments &args) override
+        {
+            auto now = std::chrono::steady_clock::now();
+            auto elapsed = now - tLastCheck_;
+
+            if (elapsed >= MinRecordingInterval)
+            {
+                auto counters = args.readoutWorker.mvlc().getStackErrorCounters();
+                auto logger = get_logger("readout_worker");
+
+                if (counters.stackErrors != prevCounters_.stackErrors)
+                {
+                    logger->debug("StackErrorsPlugin: error counters changed, "
+                                  "writing system_event::StackErrors listfile section");
+                    writeStackErrorsEvent(args.listfileHandle, counters);
+                    prevCounters_ = counters;
+                }
+                else
+                {
+                    logger->debug("StackErrorsPlugin: error counters unchanged since last check");
+                }
+
+                tLastCheck_ = now;
+            }
+
+            return {};
+        }
+
+        std::string pluginName() const override { return "StackErrorsPlugin"; }
+
+    private:
+        void writeStackErrorsEvent(listfile::WriteHandle &lfh, const StackErrorCounters &counters)
+        {
+            auto buffer = stack_errors_to_sysevent_data(counters.stackErrors);
+
+            if (!buffer.empty())
+            {
+                listfile_write_system_event(
+                    lfh, system_event::subtype::StackErrors,
+                    buffer.data(), buffer.size());
+            }
+        }
+
+        std::chrono::time_point<std::chrono::steady_clock> tLastCheck_ = {};
+        StackErrorCounters prevCounters_ = {};
+};
+
 } // end namspace readout_worker_plugins
 
 
@@ -484,6 +550,7 @@ struct ReadoutWorker::Private
     {
         registerPlugin(runDurationPlugin_);
         registerPlugin(std::make_shared<TimetickPlugin>());
+        registerPlugin(std::make_shared<StackErrorsPlugin>());
     }
 
     ~Private()

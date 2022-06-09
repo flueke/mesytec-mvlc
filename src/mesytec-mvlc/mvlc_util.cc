@@ -193,6 +193,8 @@ std::string system_event_type_to_string(u8 eventType)
             return "Resume";
         case T::MVLCCrateConfig:
             return "MVLCCrateConfig";
+        case T::StackErrors:
+            return "MVLCStackErrors";
         case T::EndOfFile:
             return "EndOfFile";
         default:
