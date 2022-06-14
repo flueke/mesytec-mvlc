@@ -94,26 +94,6 @@ namespace mesytec
 namespace mvlc
 {
 
-MVLC MESYTEC_MVLC_EXPORT make_mvlc(const CrateConfig &crateConfig)
-{
-    switch (crateConfig.connectionType)
-    {
-        case ConnectionType::USB:
-            if (crateConfig.usbIndex >= 0)
-                return make_mvlc_usb(crateConfig.usbIndex);
-
-            if (!crateConfig.usbSerial.empty())
-                return make_mvlc_usb(crateConfig.usbSerial);
-
-            return make_mvlc_usb();
-
-        case ConnectionType::ETH:
-            return make_mvlc_eth(crateConfig.ethHost);
-    }
-
-    throw std::runtime_error("unknown CrateConfig::connectionType");
-}
-
 ReadoutInitResults MESYTEC_MVLC_EXPORT init_readout(
     MVLC &mvlc, const CrateConfig &crateConfig,
     const CommandExecOptions stackExecOptions)

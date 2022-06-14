@@ -20,10 +20,6 @@ namespace mesytec
 namespace mvlc
 {
 
-// TODO: find a better place for this function
-MVLC MESYTEC_MVLC_EXPORT make_mvlc(const CrateConfig &crateConfig);
-
-
 struct MESYTEC_MVLC_EXPORT ReadoutInitResults
 {
     std::error_code ec;

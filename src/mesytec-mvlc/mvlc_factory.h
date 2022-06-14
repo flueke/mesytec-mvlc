@@ -29,18 +29,24 @@
 #define __MESYTEC_MVLC_MVLC_FACTORY_H__
 
 #include "mesytec-mvlc/mesytec-mvlc_export.h"
-#include "mesytec-mvlc/mvlc.h"
+#include "mvlc.h"
+#include "mvlc_readout_config.h"
 
 namespace mesytec
 {
 namespace mvlc
 {
 
+// usb
 MVLC MESYTEC_MVLC_EXPORT make_mvlc_usb();
 MVLC MESYTEC_MVLC_EXPORT make_mvlc_usb(unsigned index);
 MVLC MESYTEC_MVLC_EXPORT make_mvlc_usb(const std::string &serial);
 
+// eth
 MVLC MESYTEC_MVLC_EXPORT make_mvlc_eth(const std::string &host);
+
+// from crateconfig info
+MVLC MESYTEC_MVLC_EXPORT make_mvlc(const CrateConfig &crateConfig);
 
 }
 }
