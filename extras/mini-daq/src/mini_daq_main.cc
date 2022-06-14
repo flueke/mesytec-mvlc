@@ -377,7 +377,7 @@ int main(int argc, char *argv[])
             listfileParams,
             parserCallbacks);
 
-        cout << "Starting readout. Running for " << timeToRun.count() << " seconds." << endl;
+        spdlog::info("Starting readout. Running for {} seconds.", timeToRun.count());
 
         if (auto ec = rdo.start(timeToRun))
         {

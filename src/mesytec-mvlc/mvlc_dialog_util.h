@@ -150,7 +150,7 @@ std::error_code disable_all_triggers_and_daq_mode(DIALOG_API &mvlc)
 
     std::vector<u32> responseBuffer;
     auto ec = mvlc.superTransaction(sb, responseBuffer);
-    log_buffer(get_logger("dialog_util"), spdlog::level::debug,
+    log_buffer(get_logger("dialog_util"), spdlog::level::trace,
                responseBuffer, "response from disable_all_triggers_and_daq_mode()");
     return ec;
 }

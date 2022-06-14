@@ -1017,6 +1017,7 @@ std::error_code MVLC::connect()
         logger->debug("reading hardware_id register");
         if (auto ec = d->cmdApi_.readRegister(registers::hardware_id, hardwareId))
         {
+            logger->error("error reading hardware_id register: {}", ec.message());
             d->isConnected_ = false;
             return ec;
         }
@@ -1024,6 +1025,7 @@ std::error_code MVLC::connect()
         logger->debug("reading firmware_revision register");
         if (auto ec = d->cmdApi_.readRegister(registers::firmware_revision, firmwareRevision))
         {
+            logger->error("error reading firmware_revision register: {}", ec.message());
             d->isConnected_ = false;
             return ec;
         }
