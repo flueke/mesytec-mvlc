@@ -20,6 +20,8 @@ std::shared_ptr<spdlog::logger> MESYTEC_MVLC_EXPORT
 void MESYTEC_MVLC_EXPORT
     set_global_log_level(spdlog::level::level_enum level);
 
+MESYTEC_MVLC_EXPORT std::vector<std::string> list_logger_names();
+
 template<typename View>
 void log_buffer(const std::shared_ptr<spdlog::logger> &logger,
                 const spdlog::level::level_enum &level,

@@ -44,5 +44,18 @@ void set_global_log_level(spdlog::level::level_enum level)
     spdlog::set_level(level);
 }
 
+std::vector<std::string> list_logger_names()
+{
+    std::vector<std::string> result;
+
+    spdlog::apply_all(
+        [&] (std::shared_ptr<spdlog::logger> logger)
+        {
+            result.emplace_back(logger->name());
+        });
+
+    return result;
+}
+
 } // end namespace mvlc
 } // end namespace mesytec
