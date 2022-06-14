@@ -568,7 +568,7 @@ std::error_code Impl::connect()
 
 #ifdef __WIN32
 #if USB_WIN_USE_STREAMPIPE
-    logger->trace("enabling streaming mode for all read pipes, size=%lu", USBStreamPipeReadSize);
+    logger->trace("enabling streaming mode for all read pipes, size={}", USBStreamPipeReadSize);
     // FT_SetStreamPipe(handle, allWritePipes, allReadPipes, pipeID, streamSize)
     st = FT_SetStreamPipe(m_handle, false, true, 0, USBStreamPipeReadSize);
 
@@ -645,7 +645,7 @@ std::error_code Impl::write(Pipe pipe, const u8 *buffer, size_t size,
 
     ULONG transferred = 0; // FT API needs a ULONG*
 
-    logger->trace("pipe={}, size={}", static_cast<unsigned>(pipe), size);
+    logger->trace("write(): pipe={}, size={}", static_cast<unsigned>(pipe), size);
 
 #if !USB_WIN_USE_ASYNC
 
@@ -658,7 +658,7 @@ std::error_code Impl::write(Pipe pipe, const u8 *buffer, size_t size,
          writeAttempt<MaxWriteAttempts;
          ++writeAttempt)
     {
-        logger->trace("sync write (Ex variant), attempt {}/{}", writeAttempt+1, MaxWriteAttempts);
+        logger->trace("write(): sync write (Ex variant), attempt {}/{}", writeAttempt+1, MaxWriteAttempts);
 
         st = FT_WritePipeEx(
             m_handle, get_endpoint(pipe, EndpointDirection::Out),
@@ -674,7 +674,7 @@ std::error_code Impl::write(Pipe pipe, const u8 *buffer, size_t size,
 
         if (st == FT_TIMEOUT && transferred == 0)
         {
-            logger->warn("retrying write of size {}, attempt={}/{}", size, writeAttempt+1, MaxWriteAttempts);
+            logger->warn("write(): retrying write of size {}, attempt={}/{}", size, writeAttempt+1, MaxWriteAttempts);
             continue;
         }
         break;
@@ -731,7 +731,7 @@ std::error_code Impl::write(Pipe pipe, const u8 *buffer, size_t size,
 
     if (ec)
     {
-        logger->warn("pipe={}, wrote {} of {} bytes, result={}",
+        logger->warn("write(): pipe={}, wrote {} of {} bytes, result={}",
                  static_cast<unsigned>(pipe),
                  bytesTransferred, size,
                  ec.message().c_str());
@@ -826,14 +826,14 @@ std::error_code Impl::read(Pipe pipe, u8 *buffer, size_t size,
         }
     };
 
-    logger->trace("pipe={}, size={}, bufferSize={}",
+    logger->trace("read(): pipe={}, size={}, bufferSize={}",
               static_cast<unsigned>(pipe), requestedSize, readBuffer.size());
 
     copy_and_update();
 
     if (size == 0)
     {
-        logger->trace("pipe={}, size={}, read request satisfied from buffer, new buffer size={}",
+        logger->trace("read(): pipe={}, size={}, read request satisfied from buffer, new buffer size={}",
                   static_cast<unsigned>(pipe), requestedSize, readBuffer.size());
         return {};
     }
@@ -842,7 +842,7 @@ std::error_code Impl::read(Pipe pipe, u8 *buffer, size_t size,
     // It's time to issue an actual read request.
     assert(readBuffer.size() == 0);
 
-    logger->trace("pipe={}, requestedSize={}, remainingSize={}, reading from MVLC...",
+    logger->trace("read(): pipe={}, requestedSize={}, remainingSize={}, reading from MVLC...",
               static_cast<unsigned>(pipe), requestedSize, size);
 
     ULONG transferred = 0; // FT API wants a ULONG* parameter
@@ -855,7 +855,7 @@ std::error_code Impl::read(Pipe pipe, u8 *buffer, size_t size,
 #endif
 
 #if USB_WIN_USE_EX_FUNCTIONS
-    logger->trace("sync read (Ex variant)");
+    logger->trace("read(): sync read (Ex variant)");
 
     FT_STATUS st = FT_ReadPipeEx(
         m_handle, get_endpoint(pipe, EndpointDirection::In),
@@ -910,7 +910,7 @@ std::error_code Impl::read(Pipe pipe, u8 *buffer, size_t size,
 
     auto ec = make_error_code(st);
 
-    logger->trace("pipe={}, requestedSize={}, remainingSize={}, read result: ec={}, transferred={}",
+    logger->trace("read(): pipe={}, requestedSize={}, remainingSize={}, read result: ec={}, transferred={}",
                   static_cast<unsigned>(pipe), requestedSize, size,
                   ec.message().c_str(), transferred);
 
@@ -935,7 +935,7 @@ std::error_code Impl::read(Pipe pipe, u8 *buffer, size_t size,
     }
 #endif
 
-    logger->trace("pipe={}, size={}, read request satisfied after read from MVLC. new buffer size={}",
+    logger->trace("read(): pipe={}, size={}, read request satisfied after read from MVLC. new buffer size={}",
                   static_cast<unsigned>(pipe), requestedSize, readBuffer.size());
 
     return ec;
