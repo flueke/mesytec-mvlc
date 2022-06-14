@@ -31,14 +31,14 @@ namespace mesytec
 namespace mvlc
 {
 
-struct CommandExecResult
+struct MESYTEC_MVLC_EXPORT CommandExecResult
 {
     StackCommand cmd;
     std::error_code ec;
     std::vector<u32> response;
 };
 
-struct CommandExecOptions
+struct MESYTEC_MVLC_EXPORT CommandExecOptions
 {
     // Set to true to ignore any SoftwareDelay commands.
     bool ignoreDelays = false;
@@ -48,12 +48,12 @@ struct CommandExecOptions
     bool continueOnVMEError = false;
 };
 
-CommandExecResult run_command(
+MESYTEC_MVLC_EXPORT CommandExecResult run_command(
     MVLC &mvlc,
     const StackCommand &cmd,
     const CommandExecOptions &options = {});
 
-std::vector<CommandExecResult> run_commands(
+MESYTEC_MVLC_EXPORT std::vector<CommandExecResult> run_commands(
     MVLC &mvlc,
     const std::vector<StackCommand> &commands,
     const CommandExecOptions &options = {});
