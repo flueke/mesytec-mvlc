@@ -51,6 +51,8 @@
 #include "mvlc_stack_executor.h"
 #include "mvlc_threading.h"
 #include "mvlc_util.h"
+#include "mvlc_usb_interface.h"
+#include "mvlc_eth_interface.h"
 #include "util/filesystem.h"
 #include "util/fmt.h"
 #include "util/int_types.h"
