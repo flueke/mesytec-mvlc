@@ -255,6 +255,42 @@ mesytec::mvlc::usb::DeviceInfoList make_device_info_list()
     return result;
 }
 
+static const size_t DataBufferSize = usb::USBStreamPipeReadSize;
+
+template<typename Impl>
+std::pair<std::error_code, size_t> read_pipe_until_empty(
+    Impl &impl, Pipe pipe, std::shared_ptr<spdlog::logger> &logger= {})
+{
+    size_t totalBytesTransferred = 0;
+    size_t bytesTransferred = 0;
+    std::array<u8, DataBufferSize> buffer;
+    std::error_code ec = {};
+    do
+    {
+        bytesTransferred = 0;
+        ec = impl.read_unbuffered(pipe, buffer.data(), buffer.size(), bytesTransferred);
+        totalBytesTransferred += bytesTransferred;
+
+        if (logger)
+        {
+            logger->debug("read_pipe_until_empty: pipe={}, ec={}, bytes={}",
+                          static_cast<int>(pipe), ec.message(), bytesTransferred);
+
+            log_buffer(logger, spdlog::level::trace,
+                       basic_string_view<u32>(reinterpret_cast<u32*>(buffer.data()), bytesTransferred/sizeof(u32)),
+                       fmt::format("read_pipe_until_empty: pipe={}, ec={}, bytes={}, data:",
+                                   static_cast<int>(pipe), ec.message(), bytesTransferred)
+                       );
+        }
+
+        if (ec == ErrorType::ConnectionError)
+            break;
+    } while (bytesTransferred > 0);
+
+    return std::make_pair(ec, totalBytesTransferred);
+};
+
+
 // USB specific post connect routine which tries to disable a potentially
 // running DAQ. This is done to make sure the command communication is working
 // properly and no readout data is clogging the USB.
@@ -274,7 +310,6 @@ std::error_code post_connect_cleanup(mesytec::mvlc::usb::Impl &impl)
     logger->debug("begin post_connect_cleanup");
 
     static const int DisableTriggerRetryCount = 5;
-    static const size_t DataBufferSize = usb::USBStreamPipeReadSize;
     static const auto ReadDataPipeMaxWait = std::chrono::seconds(10);
 
     mesytec::mvlc::MVLCDialog_internal dlg(&impl);
@@ -286,52 +321,58 @@ std::error_code post_connect_cleanup(mesytec::mvlc::usb::Impl &impl)
 
     // Try setting the trigger registers in a separate thread. This uses the
     // command pipe for communication.
-    auto f = std::async(std::launch::async, [&dlg] () -> std::error_code
+    auto fCmd = std::async(std::launch::async, [&] ()
     {
+        std::pair<std::error_code, size_t> ret = {};
+
         for (int try_ = 0; try_ < DisableTriggerRetryCount; try_++)
         {
             if (auto ec = disable_all_triggers_and_daq_mode(dlg))
             {
                 if (ec == ErrorType::ConnectionError)
-                    return ec;
+                {
+                    ret.first = ec;
+                    break;
+                }
             }
-            else break;
+            else
+                break;
+
+            // Read any available data from the command pipe.
+            auto rr = read_pipe_until_empty(impl, Pipe::Command, logger);
+            ret.first = rr.first;
+            ret.second += rr.second;
+
+            if (ret.first == ErrorType::ConnectionError)
+                break;
         }
 
-        return {};
+        return ret;
     });
 
-
-    // Use this thread to read the data pipe. This needs to happen so that
-    // readout data doesn't clog up the data pipe bringing communication to a
-    // halt.
-    std::error_code ec;
-    size_t totalBytesTransferred = 0u;
-    size_t bytesTransferred = 0u;
-    std::array<u8, DataBufferSize> buffer;
-    using Clock = std::chrono::high_resolution_clock;
-    auto tStart = Clock::now();
-
-    do
+    auto fData = std::async(std::launch::async, [&] ()
     {
-        bytesTransferred = 0u;
-        ec = impl.read_unbuffered(Pipe::Data, buffer.data(), buffer.size(), bytesTransferred);
-        //ec = impl.read(Pipe::Data, buffer.data(), buffer.size(), bytesTransferred);
-        totalBytesTransferred += bytesTransferred;
+        // Read any available data from the data pipe.
+        return read_pipe_until_empty(impl, Pipe::Data, logger);
+    });
 
-        auto elapsed = Clock::now() - tStart;
+    auto rCmd = fCmd.get();
+    auto rData = fData.get();
 
-        if (elapsed > ReadDataPipeMaxWait)
-            break;
+    logger->debug("pipe reading finished, data: ec={}, bytes={}", rData.first.message(), rData.second);
+    logger->debug("pipe reading finished, cmd:  ec={}, bytes={}", rCmd.first.message(), rCmd.second);
 
-        if (ec == ErrorType::ConnectionError)
-            break;
-    } while (bytesTransferred > 0);
+    std::error_code ec = {};
 
-    ec = f.get(); // wait here for disable_all_triggers() to complete
+    if (rCmd.first)
+        ec = rCmd.first;
+    else if (rData.first)
+        ec = rData.first;
 
-    logger->debug("end post_connect_cleanup, totalBytesTransferred={}, ec={}" ,
-                  totalBytesTransferred, ec.message().c_str());
+    if (ec == ErrorType::Timeout)
+        ec = {};
+
+    logger->debug("end post_connect_cleanup, final ec={}", ec.message());
 
     return ec;
 }
@@ -587,13 +628,14 @@ std::error_code Impl::connect()
 
     if (disableTriggersOnConnect())
     {
-        if (auto ec = post_connect_cleanup(*this))
+        for (int try_=0; try_<2; ++try_)
         {
-            logger->warn("error from USB post connect cleanup: {}", ec.message());
-            return ec;
+            if (auto ec = post_connect_cleanup(*this))
+            {
+                logger->warn("error from USB post connect cleanup: {}", ec.message());
+                return ec;
+            }
         }
-
-        logger->trace("post_connect_cleanup() done");
     }
 
 #ifndef __WIN32
