@@ -807,6 +807,9 @@ std::error_code Impl::read(Pipe pipe, u8 *buffer, size_t size,
     if (static_cast<unsigned>(pipe) >= PipeCount)
         return make_error_code(MVLCErrorCode::InvalidPipe);
 
+    if (size == 0)
+        return {};
+
     const size_t requestedSize = size;
     bytesTransferred = 0u;
 
