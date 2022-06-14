@@ -33,6 +33,13 @@ target_link_libraries(mdpp16_readout_example1
     PRIVATE spdlog::spdlog
     )
 
+add_executable(daq_mode_mcst_error_debugging daq_mode_mcst_error_debugging.cc)
+target_link_libraries(daq_mode_mcst_error_debugging
+    PRIVATE mesytec-mvlc
+    PRIVATE BFG::Lyra
+    PRIVATE spdlog::spdlog
+    )
+
 install(TARGETS
     mvlc-mini-daq
     mvlc-mini-daq-replay
