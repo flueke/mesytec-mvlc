@@ -5,8 +5,8 @@
 #endif
 
 #include <iostream>
-#include <fmt/format.h>
 
+#include "util/fmt.h"
 #include "util/logging.h"
 
 using std::endl;

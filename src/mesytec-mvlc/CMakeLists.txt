@@ -58,7 +58,6 @@ target_link_libraries(mesytec-mvlc
     PRIVATE minizip
     PRIVATE yaml-cpp
     PUBLIC spdlog::spdlog
-    PUBLIC fmt::fmt
     PUBLIC Threads::Threads
     )
 
@@ -96,7 +95,6 @@ generate_export_header(mesytec-mvlc)
 
 # Export and installation
 include(CMakePackageConfigHelpers)
-# TODO set(version_config ${PROJECT_BINARY_DIR}/fmt-config-version.cmake)
 set(project_config ${PROJECT_BINARY_DIR}/mesytec-mvlc-config.cmake)
 set(targets_export_name mesytec-mvlc-targets)
 

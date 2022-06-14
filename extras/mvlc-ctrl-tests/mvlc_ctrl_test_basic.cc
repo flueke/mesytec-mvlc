@@ -1,6 +1,5 @@
 #include "gtest/gtest.h"
 #include <chrono>
-#include <fmt/format.h>
 #include <iostream>
 #include <spdlog/spdlog.h>
 #include <stdlib.h>

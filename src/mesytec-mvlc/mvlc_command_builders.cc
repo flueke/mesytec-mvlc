@@ -4,11 +4,11 @@
 #include <numeric>
 #include <sstream>
 
-#include <fmt/format.h>
 #include <yaml-cpp/yaml.h>
 
 #include "mvlc_command_builders.h"
 #include "mvlc_constants.h"
+#include "util/fmt.h"
 #include "util/string_util.h"
 #include "vme_constants.h"
 

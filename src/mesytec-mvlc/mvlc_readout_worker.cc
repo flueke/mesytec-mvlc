@@ -67,7 +67,6 @@
 #include <cstring>
 #include <exception>
 #include <iostream>
-#include <fmt/format.h>
 #include <iterator>
 
 #ifdef __linux__
@@ -79,6 +78,7 @@
 #include "mvlc_factory.h"
 #include "mvlc_listfile_util.h"
 #include "mvlc_usb_interface.h"
+#include "util/fmt.h"
 #include "util/future_util.h"
 #include "util/io_util.h"
 #include "util/logging.h"

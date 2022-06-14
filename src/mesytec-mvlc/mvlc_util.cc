@@ -21,11 +21,11 @@
 #include "mvlc_util.h"
 
 #include <cassert>
-#include <fmt/format.h>
 #include <iostream>
 #include <sstream>
 
 #include "mvlc_constants.h"
+#include "util/fmt.h"
 #include "util/string_util.h"
 
 using namespace mesytec::mvlc;

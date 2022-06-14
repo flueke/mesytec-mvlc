@@ -8,7 +8,6 @@
 #include <stdexcept>
 #include <sys/stat.h>
 
-#include <fmt/format.h>
 #include <lz4frame.h>
 #include <mz.h>
 #include <mz_compat.h>
@@ -20,6 +19,7 @@
 #include <mz_zip_rw.h>
 
 #include "util/filesystem.h"
+#include "util/fmt.h"
 #include "util/storage_sizes.h"
 #include "util/string_view.hpp"
 
