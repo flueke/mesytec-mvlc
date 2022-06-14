@@ -102,83 +102,72 @@ ReadoutInitResults MESYTEC_MVLC_EXPORT init_readout(
 
     ReadoutInitResults ret;
 
-    // Reset to a clean state
-    ret.ec = disable_all_triggers_and_daq_mode(mvlc);
-
-    if (ret.ec)
-        return ret;
-
-    std::vector<u32> response;
-
-    // 1) trigger io
+    // 0) Reset to a clean state
+    if (auto ec = disable_all_triggers_and_daq_mode(mvlc))
     {
-        std::vector<u32> response;
+        ret.ec = ec;
+        logger->error("init_readout(): Error disabling stack triggers and DAQ mode: {}", ec.message());
+        return ret;
+    }
 
-#if 0
-        auto errors = execute_stack(
-            mvlc, crateConfig.initTriggerIO,
-            stacks::StackMemoryWords, stackExecOptions,
-            response);
-
-        ret.triggerIo = parse_stack_exec_response(crateConfig.initTriggerIO, response, errors);
-#else
+    // 1) MVLC Trigger/IO,
+    {
         ret.triggerIo = run_commands(
             mvlc,
             crateConfig.initTriggerIO,
             stackExecOptions);
-#endif
 
         if (auto ec = get_first_error(ret.triggerIo))
         {
             ret.ec = ec;
-            logger->error("Error running init_trigger_io: {}", ec.message());
+            logger->error("init_readout(): Error running MVLC Trigger/IO init commands: {}", ec.message());
             return ret;
         }
     }
 
-    // 2) init commands
+    // 2) DAQ init commands
     {
-        std::vector<u32> response;
-
-#if 0
-        auto errors = execute_stack(
-            mvlc, crateConfig.initCommands,
-            stacks::StackMemoryWords, stackExecOptions,
-            response);
-
-        ret.init = parse_stack_exec_response(crateConfig.initCommands, response, errors);
-#else
         ret.init = run_commands(
             mvlc,
             crateConfig.initCommands,
             stackExecOptions);
-#endif
 
         if (auto ec = get_first_error(ret.init))
         {
             ret.ec = ec;
-            logger->error("Error running init_commands: {}", ec.message());
+            logger->error("init_readout(): Error running DAQ init commands: {}", ec.message());
             return ret;
         }
     }
 
-    // 3) upload stacks
+    // 3) upload readout stacks
     {
         ret.ec = setup_readout_stacks(mvlc, crateConfig.stacks);
 
         if (ret.ec)
         {
-            logger->error("Error uploading readout stacks: {}", ret.ec.message());
+            logger->error("init_readout(): Error uploading readout stacks: {}", ret.ec.message());
             return ret;
         }
     }
 
-    // enable/disable eth jumbo frames
+    // 4) setup readout stack triggers
+    {
+        ret.ec = setup_readout_triggers(mvlc, crateConfig.triggers);
+
+        if (ret.ec)
+        {
+            logger->error("init_readout(): Error setting up stack triggers: {}", ret.ec.message());
+            return ret;
+        }
+    }
+
+    // 5) [enable/disable eth jumbo frames]
     if (mvlc.connectionType() == ConnectionType::ETH)
     {
         if ((ret.ec = mvlc.enableJumboFrames(crateConfig.ethJumboEnable)))
         {
-            logger->error("Error {} jumbo frames: {}",
+            logger->error("init_readout(): Error {} jumbo frames: {}",
                           crateConfig.ethJumboEnable ? "enabling" : "disabling",
                           ret.ec.message());
         }
@@ -758,7 +747,7 @@ void ReadoutWorker::Private::loop(std::promise<std::error_code> promise)
 
     // Invoke readoutStart() on the plugins
     {
-        // Create a listfile write handle working on an initial output buffer.
+        // Create a listfile write handle writing to an initial output buffer.
         listfile::ReadoutBufferWriteHandle wh(*getOutputBuffer());
 
         // Prepare plugin args for the readoutStart() call.
@@ -781,6 +770,8 @@ void ReadoutWorker::Private::loop(std::promise<std::error_code> promise)
 
     if (!ec)
     {
+        logger->info("Entering readout loop");
+
         try
         {
             while (ec != ErrorType::ConnectionError)
@@ -946,6 +937,7 @@ void ReadoutWorker::Private::loop(std::promise<std::error_code> promise)
     assert(listfileQueues.emptyBufferQueue().size() == ListfileWriterBufferCount);
 
     setState(State::Idle);
+    logger->info("MVLC readout stopped");
 }
 
 // Start readout or resume after pause.
@@ -955,153 +947,92 @@ void ReadoutWorker::Private::loop(std::promise<std::error_code> promise)
 // multicast daq start sequence.
 std::error_code ReadoutWorker::Private::startReadout()
 {
-#if 1
-    // Error reporting is done by throwing either std::error_code or
-    // std::vector<CommandExecResult> (which is the return type of
-    // run_commands()).
-    auto f = std::async(
-        std::launch::async,
-        [this] () -> void
+    // async1: this->readout()
+    std::atomic<bool> quitReadout{false};
+    auto fReadout = std::async(
+        std::launch::async, [this, &quitReadout] ()
         {
-#if 1
-            // This is the correct order of operations to make multicrate
-            // setups work.
-            //
-            // The readout/stack triggers have to be setup before the global
-            // DAQ mode flag is enabled.
-            //
-            // Once the DAQ mode flag is enabled the Trigger/IO StackStart
-            // units will start working. This is required to be able to react
-            // to SlaveTrigger signals from the master.
-            //
-            // Finally the multicast daq start sequence (a combination of all
-            // the mcst start commands from all defined events) is run. This
-            // can make use of Trigger/IO stack processing.
-
-            if (!stackTriggers.empty())
+            while (!quitReadout.load(std::memory_order_relaxed))
             {
-                // enable the readout stacks by writing the stack trigger registers
-                if (auto ec = setup_readout_triggers(mvlc, stackTriggers))
-                    throw ec;
+                size_t bytesTransferred = 0;
+                this->readout(bytesTransferred);
             }
-
-            // enable daq mode
-            if (auto ec = enable_daq_mode(mvlc))
-                throw ec;
-
-            // multicast daq start
-            auto execResults = run_commands(mvlc, mcstDaqStart);
-
-            if (get_first_error(execResults))
-                throw execResults;
-#else
-            SuperCommandBuilder sb;
-            sb.addReferenceWord(0x1337);
-
-            // setup_readout_triggers()
-            u8 stackId = stacks::ImmediateStackID + 1;
-            for (u32 triggerVal: stackTriggers)
-            {
-                u16 triggerReg = stacks::get_trigger_register(stackId);
-                sb.addWriteLocal(triggerReg, triggerVal);
-                ++stackId;
-            }
-
-            // enable daq mode
-            sb.addWriteLocal(DAQModeEnableRegister, 1);
-
-            // mcst daq start commands
-            // TODO: make sure the mcstDaqStart commands do not exceed the
-            // immediate stack size sb.addStackUpload(mcstDaqStart, CommandPipe, stacks::ImmediateStackStartOffsetBytes);
-            sb.addWriteLocal(stacks::Stack0OffsetRegister, stacks::ImmediateStackStartOffsetBytes);
-            sb.addWriteLocal(stacks::Stack0TriggerRegister, 1u << stacks::ImmediateShift);
-
-            std::vector<u32> dest;
-            auto ec = mvlc.superTransaction(sb, dest);
-            if (ec) throw ec;
-#endif
         });
 
-    while (f.valid() && !is_ready(f))
-    {
-        size_t bytesTransferred = 0u;
-        this->readout(bytesTransferred);
-    }
+    // sync
+        // 1) setup_readout_triggers()
+        // 2) enable_daq_mode()
+        // 3) run mcst daq start commands
+
+    std::error_code ec;
 
     try
     {
-        f.get();
-    }
-    catch (const std::error_code &ec)
-    {
-        logger->error("error running MCST DAQ start sequence (async): {}", ec.message());
-        return ec;
-    }
-    catch (const std::vector<CommandExecResult> &execResults)
-    {
-        std::error_code ec = {};
-        for (auto &res: execResults)
+        do
         {
-            if (res.ec)
+            if (!stackTriggers.empty())
             {
-                logger->error("error running MCST DAQ start command (async) '{}': {}",
-                              to_string(res.cmd), res.ec.message());
-                ec = res.ec;
+                if ((ec = setup_readout_triggers(mvlc, stackTriggers)))
+                {
+                    logger->error("Error from setup_readout_triggers(): {}", ec.message());
+                    break;
+                }
+
+                logger->info("setup_readout_triggers done");
             }
-        }
 
-        return ec;
-    }
-
-    return {};
-#else
-    try
-    {
-        if (!stackTriggers.empty())
-        {
-            // enable the readout stacks by writing the stack trigger registers
-            if (auto ec = setup_readout_triggers(mvlc, stackTriggers))
-                throw ec;
-        }
-
-        // enable daq mode
-        if (auto ec = enable_daq_mode(mvlc))
-            throw ec;
-
-        // multicast daq start
-        auto execResults = run_commands(mvlc, mcstDaqStart);
-
-        for (const auto &res: execResults)
-        {
-            logger->info("MCST DAQ Start Command (sync): '{}': {}", to_string(res.cmd), res.ec.message());
-        }
-
-        if (get_first_error(execResults))
-            throw execResults;
-    }
-    catch (const std::error_code &ec)
-    {
-        logger->error("error running MCST DAQ start sequence (sync): {}", ec.message());
-        return ec;
-    }
-    catch (const std::vector<CommandExecResult> &execResults)
-    {
-        std::error_code ec = {};
-        for (auto &res: execResults)
-        {
-            if (res.ec)
+            if ((ec = enable_daq_mode(mvlc)))
             {
-                logger->error("error running MCST DAQ start command (sync) '{}': {}",
-                              to_string(res.cmd), res.ec.message());
-                ec = res.ec;
+                logger->error("Error enabling MVLC DAQ mode: {}", ec.message());
+                break;
             }
-        }
 
-        return ec;
+            logger->info("enable_daq_mode done");
+
+            const int McstMaxTries = 5;
+            for (int try_=0; try_<McstMaxTries; ++try_)
+            {
+                logger->info("Running MCST DAQ start commands (try {}/{})", try_+1, McstMaxTries);
+                auto mcstResults = run_commands(mvlc, mcstDaqStart);
+                ec = get_first_error(mcstResults);
+
+                if (ec && ec == ErrorType::ConnectionError)
+                {
+                    logger->error("ConnectionError from running MCST DAQ start commands: {}", ec.message());
+                    break;
+                }
+                else if (ec)
+                {
+                    auto res = get_first_error_result(mcstResults);
+                    logger->error("Error running MCST DAQ start command '{}': {}",
+                                  to_string(res.cmd), res.ec.message());
+                }
+                else
+                {
+                    logger->info("Done with MCST DAQ start commands");
+                    break;
+                }
+            }
+        } while (false);
+    }
+    catch (const std::exception &e)
+    {
+        logger->error("Caught exception in startReadout(): {}", e.what());
+        quitReadout = true;
+        fReadout.get();
+        throw;
+    }
+    catch (...)
+    {
+        logger->error("Caught unhandled exception in startReadout()");
+        quitReadout = true;
+        fReadout.get();
+        throw;
     }
 
-    return {};
-#endif
+    quitReadout = true;
+    fReadout.get();
+    return ec;
 }
 
 // Cleanly end a running readout session. The code disables all triggers by

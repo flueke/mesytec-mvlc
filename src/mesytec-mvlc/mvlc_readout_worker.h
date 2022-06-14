@@ -27,9 +27,15 @@ struct MESYTEC_MVLC_EXPORT ReadoutInitResults
     std::vector<CommandExecResult> triggerIo;
 };
 
-// Runs the MVLC and DAQ init sequence from the CrateConfig and uploads the
-// readout stacks:
-// 1) MVLC Trigger/IO, 2) initCommands, 3) upload stacks
+// Runs the MVLC and DAQ init sequence from the CrateConfig, uploads the
+// readout stacks and enables readout triggers.
+// MVLC DAQ mode is not enabled by this function!
+// Steps:
+//   1) MVLC Trigger/IO,
+//   2) DAQ init commands,
+//   3) upload readout stacks
+//   4) setup readout stack triggers
+//   5) [enable/disable eth jumbo frames]
 ReadoutInitResults MESYTEC_MVLC_EXPORT init_readout(
     MVLC &mvlc, const CrateConfig &crateConfig,
     const CommandExecOptions stackExecOptions = {});
