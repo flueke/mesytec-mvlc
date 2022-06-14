@@ -22,6 +22,7 @@
 #define __MESYTEC_MVLC_MVLC_DIALOG_UTIL_H__
 
 #include <array>
+#include <cstdlib>
 #include <iostream>
 #include <iomanip>
 
@@ -29,6 +30,7 @@
 #include "mvlc_constants.h"
 #include "mvlc_error.h"
 #include "mvlc_util.h"
+#include "util/logging.h"
 
 namespace mesytec
 {
@@ -136,7 +138,7 @@ template<typename DIALOG_API>
 std::error_code disable_all_triggers_and_daq_mode(DIALOG_API &mvlc)
 {
     SuperCommandBuilder sb;
-    sb.addReferenceWord(0x1338);
+    sb.addReferenceWord(std::rand() % 0xffff);
 
     sb.addWriteLocal(DAQModeEnableRegister, 0);
 
@@ -147,7 +149,10 @@ std::error_code disable_all_triggers_and_daq_mode(DIALOG_API &mvlc)
     }
 
     std::vector<u32> responseBuffer;
-    return mvlc.superTransaction(sb, responseBuffer);
+    auto ec = mvlc.superTransaction(sb, responseBuffer);
+    log_buffer(get_logger("dialog_util"), spdlog::level::debug,
+               responseBuffer, "response from disable_all_triggers_and_daq_mode()");
+    return ec;
 }
 
 template<typename DIALOG_API>
@@ -304,7 +309,7 @@ std::error_code setup_readout_triggers(
     const std::array<u32, stacks::ReadoutStackCount> &triggerValues)
 {
     SuperCommandBuilder sb;
-    sb.addReferenceWord(0x1337);
+    sb.addReferenceWord(std::rand() % 0xffff);
     u8 stackId = stacks::ImmediateStackID + 1;
 
     for (u32 triggerVal: triggerValues)
