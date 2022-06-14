@@ -949,6 +949,7 @@ std::error_code ReadoutWorker::Private::startReadout()
 {
     // async1: this->readout()
     std::atomic<bool> quitReadout{false};
+
     auto fReadout = std::async(
         std::launch::async, [this, &quitReadout] ()
         {
@@ -1006,6 +1007,7 @@ std::error_code ReadoutWorker::Private::startReadout()
                     auto res = get_first_error_result(mcstResults);
                     logger->error("Error running MCST DAQ start command '{}': {}",
                                   to_string(res.cmd), res.ec.message());
+                    continue;
                 }
                 else
                 {
@@ -1043,85 +1045,113 @@ std::error_code ReadoutWorker::Private::startReadout()
 // received on the command pipe.
 std::error_code ReadoutWorker::Private::terminateReadout()
 {
-    auto f = std::async(
-        std::launch::async,
-        [this] () -> void
+    // async1: this->readout() until empty
+
+    enum class ReaderAction
+    {
+        Run,
+        Quit,
+        QuitWhenEmpty
+    };
+
+    std::atomic<ReaderAction> readerAction{ReaderAction::Run};
+
+    auto fReadout = std::async(
+        std::launch::async, [this, &readerAction] ()
         {
-            // new order (see startReadout() above)
-            // multicast daq stop
-            auto execResults = run_commands(mvlc, mcstDaqStop);
-
-            // XXX: Debug code. The check is usually done after disabling
-            // triggers and daq mode.
-            // Now check if the stop sequence produced an error.
-            //if (get_first_error(execResults))
-            //    throw execResults;
-
-            // Do not yet check for errors from running the stop sequence.
-            // Instead try to disable trigger processing and leave DAQ mode
-            // even if errors occured.
-
-            // disable daq mode and the readout stack triggers
-            static const int DisableTriggerRetryCount = 5;
-
-            for (int try_ = 0; try_ < DisableTriggerRetryCount; try_++)
+            while (true)
             {
-                if (auto ec = disable_all_triggers_and_daq_mode(this->mvlc))
-                {
-                    // Lost connection -> error out immediately
-                    if (ec == ErrorType::ConnectionError)
-                        throw ec;
-                }
-                else break;
-            }
+                auto action = readerAction.load(std::memory_order_relaxed);
 
-            // Now check if the stop sequence produced an error.
-            if (get_first_error(execResults))
-                throw execResults;
+                if (action == ReaderAction::Quit)
+                    break;
+
+                size_t bytesTransferred = 0;
+                this->readout(bytesTransferred);
+
+                if (action == ReaderAction::QuitWhenEmpty && bytesTransferred == 0)
+                    break;
+            }
         });
 
-    using Clock = std::chrono::high_resolution_clock;
-    auto tStart = Clock::now();
-    size_t bytesTransferred = 0u;
+    // sync
+        // 1) run mcst daq stop commands
+        // 2) disable stack triggers and daq mode
 
-    // The loop could hang forever if disabling the readout triggers does
-    // not work for some reason. To circumvent this the total time spent in
-    // the loop is limited to ShutdownReadoutMaxWait.
-    do
-    {
-        bytesTransferred = 0u;
-        this->readout(bytesTransferred);
-
-        auto elapsed = Clock::now() - tStart;
-
-        if (elapsed > ShutdownReadoutMaxWait)
-            break;
-
-    } while (bytesTransferred > 0);
+    std::error_code ec;
 
     try
     {
-        f.get();
-    }
-    catch (const std::error_code &ec)
-    {
-        logger->error("error running MCST DAQ stop sequence: {}", ec.message());
-        return ec;
-    }
-    catch (const std::vector<CommandExecResult> &execResults)
-    {
-        for (auto &res: execResults)
+        do
         {
-            if (res.ec)
+            const int MaxTries = 5;
+
+            for (int try_=0; try_<MaxTries; ++try_)
             {
-                logger->error("error running MCST DAQ stop command '{}': {}",
-                              to_string(res.cmd), res.ec.message());
-                return res.ec;
+                logger->info("Running MCST DAQ stop commands (try {}/{})", try_+1, MaxTries);
+                auto mcstResults = run_commands(mvlc, mcstDaqStop);
+                ec = get_first_error(mcstResults);
+
+                if (ec && ec == ErrorType::ConnectionError)
+                {
+                    logger->error("ConnectionError from running MCST DAQ stop commands: {}", ec.message());
+                    break;
+                }
+                else if (ec)
+                {
+                    auto res = get_first_error_result(mcstResults);
+                    logger->error("Error running MCST DAQ stop command '{}': {}",
+                                  to_string(res.cmd), res.ec.message());
+                    continue; // next try
+                }
+                else
+                {
+                    logger->info("Done with MCST DAQ stop commands");
+                    break;
+                }
             }
-        }
+
+            for (int try_=0; try_<MaxTries; ++try_)
+            {
+                logger->info("Disabling stack triggers and DAQ mode");
+                ec = disable_all_triggers_and_daq_mode(mvlc);
+
+                if (ec && ec == ErrorType::ConnectionError)
+                {
+                    logger->error("ConnectionError while disabling DAQ mode: {}", ec.message());
+                    break;
+                }
+                else if (ec)
+                {
+                    logger->error("Error disabling DAQ mode: {}", ec.message());
+                    continue; // next try
+                }
+                else
+                {
+                    logger->info("Done disabling DAQ mode");
+                    break;
+                }
+            }
+        } while (false);
+    }
+    catch (const std::exception &e)
+    {
+        logger->error("Caught exception in terminateReadout(): {}", e.what());
+        readerAction = ReaderAction::Quit;
+        fReadout.get();
+        throw;
+    }
+    catch (...)
+    {
+        logger->error("Caught unhandled exception in terminateReadout()");
+        readerAction = ReaderAction::Quit;
+        fReadout.get();
+        throw;
     }
 
-    return {};
+    readerAction = ReaderAction::QuitWhenEmpty;
+    fReadout.get();
+    return ec;
 }
 
 // Note: in addition to stack frames this includes SystemEvent frames. These
