@@ -80,6 +80,18 @@ inline std::error_code get_first_error(const std::vector<CommandExecResult> resu
     return {};
 }
 
+inline CommandExecResult get_first_error_result(const std::vector<CommandExecResult> results)
+{
+    auto it = std::find_if(
+        std::begin(results), std::end(results),
+        [] (const auto &result) { return static_cast<bool>(result.ec); });
+
+    if (it != std::end(results))
+        return *it;
+
+    return {};
+}
+
 } // end namespace mvlc
 } // end namespace mesytec
 
