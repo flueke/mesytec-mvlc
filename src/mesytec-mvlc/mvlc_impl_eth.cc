@@ -44,8 +44,10 @@
 #include "util/string_view.hpp"
 #include "util/logging.h"
 
+#if defined __linux__ or defined __WIN32
 #define MVLC_ENABLE_ETH_THROTTLE 1
 #define MVLC_ETH_THROTTLE_WRITE_DEBUG_FILE 0
+#endif
 
 namespace
 {
@@ -1051,14 +1053,12 @@ std::error_code Impl::connect()
 
     m_throttleCounters.access().ref() = {};
 
-//#ifdef __linux__
 #if MVLC_ENABLE_ETH_THROTTLE
     m_throttleThread = std::thread(
         mvlc_eth_throttler,
         std::ref(m_throttleContext),
         std::ref(m_throttleCounters));
 #endif
-//#endif
 
     spdlog::trace("end {}", __PRETTY_FUNCTION__);
 

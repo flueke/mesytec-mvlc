@@ -259,7 +259,7 @@ static const size_t DataBufferSize = usb::USBStreamPipeReadSize;
 
 template<typename Impl>
 std::pair<std::error_code, size_t> read_pipe_until_empty(
-    Impl &impl, Pipe pipe, std::shared_ptr<spdlog::logger> &logger= {})
+    Impl &impl, Pipe pipe, std::shared_ptr<spdlog::logger> &logger)
 {
     size_t totalBytesTransferred = 0;
     size_t bytesTransferred = 0;
