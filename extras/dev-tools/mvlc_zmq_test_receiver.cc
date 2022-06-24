@@ -39,7 +39,7 @@ int main(int argc, char *argv[])
     zmq::socket_t sub(ctx, ZMQ_SUB);
     int timeout = 500; // milliseconds
 
-#ifdef ZMQ_CPP11
+#if 0//#ifdef ZMQ_CPP11 // doesn't work with debian-11 libzmq3-dev-4.3.4-1
     sub.set(zmq::sockopt::rcvtimeo, timeout);
     sub.set(zmq::sockopt::subscribe, "");
 #else
