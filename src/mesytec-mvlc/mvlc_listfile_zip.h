@@ -1,6 +1,7 @@
 #ifndef __MESYTEC_MVLC_MVLC_LISTFILE_ZIP_H__
 #define __MESYTEC_MVLC_MVLC_LISTFILE_ZIP_H__
 
+#include <functional>
 #include <memory>
 #include "mesytec-mvlc/mvlc_listfile.h"
 #include "mesytec-mvlc/mesytec-mvlc_export.h"

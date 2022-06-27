@@ -1,6 +1,7 @@
 #ifndef __MESYTEC_MVLC_MVLC_COMMAND_BUILDERS_H__
 #define __MESYTEC_MVLC_MVLC_COMMAND_BUILDERS_H__
 
+#include <algorithm>
 #include <chrono>
 #include <string>
 #include <vector>
