@@ -2,6 +2,7 @@
 #define __MESYTEC_MVLC_EVENT_BUILDER_H__
 
 #include <functional>
+#include <memory>
 #include "mesytec-mvlc/mesytec-mvlc_export.h"
 #include "mvlc_readout_parser.h"
 #include "util/data_filter.h"
