@@ -67,10 +67,10 @@ if(ZMQ_FOUND)
 endif(ZMQ_FOUND)
 
 if(MVLC_ENABLE_ZMQ)
-    include_directories(${ZMQ_INCLUDE_DIRS})
-    target_sources(mesytec-mvlc PRIVATE mvlc_listfile_zmq_ganil.cc)
+    target_include_directories(mesytec-mvlc PUBLIC ${ZMQ_INCLUDE_DIRS})
     target_link_libraries(mesytec-mvlc PUBLIC ${ZMQ_LIBRARIES})
     target_compile_definitions(mesytec-mvlc PUBLIC MVLC_HAVE_ZMQ)
+    target_sources(mesytec-mvlc PRIVATE mvlc_listfile_zmq_ganil.cc)
 endif(MVLC_ENABLE_ZMQ)
 
 if (UNIX AND NOT APPLE)
