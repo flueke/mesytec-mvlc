@@ -895,7 +895,7 @@ std::error_code CmdApi::vmeBlockRead(u32 address, const Blk2eSSTRate &rate, u16 
 
     StackCommandBuilder stackBuilder;
     stackBuilder.addWriteMarker(stackRef);
-    stackBuilder.addVMEBlockRead2eSST(address, rate, maxTransfers);
+    stackBuilder.addVMEBlockRead(address, rate, maxTransfers);
 
     if (auto ec = stackTransaction(stackRef, stackBuilder, dest))
         return ec;

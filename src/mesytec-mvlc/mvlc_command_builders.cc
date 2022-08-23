@@ -118,7 +118,7 @@ SuperCommandBuilder &SuperCommandBuilder::addVMEBlockRead(u32 address, u8 amod, 
 
 SuperCommandBuilder &SuperCommandBuilder::addVMEBlockRead(u32 address, const Blk2eSSTRate &rate, u16 maxTransfers)
 {
-    auto stack = StackCommandBuilder().addVMEBlockRead2eSST(address, rate, maxTransfers);
+    auto stack = StackCommandBuilder().addVMEBlockRead(address, rate, maxTransfers);
     return addCommands(make_stack_upload_commands(CommandPipe, 0u, stack));
 }
 
@@ -522,7 +522,7 @@ StackCommandBuilder &StackCommandBuilder::addVMEBlockRead(u32 address, u8 amod, 
     return addCommand(cmd);
 }
 
-StackCommandBuilder &StackCommandBuilder::addVMEBlockRead2eSST(u32 address, const Blk2eSSTRate &rate, u16 maxTransfers)
+StackCommandBuilder &StackCommandBuilder::addVMEBlockRead(u32 address, const Blk2eSSTRate &rate, u16 maxTransfers)
 {
     StackCommand cmd = {};
     cmd.type  = CommandType::VMERead;
