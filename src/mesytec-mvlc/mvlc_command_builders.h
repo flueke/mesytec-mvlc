@@ -187,7 +187,7 @@ class MESYTEC_MVLC_EXPORT StackCommandBuilder
             u32 address, u8 amod, VMEDataWidth dataWidth,
             bool lateRead = false);
         StackCommandBuilder &addVMEBlockRead(u32 address, u8 amod, u16 maxTransfers);
-        StackCommandBuilder &addVMEBlockRead(u32 address, const Blk2eSSTRate &rate, u16 maxTransfers);
+        StackCommandBuilder &addVMEBlockRead2eSST(u32 address, const Blk2eSSTRate &rate, u16 maxTransfers);
         StackCommandBuilder &addVMEMBLTSwapped(u32 address, u8 amod, u16 maxTransfers);
         // Overload of addVMEMBLTSwapped() using vme_amods::MBLT64 as the VME address modifier.
         StackCommandBuilder &addVMEMBLTSwapped(u32 address, u16 maxTransfers);
