@@ -274,9 +274,9 @@ enum class VMEDataWidth
 
 enum class Blk2eSSTRate: u8
 {
-    Rate160MB,
-    Rate276MB,
-    Rate300MB,
+    Rate160MB = 0,
+    Rate276MB = 1,
+    Rate320MB = 2,
 };
 
 // Shift relative to the AddressMode argument of the read.

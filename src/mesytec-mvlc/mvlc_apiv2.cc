@@ -472,6 +472,7 @@ class CmdApi
         std::error_code vmeWrite(u32 address, u32 value, u8 amod, VMEDataWidth dataWidth);
 
         std::error_code vmeBlockRead(u32 address, u8 amod, u16 maxTransfers, std::vector<u32> &dest);
+        std::error_code vmeBlockRead(u32 address, const Blk2eSSTRate &rate, u16 maxTransfers, std::vector<u32> &dest);
         std::error_code vmeMBLTSwapped(u32 address, u16 maxTransfers, std::vector<u32> &dest);
 
         std::error_code uploadStack(u8 stackOutputPipe, u16 stackMemoryOffset,
@@ -888,6 +889,33 @@ std::error_code CmdApi::vmeBlockRead(
     return {};
 }
 
+std::error_code CmdApi::vmeBlockRead(u32 address, const Blk2eSSTRate &rate, u16 maxTransfers, std::vector<u32> &dest)
+{
+    u32 stackRef = readerContext_.nextStackReference++;
+
+    StackCommandBuilder stackBuilder;
+    stackBuilder.addWriteMarker(stackRef);
+    stackBuilder.addVMEBlockRead(address, rate, maxTransfers);
+
+    if (auto ec = stackTransaction(stackRef, stackBuilder, dest))
+        return ec;
+
+    log_buffer(get_logger("mvlc"), spdlog::level::trace, dest, "vmeBlockRead2eSST(): stackResponse");
+
+    if (!dest.empty())
+    {
+        auto frameFlags = extract_frame_flags(dest[0]);
+
+        if (frameFlags & frame_flags::Timeout)
+            return MVLCErrorCode::NoVMEResponse;
+
+        if (frameFlags & frame_flags::BusError)
+            return MVLCErrorCode::VMEBusError;
+    }
+
+    return {};
+}
+
 std::error_code CmdApi::vmeMBLTSwapped(
     u32 address, u16 maxTransfers, std::vector<u32> &dest)
 {
@@ -915,6 +943,7 @@ std::error_code CmdApi::vmeMBLTSwapped(
 
     return {};
 }
+
 } // end anon namespace
 
 // ============================================
@@ -1144,6 +1173,12 @@ std::error_code MVLC::vmeBlockRead(u32 address, u8 amod, u16 maxTransfers, std::
 {
     auto guard = d->locks_.lockCmd();
     return d->resultCheck(d->cmdApi_.vmeBlockRead(address, amod, maxTransfers, dest));
+}
+
+std::error_code MVLC::vmeBlockRead(u32 address, const Blk2eSSTRate &rate, u16 maxTransfers, std::vector<u32> &dest)
+{
+    auto guard = d->locks_.lockCmd();
+    return d->resultCheck(d->cmdApi_.vmeBlockRead(address, rate, maxTransfers, dest));
 }
 
 std::error_code MVLC::vmeMBLTSwapped(u32 address, u16 maxTransfers, std::vector<u32> &dest)
