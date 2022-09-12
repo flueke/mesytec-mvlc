@@ -84,6 +84,7 @@ class MESYTEC_MVLC_EXPORT MVLC
         std::error_code vmeWrite(u32 address, u32 value, u8 amod, VMEDataWidth dataWidth);
 
         std::error_code vmeBlockRead(u32 address, u8 amod, u16 maxTransfers, std::vector<u32> &dest);
+        std::error_code vmeBlockRead(u32 address, const Blk2eSSTRate &rate, u16 maxTransfers, std::vector<u32> &dest);
         std::error_code vmeMBLTSwapped(u32 address, u16 maxTransfers, std::vector<u32> &dest);
 
         // stack uploading

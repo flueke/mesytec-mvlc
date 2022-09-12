@@ -1,6 +1,7 @@
 #ifndef __MESYTEC_MVLC_MVLC_COMMAND_BUILDERS_H__
 #define __MESYTEC_MVLC_MVLC_COMMAND_BUILDERS_H__
 
+#include <algorithm>
 #include <chrono>
 #include <string>
 #include <vector>
@@ -56,6 +57,7 @@ class MESYTEC_MVLC_EXPORT SuperCommandBuilder
         // outputPipe=CommandPipe(=0) and stackMemoryOffset=0
         SuperCommandBuilder &addVMERead(u32 address, u8 amod, VMEDataWidth dataWidth, bool lateRead = false);
         SuperCommandBuilder &addVMEBlockRead(u32 address, u8 amod, u16 maxTransfers);
+        SuperCommandBuilder &addVMEBlockRead(u32 address, const Blk2eSSTRate &rate, u16 maxTransfers);
         SuperCommandBuilder &addVMEMBLTSwapped(u32 address, u8 amod, u16 maxTransfers);
         SuperCommandBuilder &addVMEMBLTSwapped(u32 address, u16 maxTransfers);
         SuperCommandBuilder &addVMEWrite(u32 address, u32 value, u8 amod, VMEDataWidth dataWidth);
@@ -185,6 +187,7 @@ class MESYTEC_MVLC_EXPORT StackCommandBuilder
             u32 address, u8 amod, VMEDataWidth dataWidth,
             bool lateRead = false);
         StackCommandBuilder &addVMEBlockRead(u32 address, u8 amod, u16 maxTransfers);
+        StackCommandBuilder &addVMEBlockRead(u32 address, const Blk2eSSTRate &rate, u16 maxTransfers);
         StackCommandBuilder &addVMEMBLTSwapped(u32 address, u8 amod, u16 maxTransfers);
         // Overload of addVMEMBLTSwapped() using vme_amods::MBLT64 as the VME address modifier.
         StackCommandBuilder &addVMEMBLTSwapped(u32 address, u16 maxTransfers);
