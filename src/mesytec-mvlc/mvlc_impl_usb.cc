@@ -635,6 +635,8 @@ std::error_code Impl::connect()
                 logger->warn("error from USB post connect cleanup: {}", ec.message());
                 return ec;
             }
+            else
+                break;
         }
     }
 
