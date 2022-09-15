@@ -51,7 +51,8 @@ namespace
 using namespace mesytec::mvlc;
 
 static const unsigned WriteTimeout_ms = 2000;
-static const unsigned ReadTimeout_ms  = 2000;
+// Do not raise the read timeout above 1000ms, otherwise mvme rate monitoring will break!
+static const unsigned ReadTimeout_ms  = 1000;
 
 class FTErrorCategory: public std::error_category
 {
