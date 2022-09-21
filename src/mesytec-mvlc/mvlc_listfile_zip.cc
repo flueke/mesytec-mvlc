@@ -383,6 +383,8 @@ SplitZipCreator::SplitZipCreator()
 
 SplitZipCreator::~SplitZipCreator()
 {
+    if (isOpen())
+        closeArchive();
 }
 
 void SplitZipCreator::createArchive(const SplitListfileSetup &setup)
