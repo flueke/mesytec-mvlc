@@ -122,15 +122,15 @@ SuperCommandBuilder &SuperCommandBuilder::addVMEBlockRead(u32 address, const Blk
     return addCommands(make_stack_upload_commands(CommandPipe, 0u, stack));
 }
 
-SuperCommandBuilder &SuperCommandBuilder::addVMEMBLTSwapped(u32 address, u8 amod, u16 maxTransfers)
+SuperCommandBuilder &SuperCommandBuilder::addVMEBlockReadSwapped(u32 address, u16 maxTransfers)
 {
-    auto stack = StackCommandBuilder().addVMEMBLTSwapped(address, amod, maxTransfers);
+    auto stack = StackCommandBuilder().addVMEBlockReadSwapped(address, maxTransfers);
     return addCommands(make_stack_upload_commands(CommandPipe, 0u, stack));
 }
 
-SuperCommandBuilder &SuperCommandBuilder::addVMEMBLTSwapped(u32 address, u16 maxTransfers)
+SuperCommandBuilder &SuperCommandBuilder::addVMEBlockReadSwapped(u32 address, const Blk2eSSTRate &rate, u16 maxTransfers)
 {
-    auto stack = StackCommandBuilder().addVMEMBLTSwapped(address, maxTransfers);
+    auto stack = StackCommandBuilder().addVMEBlockReadSwapped(address, rate, maxTransfers);
     return addCommands(make_stack_upload_commands(CommandPipe, 0u, stack));
 }
 
@@ -534,20 +534,27 @@ StackCommandBuilder &StackCommandBuilder::addVMEBlockRead(u32 address, const Blk
     return addCommand(cmd);
 }
 
-StackCommandBuilder &StackCommandBuilder::addVMEMBLTSwapped(u32 address, u8 amod, u16 maxTransfers)
+StackCommandBuilder &StackCommandBuilder::addVMEBlockReadSwapped(u32 address, u16 maxTransfers)
 {
     StackCommand cmd = {};
     cmd.type = CommandType::VMEMBLTSwapped;
     cmd.address = address;
-    cmd.amod = amod;
+    cmd.amod = vme_amods::MBLT64;
     cmd.transfers = maxTransfers;
 
     return addCommand(cmd);
 }
 
-StackCommandBuilder &StackCommandBuilder::addVMEMBLTSwapped(u32 address, u16 maxTransfers)
+StackCommandBuilder &StackCommandBuilder::addVMEBlockReadSwapped(u32 address, const Blk2eSSTRate &rate, u16 maxTransfers)
 {
-    return addVMEMBLTSwapped(address, vme_amods::MBLT64, maxTransfers);
+    StackCommand cmd = {};
+    cmd.type  = CommandType::VMEMBLTSwapped;
+    cmd.address = address;
+    cmd.amod = vme_amods::Blk2eSST64;
+    cmd.rate = rate;
+    cmd.transfers = maxTransfers;
+
+    return addCommand(cmd);
 }
 
 

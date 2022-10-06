@@ -662,8 +662,8 @@ std::error_code MVLCDialog_internal::vmeRead(u32 address, u32 &value, u8 amod,
     return ec;
 }
 
-std::error_code MVLCDialog_internal::vmeBlockRead(u32 address, u8 amod, u16 maxTransfers,
-                                         std::vector<u32> &dest)
+std::error_code MVLCDialog_internal::vmeBlockRead(
+    u32 address, u8 amod, u16 maxTransfers, std::vector<u32> &dest)
 {
     if (!vme_amods::is_block_mode(amod))
         return make_error_code(MVLCErrorCode::NonBlockAddressMode);
@@ -681,12 +681,12 @@ std::error_code MVLCDialog_internal::vmeBlockRead(u32 address, u8 amod, u16 maxT
     return ec;
 }
 
-std::error_code MVLCDialog_internal::vmeMBLTSwapped(u32 address, u16 maxTransfers,
-                                           std::vector<u32> &dest)
+std::error_code MVLCDialog_internal::vmeMBLTSwapped(
+    u32 address, u16 maxTransfers, std::vector<u32> &dest)
 {
     SuperCommandBuilder cmdList;
     cmdList.addReferenceWord(m_referenceWord++);
-    cmdList.addVMEMBLTSwapped(address, maxTransfers);
+    cmdList.addVMEBlockReadSwapped(address, maxTransfers);
 
     auto request = make_command_buffer(cmdList);
 

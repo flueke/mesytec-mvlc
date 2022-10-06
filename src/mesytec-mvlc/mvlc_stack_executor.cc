@@ -72,7 +72,7 @@ CommandExecResult run_command(
 
 
         case CT::VMEMBLTSwapped:
-            result.ec = mvlc.vmeMBLTSwapped(
+            result.ec = mvlc.vmeBlockReadSwapped(
                 cmd.address, cmd.transfers, result.response);
             break;
 

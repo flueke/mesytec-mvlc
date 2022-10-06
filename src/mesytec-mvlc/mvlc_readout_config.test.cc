@@ -17,7 +17,7 @@ TEST(mvlc_readout_config, StackCommandBuilderYaml)
     sb.beginGroup("module1");
     sb.addVMEBlockRead(0x10000000u, vme_amods::MBLT64, (1u << 16)-1);
     sb.beginGroup("module2");
-    sb.addVMEMBLTSwapped(0x20000000u, vme_amods::MBLT64, (1u << 16)-1);
+    sb.addVMEBlockReadSwapped(0x20000000u, (1u << 16)-1);
     sb.beginGroup("reset");
     sb.addVMEWrite(0xbb006070u, 1, vme_amods::A32, VMEDataWidth::D32);
 
@@ -47,7 +47,7 @@ TEST(mvlc_readout_config, CrateConfigYaml)
             sb.beginGroup("module1");
             sb.addVMEBlockRead(0x10000000u, vme_amods::MBLT64, (1u << 16)-1);
             sb.beginGroup("module2");
-            sb.addVMEMBLTSwapped(0x20000000u, vme_amods::MBLT64, (1u << 16)-1);
+            sb.addVMEBlockReadSwapped(0x20000000u, (1u << 16)-1);
             sb.beginGroup("reset");
             sb.addVMEWrite(0xbb006070u, 1, vme_amods::A32, VMEDataWidth::D32);
 

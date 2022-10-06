@@ -473,7 +473,9 @@ class CmdApi
 
         std::error_code vmeBlockRead(u32 address, u8 amod, u16 maxTransfers, std::vector<u32> &dest);
         std::error_code vmeBlockRead(u32 address, const Blk2eSSTRate &rate, u16 maxTransfers, std::vector<u32> &dest);
-        std::error_code vmeMBLTSwapped(u32 address, u16 maxTransfers, std::vector<u32> &dest);
+
+        std::error_code vmeBlockReadSwapped(u32 address, u16 maxTransfers, std::vector<u32> &dest);
+        std::error_code vmeBlockReadSwapped(u32 address, const Blk2eSSTRate &rate, u16 maxTransfers, std::vector<u32> &dest);
 
         std::error_code uploadStack(u8 stackOutputPipe, u16 stackMemoryOffset,
                                     const std::vector<StackCommand> &commands);
@@ -889,7 +891,8 @@ std::error_code CmdApi::vmeBlockRead(
     return {};
 }
 
-std::error_code CmdApi::vmeBlockRead(u32 address, const Blk2eSSTRate &rate, u16 maxTransfers, std::vector<u32> &dest)
+std::error_code CmdApi::vmeBlockRead(
+    u32 address, const Blk2eSSTRate &rate, u16 maxTransfers, std::vector<u32> &dest)
 {
     u32 stackRef = readerContext_.nextStackReference++;
 
@@ -900,7 +903,7 @@ std::error_code CmdApi::vmeBlockRead(u32 address, const Blk2eSSTRate &rate, u16 
     if (auto ec = stackTransaction(stackRef, stackBuilder, dest))
         return ec;
 
-    log_buffer(get_logger("mvlc"), spdlog::level::trace, dest, "vmeBlockRead2eSST(): stackResponse");
+    log_buffer(get_logger("mvlc"), spdlog::level::trace, dest, "vmeBlockRead(): stackResponse");
 
     if (!dest.empty())
     {
@@ -916,19 +919,47 @@ std::error_code CmdApi::vmeBlockRead(u32 address, const Blk2eSSTRate &rate, u16 
     return {};
 }
 
-std::error_code CmdApi::vmeMBLTSwapped(
+std::error_code CmdApi::vmeBlockReadSwapped(
     u32 address, u16 maxTransfers, std::vector<u32> &dest)
 {
     u32 stackRef = readerContext_.nextStackReference++;
 
     StackCommandBuilder stackBuilder;
     stackBuilder.addWriteMarker(stackRef);
-    stackBuilder.addVMEMBLTSwapped(address, maxTransfers);
+    stackBuilder.addVMEBlockReadSwapped(address, maxTransfers);
 
     if (auto ec = stackTransaction(stackRef, stackBuilder, dest))
         return ec;
 
-    log_buffer(get_logger("mvlc"), spdlog::level::trace, dest, "vmeMBLTSwapped(): stackResponse");
+    log_buffer(get_logger("mvlc"), spdlog::level::trace, dest, "vmeBlockReadSwapped(): stackResponse");
+
+    if (!dest.empty())
+    {
+        auto frameFlags = extract_frame_flags(dest[0]);
+
+        if (frameFlags & frame_flags::Timeout)
+            return MVLCErrorCode::NoVMEResponse;
+
+        if (frameFlags & frame_flags::BusError)
+            return MVLCErrorCode::VMEBusError;
+    }
+
+    return {};
+}
+
+std::error_code CmdApi::vmeBlockReadSwapped(
+    u32 address, const Blk2eSSTRate &rate, u16 maxTransfers, std::vector<u32> &dest)
+{
+    u32 stackRef = readerContext_.nextStackReference++;
+
+    StackCommandBuilder stackBuilder;
+    stackBuilder.addWriteMarker(stackRef);
+    stackBuilder.addVMEBlockReadSwapped(address, rate, maxTransfers);
+
+    if (auto ec = stackTransaction(stackRef, stackBuilder, dest))
+        return ec;
+
+    log_buffer(get_logger("mvlc"), spdlog::level::trace, dest, "vmeBlockReadSwapped(): stackResponse");
 
     if (!dest.empty())
     {
@@ -1181,10 +1212,16 @@ std::error_code MVLC::vmeBlockRead(u32 address, const Blk2eSSTRate &rate, u16 ma
     return d->resultCheck(d->cmdApi_.vmeBlockRead(address, rate, maxTransfers, dest));
 }
 
-std::error_code MVLC::vmeMBLTSwapped(u32 address, u16 maxTransfers, std::vector<u32> &dest)
+std::error_code MVLC::vmeBlockReadSwapped(u32 address, u16 maxTransfers, std::vector<u32> &dest)
 {
     auto guard = d->locks_.lockCmd();
-    return d->resultCheck(d->cmdApi_.vmeMBLTSwapped(address, maxTransfers, dest));
+    return d->resultCheck(d->cmdApi_.vmeBlockReadSwapped(address, maxTransfers, dest));
+}
+
+std::error_code MVLC::vmeBlockReadSwapped(u32 address, const Blk2eSSTRate &rate, u16 maxTransfers, std::vector<u32> &dest)
+{
+    auto guard = d->locks_.lockCmd();
+    return d->resultCheck(d->cmdApi_.vmeBlockReadSwapped(address, rate, maxTransfers, dest));
 }
 
 std::error_code MVLC::uploadStack(

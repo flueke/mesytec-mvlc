@@ -222,7 +222,7 @@ mvlc_err_t mvlc_ctrl_vme_mblt_swapped_alloc(mvlc_ctrl_t *mvlc, u32 address, u16 
     assert(bufsize);
 
     std::vector<u32> dest;
-    auto ec = mvlc->instance.vmeMBLTSwapped(address, maxTransfers, dest);
+    auto ec = mvlc->instance.vmeBlockReadSwapped(address, maxTransfers, dest);
 
     *buf = reinterpret_cast<u32 *>(malloc(dest.size() * sizeof(u32)));
     *bufsize = dest.size();
@@ -238,7 +238,7 @@ mvlc_err_t mvlc_ctrl_vme_mblt_swapped_buffer(mvlc_ctrl_t *mvlc, u32 address, u16
     assert(bufsize);
 
     std::vector<u32> dest;
-    auto ec = mvlc->instance.vmeMBLTSwapped(address, maxTransfers, dest);
+    auto ec = mvlc->instance.vmeBlockReadSwapped(address, maxTransfers, dest);
 
     size_t toCopy = std::min(dest.size(), *bufsize);
     std::copy_n(dest.begin(), toCopy, buf);
@@ -388,9 +388,9 @@ void mvlc_stackbuilder_add_vme_block_read(
 }
 
 void mvlc_stackbuilder_add_vme_mblt_swapped(
-    mvlc_stackbuilder_t *sb, u32 address, u8 amod, u16 maxTransfers)
+    mvlc_stackbuilder_t *sb, u32 address, u16 maxTransfers)
 {
-    sb->sb.addVMEMBLTSwapped(address, amod, maxTransfers);
+    sb->sb.addVMEBlockReadSwapped(address, maxTransfers);
 }
 
 void mvlc_stackbuilder_add_vme_write(

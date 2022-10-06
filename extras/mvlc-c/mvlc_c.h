@@ -217,7 +217,7 @@ void mvlc_stackbuilder_add_vme_block_read(
     mvlc_stackbuilder_t *sb, u32 address, u8 amod, u16 maxTransfers);
 
 void mvlc_stackbuilder_add_vme_mblt_swapped(
-    mvlc_stackbuilder_t *sb, u32 address, u8 amod, u16 maxTransfers);
+    mvlc_stackbuilder_t *sb, u32 address, u16 maxTransfers);
 
 void mvlc_stackbuilder_add_vme_write(
     mvlc_stackbuilder_t *sb, u32 address, u32 value, u8 amod, MVLC_VMEDataWidth dataWidth);
