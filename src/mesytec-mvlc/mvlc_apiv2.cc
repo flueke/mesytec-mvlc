@@ -255,10 +255,12 @@ void cmd_pipe_reader(ReaderContext &context)
 
             while (!buffer.empty() && !is_good_header(buffer[0]))
             {
+                auto word = buffer[0];
                 buffer.consume(1);
                 ++counters.invalidHeaders;
                 ++counters.wordsSkipped;
                 ++skippedWords;
+                logger->warn("cmd_pipe_reader: skipped over non-good header word 0x{:08x}", word);
             }
 
             if (skippedWords)
