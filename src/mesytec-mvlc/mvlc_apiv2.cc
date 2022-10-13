@@ -25,6 +25,9 @@ namespace apiv2
 
 namespace
 {
+
+static const size_t LogBuffersMaxWords = 0; // set to 0 to output the full buffer contents
+
 struct PendingResponse
 {
     std::promise<std::error_code> promise;
@@ -248,11 +251,20 @@ void cmd_pipe_reader(ReaderContext &context)
 
         while (buffer.used && !context.quit.load(std::memory_order_relaxed))
         {
+            size_t skippedWords = 0u;
+
             while (!buffer.empty() && !is_good_header(buffer[0]))
             {
                 buffer.consume(1);
                 ++counters.invalidHeaders;
                 ++counters.wordsSkipped;
+                ++skippedWords;
+            }
+
+            if (skippedWords)
+            {
+                logger->warn("cmd_pipe_reader: skipped {} non-good header words, words left in buffer: {}",
+                             skippedWords, buffer.used);
             }
 
             if (buffer.empty())
@@ -430,7 +442,7 @@ void cmd_pipe_reader(ReaderContext &context)
         if (bytesTransferred > 0)
         {
             logger->trace("received {} bytes", bytesTransferred);
-            log_buffer(logger, spdlog::level::trace, buffer, "cmd_pipe_reader read buffer");
+            log_buffer(logger, spdlog::level::trace, buffer, "cmd_pipe_reader read buffer", LogBuffersMaxWords);
         }
 
         ++counters.reads;
@@ -554,7 +566,7 @@ std::error_code CmdApi::stackTransaction(
         return make_error_code(MVLCErrorCode::MirrorTransactionMaxWordsExceeded);
 
     log_buffer(get_logger("mvlc_apiv2"), spdlog::level::trace,
-        cmdBuffer, "stackTransaction: upload command buffer");
+        cmdBuffer, "stackTransaction: upload command buffer", LogBuffersMaxWords);
 
     std::vector<u32> superResponse;
 
@@ -810,7 +822,7 @@ std::error_code CmdApi::vmeRead(
     if (auto ec = stackTransaction(stackRef, stackBuilder, stackResponse))
         return ec;
 
-    log_buffer(get_logger("mvlc"), spdlog::level::trace, stackResponse, "vmeRead(): stackResponse");
+    log_buffer(get_logger("mvlc"), spdlog::level::trace, stackResponse, "vmeRead(): stackResponse", LogBuffersMaxWords);
 
     if (stackResponse.size() != 3)
         return make_error_code(MVLCErrorCode::UnexpectedResponseSize);
@@ -844,7 +856,7 @@ std::error_code CmdApi::vmeWrite(
     if (auto ec = stackTransaction(stackRef, stackBuilder, stackResponse))
         return ec;
 
-    log_buffer(get_logger("mvlc"), spdlog::level::trace, stackResponse, "vmeWrite(): stackResponse");
+    log_buffer(get_logger("mvlc"), spdlog::level::trace, stackResponse, "vmeWrite(): stackResponse", LogBuffersMaxWords);
 
     if (stackResponse.size() != 2)
         return make_error_code(MVLCErrorCode::UnexpectedResponseSize);
@@ -875,7 +887,7 @@ std::error_code CmdApi::vmeBlockRead(
     if (auto ec = stackTransaction(stackRef, stackBuilder, dest))
         return ec;
 
-    log_buffer(get_logger("mvlc"), spdlog::level::trace, dest, "vmeBlockRead(): stackResponse");
+    log_buffer(get_logger("mvlc"), spdlog::level::trace, dest, "vmeBlockRead(): stackResponse", LogBuffersMaxWords);
 
     if (!dest.empty())
     {
@@ -903,7 +915,7 @@ std::error_code CmdApi::vmeBlockRead(
     if (auto ec = stackTransaction(stackRef, stackBuilder, dest))
         return ec;
 
-    log_buffer(get_logger("mvlc"), spdlog::level::trace, dest, "vmeBlockRead(): stackResponse");
+    log_buffer(get_logger("mvlc"), spdlog::level::trace, dest, "vmeBlockRead(): stackResponse", LogBuffersMaxWords);
 
     if (!dest.empty())
     {
@@ -931,7 +943,7 @@ std::error_code CmdApi::vmeBlockReadSwapped(
     if (auto ec = stackTransaction(stackRef, stackBuilder, dest))
         return ec;
 
-    log_buffer(get_logger("mvlc"), spdlog::level::trace, dest, "vmeBlockReadSwapped(): stackResponse");
+    log_buffer(get_logger("mvlc"), spdlog::level::trace, dest, "vmeBlockReadSwapped(): stackResponse", LogBuffersMaxWords);
 
     if (!dest.empty())
     {
@@ -959,7 +971,7 @@ std::error_code CmdApi::vmeBlockReadSwapped(
     if (auto ec = stackTransaction(stackRef, stackBuilder, dest))
         return ec;
 
-    log_buffer(get_logger("mvlc"), spdlog::level::trace, dest, "vmeBlockReadSwapped(): stackResponse");
+    log_buffer(get_logger("mvlc"), spdlog::level::trace, dest, "vmeBlockReadSwapped(): stackResponse", LogBuffersMaxWords);
 
     if (!dest.empty())
     {
