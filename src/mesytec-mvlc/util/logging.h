@@ -25,17 +25,32 @@ MESYTEC_MVLC_EXPORT std::vector<std::string> list_logger_names();
 template<typename View>
 void log_buffer(const std::shared_ptr<spdlog::logger> &logger,
                 const spdlog::level::level_enum &level,
-                const View &buffer, const std::string &header)
+                const View &buffer,
+                const std::string &header,
+                size_t numWordsBegin = 0)
 {
+    if (numWordsBegin == 0)
+        numWordsBegin = buffer.size();
+
+    numWordsBegin = std::min(numWordsBegin, buffer.size());
+
     if (!logger->should_log(level))
         return;
 
-    logger->log(level, "begin buffer '{}' (size={})", header, buffer.size());
+    if (numWordsBegin == buffer.size())
+        logger->log(level, "begin buffer '{}' (size={})", header, buffer.size());
+    else
+        logger->log(level, "begin buffer '{}' (size={}, first {} words)", header, buffer.size(), numWordsBegin);
 
-    for (const auto &value: buffer)
-        logger->log(level, "  0x{:008X}", value);
+    for (size_t i=0; i<numWordsBegin; ++i)
+        logger->log(level, "  0x{:008X}", buffer[i]);
 
-    logger->log(level, "end buffer '{}' (size={})", header, buffer.size());
+    auto wordsLeft = buffer.size() - numWordsBegin;
+
+    if (wordsLeft == 0)
+        logger->log(level, "end buffer '{}' (size={})", header, buffer.size());
+    else
+        logger->log(level, "end buffer '{}' (size={}, {} words not logged)", header, buffer.size(), wordsLeft);
 
 }
 

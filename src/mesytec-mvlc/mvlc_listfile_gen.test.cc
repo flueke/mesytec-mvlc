@@ -27,19 +27,35 @@ namespace
         return moduleDataList;
     }
 
-    void log_buffer(const ReadoutBuffer &buffer, bool verbose=true)
+    inline void log_word(u32 w, bool verbose = true)
     {
-        std::cout << "begin buffer" << std::endl;
-        for (u32 w: buffer.viewU32())
-        {
             if (!verbose)
                 std::cout << fmt::format("  0x{:08X}", w) << std::endl;
             else if (is_known_frame_header(w))
                 std::cout << fmt::format("  0x{:08X}, // {}", w, decode_frame_header(w)) << std::endl;
             else
                 std::cout << fmt::format("  0x{:08X},", w) << std::endl;
-        }
+    }
+
+    void log_buffer(const ReadoutBuffer &buffer, bool verbose = true)
+    {
+        std::cout << "begin buffer" << std::endl;
+        for (u32 w: buffer.viewU32())
+            log_word(w, verbose);
         std::cout << "end buffer" << std::endl;
+    }
+
+    void log_buffer(const ReadoutBuffer &buffer, size_t numWordsBegin, bool verbose = true)
+    {
+        auto bv = buffer.viewU32();
+        numWordsBegin = std::min(numWordsBegin, bv.size());
+        std::cout << fmt::format("begin buffer (first {} words)", numWordsBegin) << std::endl;
+
+        for (size_t i=0; i<numWordsBegin; ++i)
+            log_word(bv[i], verbose);
+
+        auto wordsLeft = bv.size() - numWordsBegin;
+        std::cout << fmt::format("end buffer ({} words not logged)", wordsLeft) << std::endl;
     }
 
     using BufferView = nonstd::basic_string_view<const u32>;
