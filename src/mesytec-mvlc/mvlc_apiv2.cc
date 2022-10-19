@@ -272,6 +272,14 @@ void cmd_pipe_reader(ReaderContext &context)
             if (buffer.empty())
                 continue;
 
+            #if 0
+            if (!is_good_header(buffer[0]))
+            {
+                logger->error("cmd_pipe_reader: buffer does not start with a known header word: 0x{:08x}", buffer[0]);
+                log_buffer(logger, spdlog::level::trace, buffer, "cmd_pipe_reader read buffer", LogBuffersMaxWords);
+            }
+            #endif
+
             if (contains_complete_frame(buffer.begin(), buffer.end()))
             {
                 if (is_stackerror_notification(buffer[0]))
@@ -436,6 +444,8 @@ void cmd_pipe_reader(ReaderContext &context)
 #if CMD_PIPE_RECORD_DATA
             recordOut.write(reinterpret_cast<const char *>(packet.buffer), packet.bytesTransferred);
 #endif
+            if (packet.lostPackets)
+                logger->warn("cmd_pipe_reader: lost {} packets", packet.lostPackets);
         }
 
         if (ec && ec != ErrorType::Timeout)
@@ -444,7 +454,7 @@ void cmd_pipe_reader(ReaderContext &context)
         if (bytesTransferred > 0)
         {
             logger->trace("received {} bytes", bytesTransferred);
-            log_buffer(logger, spdlog::level::trace, buffer, "cmd_pipe_reader read buffer", LogBuffersMaxWords);
+            //log_buffer(logger, spdlog::level::trace, buffer, "cmd_pipe_reader read buffer", LogBuffersMaxWords);
         }
 
         ++counters.reads;
