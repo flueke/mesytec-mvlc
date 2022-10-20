@@ -52,6 +52,8 @@ struct MESYTEC_MVLC_EXPORT ListfileWriterCounters
     size_t writes;
     size_t bytesWritten;
     std::exception_ptr eptr;
+    size_t bufferQueueCapacity;
+    size_t bufferQueueSize;
 };
 
 // Usage:

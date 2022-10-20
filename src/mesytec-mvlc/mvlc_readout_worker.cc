@@ -199,6 +199,7 @@ void MESYTEC_MVLC_EXPORT listfile_buffer_writer(
         auto state = protectedState.access();
         state->tStart = ListfileWriterCounters::Clock::now();
         state->state = ListfileWriterCounters::Running;
+        state->bufferQueueCapacity = bufferQueues.bufferCount();
     }
 
     try
@@ -239,6 +240,8 @@ void MESYTEC_MVLC_EXPORT listfile_buffer_writer(
                 empty.enqueue(buffer);
                 throw;
             }
+
+            protectedState.access()->bufferQueueSize = filled.size();
         }
     }
     catch (const std::runtime_error &e)
@@ -264,6 +267,7 @@ void MESYTEC_MVLC_EXPORT listfile_buffer_writer(
         auto state = protectedState.access();
         state->state = ListfileWriterCounters::Idle;
         state->tEnd = ListfileWriterCounters::Clock::now();
+        state->bufferQueueSize = 0;
     }
 
     logger->debug("listfile_writer left write loop, #writes={}, bytesWritten={}",

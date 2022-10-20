@@ -20,6 +20,7 @@ class MESYTEC_MVLC_EXPORT ReadoutBufferQueues
 
         QueueType &filledBufferQueue() { return m_filledBuffers; }
         QueueType &emptyBufferQueue() { return m_emptyBuffers; }
+        size_t bufferCount() { return m_bufferStorage.size(); }
 
     private:
         QueueType m_filledBuffers;
