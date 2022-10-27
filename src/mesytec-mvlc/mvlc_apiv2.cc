@@ -272,14 +272,6 @@ void cmd_pipe_reader(ReaderContext &context)
             if (buffer.empty())
                 continue;
 
-            #if 0
-            if (!is_good_header(buffer[0]))
-            {
-                logger->error("cmd_pipe_reader: buffer does not start with a known header word: 0x{:08x}", buffer[0]);
-                log_buffer(logger, spdlog::level::trace, buffer, "cmd_pipe_reader read buffer", LogBuffersMaxWords);
-            }
-            #endif
-
             if (contains_complete_frame(buffer.begin(), buffer.end()))
             {
                 if (is_stackerror_notification(buffer[0]))
@@ -603,40 +595,10 @@ std::error_code CmdApi::stackTransaction(
 
     if (superFuture.wait_for(ResultWaitTimeout) != std::future_status::ready)
     {
-        //get_logger("mvlc_apiv2")->warn("stackTransaction super future not ready -> SuperCommandTimeout");
-#if 0
-        {
-            get_logger("mvlc_apiv2")->warn("stackTransaction super future not ready, starting error recovery");
-            SuperCommandBuilder superBuilder;
-            superBuilder.addReferenceWord(0x0000); // fixed 0 reference for error recovery
-            superBuilder.addReferenceWord(0xfedc);
-            superBuilder.addReferenceWord(0xfedd);
-            superBuilder.addReferenceWord(0xfede);
-            superBuilder.addReferenceWord(0xfedf);
-            superBuilder.addReferenceWord(0xfee0);
-            superBuilder.addReferenceWord(0xfee1);
-            superBuilder.addReferenceWord(0xfee2);
-            superBuilder.addReferenceWord(0xfee3);
-            superBuilder.addReferenceWord(0xfee4);
-            auto cmdBuffer = make_command_buffer(superBuilder);
-            auto ec = readerContext_.mvlc->write(
-                Pipe::Command,
-                reinterpret_cast<const u8 *>(cmdBuffer.data()),
-                cmdBuffer.size() * sizeof(u32),
-                bytesWritten);
-
-            if (ec)
-                get_logger("mvlc_apiv2")->error("Write error during recovery: {}", ec.message());
-        }
-#endif
-        // XXX: debug code, leads to doubled timeout
-        //if (superFuture.wait_for(ResultWaitTimeout) != std::future_status::ready)
-        {
-            get_logger("mvlc_apiv2")->warn("stackTransaction super future still not ready -> SuperCommandTimeout");
-            ec = make_error_code(MVLCErrorCode::SuperCommandTimeout);
-            fullfill_pending_response(readerContext_.pendingSuper, ec);
-            return fullfill_pending_response(readerContext_.pendingStack, ec);
-        }
+        get_logger("mvlc_apiv2")->warn("stackTransaction super future still not ready -> SuperCommandTimeout");
+        ec = make_error_code(MVLCErrorCode::SuperCommandTimeout);
+        fullfill_pending_response(readerContext_.pendingSuper, ec);
+        return fullfill_pending_response(readerContext_.pendingStack, ec);
     }
 
     if (auto ec = superFuture.get())
@@ -645,39 +607,9 @@ std::error_code CmdApi::stackTransaction(
     // stack response
     if (stackFuture.wait_for(ResultWaitTimeout) != std::future_status::ready)
     {
-        //get_logger("mvlc_apiv2")->warn("stackTransaction stack future not ready -> StackCommandTimeout");
-#if 0
-        {
-            get_logger("mvlc_apiv2")->warn("stackTransaction stack future not ready, starting error recovery");
-            SuperCommandBuilder superBuilder;
-            superBuilder.addReferenceWord(0x0000); // fixed 0 reference for error recovery
-            superBuilder.addReferenceWord(0xfedc);
-            superBuilder.addReferenceWord(0xfedd);
-            superBuilder.addReferenceWord(0xfede);
-            superBuilder.addReferenceWord(0xfedf);
-            superBuilder.addReferenceWord(0xfee0);
-            superBuilder.addReferenceWord(0xfee1);
-            superBuilder.addReferenceWord(0xfee2);
-            superBuilder.addReferenceWord(0xfee3);
-            superBuilder.addReferenceWord(0xfee4);
-            auto cmdBuffer = make_command_buffer(superBuilder);
-            auto ec = readerContext_.mvlc->write(
-                Pipe::Command,
-                reinterpret_cast<const u8 *>(cmdBuffer.data()),
-                cmdBuffer.size() * sizeof(u32),
-                bytesWritten);
-
-            if (ec)
-                get_logger("mvlc_apiv2")->error("Write error during recovery: {}", ec.message());
-        }
-#endif
-        // XXX: debug code, leads to doubled timeout
-        //if (stackFuture.wait_for(ResultWaitTimeout) != std::future_status::ready)
-        {
-            get_logger("mvlc_apiv2")->warn("stackTransaction stack future still not ready -> StackCommandTimeout");
-            ec = make_error_code(MVLCErrorCode::StackCommandTimeout);
-            return fullfill_pending_response(readerContext_.pendingStack, ec);
-        }
+        get_logger("mvlc_apiv2")->warn("stackTransaction stack future still not ready -> StackCommandTimeout");
+        ec = make_error_code(MVLCErrorCode::StackCommandTimeout);
+        return fullfill_pending_response(readerContext_.pendingStack, ec);
     }
 
     return stackFuture.get();
