@@ -53,15 +53,15 @@ class Locks
             return pipe == Pipe::Data ? dataMutex() : cmdMutex();
         }
 
-        UniqueLock lock(Pipe pipe)
+        [[nodiscard]] UniqueLock lock(Pipe pipe)
         {
             return UniqueLock(mutex(pipe));
         }
 
-        UniqueLock lockCmd() { return lock(Pipe::Command); }
-        UniqueLock lockData() { return lock(Pipe::Data); }
+        [[nodiscard]] UniqueLock lockCmd() { return lock(Pipe::Command); }
+        [[nodiscard]] UniqueLock lockData() { return lock(Pipe::Data); }
 
-        LockPair lockBoth()
+        [[nodiscard]] LockPair lockBoth()
         {
             // Note: since switching from std::mutex to the TicketMutex as the
             // mutex type this code should not use std::lock() anymore. The
