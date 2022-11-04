@@ -56,6 +56,7 @@ namespace vme_amods
             case a32PrivBlock:
             case a32PrivBlock64:
             case a24UserBlock:
+            case a24PrivBlock:
             case Blk2eSST64:
                 return true;
         }
@@ -70,6 +71,7 @@ namespace vme_amods
             case a32UserBlock:
             case a32PrivBlock:
             case a24UserBlock:
+            case a24PrivBlock:
                 return true;
         }
 
