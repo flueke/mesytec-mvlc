@@ -7,11 +7,7 @@
 #include "int_types.h"
 //#include "mesytec-mvlc/util/int_types.h"
 
-namespace mesytec
-{
-namespace mvlc
-{
-namespace util
+namespace mesytec::mvlc::util
 {
 
 /* bit_gather() and bit_scatter() are from the FXT library by Joerg Arndt.
@@ -109,8 +105,28 @@ inline uint8_t *align_upwards_b(uint8_t *stack, uintptr_t align)
     return (uint8_t *)addr;
 }
 
+
+// Bit rotation functions from: https://stackoverflow.com/a/776523 by Peter Cordes
+
+inline uint32_t rotl32 (uint32_t n, unsigned int c)
+{
+  const unsigned int mask = (8*sizeof(n) - 1);  // assumes width is a power of 2.
+
+  // assert ( (c<=mask) &&"rotate by type width or more");
+  c &= mask;
+  return (n<<c) | (n>>( (-c)&mask ));
 }
+
+inline uint32_t rotr32 (uint32_t n, unsigned int c)
+{
+  const unsigned int mask = (8*sizeof(n) - 1);
+
+  // assert ( (c<=mask) &&"rotate by type width or more");
+  c &= mask;
+  return (n>>c) | (n<<( (-c)&mask ));
 }
+
+
 }
 
 #endif /* __MESYTEC_MVLC_BITS_H__ */
