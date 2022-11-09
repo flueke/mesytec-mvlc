@@ -133,7 +133,7 @@ int main(int argc, char *argv[])
     }
 
     MVLC_ReadoutState rdoState = get_replay_state(replay);
-    assert(rdoState == ReadoutState_Idle);
+    assert(rdoState == ReadoutState_Idle); (void) rdoState;
 
     mvlc_err_t err = mvlc_replay_start(replay);
 

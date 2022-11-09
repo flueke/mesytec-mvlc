@@ -45,19 +45,6 @@ namespace
         std::cout << "end buffer" << std::endl;
     }
 
-    void log_buffer(const ReadoutBuffer &buffer, size_t numWordsBegin, bool verbose = true)
-    {
-        auto bv = buffer.viewU32();
-        numWordsBegin = std::min(numWordsBegin, bv.size());
-        std::cout << fmt::format("begin buffer (first {} words)", numWordsBegin) << std::endl;
-
-        for (size_t i=0; i<numWordsBegin; ++i)
-            log_word(bv[i], verbose);
-
-        auto wordsLeft = bv.size() - numWordsBegin;
-        std::cout << fmt::format("end buffer ({} words not logged)", wordsLeft) << std::endl;
-    }
-
     using BufferView = nonstd::basic_string_view<const u32>;
 }
 

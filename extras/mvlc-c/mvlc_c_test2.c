@@ -216,7 +216,7 @@ int main(int argc, char *argv[])
             userContext);
 
     MVLC_ReadoutState rdoState = get_readout_state(rdo);
-    assert(rdoState == ReadoutState_Idle);
+    assert(rdoState == ReadoutState_Idle); (void) rdoState;
 
     err = mvlc_readout_start(rdo, opt_runDuration);
 

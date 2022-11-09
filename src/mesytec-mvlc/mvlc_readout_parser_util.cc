@@ -34,11 +34,6 @@ void run_readout_parser(
     auto &filled = bufferQueues.filledBufferQueue();
     auto &empty = bufferQueues.emptyBufferQueue();
 
-#ifndef NDEBUG
-    const size_t countFilled = filled.size();
-    const size_t countEmpty = empty.size();
-#endif
-
     try
     {
         logger->debug("run_readout_parser() entering loop");
@@ -99,12 +94,6 @@ void run_readout_parser(
         state.eptr = std::current_exception();
         logger->error("run_readout_parser caught an unknown exception");
     }
-
-#ifndef NDEBUG
-    // FIXME: may not be true as the buffer queue consumer on the other side
-    // may hold a buffer while this assertion runs
-    //assert(filled.size() + empty.size() == countFilled + countEmpty);
-#endif
 
     logger->debug("run_readout_parser() left loop");
 }
