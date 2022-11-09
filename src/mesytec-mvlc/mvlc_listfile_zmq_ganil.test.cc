@@ -17,10 +17,15 @@ TEST(mvlc_listfile_zmq_ganil, TestListfileZmqGanil)
     zmq::socket_t sub(ctx, ZMQ_SUB);
 
     int timeout=500; //milliseconds
+#if CPPZMQ_VERSION >= ZMQ_MAKE_VERSION(4, 7, 0)
+    sub.set(zmq::sockopt::rcvtimeo, timeout);
+    EXPECT_NO_THROW(sub.set(zmq::sockopt::subscribe, ""));
+#else
     sub.setsockopt(ZMQ_RCVTIMEO, &timeout, sizeof(int));
+    EXPECT_NO_THROW(sub.setsockopt(ZMQ_SUBSCRIBE, "", 0));
+#endif
 
     EXPECT_NO_THROW(sub.connect("tcp://localhost:5575"));
-    EXPECT_NO_THROW(sub.setsockopt(ZMQ_SUBSCRIBE, "", 0));
 
     // Hack to give zmq time to connect. Removing this entirely makes the
     // receive tests below fail.

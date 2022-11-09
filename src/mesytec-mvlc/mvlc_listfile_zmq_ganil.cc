@@ -32,7 +32,11 @@ ZmqGanilWriteHandle::ZmqGanilWriteHandle()
 
     // linger equal to 0 for a fast socket shutdown
     int linger = 0;
+#if CPPZMQ_VERSION >= ZMQ_MAKE_VERSION(4, 7, 0)
+    d->pub.set(zmq::sockopt::linger, linger);
+#else
     d->pub.setsockopt(ZMQ_LINGER, &linger, sizeof(linger));
+#endif
 
     try
     {
@@ -60,7 +64,13 @@ size_t ZmqGanilWriteHandle::write(const u8 *data, size_t size)
     {
         d->logger->trace("Publishing message of size {}", size);
         // TODO: fix the depcrecation warning
+#if CPPZMQ_VERSION >= ZMQ_MAKE_VERSION(4, 3, 1)
+        if (auto sendResult = d->pub.send(zmq::const_buffer{ data, size }))
+            return sendResult.value();
+        return {};
+#else
         return d->pub.send(data, size);
+#endif
     }
     catch (const zmq::error_t &e)
     {
