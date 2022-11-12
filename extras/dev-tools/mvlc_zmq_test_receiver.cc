@@ -39,7 +39,7 @@ int main(int argc, char *argv[])
     zmq::socket_t sub(ctx, ZMQ_SUB);
     int timeout = 500; // milliseconds
 
-#if CPPZMQ_VERSION >= ZMQ_MAKE_VERSION(4, 7, 0)
+#if CPPZMQ_VERSION > ZMQ_MAKE_VERSION(4, 7, 0)
     sub.set(zmq::sockopt::rcvtimeo, timeout);
     sub.set(zmq::sockopt::subscribe, "");
 #else

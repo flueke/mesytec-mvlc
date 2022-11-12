@@ -32,7 +32,7 @@ ZmqGanilWriteHandle::ZmqGanilWriteHandle()
 
     // linger equal to 0 for a fast socket shutdown
     int linger = 0;
-#if CPPZMQ_VERSION >= ZMQ_MAKE_VERSION(4, 7, 0)
+#if CPPZMQ_VERSION > ZMQ_MAKE_VERSION(4, 7, 0)
     d->pub.set(zmq::sockopt::linger, linger);
 #else
     d->pub.setsockopt(ZMQ_LINGER, &linger, sizeof(linger));
