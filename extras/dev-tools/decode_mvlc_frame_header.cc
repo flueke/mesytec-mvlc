@@ -16,7 +16,13 @@ int main(int argc, char *argv[])
 
     for (auto header: frameHeaders)
     {
-        std::cout << fmt::format("0x{:08x} -> {}", header, decode_frame_header(header))
+        auto frameInfo = extract_frame_info(header);
+
+        if (frameInfo.type == frame_headers::BlockRead)
+            std::cout << "  ";
+
+        std::cout
+            << fmt::format("0x{:08x} -> {}", header, decode_frame_header(header))
             << std::endl;
     }
 }
