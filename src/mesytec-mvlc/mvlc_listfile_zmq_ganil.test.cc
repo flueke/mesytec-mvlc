@@ -43,7 +43,11 @@ TEST(mvlc_listfile_zmq_ganil, TestListfileZmqGanil)
     for (int i=1; i<=100; ++i)
     {
         zmq::message_t msg;
+#ifndef CPPZMQ_VERSION
+        ASSERT_NO_THROW(sub.recv(&msg));
+#else
         ASSERT_NO_THROW(sub.recv(msg).value());
+#endif
         ASSERT_EQ(msg.size(), i * sizeof(int));
 
         const int *data = reinterpret_cast<const int *>(msg.data());
