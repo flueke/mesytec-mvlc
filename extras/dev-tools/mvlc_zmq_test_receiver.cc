@@ -83,7 +83,11 @@ int main(int argc, char *argv[])
             spdlog::debug("Calling sub.recv()");
             zmq::message_t msg;
 
+#ifndef CPPZMQ_VERSION
+            if (sub.recv(&msg))
+#else
             if (sub.recv(msg))
+#endif
             {
 #if 0
                 spdlog::info("Received message of size {}", msg.size());

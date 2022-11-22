@@ -20,16 +20,17 @@ struct ZmqGanilWriteHandle::Private
     std::shared_ptr<spdlog::logger> logger;
     zmq::context_t ctx;
     zmq::socket_t pub;
+
+    Private()
+        : logger(get_logger("mvlc_listfile_zmq_ganil"))
+        , ctx()
+        , pub(ctx, ZMQ_PUB)
+    {}
 };
 
 ZmqGanilWriteHandle::ZmqGanilWriteHandle()
     : d(std::make_unique<Private>())
 {
-    d->logger = get_logger("mvlc_listfile_zmq_ganil");
-    //d->ctx = zmq::context_t(ZmqIoThreads);
-    d->ctx = zmq::context_t();
-    d->pub = zmq::socket_t(d->ctx, ZMQ_PUB);
-
     // linger equal to 0 for a fast socket shutdown
     int linger = 0;
 #if CPPZMQ_VERSION > ZMQ_MAKE_VERSION(4, 7, 0)
