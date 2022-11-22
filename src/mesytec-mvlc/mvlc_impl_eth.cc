@@ -41,8 +41,9 @@
 #include "mvlc_threading.h"
 #include "mvlc_util.h"
 #include "util/io_util.h"
-#include "util/string_view.hpp"
 #include "util/logging.h"
+#include "util/storage_sizes.h"
+#include "util/string_view.hpp"
 
 #if defined __linux__ or defined __WIN32
 #define MVLC_ENABLE_ETH_THROTTLE 1
@@ -945,8 +946,12 @@ std::error_code Impl::connect()
 
             if (actualBufferSize < DesiredSocketReceiveBufferSize)
             {
-                logger->info("pipe={}, requested SO_RCVBUF of {} bytes, got {} bytes",
-                         static_cast<unsigned>(pipe), DesiredSocketReceiveBufferSize, actualBufferSize);
+                auto desiredMB = static_cast<double>(DesiredSocketReceiveBufferSize) / util::Megabytes(1);
+                auto actualMB = static_cast<double>(actualBufferSize) / util::Megabytes(1);
+                logger->info("pipe={}, requested SO_RCVBUF of {} bytes ({} MB), got {} bytes ({} MB)",
+                             static_cast<unsigned>(pipe),
+                             DesiredSocketReceiveBufferSize, desiredMB,
+                             actualBufferSize, actualMB);
             }
 
 #ifdef __WIN32
