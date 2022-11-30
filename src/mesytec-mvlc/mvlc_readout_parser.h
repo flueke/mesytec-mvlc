@@ -406,6 +406,18 @@ MESYTEC_MVLC_EXPORT ParseResult parse_readout_buffer_usb(
 MESYTEC_MVLC_EXPORT ReadoutParserState::ReadoutStructure build_readout_structure(
     const std::vector<StackCommandBuilder> &readoutStacks);
 
+inline s64 calc_buffer_loss(u32 bufferNumber, u32 lastBufferNumber)
+{
+    s64 diff = bufferNumber - lastBufferNumber;
+
+    if (diff < 1) // overflow
+    {
+        diff = std::numeric_limits<u32>::max() + diff;
+        return diff;
+    }
+    return diff - 1;
+}
+
 } // end namespace readout_parser
 } // end namespace mvlc
 } // end namespace mesytec

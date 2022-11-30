@@ -365,18 +365,6 @@ inline ParseResult parser_begin_event(ReadoutParserState &state, u32 frameHeader
     return ParseResult::Ok;
 }
 
-inline s64 calc_buffer_loss(u32 bufferNumber, u32 lastBufferNumber)
-{
-    s64 diff = bufferNumber - lastBufferNumber;
-
-    if (diff < 1) // overflow
-    {
-        diff = std::numeric_limits<u32>::max() + diff;
-        return diff;
-    }
-    return diff - 1;
-}
-
 // Checks if the input iterator points to a system frame header. If true the
 // systemEvent callback is invoked with the frame header + frame data and true
 // is returned. Also the iterator will be placed on the next word after the
