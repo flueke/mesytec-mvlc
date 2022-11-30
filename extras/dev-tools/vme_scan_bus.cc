@@ -7,23 +7,28 @@ using std::endl;
 
 using namespace mesytec::mvlc;
 
-void scan_vme_bus(MVLC &mvlc)
+std::vector<u32> scan_vme_bus_for_candidates(MVLC &mvlc)
 {
         //u32 fwReg = base + 0x600e;
     StackCommandBuilder sb;
     sb.addWriteMarker(0x13370001u);
     std::vector<u32> response;
+    std::vector<u32> result;
 
     // Note: 0xffff itself is never checked as that is taken by the MVLC itself.
     const u32 baseMax = 0xffffu;
-
     u32 base = 0;
-    while (base < baseMax)
+
+    do
     {
+        StackCommandBuilder sb;
+        sb.addWriteMarker(0x13370001u);
+        u32 baseStart = base;
+
         while (get_encoded_stack_size(sb) < MirrorTransactionMaxContentsWords / 2 - 2
                 && base < baseMax)
         {
-            u32 hwReg = (base << 16) + 0x6008;
+            u32 hwReg = (base++ << 16) + 0x6008;
             sb.addVMERead(hwReg, vme_amods::A32, VMEDataWidth::D16);
             ++base;
         }
@@ -31,14 +36,26 @@ void scan_vme_bus(MVLC &mvlc)
         if (auto ec = mvlc.stackTransaction(sb, response))
             throw ec;
 
-        spdlog::info("base=0x{:04x}, response=0x{:08x}", base, fmt::join(response, ", "));
+        spdlog::info("base={:#06x}, response={:#010x}, response size={}", base, fmt::join(response, ", "), response.size());
 
-        sb = {};
-        sb.addWriteMarker(0x13370001u);
+        // +2 to skip over 0xF3 and the marker
+        for (auto it = std::begin(response) + 2; it < std::end(response); ++it)
+        {
+            auto index = std::distance(std::begin(response) + 2, it);
+            auto value = *it;
+            if ((value & 0xffffff00) != 0xffffff00)
+            {
+                u32 addr = (baseStart + index) << 16;
+                result.push_back(addr);
+                spdlog::info("index={}, value=0x{:08x}, addr={:#010x}", index, value, addr);
+            }
+        }
+
         response.clear();
-        //if (base % 1000u == 0)
-        //    spdlog::info("baseAddr={:04x}", base);
-    }
+
+    } while (base < baseMax);
+
+    return result;
 }
 
 int main(int argc, char *argv[])
@@ -99,7 +116,7 @@ int main(int argc, char *argv[])
             return 1;
         }
 
-        scan_vme_bus(mvlc);
+        scan_vme_bus_for_candidates(mvlc);
     }
     catch (const std::exception &e)
     {
