@@ -284,7 +284,7 @@ inline void copy_to_workbuffer(
 
 static const size_t InitialWorkerBufferSize = util::Megabytes(1) / sizeof(u32);
 
-MESYTEC_MVLC_EXPORT ReadoutParserState make_readout_parser(
+ReadoutParserState make_readout_parser(
     const std::vector<StackCommandBuilder> &readoutStacks,
     int crateIndex,
     void *userContext)
@@ -371,7 +371,7 @@ inline ParseResult parser_begin_event(ReadoutParserState &state, u32 frameHeader
 // system frame.
 // Otherwise the iterator is left unmodified and false is returned.
 //
-// Throws end_of_buffer() if the system frame exceeeds the input buffer size.
+// Throws end_of_buffer() if the system frame exceeds the input buffer size.
 inline bool try_handle_system_event(
     ReadoutParserState &state,
     ReadoutParserCallbacks &callbacks,

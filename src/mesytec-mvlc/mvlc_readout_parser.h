@@ -291,7 +291,6 @@ struct MESYTEC_MVLC_EXPORT ReadoutParserState
         u16 wordsLeft;
     };
 
-    //enum GroupParseState { Initial, Fixed, Dynamic };
     enum GroupParseState { Prefix, Dynamic, Suffix };
 
     using ReadoutStructure = std::vector<std::vector<ModuleReadoutStructure>>;
