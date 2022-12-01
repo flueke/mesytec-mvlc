@@ -214,6 +214,8 @@ const char *get_parse_result_name(const ParseResult &pr)
         case ParseResult::UnexpectedOpenBlockFrame:
             return "UnexpectedOpenBlockFrame";
 
+        case ParseResult::UnexpectedNonEmptyStackFrame:
+            return "UnexpectedNonEmptyStackFrame";
 
         case ParseResult::ParseReadoutContentsNotAdvancing:
             return "ParseReadoutContentsNotAdvancing";
@@ -640,6 +642,8 @@ ParseResult parse_readout_contents(
                     logger->warn("No modules in event {} but got a non-empty "
                              "stack frame of len {} (header=0x{:008x})",
                              state.eventIndex, fi.len, state.curStackFrame.header);
+                    parser_clear_event_state(state);
+                    return ParseResult::UnexpectedNonEmptyStackFrame;
                 }
 
                 logger->trace("parser_clear_event_state because moduleReadoutInfos.empty(), eventIndex={}",

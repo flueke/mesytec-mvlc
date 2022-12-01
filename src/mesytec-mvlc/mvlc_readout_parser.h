@@ -170,6 +170,8 @@ enum class ParseResult
     GroupIndexOutOfRange,
     EmptyStackFrame,
     UnexpectedOpenBlockFrame,
+    // Frame should be empty, e.g. from a periodic event without any modules.
+    UnexpectedNonEmptyStackFrame,
 
     // IMPORTANT: These should not happen and be fixed in the code if they
     // happen. They indicate that the parser algorithm did not advance through
