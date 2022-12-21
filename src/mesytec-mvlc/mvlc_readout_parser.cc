@@ -39,6 +39,22 @@
 #include "util/string_view.hpp"
 #include "vme_constants.h"
 
+/*
+parse_readout_buffer
+  -> parse_readout_buffer_eth
+     -> handle system events
+     -> handle buffer loss
+     -> handle packet loss
+     -> parse_eth_packet
+        -> parse_readout_contents
+
+  -> parse_readout_buffer_usb
+     -> handle system events
+     -> handle buffer loss
+     -> parse_readout_contents
+*/
+
+
 using namespace nonstd;
 
 namespace mesytec
