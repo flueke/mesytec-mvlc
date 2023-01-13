@@ -1,6 +1,6 @@
 /* mesytec-mvlc - driver library for the Mesytec MVLC VME controller
  *
- * Copyright (c) 2020 mesytec GmbH & Co. KG
+ * Copyright (c) 2020-2023 mesytec GmbH & Co. KG
  *
  * Author: Florian Lüke <f.lueke@mesytec.com>
  *
