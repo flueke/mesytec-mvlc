@@ -1,6 +1,6 @@
-/* mvme - Mesytec VME Data Acquisition
+/* mesytec-mvlc - driver library for the Mesytec MVLC VME controller
  *
- * Copyright (C) 2016-2023 mesytec GmbH & Co. KG <info@mesytec.com>
+ * Copyright (C) 2020-2023 mesytec GmbH & Co. KG <info@mesytec.com>
  *
  * Author: Florian Lüke <f.lueke@mesytec.com>
  *
