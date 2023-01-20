@@ -2,6 +2,7 @@
 #define __MESYTEC_MVLC_MVLC_READOUT_WORKER_H__
 
 #include <future>
+#include <memory>
 #include <vector>
 
 #include "mesytec-mvlc/mesytec-mvlc_export.h"
@@ -184,14 +185,14 @@ class MESYTEC_MVLC_EXPORT ReadoutWorker
             MVLC mvlc,
             const std::array<u32, stacks::ReadoutStackCount> &stackTriggers,
             ReadoutBufferQueues &snoopQueues,
-            listfile::WriteHandle *lfh
+            const std::shared_ptr<listfile::WriteHandle> &lfh
             );
 
         ReadoutWorker(
             MVLC mvlc,
             const std::vector<u32> &stackTriggers,
             ReadoutBufferQueues &snoopQueues,
-            listfile::WriteHandle *lfh
+            const std::shared_ptr<listfile::WriteHandle> &lfh
             );
 
         // Simple version without stack triggers. Assumes that stack triggers
@@ -199,19 +200,21 @@ class MESYTEC_MVLC_EXPORT ReadoutWorker
         ReadoutWorker(
             MVLC mvlc,
             ReadoutBufferQueues &snoopQueues,
-            listfile::WriteHandle *lfh
+            const std::shared_ptr<listfile::WriteHandle> &lfh
             );
 
         // Simple versions removing the need to pass in snoopQueues if snooping
         // is not needed.
         ReadoutWorker(
             MVLC mvlc,
-            listfile::WriteHandle *lfh);
+            const std::shared_ptr<listfile::WriteHandle> &lfh
+            );
 
         ReadoutWorker(
             MVLC mvlc,
             const std::vector<u32> &stackTriggers,
-            listfile::WriteHandle *lfh);
+            const std::shared_ptr<listfile::WriteHandle> &lfh
+            );
 
         ~ReadoutWorker();
 

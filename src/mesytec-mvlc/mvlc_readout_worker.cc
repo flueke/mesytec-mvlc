@@ -499,7 +499,7 @@ struct ReadoutWorker::Private
     Protected<Counters> counters;
     std::thread readoutThread;
     ReadoutBufferQueues listfileQueues;
-    listfile::WriteHandle *lfh = nullptr;
+    std::shared_ptr<listfile::WriteHandle> lfh;
     ReadoutBuffer localBuffer;
     ReadoutBuffer previousData;
     ReadoutBuffer *outputBuffer_ = nullptr;
@@ -616,7 +616,7 @@ ReadoutWorker::ReadoutWorker(
     MVLC mvlc,
     const std::array<u32, stacks::ReadoutStackCount> &stackTriggers,
     ReadoutBufferQueues &snoopQueues,
-    listfile::WriteHandle *lfh
+    const std::shared_ptr<listfile::WriteHandle> &lfh
     )
     : d(std::make_unique<Private>(this, mvlc, &snoopQueues))
 {
@@ -633,7 +633,7 @@ ReadoutWorker::ReadoutWorker(
     MVLC mvlc,
     const std::vector<u32> &stackTriggers,
     ReadoutBufferQueues &snoopQueues,
-    listfile::WriteHandle *lfh
+    const std::shared_ptr<listfile::WriteHandle> &lfh
     )
     : d(std::make_unique<Private>(this, mvlc, &snoopQueues))
 {
@@ -646,7 +646,7 @@ ReadoutWorker::ReadoutWorker(
 ReadoutWorker::ReadoutWorker(
     MVLC mvlc,
     ReadoutBufferQueues &snoopQueues,
-    listfile::WriteHandle *lfh
+    const std::shared_ptr<listfile::WriteHandle> &lfh
     )
     : d(std::make_unique<Private>(this, mvlc, &snoopQueues))
 {
@@ -657,7 +657,8 @@ ReadoutWorker::ReadoutWorker(
 
 ReadoutWorker::ReadoutWorker(
     MVLC mvlc,
-    listfile::WriteHandle *lfh)
+    const std::shared_ptr<listfile::WriteHandle> &lfh
+    )
     : d(std::make_unique<Private>(this, mvlc, nullptr))
 {
     d->state.access().ref() = State::Idle;
@@ -668,7 +669,8 @@ ReadoutWorker::ReadoutWorker(
 ReadoutWorker::ReadoutWorker(
     MVLC mvlc,
     const std::vector<u32> &stackTriggers,
-    listfile::WriteHandle *lfh)
+    const std::shared_ptr<listfile::WriteHandle> &lfh
+    )
     : d(std::make_unique<Private>(this, mvlc, nullptr))
 {
     d->state.access().ref() = State::Idle;
@@ -745,7 +747,7 @@ void ReadoutWorker::Private::loop(std::promise<std::error_code> promise)
 
     auto writerThread = std::thread(
         listfile_buffer_writer,
-        lfh,
+        lfh.get(),
         std::ref(listfileQueues),
         std::ref(writerCounters));
 

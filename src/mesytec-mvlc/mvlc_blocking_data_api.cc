@@ -237,7 +237,7 @@ BlockingReadout make_mvlc_readout_blocking(
 
 BlockingReadout make_mvlc_readout_blocking(
     const CrateConfig &crateConfig,
-    listfile::WriteHandle *listfileWriteHandle)
+    const std::shared_ptr<listfile::WriteHandle> &listfileWriteHandle)
 {
     readout_parser::ReadoutParserCallbacks parserCallbacks =
     {
@@ -263,7 +263,7 @@ BlockingReadout make_mvlc_readout_blocking(
 BlockingReadout make_mvlc_readout_blocking(
     MVLC &mvlc,
     const CrateConfig &crateConfig,
-    listfile::WriteHandle *listfileWriteHandle)
+    const std::shared_ptr<listfile::WriteHandle> &listfileWriteHandle)
 {
     readout_parser::ReadoutParserCallbacks parserCallbacks =
     {

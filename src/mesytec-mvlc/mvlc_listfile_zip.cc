@@ -197,7 +197,7 @@ std::string ZipCreator::archiveName() const
     return d->archiveName;
 }
 
-WriteHandle *ZipCreator::createZIPEntry(const std::string &entryName, int compressLevel)
+std::unique_ptr<WriteHandle> ZipCreator::createZIPEntry(const std::string &entryName, int compressLevel)
 {
     if (hasOpenEntry())
         throw std::runtime_error("ZipCreator has open archive entry");
@@ -221,10 +221,11 @@ WriteHandle *ZipCreator::createZIPEntry(const std::string &entryName, int compre
     d->entryInfo.name = entryName;
     d->entryInfo.isOpen = true;
 
-    return new ZipEntryWriteHandle(this);
+    // std::make_unique() does not work here because it's not a friend of ZipEntryWriteHandle
+    return std::unique_ptr<ZipEntryWriteHandle>(new ZipEntryWriteHandle(this));
 }
 
-WriteHandle *ZipCreator::createLZ4Entry(const std::string &entryName_, int compressLevel)
+std::unique_ptr<WriteHandle> ZipCreator::createLZ4Entry(const std::string &entryName_, int compressLevel)
 {
     if (hasOpenEntry())
         throw std::runtime_error("ZipCreator has open archive entry");
@@ -268,7 +269,8 @@ WriteHandle *ZipCreator::createLZ4Entry(const std::string &entryName_, int compr
     d->entryInfo.bytesWritten += lz4BufferBytes;
     d->entryInfo.lz4CompressedBytesWritten += lz4BufferBytes;
 
-    return new ZipEntryWriteHandle(this);
+    // std::make_unique() does not work here because it's not a friend of ZipEntryWriteHandle
+    return std::unique_ptr<ZipEntryWriteHandle>(new ZipEntryWriteHandle(this));
 }
 
 bool ZipCreator::hasOpenEntry() const
@@ -444,26 +446,26 @@ std::string SplitZipCreator::archiveName() const
     return d->zipCreator.archiveName();
 }
 
-WriteHandle *SplitZipCreator::createZIPEntry(const std::string &entryName, int compressLevel)
+std::unique_ptr<WriteHandle> SplitZipCreator::createZIPEntry(const std::string &entryName, int compressLevel)
 {
     auto ret = d->zipCreator.createZIPEntry(entryName, compressLevel);
     d->isSplitEntry = false;
     return ret;
 }
 
-WriteHandle *SplitZipCreator::createLZ4Entry(const std::string &entryName, int compressLevel)
+std::unique_ptr<WriteHandle> SplitZipCreator::createLZ4Entry(const std::string &entryName, int compressLevel)
 {
     auto ret = d->zipCreator.createLZ4Entry(entryName, compressLevel);
     d->isSplitEntry = false;
     return ret;
 }
 
-WriteHandle *SplitZipCreator::createListfileEntry()
+std::unique_ptr<WriteHandle> SplitZipCreator::createListfileEntry()
 {
     if (hasOpenEntry())
         throw std::runtime_error("SplitZipCreator has open archive entry");
 
-    WriteHandle *result = {};
+    std::unique_ptr<WriteHandle> wh;
     std::string memberName;
 
     if (d->setup.splitMode == ZipSplitMode::DontSplit)
@@ -476,11 +478,11 @@ WriteHandle *SplitZipCreator::createListfileEntry()
     switch (d->setup.entryType)
     {
         case ZipEntryInfo::ZIP:
-            result = d->zipCreator.createZIPEntry(memberName, d->setup.compressLevel);
+            wh = d->zipCreator.createZIPEntry(memberName, d->setup.compressLevel);
             break;
 
         case ZipEntryInfo::LZ4:
-            result = d->zipCreator.createLZ4Entry(memberName, d->setup.compressLevel);
+            wh = d->zipCreator.createLZ4Entry(memberName, d->setup.compressLevel);
             break;
     }
 
@@ -488,14 +490,15 @@ WriteHandle *SplitZipCreator::createListfileEntry()
     d->partCreationTime = std::chrono::steady_clock::now();
 
     // Write the listfile preamble
-    result->write(d->setup.preamble.data(), d->setup.preamble.size());
+    wh->write(d->setup.preamble.data(), d->setup.preamble.size());
 
     // No splitting -> return the plain WriteHandle obtained from the ZipCreator
     if (d->setup.splitMode == ZipSplitMode::DontSplit)
-        return result;
+        return wh;
 
     // Splitting active -> return a pointer to our ZipEntryWriteHandle
-    return new SplitZipWriteHandle(this);
+    // std::make_unique() does not work here because it's not a friend of SplitZipWriteHandle
+    return std::unique_ptr<SplitZipWriteHandle>(new SplitZipWriteHandle(this));
 }
 
 size_t SplitZipCreator::writeToCurrentEntry(const u8 *data, size_t size)

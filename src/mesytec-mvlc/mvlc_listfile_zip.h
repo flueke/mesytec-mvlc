@@ -67,14 +67,14 @@ class MESYTEC_MVLC_EXPORT ZipCreator
         bool isOpen() const;
         std::string archiveName() const;
 
-        WriteHandle *createZIPEntry(const std::string &entryName, int compressLevel);
+        std::unique_ptr<WriteHandle> createZIPEntry(const std::string &entryName, int compressLevel);
 
-        WriteHandle *createZIPEntry(const std::string &entryName)
+        std::unique_ptr<WriteHandle> createZIPEntry(const std::string &entryName)
         { return createZIPEntry(entryName, 1); } // 1: "super fast compression", 0: store/no compression
 
-        WriteHandle *createLZ4Entry(const std::string &entryName, int compressLevel);
+        std::unique_ptr<WriteHandle> createLZ4Entry(const std::string &entryName, int compressLevel);
 
-        WriteHandle *createLZ4Entry(const std::string &entryName)
+        std::unique_ptr<WriteHandle> createLZ4Entry(const std::string &entryName)
         { return createLZ4Entry(entryName, 0); }; // 0: lz4 default compression
 
         bool hasOpenEntry() const;
@@ -156,20 +156,20 @@ class MESYTEC_MVLC_EXPORT SplitZipCreator
 
         // Normal archive entries. Writing to these will never cause an archive split.
 
-        WriteHandle *createZIPEntry(const std::string &entryName, int compressLevel);
+        std::unique_ptr<WriteHandle> createZIPEntry(const std::string &entryName, int compressLevel);
 
-        WriteHandle *createZIPEntry(const std::string &entryName)
+        std::unique_ptr<WriteHandle> createZIPEntry(const std::string &entryName)
         { return createZIPEntry(entryName, 1); } // 1: "super fast compression", 0: store/no compression
 
-        WriteHandle *createLZ4Entry(const std::string &entryName, int compressLevel);
+        std::unique_ptr<WriteHandle> createLZ4Entry(const std::string &entryName, int compressLevel);
 
-        WriteHandle *createLZ4Entry(const std::string &entryName)
+        std::unique_ptr<WriteHandle> createLZ4Entry(const std::string &entryName)
         { return createLZ4Entry(entryName, 0); }; // 0: lz4 default compression
 
         // Special method for creating a (split) listfile entry. Uses the
         // information set in createArchive() to make the splitting decision
         // and create new partial archives.
-        WriteHandle *createListfileEntry();
+        std::unique_ptr<WriteHandle> createListfileEntry();
 
         bool hasOpenEntry() const;
         const ZipEntryInfo &entryInfo() const;

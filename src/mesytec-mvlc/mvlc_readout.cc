@@ -20,7 +20,7 @@ struct MVLCReadout::Private
 {
     MVLC mvlc;
     CrateConfig crateConfig;
-    listfile::WriteHandle *lfh = nullptr;
+    std::shared_ptr<listfile::WriteHandle> lfh;
     readout_parser::ReadoutParserCallbacks parserCallbacks;
     listfile::ZipCreator lfZip;
 
@@ -157,7 +157,7 @@ std::atomic<bool> &MVLCReadout::parserQuit()
 
 namespace
 {
-    listfile::WriteHandle *setup_listfile(listfile::ZipCreator &lfZip, const ListfileParams &lfParams)
+    std::unique_ptr<listfile::WriteHandle> setup_listfile(listfile::ZipCreator &lfZip, const ListfileParams &lfParams)
     {
         if (lfParams.writeListfile)
         {
@@ -245,7 +245,7 @@ MVLCReadout make_mvlc_readout(
 // listfile write handle
 MVLCReadout make_mvlc_readout(
     const CrateConfig &crateConfig,
-    listfile::WriteHandle *listfileWriteHandle,
+    const std::shared_ptr<listfile::WriteHandle> &listfileWriteHandle,
     readout_parser::ReadoutParserCallbacks parserCallbacks,
     void *userContext)
 {
@@ -266,7 +266,7 @@ MVLCReadout make_mvlc_readout(
 MVLCReadout make_mvlc_readout(
     MVLC &mvlc,
     const CrateConfig &crateConfig,
-    listfile::WriteHandle *listfileWriteHandle,
+    const std::shared_ptr<listfile::WriteHandle> &listfileWriteHandle,
     readout_parser::ReadoutParserCallbacks parserCallbacks,
     void *userContext)
 {

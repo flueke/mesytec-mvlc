@@ -77,12 +77,12 @@ class MESYTEC_MVLC_EXPORT BlockingReadout
 
         friend BlockingReadout make_mvlc_readout_blocking(
             const CrateConfig &crateConfig,
-            listfile::WriteHandle *listfileWriteHandle);
+            const std::shared_ptr<listfile::WriteHandle> &listfileWriteHandle);
 
         friend BlockingReadout make_mvlc_readout_blocking(
             MVLC &mvlc,
             const CrateConfig &crateConfig,
-            listfile::WriteHandle *listfileWriteHandle);
+            const std::shared_ptr<listfile::WriteHandle> &listfileWriteHandle);
 
         friend EventContainer next_event(BlockingReadout &br);
 };
@@ -98,12 +98,12 @@ BlockingReadout MESYTEC_MVLC_EXPORT make_mvlc_readout_blocking(
 
 BlockingReadout MESYTEC_MVLC_EXPORT make_mvlc_readout_blocking(
     const CrateConfig &crateConfig,
-    listfile::WriteHandle *listfileWriteHandle);
+    const std::shared_ptr<listfile::WriteHandle> &listfileWriteHandle);
 
 BlockingReadout MESYTEC_MVLC_EXPORT make_mvlc_readout_blocking(
     MVLC &mvlc,
     const CrateConfig &crateConfig,
-    listfile::WriteHandle *listfileWriteHandle);
+    const std::shared_ptr<listfile::WriteHandle> &listfileWriteHandle);
 
 EventContainer MESYTEC_MVLC_EXPORT next_event(BlockingReadout &br);
 
