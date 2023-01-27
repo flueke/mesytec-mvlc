@@ -15,17 +15,20 @@ namespace mvlc
 namespace listfile
 {
 
-// Listfile generation from unpacked/parsed module readout data and system event data.
-// The generated format is compatible to the MVLC_USB framing format and it should be compatible
-// with the existing readout_parser module.
+// Listfile generation from unpacked/parsed module readout data and system event
+// data.  The generated format is compatible to the MVLC_USB framing format and
+// thus should be parseable by the readout_parser module.
 //
 // The crateIndex argument is used for the CtrlId field in the frame headers.
 
-void MESYTEC_MVLC_EXPORT write_module_data(
+void MESYTEC_MVLC_EXPORT write_event_data(
     ReadoutBuffer &dest, int crateIndex, int eventIndex,
     const readout_parser::ModuleData *moduleDataList, unsigned moduleCount,
     u32 frameMaxWords = frame_headers::LengthMask);
 
+// The header argument must point to a buffer of size 'size', starting with a
+// system event header. The header is reused in case the data has to be split
+// into multiple frames.
 void MESYTEC_MVLC_EXPORT write_system_event(
     ReadoutBuffer &dest, int crateIndex, const u32 *header, u32 size,
     u32 frameMaxWords = frame_headers::LengthMask);
