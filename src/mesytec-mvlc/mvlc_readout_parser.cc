@@ -894,6 +894,11 @@ ParseResult parse_readout_contents(
                         dataSize
                     };
 
+                    moduleData.prefixSize = moduleSpans.prefixSpan.size;
+                    moduleData.dynamicSize = moduleSpans.dynamicSpan.size;
+                    moduleData.suffixSize = moduleSpans.suffixSpan.size;
+                    moduleData.hasDynamic = moduleReadoutInfos[state.moduleIndex].hasDynamic;
+
                     const auto partIndex = std::make_pair(state.eventIndex, mi);
 
                     if (dataSize)

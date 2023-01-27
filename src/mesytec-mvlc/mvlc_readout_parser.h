@@ -64,9 +64,10 @@ namespace readout_parser
 // A stack group is typically used to read out a single VME module, so groups
 // are synonymous with VME modules in the parser code.
 //
-// Note: the {prefix, dynamic, suffix} structure is not present in the output
-// callbacks anymore. Instead the parsed module/group data is presented as a
-// linear buffer (DataBlock structure).
+// Note (230126): the parsed module/group data is presented as a linear buffer
+// using a single DataBlock structure. To pass the {prefix, dynamic, suffix}
+// structure to the outside three size variables and the boolean hasDynamic flag
+// have been added to the ModuleData struct.
 //
 // The restrictions on the readout structure are in place to keep the
 // readout_parser code simple and to make it easy to pass around readout data
@@ -86,8 +87,25 @@ struct ModuleData
     // TODO: maybe add these to carry source information for the module event.
     //u64 bufferNumber;
     //u64 eventNumber;
+
+    // Pointer to and size of the parsed module data.
     DataBlock data;
+
+    // Sizes of the indivdual parts. Prefix and suffix sizes are constant when
+    // parsing is done using the same readout command stack. Only the dynamic
+    // part changes as it originates from a VME block read command.
+    // The sum of the part sizes equals data.size if the parser code is correct.
+    u32 prefixSize;
+    u32 dynamicSize;
+    u32 suffixSize;
+    bool hasDynamic;
 };
+
+inline bool size_consistency_check(const ModuleData &md)
+{
+    u64 partSum = md.prefixSize + md.dynamicSize + md.suffixSize;
+    return partSum == md.data.size;
+}
 
 // Callbacks invoked by the parser once a full event has been parsed and assembled.
 struct ReadoutParserCallbacks
