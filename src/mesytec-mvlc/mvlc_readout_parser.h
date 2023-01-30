@@ -107,6 +107,24 @@ inline bool size_consistency_check(const ModuleData &md)
     return partSum == md.data.size;
 }
 
+inline DataBlock prefix_span(const ModuleData &md)
+{
+    assert(size_consistency_check(md));
+    return { md.data.data, md.prefixSize };
+}
+
+inline DataBlock dynamic_span(const ModuleData &md)
+{
+    assert(size_consistency_check(md));
+    return { md.data.data + md.prefixSize, md.dynamicSize };
+}
+
+inline DataBlock suffix_span(const ModuleData &md)
+{
+    assert(size_consistency_check(md));
+    return { md.data.data + md.prefixSize + md.dynamicSize, md.suffixSize };
+}
+
 // Callbacks invoked by the parser once a full event has been parsed and assembled.
 struct ReadoutParserCallbacks
 {
