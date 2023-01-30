@@ -62,9 +62,9 @@ struct MESYTEC_MVLC_EXPORT ListfileWriterCounters
 // auto writerThread = std::thread(
 //   listfile_buffer_writer, lfh, std::ref(bufferQueues),
 //   std::ref(writerState));
-// Note: the WriteHandle *lfh may be nullptr in. In this case the writer will
-// still dequeue filled buffers from the queue and immediately re-enqueue them
-// on the empty queue.
+// Note: the WriteHandle *lfh may be nullptr. In this case the writer will still
+// dequeue filled buffers from the queue and immediately re-enqueue them on the
+// empty queue.
 
 void MESYTEC_MVLC_EXPORT listfile_buffer_writer(
     listfile::WriteHandle *lfh,
