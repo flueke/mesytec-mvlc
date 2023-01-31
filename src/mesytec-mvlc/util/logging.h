@@ -11,7 +11,7 @@ namespace mesytec
 namespace mvlc
 {
 
-// Creates a new named logger or returns an existing instance.
+// Creates a new named, thread safe logger or returns the existing instance.
 std::shared_ptr<spdlog::logger> MESYTEC_MVLC_EXPORT
     get_logger(const std::string &name);
 

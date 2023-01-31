@@ -25,13 +25,6 @@ WriteHandle::~WriteHandle()
 ReadHandle::~ReadHandle()
 { }
 
-void listfile_write_preamble(WriteHandle &lf_out, const CrateConfig &config)
-{
-    listfile_write_magic(lf_out, config.connectionType);
-    listfile_write_endian_marker(lf_out);
-    listfile_write_crate_config(lf_out, config);
-}
-
 void listfile_write_magic(WriteHandle &lf_out, ConnectionType ct)
 {
     const char *magic = nullptr;
