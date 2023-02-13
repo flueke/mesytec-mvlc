@@ -27,13 +27,19 @@ struct HardwareIds
 // Firmware type is encoded in the highest nibble of the firmware register
 // (0x600e). The lower nibbles contain the firmware revision. Valid for both
 // MDPP-16 and MDPP-32 but not all packages exist for the MDPP-32.
-enum MDPP_FirmwareType
+enum class MDPP16_FirmwareType
 {
-    PADC = 0,
-    SCP  = 1,
-    RCP  = 2,
+    RCP  = 1,
+    SCP  = 2,
     QDC  = 3,
+    PADC = 4,
+    CSI  = 5,
 };
+
+// Using an extra type here to be able to use custom MDPP-32 firmware ids in
+// case they don't match up with the MDPP-16 ones in the future. Probably
+// overkill but it's done...
+using MDPP32_FirmwareType = MDPP16_FirmwareType;
 
 struct MDPP_FirmwareInfo
 {
@@ -41,7 +47,8 @@ struct MDPP_FirmwareInfo
     static const u32 Shift = 12u;
 };
 
-inline unsigned mdpp_firmware_type_from_register(u16 fwReg)
+// Extracts the 'firmware type' value from the given firmware info register value.
+inline unsigned mdpp_fw_type_val_from_reg(u16 fwReg)
 {
     return (fwReg & MDPP_FirmwareInfo::Mask) >> MDPP_FirmwareInfo::Shift;
 }
@@ -50,32 +57,45 @@ inline std::string hardware_id_to_module_name(u16 hwid)
 {
     switch (hwid)
     {
-        case HardwareIds::MADC_32: return "MADC_32";
-        case HardwareIds::MQDC_32: return "MQDC_32";
-        case HardwareIds::MTDC_32: return "MTDC_32";
-        case HardwareIds::MDPP_16: return "MDPP_16";
-        case HardwareIds::VMMR_8:  return "VMMR_8/16";
-        case HardwareIds::MDPP_32: return "MDPP_32";
+        case HardwareIds::MADC_32: return "MADC-32";
+        case HardwareIds::MQDC_32: return "MQDC-32";
+        case HardwareIds::MTDC_32: return "MTDC-32";
+        case HardwareIds::MDPP_16: return "MDPP-16";
+        case HardwareIds::VMMR_8:  return "VMMR-8/16";
+        case HardwareIds::MDPP_32: return "MDPP-32";
     }
     return {};
 }
 
-inline std::string mdpp_firmware_name(int fwType)
+inline std::string mdpp16_firmware_name(int fwType)
 {
-    switch (fwType)
+    switch (static_cast<MDPP16_FirmwareType>(fwType))
     {
-        case MDPP_FirmwareType::PADC: return "PADC";
-        case MDPP_FirmwareType::SCP:  return "SCP";
-        case MDPP_FirmwareType::RCP:  return "RCP";
-        case MDPP_FirmwareType::QDC:  return "QDC";
+        case MDPP16_FirmwareType::RCP:  return "RCP";
+        case MDPP16_FirmwareType::SCP:  return "SCP";
+        case MDPP16_FirmwareType::QDC:  return "QDC";
+        case MDPP16_FirmwareType::PADC: return "PADC";
+        case MDPP16_FirmwareType::CSI:  return "CSI";
     }
     return {};
 }
 
-inline bool is_mdpp(u16 hwId)
+inline std::string mdpp32_firmware_name(int fwType)
 {
-    return hwId == HardwareIds::MDPP_16 || hwId == HardwareIds::MDPP_32;
+    switch (static_cast<MDPP32_FirmwareType>(fwType))
+    {
+        case MDPP16_FirmwareType::RCP:  break;
+        case MDPP32_FirmwareType::SCP:  return "SCP";
+        case MDPP32_FirmwareType::QDC:  return "QDC";
+        case MDPP32_FirmwareType::PADC: return "PADC";
+        case MDPP16_FirmwareType::CSI:  break;
+    }
+    return {};
 }
+
+inline bool is_mdpp16(u16 hwId) { return hwId == HardwareIds::MDPP_16; }
+inline bool is_mdpp32(u16 hwId) { return hwId == HardwareIds::MDPP_32; }
+inline bool is_mdpp(u16 hwId) { return is_mdpp16(hwId) || is_mdpp32(hwId); }
 
 // Scans the uppper 64k addresses for mesytec modules. Returns a list of
 // candidate addresses.
@@ -143,8 +163,10 @@ struct VMEModuleInfo
 
     std::string mdppFirmwareTypeName() const
     {
-        if (is_mdpp(hwId))
-            return mdpp_firmware_name(mdpp_firmware_type_from_register(fwId));
+        if (is_mdpp16(hwId))
+            return mdpp16_firmware_name(mdpp_fw_type_val_from_reg(fwId));
+        if (is_mdpp32(hwId))
+            return mdpp32_firmware_name(mdpp_fw_type_val_from_reg(fwId));
         return {};
     }
 };
