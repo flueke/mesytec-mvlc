@@ -75,3 +75,4 @@ target_link_libraries(vme-scan-bus
     PRIVATE mesytec-mvlc
     PRIVATE BFG::Lyra
     PRIVATE spdlog::spdlog)
+install(TARGETS vme-scan-bus RUNTIME DESTINATION bin)
