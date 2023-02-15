@@ -122,13 +122,13 @@ std::vector<u32> scan_vme_bus_for_candidates(MVLC &mvlc)
             ++base;
         }
 
-        spdlog::debug("Executing stack. size={}, baseStart=0x{:08x}, baseEnd=0x{:08x}, #addresses={}",
+        spdlog::trace("Executing stack. size={}, baseStart=0x{:08x}, baseEnd=0x{:08x}, #addresses={}",
             get_encoded_stack_size(sb), baseStart, base, base - baseStart);
 
         if (auto ec = mvlc.stackTransaction(sb, response))
             throw std::system_error(ec);
 
-        spdlog::debug("Stack result for baseStart=0x{:08x}, baseEnd=0x{:#08x}, response.size()={}, response={:#010x}\n",
+        spdlog::trace("Stack result for baseStart=0x{:08x}, baseEnd=0x{:#08x}, response.size()={}, response={:#010x}\n",
             baseStart, base, response.size(), fmt::join(response, ", "));
 
         // +2 to skip over 0xF3 and the marker
@@ -140,7 +140,7 @@ std::vector<u32> scan_vme_bus_for_candidates(MVLC &mvlc)
             {
                 u32 addr = (baseStart + index) << 16;
                 result.push_back(addr);
-                spdlog::debug("index={}, value=0x{:08x}, addr={:#010x}", index, value, addr);
+                spdlog::trace("index={}, value=0x{:08x}, addr={:#010x}", index, value, addr);
             }
         }
 
@@ -232,7 +232,7 @@ int main(int argc, char *argv[])
         if (auto candidates = scan_vme_bus_for_candidates(mvlc);
             !candidates.empty())
         {
-            spdlog::info("Found module candidate addresses: {:#010x}", fmt::join(candidates, ", "));
+            spdlog::debug("Found module candidate addresses: {:#010x}", fmt::join(candidates, ", "));
 
             for (auto addr: candidates)
             {
@@ -249,7 +249,7 @@ int main(int argc, char *argv[])
                     continue;
                 }
 
-                spdlog::info("Found module at address {:#010x}: hwId={:#06x}, fwId={:#06x}, type={}, mdpp firmware type={}",
+                spdlog::info("Found module at {:#010x}: hwId={:#06x}, fwId={:#06x}, type={}, mdpp_fw_type={}",
                     addr, moduleInfo.hwId, moduleInfo.fwId, moduleInfo.moduleTypeName(), moduleInfo.mdppFirmwareTypeName());
             }
         }
