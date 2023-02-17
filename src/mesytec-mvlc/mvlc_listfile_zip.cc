@@ -170,7 +170,7 @@ void ZipCreator::createArchive(
     if (auto err = mz_stream_open(d->mz_bufStream, zipFilename.c_str(), mzMode))
         throw std::runtime_error("mz_stream_open: " + std::to_string(err));
 
-    if (auto err = mz_zip_writer_open(d->mz_zipWriter, d->mz_bufStream))
+    if (auto err = mz_zip_writer_open(d->mz_zipWriter, d->mz_bufStream, false))
         throw std::runtime_error("mz_zip_writer_open: " + std::to_string(err));
 
     d->archiveName = zipFilename;

@@ -2,7 +2,7 @@
 add_subdirectory(ftdi-d3xx)
 
 # minizip options
-option(MZ_COMPAT "Enables compatibility layer" OFF)
+option(MZ_COMPAT "Enables compatibility layer" ON)
 option(MZ_ZLIB "Enables ZLIB compression" ON)
 option(MZ_BZIP2 "Enables BZIP2 compression" OFF)
 option(MZ_LZMA "Enables LZMA compression" OFF)
