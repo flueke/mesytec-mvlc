@@ -117,8 +117,7 @@ std::vector<u32> scan_vme_bus_for_candidates(MVLC &mvlc)
         while (get_encoded_stack_size(sb) < MirrorTransactionMaxContentsWords / 2 - 2
                 && base < baseMax)
         {
-            u32 hwReg = (base << 16) + 0x6008;
-            sb.addVMERead(hwReg, vme_amods::A32, VMEDataWidth::D16);
+            sb.addVMERead(base << 16, vme_amods::A32, VMEDataWidth::D16);
             ++base;
         }
 
@@ -128,7 +127,7 @@ std::vector<u32> scan_vme_bus_for_candidates(MVLC &mvlc)
         if (auto ec = mvlc.stackTransaction(sb, response))
             throw std::system_error(ec);
 
-        spdlog::trace("Stack result for baseStart=0x{:08x}, baseEnd=0x{:#08x}, response.size()={}, response={:#010x}\n",
+        spdlog::trace("Stack result for baseStart=0x{:08x}, baseEnd=0x{:08x}, response.size()={}, response={:#010x}\n",
             baseStart, base, response.size(), fmt::join(response, ", "));
 
         // +2 to skip over 0xF3 and the marker
@@ -136,9 +135,13 @@ std::vector<u32> scan_vme_bus_for_candidates(MVLC &mvlc)
         {
             auto index = std::distance(std::begin(response) + 2, it);
             auto value = *it;
+            u32 addr = (baseStart + index) << 16;
+            //spdlog::debug("index={}, addr=0x{:08x} value=0x{:08x}", index, addr, value);
+
+            // In the error case the lowest byte contains the stack error line number, so it
+            // needs to be masked out for this test.
             if ((value & 0xffffff00) != 0xffffff00)
             {
-                u32 addr = (baseStart + index) << 16;
                 result.push_back(addr);
                 spdlog::trace("index={}, value=0x{:08x}, addr={:#010x}", index, value, addr);
             }
