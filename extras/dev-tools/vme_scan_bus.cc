@@ -249,8 +249,13 @@ int main(int argc, char *argv[])
                     continue;
                 }
 
-                spdlog::info("Found module at {:#010x}: hwId={:#06x}, fwId={:#06x}, type={}, mdpp_fw_type={}",
-                    addr, moduleInfo.hwId, moduleInfo.fwId, moduleInfo.moduleTypeName(), moduleInfo.mdppFirmwareTypeName());
+                auto msg = fmt::format("Found module at {:#010x}: hwId={:#06x}, fwId={:#06x}, type={}",
+                    addr, moduleInfo.hwId, moduleInfo.fwId, moduleInfo.moduleTypeName());
+
+                if (is_mdpp(moduleInfo.hwId))
+                    msg += fmt::format(", mdpp_fw_type={}", moduleInfo.mdppFirmwareTypeName());
+
+                spdlog::info(msg);
             }
         }
         else
