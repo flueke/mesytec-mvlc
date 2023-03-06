@@ -7,8 +7,11 @@ using std::endl;
 
 using namespace mesytec::mvlc;
 
-static const u32 FirmwareRegister = 0x600eu;
 static const u32 HardwareIdRegister = 0x6008u;
+static const u32 FirmwareRegister = 0x600eu;
+
+static const u32 MVHV4HardwareIdRegister = 0x0108;
+static const u32 MVHV4FirmwareRegister = 0x010e;
 
 // Full 16 bit values of the hardware id register (0x6008).
 struct HardwareIds
@@ -22,6 +25,7 @@ struct HardwareIds
     static const u16 VMMR_8  = 0x5006;
     static const u16 VMMR_16 = 0x5006;
     static const u16 MDPP_32 = 0x5007;
+    static const u16 MVHV_4  = 0x5009;
 };
 
 // Firmware type is encoded in the highest nibble of the firmware register
@@ -63,6 +67,7 @@ inline std::string hardware_id_to_module_name(u16 hwid)
         case HardwareIds::MDPP_16: return "MDPP-16";
         case HardwareIds::VMMR_8:  return "VMMR-8/16";
         case HardwareIds::MDPP_32: return "MDPP-32";
+        case HardwareIds::MVHV_4:  return "MVHV-4";
     }
     return {};
 }
@@ -84,11 +89,11 @@ inline std::string mdpp32_firmware_name(int fwType)
 {
     switch (static_cast<MDPP32_FirmwareType>(fwType))
     {
-        case MDPP16_FirmwareType::RCP:  break;
+        case MDPP32_FirmwareType::RCP:  break;
         case MDPP32_FirmwareType::SCP:  return "SCP";
         case MDPP32_FirmwareType::QDC:  return "QDC";
         case MDPP32_FirmwareType::PADC: return "PADC";
-        case MDPP16_FirmwareType::CSI:  break;
+        case MDPP32_FirmwareType::CSI:  break;
     }
     return {};
 }
@@ -240,6 +245,7 @@ int main(int argc, char *argv[])
             for (auto addr: candidates)
             {
                 VMEModuleInfo moduleInfo{};
+
                 if (auto ec = mvlc.vmeRead(addr + FirmwareRegister, moduleInfo.fwId, vme_amods::A32, VMEDataWidth::D16))
                 {
                     spdlog::info("Error checking address {#:010x}: {}", addr, ec.message());
@@ -250,6 +256,21 @@ int main(int argc, char *argv[])
                 {
                     spdlog::info("Error checking address {#:010x}: {}", addr, ec.message());
                     continue;
+                }
+
+                if (moduleInfo.hwId == 0 && moduleInfo.fwId == 0)
+                {
+                    if (auto ec = mvlc.vmeRead(addr + MVHV4FirmwareRegister, moduleInfo.fwId, vme_amods::A32, VMEDataWidth::D16))
+                    {
+                        spdlog::info("Error checking address {#:010x}: {}", addr, ec.message());
+                        continue;
+                    }
+
+                    if (auto ec = mvlc.vmeRead(addr + MVHV4HardwareIdRegister, moduleInfo.hwId, vme_amods::A32, VMEDataWidth::D16))
+                    {
+                        spdlog::info("Error checking address {#:010x}: {}", addr, ec.message());
+                        continue;
+                    }
                 }
 
                 auto msg = fmt::format("Found module at {:#010x}: hwId={:#06x}, fwId={:#06x}, type={}",
