@@ -126,21 +126,21 @@ std::vector<u32> scan_vme_bus_for_candidates(MVLC &mvlc)
             ++base;
         }
 
-        spdlog::trace("Executing stack. size={}, baseStart=0x{:08x}, baseEnd=0x{:08x}, #addresses={}",
-            get_encoded_stack_size(sb), baseStart << 16, base << 16, base - baseStart);
+        spdlog::trace("Executing stack. size={}, baseStart=0x{:04x}, baseEnd=0x{:04x}, #addresses={}",
+            get_encoded_stack_size(sb), baseStart, base, base - baseStart);
 
         if (auto ec = mvlc.stackTransaction(sb, response))
             throw std::system_error(ec);
 
-        spdlog::trace("Stack result for baseStart=0x{:08x}, baseEnd=0x{:08x}, response.size()={}, response={:#010x}\n",
-            baseStart << 16, base << 16, response.size(), fmt::join(response, ", "));
+        spdlog::trace("Stack result for baseStart=0x{:04x}, baseEnd=0x{:04x}, response.size()={}, response={:#010x}\n",
+            baseStart, base, response.size(), fmt::join(response, ", "));
 
         // +2 to skip over 0xF3 and the marker
         for (auto it = std::begin(response) + 2; it < std::end(response); ++it)
         {
             auto index = std::distance(std::begin(response) + 2, it);
             auto value = *it;
-            u32 addr = (baseStart + index) << 16;
+            const u32 addr = (baseStart + index) << 16;
             //spdlog::debug("index={}, addr=0x{:08x} value=0x{:08x}", index, addr, value);
 
             // In the error case the lowest byte contains the stack error line number, so it
