@@ -127,13 +127,13 @@ std::vector<u32> scan_vme_bus_for_candidates(MVLC &mvlc)
         }
 
         spdlog::trace("Executing stack. size={}, baseStart=0x{:08x}, baseEnd=0x{:08x}, #addresses={}",
-            get_encoded_stack_size(sb), baseStart, base, base - baseStart);
+            get_encoded_stack_size(sb), baseStart << 16, base << 16, base - baseStart);
 
         if (auto ec = mvlc.stackTransaction(sb, response))
             throw std::system_error(ec);
 
         spdlog::trace("Stack result for baseStart=0x{:08x}, baseEnd=0x{:08x}, response.size()={}, response={:#010x}\n",
-            baseStart, base, response.size(), fmt::join(response, ", "));
+            baseStart << 16, base << 16, response.size(), fmt::join(response, ", "));
 
         // +2 to skip over 0xF3 and the marker
         for (auto it = std::begin(response) + 2; it < std::end(response); ++it)
@@ -148,7 +148,7 @@ std::vector<u32> scan_vme_bus_for_candidates(MVLC &mvlc)
             if ((value & 0xffffff00) != 0xffffff00)
             {
                 result.push_back(addr);
-                spdlog::trace("index={}, value=0x{:08x}, addr={:#010x}", index, value, addr);
+                spdlog::trace("Found candidate address: index={}, value=0x{:08x}, addr={:#010x}", index, value, addr);
             }
         }
 
