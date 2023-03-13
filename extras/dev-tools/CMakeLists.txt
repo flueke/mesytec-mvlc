@@ -76,3 +76,10 @@ target_link_libraries(vme-scan-bus
     PRIVATE BFG::Lyra
     PRIVATE spdlog::spdlog)
 install(TARGETS vme-scan-bus RUNTIME DESTINATION bin)
+
+add_executable(mvlc_temp_debug mvlc_temp_debug.cc)
+target_link_libraries(mvlc_temp_debug
+    PRIVATE mesytec-mvlc
+    PRIVATE BFG::Lyra
+    PRIVATE spdlog::spdlog)
+install(TARGETS mvlc_temp_debug RUNTIME DESTINATION bin)

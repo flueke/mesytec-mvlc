@@ -132,8 +132,16 @@ std::vector<u32> scan_vme_bus_for_candidates(MVLC &mvlc)
         if (auto ec = mvlc.stackTransaction(sb, response))
             throw std::system_error(ec);
 
-        spdlog::trace("Stack result for baseStart=0x{:04x}, baseEnd=0x{:04x}, response.size()={}, response={:#010x}\n",
-            baseStart, base, response.size(), fmt::join(response, ", "));
+        spdlog::trace("Stack result for baseStart=0x{:04x}, baseEnd=0x{:04x} (#addrs={}), response.size()={}\n",
+            baseStart, base, base-baseStart, response.size());
+        spdlog::trace("  response={:#010x}\n", fmt::join(response, ", "));
+
+        if (!response.empty())
+        {
+            u32 respHeader = response[0];
+            spdlog::trace("  responseHeader={:#010x}, decoded: {}", respHeader, decode_frame_header(respHeader));
+        }
+
 
         // +2 to skip over 0xF3 and the marker
         for (auto it = std::begin(response) + 2; it < std::end(response); ++it)
@@ -283,7 +291,7 @@ int main(int argc, char *argv[])
             }
         }
         else
-            spdlog::info("scan bus did not find any mesytec VME modules");
+            spdlog::info("scanbus did not find any mesytec VME modules");
     }
     catch (const std::exception &e)
     {
