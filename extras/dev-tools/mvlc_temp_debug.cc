@@ -7,7 +7,8 @@ using std::endl;
 
 using namespace mesytec::mvlc;
 
-std::vector<u32> scan_vme_bus_for_candidates(MVLC &mvlc, u32 scanBaseBegin = 0, u32 scanBaseEnd = 0xffffu)
+std::vector<u32> scan_vme_bus_for_candidates(MVLC &mvlc, u32 scanBaseBegin = 0u, u32 scanBaseEnd = 0xffffu,
+                                             u32 probeRegister = 0u)
 {
     std::vector<u32> response;
     std::vector<u32> result;
@@ -25,7 +26,8 @@ std::vector<u32> scan_vme_bus_for_candidates(MVLC &mvlc, u32 scanBaseBegin = 0, 
         while (get_encoded_stack_size(sb) < MirrorTransactionMaxContentsWords / 2 - 2
                 && base < baseMax)
         {
-            sb.addVMERead(base << 16, vme_amods::A32, VMEDataWidth::D16);
+            u32 readAddress = (base << 16) | (probeRegister & 0xffffu);
+            sb.addVMERead(readAddress, vme_amods::A32, VMEDataWidth::D32);
             ++base;
         }
 
@@ -80,6 +82,7 @@ int main(int argc, char *argv[])
 
     std::string opt_scanBaseBegin = "0";
     std::string opt_scanBaseEnd   = "0xffff";
+    std::string opt_probeRegister = "0x0000";
 
     auto cli
         = lyra::help(opt_showHelp)
@@ -97,9 +100,7 @@ int main(int argc, char *argv[])
         | lyra::opt(opt_scanBaseBegin, "addr")["--scan-begin"]("first scan base address")
         | lyra::opt(opt_scanBaseEnd, "addr")["--scan-end"]("one past last scan base address")
 
-        // This shit never works :(
-        //| lyra::arg(opt_scanBaseBegin, "scanBaseBegin")("first scan base address").required()
-        //| lyra::arg(opt_scanBaseEnd, "scanBaseEnd")("one past last scan base address").required()
+        | lyra::opt(opt_probeRegister, "addr")["--probe-register"]("register address to probe (low 16 bits of 32 bit vme address)")
         ;
 
 
@@ -126,7 +127,13 @@ int main(int argc, char *argv[])
 
     u32 scanBaseBegin = std::stoul(opt_scanBaseBegin, nullptr, 0);
     u32 scanBaseEnd = std::stoul(opt_scanBaseEnd, nullptr, 0);
+    u32 probeRegister = std::stoull(opt_probeRegister, nullptr, 0);
 
+    if (scanBaseEnd < scanBaseBegin)
+        std::swap(scanBaseEnd, scanBaseBegin);
+
+    spdlog::info("Scan range: [{:#06x}, {:#06x}), {} addresses, probeRegister={:#06x}",
+                 scanBaseBegin, scanBaseEnd, scanBaseEnd - scanBaseBegin, probeRegister);
 
     try
     {
@@ -143,7 +150,7 @@ int main(int argc, char *argv[])
             return 1;
         }
 
-        if (auto candidates = scan_vme_bus_for_candidates(mvlc, scanBaseBegin, scanBaseEnd);
+        if (auto candidates = scan_vme_bus_for_candidates(mvlc, scanBaseBegin, scanBaseEnd, probeRegister);
             !candidates.empty())
         {
             spdlog::debug("Found module candidate addresses: {:#010x}", fmt::join(candidates, ", "));
@@ -151,8 +158,8 @@ int main(int argc, char *argv[])
         else
             spdlog::info("scanbus did not find any mesytec VME modules");
 
-        spdlog::info("Addresses scanned: [{:#06x}, {:#06x}), count={}",
-                     scanBaseBegin, scanBaseEnd, scanBaseEnd - scanBaseBegin);
+        spdlog::info("Scan range: [{:#06x}, {:#06x}), {} addresses, probeRegister={:#06x}",
+                     scanBaseBegin, scanBaseEnd, scanBaseEnd - scanBaseBegin, probeRegister);
     }
     catch (const std::exception &e)
     {
