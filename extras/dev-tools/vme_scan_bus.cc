@@ -13,6 +13,10 @@ static const u32 FirmwareRegister = 0x600eu;
 static const u32 MVHV4HardwareIdRegister = 0x0108;
 static const u32 MVHV4FirmwareRegister = 0x010e;
 
+// The low 16 bits of the vme address to read from when scanning for devices.
+// TODO: Set to 0x0000 once the MVLC dread+BERR bug is fixed.
+static const u32 ProbeRegister = 0x6008u;
+
 // Full 16 bit values of the hardware id register (0x6008).
 struct HardwareIds
 {
@@ -122,7 +126,8 @@ std::vector<u32> scan_vme_bus_for_candidates(MVLC &mvlc)
         while (get_encoded_stack_size(sb) < MirrorTransactionMaxContentsWords / 2 - 2
                 && base < baseMax)
         {
-            sb.addVMERead(base << 16, vme_amods::A32, VMEDataWidth::D16);
+            u32 readAddress = (base << 16) | (ProbeRegister & 0xffffu);
+            sb.addVMERead(readAddress, vme_amods::A32, VMEDataWidth::D16);
             ++base;
         }
 
@@ -140,6 +145,12 @@ std::vector<u32> scan_vme_bus_for_candidates(MVLC &mvlc)
         {
             u32 respHeader = response[0];
             spdlog::trace("  responseHeader={:#010x}, decoded: {}", respHeader, decode_frame_header(respHeader));
+            auto headerInfo = extract_frame_info(respHeader);
+
+            if (headerInfo.flags & frame_flags::SyntaxError)
+            {
+                spdlog::warn("MVLC stack execution returned a syntax error. Scanbus results may be incomplete!");
+            }
         }
 
 
