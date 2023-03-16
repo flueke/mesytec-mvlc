@@ -14,8 +14,10 @@ static const u32 MVHV4HardwareIdRegister = 0x0108;
 static const u32 MVHV4FirmwareRegister = 0x010e;
 
 // The low 16 bits of the vme address to read from when scanning for devices.
-// TODO: Set to 0x0000 once the MVLC dread+BERR bug is fixed.
-static const u32 ProbeRegister = 0x6008u;
+// Note: The probe read does not have to yield useful data, it can even raise
+// BERR. As long as there's no read timeout the address is considered for the
+// info gathering stage.
+static const u32 ProbeRegister = 0x0000u;
 
 // Full 16 bit values of the hardware id register (0x6008).
 struct HardwareIds
