@@ -559,7 +559,7 @@ void mvlc_eth_throttler(
     u32 dataSocketInode = ctx.access()->dataSocketInode;
     s32 lastSentDelay = -1;
 
-    logger->info("mvlc_eth_throttler entering loop");
+    logger->debug("mvlc_eth_throttler entering loop");
 
     while (!ctx.access()->quit)
     {
@@ -603,7 +603,7 @@ void mvlc_eth_throttler(
 
     close_socket(diagSocket);
 
-    logger->info("mvlc_eth_throttler leaving loop");
+    logger->debug("mvlc_eth_throttler leaving loop");
 }
 #elif defined(__WIN32)
 void mvlc_eth_throttler(
@@ -620,7 +620,7 @@ void mvlc_eth_throttler(
     timeBeginPeriod(Win32TimePeriod);
     s32 lastSentDelay = -1;
 
-    logger->info("mvlc_eth_throttler entering loop");
+    logger->debug("mvlc_eth_throttler entering loop");
 
     while (!ctx.access()->quit)
     {
@@ -685,7 +685,7 @@ void mvlc_eth_throttler(
 
     timeEndPeriod(Win32TimePeriod);
 
-    logger->info("mvlc_eth_throttler leaving loop");
+    logger->debug("mvlc_eth_throttler leaving loop");
 }
 #endif
 
