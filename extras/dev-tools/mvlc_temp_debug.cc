@@ -7,6 +7,7 @@ using std::endl;
 
 using namespace mesytec::mvlc;
 
+#if 1
 std::vector<u32> scan_vme_bus_for_candidates(MVLC &mvlc, u32 scanBaseBegin = 0u, u32 scanBaseEnd = 0xffffu,
                                              u32 probeRegister = 0u)
 {
@@ -27,7 +28,7 @@ std::vector<u32> scan_vme_bus_for_candidates(MVLC &mvlc, u32 scanBaseBegin = 0u,
                 && base < baseMax)
         {
             u32 readAddress = (base << 16) | (probeRegister & 0xffffu);
-            sb.addVMERead(readAddress, vme_amods::A32, VMEDataWidth::D32);
+            sb.addVMERead(readAddress, vme_amods::A32, VMEDataWidth::D16);
             ++base;
         }
 
@@ -167,3 +168,22 @@ int main(int argc, char *argv[])
         return 1;
     }
 }
+#endif
+
+#if 0
+int main(int argc, char *argv[])
+{
+    // from john frankland
+    u32 data[] =
+    {
+        0x41780e93u,
+        0x400073f6u,
+        0xf5200004u,
+    };
+
+    eth::PayloadHeaderInfo hdrInfo = { data[0], data[1] };
+
+    spdlog::info("packetChannel={}, packetNumber={}, dataWordCount={}, udpTimestamp={}, nextHeaderPointer={}, hasNextHeaderPointer={}",
+                 hdrInfo.packetChannel(), hdrInfo.packetNumber(), hdrInfo.dataWordCount(), hdrInfo.udpTimestamp(), hdrInfo.nextHeaderPointer(), hdrInfo.isNextHeaderPointerPresent());
+}
+#endif
