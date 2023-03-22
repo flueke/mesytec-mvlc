@@ -655,7 +655,7 @@ std::error_code MVLCDialog_internal::vmeRead(u32 address, u32 &value, u8 amod,
     if (extract_frame_info(m_responseBuffer[0]).flags & frame_flags::Timeout)
         return MVLCErrorCode::NoVMEResponse;
 
-    const u32 Mask = (dataWidth == VMEDataWidth::D16 ? 0x0000FFFF : 0xFFFFFFFF);
+    const u32 Mask = (dataWidth == VMEDataWidth::D16 ? 0x0000FFFFu : 0xFFFFFFFFu);
 
     value = m_responseBuffer[1] & Mask;
 
