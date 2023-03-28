@@ -160,9 +160,10 @@ struct ReadoutParserCallbacks
 
 struct ModuleReadoutStructure
 {
-    u8 prefixLen; // length in 32 bit words of the fixed part prefix
-    u8 suffixLen; // length in 32 bit words of the fixed part suffix
-    bool hasDynamic; // true if a dynamic part (block read) is present
+    u8 prefixLen;       // length in 32 bit words of the fixed part prefix
+    u8 suffixLen;       // length in 32 bit words of the fixed part suffix
+    bool hasDynamic;    // true if a dynamic part (block read) is present
+    std::string name;   // name of the stack group/module that produced the data.
 };
 
 inline bool is_empty(const ModuleReadoutStructure &mrs)

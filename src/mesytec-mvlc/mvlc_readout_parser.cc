@@ -184,7 +184,9 @@ ReadoutParserState::ReadoutStructure build_readout_structure(
 
         for (const auto &group: stack.getGroups())
         {
-            groupStructure.emplace_back(parse_module_readout_commands(group.commands));
+            auto moduleReadoutStructure = parse_module_readout_commands(group.commands);
+            moduleReadoutStructure.name = group.name;
+            groupStructure.emplace_back(moduleReadoutStructure);
         }
 
         result.emplace_back(groupStructure);
