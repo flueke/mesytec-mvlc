@@ -1,7 +1,13 @@
-mesytec-mvlc  {#mainpage}
-=========================
+# mesytec-mvlc - User space driver library for the [mesytec MVLC VME Controller](https://mesytec.com/products/nuclear-physics/MVLC.html)
 
-*User space driver library for the Mesytec MVLC VME controller.*
+- [mesytec-mvlc - User space driver library for the mesytec MVLC VME Controller](#mesytec-mvlc---user-space-driver-library-for-the-mesytec-mvlc-vme-controller)
+  - [Intro](#intro)
+  - [Structure](#structure)
+  - [Limitations](#limitations)
+  - [Installation](#installation)
+  - [Using the Library](#using-the-library)
+
+## Intro
 
 *mesytec-mvlc* is a driver and utility library for the [Mesytec MVLC VME
 controller](https://mesytec.com/products/nuclear-physics/MVLC.html) written in
@@ -28,8 +34,7 @@ to build high-performance MVLC based DAQ readout systems are provided:
 
 * Can use configs exported from [mvme](https://mesytec.com/downloads/mvme.html).
 
-Structure
-----------
+## Structure
 
 ![library overview](doc/images/mesytec-mvlc.svg.png)
 
@@ -69,8 +74,7 @@ Structure
   - Multithreaded writer
   - LZ4 and ZIP (deflate) compression support
 
-Limitations
------------
+## Limitations
 
 * There are currently no abstractions for the MVLC Trigger/IO system.
 
@@ -86,11 +90,11 @@ Limitations
   read out from a single process but there is no time synchronization between
   crates. Multicrate support will be added with future firmware and library revisions.
 
-Installation
-------------
+## Installation
 
-The library works on Linux and Windows. The only external dependency is zlib,
-all other dependencies are included in the source tree.
+The library works on Linux and Windows. The only required external dependency is
+zlib. Optionally [**libzmq**](https://github.com/zeromq/libzmq) can be used to
+transport readout data.
 
 Windows builds currently only work in an [MSYS2](https://www.msys2.org/)
 environment. Add ``-G"MSYS Makefiles"`` to the cmake command line to generate a
@@ -99,10 +103,11 @@ working build system.
     git clone https://github.com/flueke/mesytec-mvlc
     mkdir mesytec-mvlc/build
     cd mesytec-mvlc/build
-    cmake -DCMAKE_BUILD_TYPE=Release ..
+    cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=~/local/mesytec-mvlc ..
     make install
 
-Using the Library
------------------
+## Using the Library
 
-See the [Usage Guide](@ref usage-guide) for an overview of the components.
+* [Library guide](doc/usage_guide.md)
+* [Readout data format and parsing](doc/data_format.md)
+* [Notes on the flash interface](doc/notes-vme-flash-interface.md)
