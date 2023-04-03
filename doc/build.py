@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 # Build the documentation.
 
-import errno, os, re, sys
+import errno, glob, os, re, sys
 from subprocess import check_call, CalledProcessError, Popen, PIPE, STDOUT
 
 #versions = ['1.0.0', '1.1.0', '2.0.0', '3.0.2', '4.0.0', '4.1.0', '5.0.0', '5.1.0', '5.2.0', '5.2.1', '5.3.0', '6.0.0', '6.1.0', '6.1.1', '6.1.2', '6.2.0', '6.2.1', '7.0.0', '7.0.1', '7.0.2', '7.0.3', '7.1.0', '7.1.1', '7.1.2', '7.1.3', '8.0.0', '8.0.1', '8.1.0', '8.1.1', '9.0.0', '9.1.0']
-versions = ['0.0.1']
+versions = ['0.0.0']
 
 class Pip:
   def __init__(self, venv_dir):
@@ -40,13 +40,14 @@ def build_docs(version='dev', **kwargs):
   work_dir = kwargs.get('work_dir', '.')
   include_dir = kwargs.get(
       'include_dir', os.path.join(os.path.dirname(doc_dir), 'src', 'mesytec-mvlc'))
-  input_files = glob.glob("**/*.h", recursive=True, root_dir=include_dir) + glob.glob("**/*.cc", recursive=True, root_dir=include_dir)
+  input_files = glob.glob(os.path.join(include_dir, "**/*.h"), recursive=True) + \
+    glob.glob(os.path.join(include_dir, "**/*.cc"), recursive=True)
   # Build docs.
   cmd = ['doxygen', '-']
   p = Popen(cmd, stdin=PIPE, stdout=PIPE, stderr=STDOUT)
   doxyxml_dir = os.path.join(work_dir, 'doxyxml')
   out, _ = p.communicate(input=r'''
-      PROJECT_NAME      = fmt
+      PROJECT_NAME      = mesytec-mvlc
       GENERATE_LATEX    = NO
       GENERATE_MAN      = NO
       GENERATE_RTF      = NO
@@ -87,7 +88,7 @@ def build_docs(version='dev', **kwargs):
   html_dir = os.path.join(work_dir, 'html')
   main_versions = reversed(versions[-3:])
   check_call([os.path.join(work_dir, 'virtualenv', 'bin', 'sphinx-build'),
-              '-Dbreathe_projects.format=' + os.path.abspath(doxyxml_dir),
+              '-Dbreathe_projects.mesytec_mvlc=' + os.path.abspath(doxyxml_dir),
               '-Dversion=' + version, '-Drelease=' + version,
               '-Aversion=' + version, '-Aversions=' + ','.join(main_versions),
               '-b', 'html', doc_dir, html_dir])
@@ -95,7 +96,7 @@ def build_docs(version='dev', **kwargs):
     check_call(['lessc', '--verbose', '--clean-css',
                 '--include-path=' + os.path.join(doc_dir, 'bootstrap'),
                 os.path.join(doc_dir, 'fmt.less'),
-                os.path.join(html_dir, '_static', 'fmt.css')])
+                os.path.join(html_dir, '_static', 'normalize.css')])
   except OSError as e:
     if e.errno != errno.ENOENT:
       raise

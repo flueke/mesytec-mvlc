@@ -10,7 +10,7 @@ set(PYTHON_EXECUTABLE ${Python_EXECUTABLE})
 
 add_custom_target(doc
   COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/build.py
-                               ${FMT_VERSION}
+    ${GIT_VERSION_TAG}
   SOURCES api.rst usage.rst build.py conf.py _templates/layout.html)
 
 set(DOXYGEN_EXCLUDE_PATTERNS

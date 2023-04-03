@@ -30,7 +30,7 @@ if os.environ.get('READTHEDOCS', None) == 'True':
 # coming with Sphinx (named 'sphinx.ext.*') or your custom ones.
 extensions = ['sphinx.ext.ifconfig', 'breathe']
 
-breathe_default_project = "format"
+breathe_default_project = "mesytec_mvlc"
 breathe_domain_by_extension = {"h" : "cpp"}
 
 # Add any paths that contain templates here, relative to this directory.
@@ -47,7 +47,7 @@ source_suffix = '.rst'
 
 # General information about the project.
 project = u'mesytec-mvlc'
-copyright = u'2020-2022, mesytec GmbH & Co. KG'
+copyright = u'2020-2023, mesytec GmbH & Co. KG'
 author = u'mesytec GmbH & Co. KG <info@mesytec.com>'
 
 # The version info for the project you're documenting, acts as replacement for
