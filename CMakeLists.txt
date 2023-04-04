@@ -84,7 +84,7 @@ option(MVLC_BUILD_DOCS "Build the documentation (requires sphinx, breathe and do
     ${MESYTEC_MVLC_MASTER_PROJECT})
 
 if (MVLC_BUILD_DOCS)
-    add_subdirectory(doc-new)
+    add_subdirectory(doc)
 endif (MVLC_BUILD_DOCS)
 
 add_subdirectory(extras)
