@@ -1,6 +1,8 @@
 Usage
 *****
 
+.. highlight:: shell
+
 Building the library
 ====================
 
@@ -13,13 +15,13 @@ The build process requires gcc/clang with c++17 support, `CMake
 builds currently only work in an `MSYS2 <https://www.msys2.org/>`_ environment,
 MSVC is not supported.
 
-Build steps:::
+Build steps: ::
 
     git clone https://github.com/flueke/mesytec-mvlc
     mkdir mesytec-mvlc/build
     cd mesytec-mvlc/build
     cmake -DCMAKE_BUILD_TYPE=Release ..
-    make
+    cmake --build .
 
 Under windows add ``-G"MSYS Makefiles"`` to the CMake command line to generate
 the proper Makefiles.
@@ -31,16 +33,18 @@ tests. ``MVLC_BUILD_DOCS`` controls whether the documentation is built
 Installing the library
 ======================
 
+Add ``-DCMAKE_INSTALL_PREFIX=/path/to/directory`` to the cmake invocation above
+or set the variable in ``CMakeCache.txt``, then run ``cmake --install .`` to
+copy the installation files.
+
 .. note::
    Installation is not required when the library is used as part of a CMake based
    project via *add_subdirectory()*.
 
-Add ``-DCMAKE_INSTALL_PREFIX=/path/to/directory`` to the cmake invocation above
-or set the variable in ``CMakeCache.txt``, then run ``make install`` to copy
-the installation files.
-
 Usage with CMake
 ================
+
+.. highlight:: cmake
 
 The ``mesytec-mvlc`` library can be used as a CMake subproject by copying the
 library directory into you project and adding::
@@ -49,7 +53,7 @@ library directory into you project and adding::
 
 to your ``CMakeLists.txt``.
 
-An installed version of mesytec-mvlc can be located and used like this:::
+An installed version of mesytec-mvlc can be located and used like this: ::
 
     find_package(mesytec-mvlc REQUIRED)
     target_link_libraries(<my-target> PRIVATE mesytec-mvlc::mesytec-mvlc)
