@@ -69,7 +69,6 @@ if (MVLC_BUILD_TESTS)
 endif (MVLC_BUILD_TESTS)
 
 option(MVLC_BUILD_CONTROLLER_TESTS "Build online MVLC controller tests" OFF)
-option(MVLC_BUILD_C_WRAPPER "Build C-wrapper for the MVLC library" ON)
 
 set(not-msvc $<NOT:$<CXX_COMPILER_ID:MSVC>>)
 
@@ -81,10 +80,11 @@ if (MESYTEC_MVLC_MASTER_PROJECT)
     set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 endif()
 
-option(MVLC_BUILD_DOCS "Build documentation (if doxygen found)" ${MESYTEC_MVLC_MASTER_PROJECT})
+option(MVLC_BUILD_DOCS "Build the documentation (requires sphinx, breathe and doxygen)"
+    ${MESYTEC_MVLC_MASTER_PROJECT})
 
 if (MVLC_BUILD_DOCS)
-    add_subdirectory(doc)
+    add_subdirectory(doc-new)
 endif (MVLC_BUILD_DOCS)
 
 add_subdirectory(extras)
