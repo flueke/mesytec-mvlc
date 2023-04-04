@@ -31,3 +31,5 @@ add_dependencies(doc_sphinx doc_doxygen)
 add_custom_target(doc ALL)
 add_dependencies(doc doc_sphinx)
 
+install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/html/ DESTINATION doc/mesytec-mvlc)
+install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/doxygen/html/ DESTINATION doc/mesytec-mvlc/doxygen)

@@ -36,6 +36,7 @@ html_theme_options = {
         'navbar_links': [
             #("Contents", "contents"),
             ("Usage", "usage"),
+            ("MVLC", "mvlc"),
             ("API", "api")
         ],
 }
