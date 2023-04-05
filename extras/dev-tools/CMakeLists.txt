@@ -82,3 +82,19 @@ if (MVLC_BUILD_TOOLS)
         PRIVATE spdlog::spdlog)
     install(TARGETS mvlc-vme-scan-bus RUNTIME DESTINATION bin)
 
+    add_executable(mvlc-listfile-info mvlc_listfile_info.cc)
+    target_link_libraries(mvlc-listfile-info
+        PRIVATE mesytec-mvlc
+        PRIVATE BFG::Lyra
+        PRIVATE spdlog::spdlog)
+    install(TARGETS mvlc-listfile-info RUNTIME DESTINATION bin)
+
+    if(MVLC_ENABLE_ZMQ)
+        add_executable(mvlc-zmq-test-receiver mvlc_zmq_test_receiver.cc)
+        target_link_libraries(mvlc-zmq-test-receiver PRIVATE mesytec-mvlc)
+
+        add_executable(mvlc-zmq-listfile-sender mvlc_zmq_listfile_sender.cc)
+        target_link_libraries(mvlc-zmq-listfile-sender PRIVATE mesytec-mvlc PRIVATE BFG::Lyra)
+    endif(MVLC_ENABLE_ZMQ)
+
+endif(MVLC_BUILD_TOOLS)

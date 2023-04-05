@@ -261,7 +261,7 @@ int main(int argc, char *argv[])
 
     if (opt_showHelp)
     {
-        cout << "mvlc vme-scan-bus: Scans the upper 64k VME bus addresses for active modules.\n"
+        cout << "mvlc-vme-scan-bus: Scans the upper 64k VME bus addresses for active modules.\n"
                 "                   Reports module type, firmware type and firmware revision for mesytec modules.\n"
              << cli << "\n";
         return 0;
