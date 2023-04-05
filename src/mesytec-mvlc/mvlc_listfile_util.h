@@ -6,6 +6,7 @@
 
 #include "mvlc_listfile.h"
 #include "readout_buffer.h"
+#include "mvlc_replay_worker.h"
 
 namespace mesytec
 {
@@ -73,6 +74,63 @@ struct OStreamWriteHandle: public mvlc::listfile::WriteHandle
 
     std::ostream &out;
 };
+
+struct ListfileReaderHelper
+{
+    // Two buffers, one to read data into, one to store temporary data after
+    // fixing up the destination buffer.
+    std::array<mvlc::ReadoutBuffer, 2> buffers =
+    {
+        ReadoutBuffer(1u << 20),
+        ReadoutBuffer(1u << 20),
+    };
+
+    ReadHandle *readHandle = nullptr;
+    Preamble preamble;
+    ConnectionType bufferFormat;
+    size_t totalBytesRead = 0;
+
+    unsigned destBufIndex = 0;
+    unsigned tempBufIndex = 1;
+
+    ReadoutBuffer *destBuf() { return &buffers[destBufIndex]; };
+    ReadoutBuffer *tempBuf() { return &buffers[tempBufIndex]; }
+};
+
+inline ListfileReaderHelper make_listfile_reader_helper(ReadHandle *readHandle)
+{
+    ListfileReaderHelper result;
+    result.readHandle = readHandle;
+    result.preamble = read_preamble(*readHandle);
+    result.bufferFormat = (result.preamble.magic == get_filemagic_usb()
+        ? ConnectionType::USB
+        : ConnectionType::ETH);
+    result.destBuf()->setType(result.bufferFormat);
+    result.tempBuf()->setType(result.bufferFormat);
+    readHandle->seek(get_filemagic_len());
+    result.totalBytesRead = get_filemagic_len();
+    return result;
+}
+
+inline const ReadoutBuffer *read_next_buffer(ListfileReaderHelper &rh)
+{
+    // If data has already been read the current tempBuf mayb contain temporary
+    // data => swap dest and temp buffers, clear the new temp buffer and read
+    // into the new dest buffer taking into account that it may already contain
+    // data.
+    std::swap(rh.destBufIndex, rh.tempBufIndex);
+    rh.tempBuf()->clear();
+
+    size_t bytesRead = rh.readHandle->read(rh.destBuf()->data() + rh.destBuf()->used(), rh.destBuf()->free());
+    rh.destBuf()->use(bytesRead);
+    rh.totalBytesRead += bytesRead;
+
+    // Ensures that destBuf contains only complete frames/packets. Can move
+    // trailing data from destBuf into tempBuf.
+    mvlc::fixup_buffer(rh.bufferFormat, *rh.destBuf(), *rh.tempBuf());
+
+    return rh.destBuf();
+}
 
 } // end namespace listfile
 } // end namespace mvlc
