@@ -72,6 +72,13 @@ if (MVLC_BUILD_DEV_TOOLS)
         PRIVATE BFG::Lyra
         PRIVATE spdlog::spdlog)
     install(TARGETS mvlc_temp_debug RUNTIME DESTINATION bin)
+
+    add_executable(gsi-listfile-info gsi_listfile_info.cc)
+    target_link_libraries(gsi-listfile-info
+        PRIVATE mesytec-mvlc
+        PRIVATE BFG::Lyra
+        PRIVATE spdlog::spdlog)
+    install(TARGETS gsi-listfile-info RUNTIME DESTINATION bin)
 endif(MVLC_BUILD_DEV_TOOLS)
 
 if (MVLC_BUILD_TOOLS)

@@ -58,7 +58,6 @@ int main(int argc, char *argv[])
     }
 
     return allGood ? 0 : 1;
-
 }
 
 bool process_listfile(const std::string &listfile)
