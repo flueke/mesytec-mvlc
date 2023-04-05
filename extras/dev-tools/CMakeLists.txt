@@ -70,12 +70,13 @@ if(MVLC_ENABLE_ZMQ)
     target_link_libraries(mvlc-zmq-test-receiver PRIVATE mesytec-mvlc)
 endif(MVLC_ENABLE_ZMQ)
 
-add_executable(vme-scan-bus vme_scan_bus.cc)
-target_link_libraries(vme-scan-bus
-    PRIVATE mesytec-mvlc
-    PRIVATE BFG::Lyra
-    PRIVATE spdlog::spdlog)
-install(TARGETS vme-scan-bus RUNTIME DESTINATION bin)
+if (MVLC_BUILD_TOOLS)
+    add_executable(mvlc-vme-scan-bus mvlc_vme_scan_bus.cc)
+    target_link_libraries(mvlc-vme-scan-bus
+        PRIVATE mesytec-mvlc
+        PRIVATE BFG::Lyra
+        PRIVATE spdlog::spdlog)
+    install(TARGETS mvlc-vme-scan-bus RUNTIME DESTINATION bin)
 
 add_executable(mvlc_temp_debug mvlc_temp_debug.cc)
 target_link_libraries(mvlc_temp_debug
