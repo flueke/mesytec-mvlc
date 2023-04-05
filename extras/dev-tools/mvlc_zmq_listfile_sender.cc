@@ -40,6 +40,12 @@ int main(int argc, char *argv[])
 
     mvlc::set_global_log_level(spdlog::level::info);
 
+    if (opt_logDebug)
+        mvlc::set_global_log_level(spdlog::level::debug);
+
+    if (opt_logTrace)
+        mvlc::set_global_log_level(spdlog::level::trace);
+
     std::string bindUrl = "tcp://*:" + std::to_string(opt_bindPort);
 
     mvlc::listfile::ZipReader zipReader;
