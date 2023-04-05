@@ -124,6 +124,31 @@ inline std::pair<stacks::TriggerType, u8> decode_trigger_value(const u32 trigger
     return std::make_pair(triggerType, irqLevel);
 }
 
+inline std::string trigger_type_to_string(const stacks::TriggerType &tt)
+{
+    switch (tt)
+    {
+        case stacks::NoTrigger:     return "NoTrigger";
+        case stacks::IRQWithIACK:   return "IrqWithIack";
+        case stacks::IRQNoIACK:     return "IrqNoIack";
+        case stacks::External:      return "TriggerIO";
+    }
+
+    return {};
+}
+
+inline std::string trigger_to_string(const std::pair<stacks::TriggerType, u8> &trig)
+{
+    auto result = trigger_type_to_string(trig.first);
+    if (trig.first == stacks::IRQWithIACK || trig.first == stacks::IRQNoIACK)
+        result += ", IRQ=" + std::to_string(static_cast<unsigned>(trig.second));
+    return result;
+}
+
+inline std::string trigger_value_to_string(u32 trigval)
+{
+    return trigger_to_string(decode_trigger_value(trigval));
+}
 
 } // end namespace mvlc
 } // end namespace mesytec
