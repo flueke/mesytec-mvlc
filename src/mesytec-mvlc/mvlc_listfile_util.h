@@ -107,7 +107,6 @@ inline ListfileReaderHelper make_listfile_reader_helper(ReadHandle *readHandle)
         : ConnectionType::ETH);
     result.destBuf()->setType(result.bufferFormat);
     result.tempBuf()->setType(result.bufferFormat);
-    readHandle->seek(get_filemagic_len());
     result.totalBytesRead = get_filemagic_len();
     return result;
 }
