@@ -54,8 +54,12 @@ execute_process(
 #message("-- GIT_VERSION_TAG=${GIT_VERSION_TAG}")
 #message("-- GIT_BRANCH=${GIT_BRANCH}")
 
-# Optional tests
+set(not-msvc $<NOT:$<CXX_COMPILER_ID:MSVC>>)
+
 option(MVLC_BUILD_TESTS "Build test binaries" ${MESYTEC_MVLC_MASTER_PROJECT})
+option(MVLC_BUILD_CONTROLLER_TESTS "Build online MVLC controller tests" OFF)
+option(MVLC_BUILD_DEV_TOOLS "Build developer tools" ${MESYTEC_MVLC_MASTER_PROJECT})
+option(MVLC_BUILD_TOOLS "Build MVLC related tools (vme-scan-bus)" ${MESYTEC_MVLC_MASTER_PROJECT})
 
 if (MVLC_BUILD_TESTS)
     if (NOT TARGET gtest)
@@ -67,10 +71,6 @@ if (MVLC_BUILD_TESTS)
     include(CTest)
     enable_testing()
 endif (MVLC_BUILD_TESTS)
-
-option(MVLC_BUILD_CONTROLLER_TESTS "Build online MVLC controller tests" OFF)
-
-set(not-msvc $<NOT:$<CXX_COMPILER_ID:MSVC>>)
 
 add_subdirectory(external)
 
