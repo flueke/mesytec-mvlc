@@ -1,6 +1,7 @@
 #ifndef __MESYTEC_MVLC_MVLC_LISTFILE_UTIL_H__
 #define __MESYTEC_MVLC_MVLC_LISTFILE_UTIL_H__
 
+#include <array>
 #include <cstring>
 #include <ostream>
 
