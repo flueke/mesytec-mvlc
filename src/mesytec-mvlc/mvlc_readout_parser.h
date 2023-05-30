@@ -306,6 +306,7 @@ struct MESYTEC_MVLC_EXPORT ReadoutParserState
             , wordsLeft(extract_frame_info(frameHeader).len)
         {}
 
+        FrameParseState(const FrameParseState &) = default;
         FrameParseState &operator=(const FrameParseState &o) = default;
 
         inline explicit operator bool() const { return wordsLeft; }
