@@ -11,12 +11,17 @@ namespace mesytec
 namespace mvlc
 {
 
-class MESYTEC_MVLC_EXPORT ReadoutBufferQueues
+template<typename BufferType> class ReadoutBufferQueues_
 {
     public:
-        using QueueType = ThreadSafeQueue<ReadoutBuffer *>;
+        using QueueType = ThreadSafeQueue<BufferType *>;
 
-        explicit ReadoutBufferQueues(size_t bufferCapacity = util::Megabytes(1), size_t bufferCount = 10);
+        explicit ReadoutBufferQueues_(size_t bufferCapacity = util::Megabytes(1), size_t bufferCount = 10)
+            : m_bufferStorage(bufferCount, BufferType(bufferCapacity))
+        {
+            for (auto &buffer: m_bufferStorage)
+                m_emptyBuffers.enqueue(&buffer);
+        }
 
         QueueType &filledBufferQueue() { return m_filledBuffers; }
         QueueType &emptyBufferQueue() { return m_emptyBuffers; }
@@ -25,8 +30,10 @@ class MESYTEC_MVLC_EXPORT ReadoutBufferQueues
     private:
         QueueType m_filledBuffers;
         QueueType m_emptyBuffers;
-        std::vector<ReadoutBuffer> m_bufferStorage;
+        std::vector<BufferType> m_bufferStorage;
 };
+
+using ReadoutBufferQueues = ReadoutBufferQueues_<ReadoutBuffer>;
 
 } // end namespace mvlc
 } // end namespace mesytec
