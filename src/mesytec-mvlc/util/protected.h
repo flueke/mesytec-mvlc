@@ -116,7 +116,11 @@ template<typename T>
 class WaitableProtected
 {
     public:
-        WaitableProtected(T && obj)
+        explicit WaitableProtected()
+        {
+        }
+
+        explicit WaitableProtected(T && obj)
             : m_obj(std::move(obj))
         {
         }
