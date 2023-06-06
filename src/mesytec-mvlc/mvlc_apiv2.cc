@@ -53,8 +53,6 @@ struct ReaderContext
         , quit(false)
         , nextSuperReference(1)
         , nextStackReference(1)
-        , pendingSuper({})
-        , pendingStack({})
         , stackErrors()
         , counters()
         {}

@@ -15,7 +15,7 @@ TEST(util_protected, ProtectedWaitableNotify)
 {
     // unlimited wait, immedate async modification of the object
     {
-        WaitableProtected<Object> wo({});
+        WaitableProtected<Object> wo;
 
         auto f = std::async(
             std::launch::async,
@@ -30,7 +30,7 @@ TEST(util_protected, ProtectedWaitableNotify)
     }
 
     {
-        WaitableProtected<Object> wo({});
+        WaitableProtected<Object> wo;
 
         // limited wait, delayed modification of the object
         auto f = std::async(
