@@ -1,0 +1,21 @@
+# syntax=docker/dockerfile:1.5
+# vim:ft=dockerfile
+
+# Dockerfile building the mesytec-mvlc library in debug mode and running the
+# libraries unit tests.
+
+# Example docker build invocation from the root of the source tree:
+#   DOCKER_BUILDKIT=1 docker build  -f ./Dockerfile.debian-stable .
+
+FROM debian:stable
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates build-essential git cmake ninja-build zlib1g-dev
+
+COPY . /sources
+WORKDIR /build
+
+# Run cmake then compile and install the server binary.
+RUN cmake -GNinja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_INSTALL_PREFIX=/install /sources \
+    && ninja && ninja install
+RUN ctest .
