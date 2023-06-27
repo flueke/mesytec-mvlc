@@ -49,10 +49,10 @@ execute_process(
     OUTPUT_VARIABLE GIT_BRANCH
     OUTPUT_STRIP_TRAILING_WHITESPACE)
 
-message("-- GIT_VERSION=${GIT_VERSION}")
-message("-- GIT_VERSION_SHORT=${GIT_VERSION_SHORT}")
-message("-- GIT_VERSION_TAG=${GIT_VERSION_TAG}")
-message("-- GIT_BRANCH=${GIT_BRANCH}")
+#message("-- GIT_VERSION=${GIT_VERSION}")
+#message("-- GIT_VERSION_SHORT=${GIT_VERSION_SHORT}")
+#message("-- GIT_VERSION_TAG=${GIT_VERSION_TAG}")
+#message("-- GIT_BRANCH=${GIT_BRANCH}")
 
 # Optional tests
 option(MVLC_BUILD_TESTS "Build test binaries" ${MESYTEC_MVLC_MASTER_PROJECT})
@@ -76,8 +76,10 @@ set(not-msvc $<NOT:$<CXX_COMPILER_ID:MSVC>>)
 add_subdirectory(external)
 
 # Create our binaries in the root of the build directory. It's just more convenient.
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
+if (MESYTEC_MVLC_MASTER_PROJECT)
+    set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
+    set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
+endif()
 
 option(MVLC_BUILD_DOCS "Build documentation (if doxygen found)" ${MESYTEC_MVLC_MASTER_PROJECT})
 
