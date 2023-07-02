@@ -46,11 +46,6 @@ option(YAML_CPP_BUILD_CONTRIB "Enable contrib stuff in library" OFF)
 option(YAML_CPP_INSTALL "Enable generation of install target" OFF)
 option(YAML_BUILD_SHARED_LIBS "Build Shared Libraries" OFF)
 add_subdirectory(yaml-cpp)
-# Disable the 'yaml-cpp/node/impl.h:202:11: warning: ‘operator=’ should return # a reference to ‘*this’ [-Weffc++]' warning
-# Note: the code does return *this.
-target_compile_options(yaml-cpp
-    PRIVATE $<${not-msvc}:-Wno-effc++>
-    )
 
 # Enable the PIC flag to fix a relocation error when linking against the
 # static version of yaml-cpp.
