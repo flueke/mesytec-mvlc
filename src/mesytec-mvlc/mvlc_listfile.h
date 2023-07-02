@@ -2,6 +2,7 @@
 #define __MESYTEC_MVLC_MVLC_LISTFILE_H__
 
 #include <algorithm>
+#include <numeric>
 
 #include "mesytec-mvlc/mesytec-mvlc_export.h"
 
@@ -145,6 +146,32 @@ constexpr size_t PreambleReadMaxSize = util::Megabytes(100);
 // readout parser.
 Preamble MESYTEC_MVLC_EXPORT read_preamble(
     ReadHandle &rh, size_t preambleMaxSize = PreambleReadMaxSize);
+
+inline std::vector<u8> get_sysevent_data(const std::vector<SystemEvent> &sysEvents, const u8 sysEventType)
+{
+    auto begin = std::find_if(std::begin(sysEvents), std::end(sysEvents),
+        [sysEventType] (const auto &e) { return e.type == sysEventType; });
+
+    if (begin == std::end(sysEvents))
+        return {};
+
+    auto end = std::find_if(begin, std::end(sysEvents),
+        [sysEventType] (const auto &e) { return e.type != sysEventType; });
+
+    std::vector<u8> result;
+
+    result.reserve(std::accumulate(begin, end, 0u,
+        [] (const auto &accu, const auto &e) { return accu + e.contents.size(); }));
+
+    std::for_each(begin, end,
+        [&result] (const auto &e)
+        {
+            std::copy(std::begin(e.contents), std::end(e.contents),
+                std::back_inserter(result));
+        });
+
+    return result;
+}
 
 // Reading:
 // Info from the start of the listfile:

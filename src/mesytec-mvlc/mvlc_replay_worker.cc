@@ -244,6 +244,7 @@ void ReplayWorker::Private::loop(std::promise<std::error_code> promise)
 
     counters.access().ref() = {}; // reset the counters
 
+    // TODO: guard against exceptions from read_preamble()
     auto preamble = listfile::read_preamble(*lfh);
 
     if (preamble.magic == listfile::get_filemagic_eth())
