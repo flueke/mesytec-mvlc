@@ -905,7 +905,9 @@ ParseResult parse_readout_contents(
 
                     if (dataSize)
                     {
+                        // FIXME (performance):
                         ++counters.groupHits[partIndex];
+                        // FIXME (performance):
                         update_part_size_info(counters.groupSizes[partIndex], dataSize);
                     }
                 }

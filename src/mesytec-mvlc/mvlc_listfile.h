@@ -94,9 +94,14 @@ struct MESYTEC_MVLC_EXPORT SystemEvent
 
     inline std::string contentsToString() const
     {
-        return std::string(
-            reinterpret_cast<const char *>(contents.data()),
-            contents.size());
+        if (!contents.empty())
+        {
+            return std::string(
+                reinterpret_cast<const char *>(contents.data()),
+                contents.size());
+        }
+
+        return {};
     }
 };
 
