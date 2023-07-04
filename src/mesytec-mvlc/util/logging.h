@@ -33,13 +33,13 @@ void log_buffer(const std::shared_ptr<spdlog::logger> &logger,
                 const std::string &header,
                 size_t numWordsBegin = 0)
 {
+    if (!logger->should_log(level))
+        return;
+
     if (numWordsBegin == 0)
         numWordsBegin = buffer.size();
 
     numWordsBegin = std::min(numWordsBegin, buffer.size());
-
-    if (!logger->should_log(level))
-        return;
 
     if (numWordsBegin == buffer.size())
         logger->log(level, "begin buffer '{}' (size={})", header, buffer.size());
