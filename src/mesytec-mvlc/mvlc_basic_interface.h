@@ -36,6 +36,7 @@ namespace mesytec
 namespace mvlc
 {
 
+// Low level interface supporting the core write and read operations (SuperCommands).
 class MVLCBasicInterface
 {
     public:
