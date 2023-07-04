@@ -85,7 +85,7 @@ ModuleData module_data_from_event_storage(const ModuleEventStorage &input)
 {
     auto result = ModuleData
     {
-        { input.data.data(), static_cast<u32>(input.data.size()) },
+        .data = { input.data.data(), static_cast<u32>(input.data.size()) },
         .prefixSize = 0,
         .dynamicSize = static_cast<u32>(input.data.size()),
         .suffixSize = 0,
