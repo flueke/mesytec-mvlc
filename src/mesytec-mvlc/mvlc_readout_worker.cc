@@ -98,7 +98,7 @@ ReadoutInitResults MESYTEC_MVLC_EXPORT init_readout(
     MVLC &mvlc, const CrateConfig &crateConfig,
     const CommandExecOptions stackExecOptions)
 {
-    auto logger = get_logger("readout_worker");
+    auto logger = get_logger("init_readout");
 
     ReadoutInitResults ret;
 
