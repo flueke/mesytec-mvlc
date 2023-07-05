@@ -210,22 +210,25 @@ std::error_code setup_readout_stacks(
         u16 uploadAddress = uploadWordOffset * AddressIncrement;
         u16 endAddress    = uploadAddress + stackBuffer.size() * AddressIncrement;
 
-        if (endAddress >= stacks::StackMemoryEnd)
+        if (mvlc::stacks::StackMemoryBegin + endAddress >= mvlc::stacks::StackMemoryEnd)
             return make_error_code(MVLCErrorCode::StackMemoryExceeded);
 
         u8 stackOutputPipe = stackBuilder.suppressPipeOutput() ? SuppressPipeOutput : DataPipe;
 
-        if (auto ec = mvlc.uploadStack(stackOutputPipe, uploadAddress, stackBuilder))
+        if (auto ec = mvlc.uploadStack(stackOutputPipe, uploadAddress, stackBuffer))
             return ec;
 
         u16 offsetRegister = stacks::get_offset_register(stackId);
 
-        if (auto ec = mvlc.writeRegister(offsetRegister, uploadAddress & stacks::StackOffsetBitMaskBytes))
+        uploadAddress = uploadAddress & mvlc::stacks::StackOffsetBitMaskBytes;
+
+        if (auto ec = mvlc.writeRegister(offsetRegister, uploadAddress))
             return ec;
 
         stackId++;
-        // again leave a 1 word gap between stacks
-        uploadWordOffset += stackBuffer.size() + 1;
+
+        // again leave a 1 word gap between stacks and account for the F3/F4 stack begin/end words
+        uploadWordOffset += stackBuffer.size() + 1 + 2;
     }
 
     return {};
