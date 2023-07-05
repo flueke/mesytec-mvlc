@@ -136,7 +136,7 @@ ReadoutInitResults MESYTEC_MVLC_EXPORT init_readout(
         {
             ret.ec = ec;
             logger->error("init_readout(): Error running DAQ init commands: {}", ec.message());
-            return ret;
+            if (!stackExecOptions.continueOnVMEError) return ret;
         }
     }
 
