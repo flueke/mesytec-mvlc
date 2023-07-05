@@ -1181,9 +1181,11 @@ std::string Impl::connectionInfo() const
     else if (devInfo.flags & DeviceInfo::Flags::USB3)
         result += "USB3";
     else
-        result += "unknown";
+        result += "<unknown>";
 
-    result += ", serial=" + devInfo.serial;
+    const auto serialString = !devInfo.serial.empty() ? std::string("<unknown>") : devInfo.serial;
+
+    result += ", serial='" + serialString + "'";
 
     return result;
 }
