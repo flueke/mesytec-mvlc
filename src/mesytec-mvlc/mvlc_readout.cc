@@ -65,9 +65,11 @@ MVLCReadout &MVLCReadout::operator=(MVLCReadout &&other)
     return *this;
 }
 
-std::error_code MVLCReadout::start(const std::chrono::seconds &timeToRun)
+std::error_code MVLCReadout::start(const std::chrono::seconds &timeToRun,
+                                   const CommandExecOptions initSequenceOptions)
+
 {
-    d->initResults = init_readout(d->mvlc, d->crateConfig, {});
+    d->initResults = init_readout(d->mvlc, d->crateConfig, initSequenceOptions);
 
     if (d->initResults.ec)
         return d->initResults.ec;
