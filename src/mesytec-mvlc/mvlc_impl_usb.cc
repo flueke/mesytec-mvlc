@@ -311,7 +311,6 @@ std::error_code post_connect_cleanup(mesytec::mvlc::usb::Impl &impl)
     logger->debug("begin post_connect_cleanup");
 
     static const int DisableTriggerRetryCount = 5;
-    static const auto ReadDataPipeMaxWait = std::chrono::seconds(10);
 
     mesytec::mvlc::MVLCDialog_internal dlg(&impl);
 
