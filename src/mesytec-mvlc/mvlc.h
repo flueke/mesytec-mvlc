@@ -81,6 +81,8 @@ class MESYTEC_MVLC_EXPORT MVLC
         MVLC(MVLC &&) = default;
         MVLC &operator=(MVLC &&) = default;
 
+        // Returns true if an implementation has been set, false otherwise
+        // (meaning the MVLC instance is unusable).
         explicit operator bool() const { return d != nullptr; }
         bool isValid() const { return static_cast<bool>(*this); }
 

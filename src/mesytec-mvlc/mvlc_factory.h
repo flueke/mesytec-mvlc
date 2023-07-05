@@ -37,6 +37,17 @@ namespace mesytec
 namespace mvlc
 {
 
+struct MvlcUrl
+{
+    std::string rawUrl;     // unparsed url string
+    std::string scheme;     // scheme, e.g. udp://, eth://, usb://
+    std::string host;       // full host including the port if present
+};
+
+MvlcUrl MESYTEC_MVLC_EXPORT mvlc_parse_url(const char *url);
+inline MvlcUrl mvlc_parse_url(const std::string &url) { return mvlc_parse_url(url.c_str()); }
+
+
 // usb
 MVLC MESYTEC_MVLC_EXPORT make_mvlc_usb();
 MVLC MESYTEC_MVLC_EXPORT make_mvlc_usb(unsigned index);
@@ -47,6 +58,16 @@ MVLC MESYTEC_MVLC_EXPORT make_mvlc_eth(const std::string &host);
 
 // from crateconfig info
 MVLC MESYTEC_MVLC_EXPORT make_mvlc(const CrateConfig &crateConfig);
+
+// URL based factory for MVLC instances. Accepts the following URLs variants:
+// usb://                   Use the first USB device
+// usb://<serial-string>    USB device matching the given serial number
+// usb://@<index>           USB device with the given logical FTDI driver index
+// eth://<hostname/ip>      ETH/UDP with a hostname or an ip-address
+// udp://<hostname/ip>      ETH/UDP with a hostname or an ip-address
+// hostname                 No scheme part -> interpreted as a hostname for ETH/UDP
+MVLC MESYTEC_MVLC_EXPORT make_mvlc(const char *url);
+inline MVLC make_mvlc(const std::string &url) { return make_mvlc(url.c_str()); }
 
 }
 }

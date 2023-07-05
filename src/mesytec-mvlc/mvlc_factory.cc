@@ -74,6 +74,48 @@ MVLC make_mvlc(const CrateConfig &crateConfig)
     throw std::runtime_error("unknown CrateConfig::connectionType");
 }
 
+MvlcUrl mvlc_parse_url(const char *url)
+{
+    MvlcUrl result;
+    result.rawUrl = url;
+
+    if (auto schemeStartPos = result.rawUrl.find("://");
+        schemeStartPos != std::string::npos)
+    {
+        result.scheme = result.rawUrl.substr(0, schemeStartPos);
+        result.host = result.rawUrl.substr(schemeStartPos + 3);
+    }
+    else
+    {
+        result.host = result.rawUrl;
+    }
+
+    return result;
+}
+
+MVLC make_mvlc(const char *urlStr)
+{
+    auto url = mvlc_parse_url(urlStr);
+
+    if ((url.scheme.empty() || url.scheme == "eth" || url.scheme == "udp") && !url.host.empty())
+        return make_mvlc_eth(url.host);
+
+    if (url.scheme == "usb")
+    {
+        if (url.host.empty())
+            return make_mvlc_usb();
+
+        if (url.host.at(0) == '@')
+        {
+            unsigned index = std::strtoul(url.host.c_str() + 1, nullptr, 0);
+            return make_mvlc_usb(index);
+        }
+
+        return make_mvlc_usb(url.host); // interpret host part as a serial string
+    }
+
+    return MVLC{};
+}
 
 }
 }
