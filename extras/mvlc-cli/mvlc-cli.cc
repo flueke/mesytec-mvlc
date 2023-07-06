@@ -17,63 +17,7 @@ std::string str_tolower(std::string s)
     return s;
 }
 
-MVLC make_mvlc_from_standard_args(const char **argv)
-{
-    argh::parser parser({"--mvlc", "--mvlc-usb-index", "--mvlc-usb-serial", "--mvlc-eth"});
-    parser.parse(argv);
-
-    std::string arg;
-
-    if (parser("--mvlc") >> arg)
-        return make_mvlc(arg); // mvlc URI
-
-    if (parser["--mvlc-usb"])
-        return make_mvlc_usb();
-
-    return MVLC{};
-}
-
-MVLC make_default_mvlc(const char **argv)
-{
-    // arguments before env variables
-    if (auto mvlc = make_mvlc_from_standard_args(argv))
-        return mvlc;
-
-    // try via env variable
-    if (char *envAddr = std::getenv("MVLC_ADDRESS"))
-        return make_mvlc(envAddr);
-
-    // no luck
-    return MVLC{};
-}
-
-MVLC make_default_mvlc_err(const char **argv)
-{
-    if (auto mvlc = make_default_mvlc(argv))
-        return mvlc;
-
-    std::cerr << "Error: no MVLC to connect to\n";
-    return MVLC{};
-}
-
-std::pair<MVLC, std::error_code> make_default_mvlc_err_connect(const char **argv)
-{
-    if (auto mvlc = make_default_mvlc_err(argv))
-    {
-        auto ec = mvlc.connect();
-        if (ec)
-        {
-            std::cerr << fmt::format("Error connecting to MVLC {}: {}\n",
-                mvlc.connectionInfo(), ec.message());
-        }
-
-        return std::make_pair(mvlc, ec);
-    }
-
-    return std::pair<MVLC, std::error_code>();
-};
-
-void trace_log_parser_info(const argh::parser &parser, const std::string context="cli")
+void trace_log_parser_info(const argh::parser &parser, const std::string context)
 {
     if (auto params = parser.params(); !params.empty())
     {
@@ -88,6 +32,62 @@ void trace_log_parser_info(const argh::parser &parser, const std::string context
     {
         spdlog::trace("{} argh-parse pos args: {}", context, fmt::join(pos_args, ", "));
     }
+}
+
+static const std::vector<std::string> MvlcStandardParams =
+    {"--mvlc", "--mvlc-usb-index", "--mvlc-usb-serial", "--mvlc-eth"};
+
+MVLC make_mvlc_from_standard_params(argh::parser &parser)
+{
+    trace_log_parser_info(parser, "make_mvlc_from_standard_params");
+    std::string arg;
+
+    if (parser("--mvlc") >> arg)
+        return make_mvlc(arg); // mvlc URI
+
+    if (parser["--mvlc-usb"])
+        return make_mvlc_usb();
+
+    unsigned usbIndex = 0;
+    if (parser("--mvlc-usb-index") >> usbIndex)
+        return make_mvlc_usb(usbIndex);
+
+    if (parser("--mvlc-usb-serial") >> arg)
+        return make_mvlc_usb(arg);
+
+    if (parser("--mvlc-eth") >> arg)
+        return make_mvlc_eth(arg);
+
+    return MVLC{};
+}
+
+std::pair<MVLC, std::error_code> make_and_connect_default_mvlc(argh::parser &parser)
+{
+    // try the standard params first
+    auto mvlc = make_mvlc_from_standard_params(parser);
+
+    if (!mvlc)
+    {
+        // try via the env variable
+        if (char *envAddr = std::getenv("MVLC_ADDRESS"))
+            mvlc = make_mvlc(envAddr);
+    }
+
+    if (!mvlc)
+    {
+        std::cerr << "Error: no MVLC to connect to\n";
+        return std::pair<MVLC, std::error_code>();
+    }
+
+    auto ec = mvlc.connect();
+
+    if (ec)
+    {
+        std::cerr << fmt::format("Error connecting to MVLC {}: {}\n",
+            mvlc.connectionInfo(), ec.message());
+    }
+
+    return std::make_pair(mvlc, ec);
 }
 
 struct CliContext;
@@ -169,7 +169,7 @@ DEF_EXEC_FUNC(mvlc_version_command)
     spdlog::trace("entered mvlc_version_command()");
     trace_log_parser_info(ctx.parser, "mvlc_version_command");
 
-    auto [mvlc, ec] = make_default_mvlc_err_connect(argv);
+    auto [mvlc, ec] = make_and_connect_default_mvlc(ctx.parser);
 
     if (!mvlc || ec)
         return 1;
@@ -192,7 +192,7 @@ DEF_EXEC_FUNC(mvlc_stack_info_command)
     spdlog::trace("entered mvlc_version_command()");
     trace_log_parser_info(ctx.parser, "mvlc_version_command");
 
-    auto [mvlc, ec] = make_default_mvlc_err_connect(argv);
+    auto [mvlc, ec] = make_and_connect_default_mvlc(ctx.parser);
 
     if (!mvlc || ec)
         return 1;
@@ -311,6 +311,8 @@ MVLC connection URIs:
     }
 
     argh::parser parser({"-h", "--help", "--log-level"});
+    for (const auto &p: MvlcStandardParams)
+        parser.add_param(p);
     parser.parse(argv);
 
     {
@@ -323,7 +325,7 @@ MVLC connection URIs:
         }
     }
 
-    trace_log_parser_info(parser);
+    trace_log_parser_info(parser, "mvlc-cli");
 
     CliContext ctx;
     ctx.generalHelp = generalHelp;
