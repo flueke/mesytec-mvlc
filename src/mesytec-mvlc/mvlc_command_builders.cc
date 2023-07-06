@@ -257,8 +257,7 @@ std::string to_string(const StackCommand &cmd)
                 return ret;
             }
 
-            // block mode
-            // FIXME: Blk2eSST is missing
+            // block modes including 2eSST
             return fmt::format(
                 "vme_block_read {:#04x} {} {:#010x}",
                 cmd.amod, cmd.transfers, cmd.address);
@@ -443,7 +442,7 @@ StackCommand stack_command_from_string(const std::string &str)
         result.type = CT::SoftwareDelay;
         iss >> arg; result.value = std::stoul(arg, nullptr, 0);
     }
-    else if (name == "custom_cmd:")
+    else if (name == "custom_cmd")
     {
         // Note: the custom command is encoded as inline YAML!
         YAML::Node yRoot = YAML::Load(str);
