@@ -332,7 +332,6 @@ MVLC connection URIs:
     ctx.commands.insert(ListCmdsCommand);
     ctx.commands.insert(MvlcVersionCommand);
     ctx.commands.insert(MvlcStackInfoCommand);
-    ctx.commands.insert(Command{"version", "print MVLC hardware and firmware revisions\n", mvlc_version_command});
     ctx.parser = parser;
 
     // mvlc-cli                 // show generalHelp
