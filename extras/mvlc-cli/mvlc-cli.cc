@@ -126,6 +126,24 @@ DEF_EXEC_FUNC(help_command)
     spdlog::trace("entered help_command()");
     trace_log_parser_info(ctx.parser, "help_command");
 
+    if (ctx.parser["-a"] || ctx.parser["--all"])
+    {
+        if (!ctx.parser[2].empty())
+        {
+            std::cerr << "Error: the '--all' option doesn't take any non-option arguments\n";
+            return 1;
+        }
+
+        if (auto cmd = ctx.commands.find(Command{"list-commands"});
+            cmd != ctx.commands.end())
+        {
+            return cmd->exec(ctx, *cmd, argc, argv);
+        }
+
+        std::cerr << "Error: 'list-commands' command not found\n";
+        return 1;
+    }
+
     if (auto cmd = ctx.commands.find(Command{ctx.parser[2]});
         cmd != ctx.commands.end())
     {
@@ -140,7 +158,8 @@ DEF_EXEC_FUNC(help_command)
 static const Command HelpCommand =
 {
     .name = "help",
-    .help = R"~(Raw help for the 'help' command)~",
+    .help = R"~(Raw help for the 'help' command
+)~",
     .exec = help_command,
 };
 
@@ -160,7 +179,8 @@ DEF_EXEC_FUNC(list_commands_command)
 static const Command ListCmdsCommand =
 {
     .name = "list-commands",
-    .help = R"~(Raw help for the 'list-commands' command)~",
+    .help = R"~(Raw help for the 'list-commands' command
+)~",
     .exec = list_commands_command,
 };
 
@@ -183,7 +203,8 @@ DEF_EXEC_FUNC(mvlc_version_command)
 static const Command MvlcVersionCommand =
 {
     .name = "version",
-    .help = R"~(print MVLC hardware and firmware revisions)~",
+    .help = R"~(print MVLC hardware and firmware revisions
+)~",
     .exec = mvlc_version_command,
 };
 
@@ -235,7 +256,8 @@ DEF_EXEC_FUNC(mvlc_stack_info_command)
 static const Command MvlcStackInfoCommand =
 {
     .name = "stack_info",
-    .help = R"~(retrieve and print the readout stacks from an MVLC)~",
+    .help = R"~(retrieve and print the readout stacks from an MVLC
+)~",
     .exec = mvlc_stack_info_command,
 };
 
