@@ -442,7 +442,7 @@ StackCommand stack_command_from_string(const std::string &str)
         result.type = CT::SoftwareDelay;
         iss >> arg; result.value = std::stoul(arg, nullptr, 0);
     }
-    else if (name == "custom_cmd")
+    else if (name == "custom_cmd:")
     {
         // Note: the custom command is encoded as inline YAML!
         YAML::Node yRoot = YAML::Load(str);
@@ -463,7 +463,7 @@ StackCommand stack_command_from_string(const std::string &str)
         }
     }
     else
-        throw std::runtime_error("invalid command");
+        throw std::runtime_error(fmt::format("invalid command '{}'", name));
 
     return result;
 }
