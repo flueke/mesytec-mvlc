@@ -1155,7 +1155,7 @@ std::vector<StackCommand> stack_commands_from_buffer(const std::vector<u32> &buf
         u8 arg0 = (*it >> CmdArg0Shift) & CmdArg0Mask;
         u16 arg1 = (*it >> CmdArg1Shift) & CmdArg1Mask;
 
-        spdlog::debug("decode_stack: word=0x{:08x}, sct=0x{:02x}, arg0=0x{:02x}, arg1=0x{:04x}",
+        spdlog::trace("decode_stack: word=0x{:08x}, sct=0x{:02x}, arg0=0x{:02x}, arg1=0x{:04x}",
             *it, sct, arg0, arg1);
 
         StackCommand cmd = {};
