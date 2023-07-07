@@ -210,17 +210,67 @@ static const Command MvlcVersionCommand =
 
 DEF_EXEC_FUNC(mvlc_stack_info_command)
 {
-    spdlog::trace("entered mvlc_version_command()");
-    trace_log_parser_info(ctx.parser, "mvlc_version_command");
+    spdlog::trace("entered mvlc_stack_info_command()");
+    trace_log_parser_info(ctx.parser, "mvlc_stack_info_command");
+
+    static const unsigned AllStacks = std::numeric_limits<unsigned>::max();
+    unsigned stackId = AllStacks;
+
+    if (!ctx.parser[2].empty())
+    {
+        if (!(ctx.parser(2) >> stackId))
+        {
+            std::cerr << "Error: invalid stackId given\n";
+            return 1;
+        }
+
+        if (stackId >= stacks::StackCount)
+        {
+            std::cerr << fmt::format("Error: stackId={} is out of range\n", stackId);
+            return 1;
+        }
+    }
+
+    const unsigned stackMin = stackId >= stacks::StackCount ? 0 : stackId;
+    const unsigned stackMax = stackId >= stacks::StackCount ? stacks::StackCount : stackId + 1;
+
+    const bool doRaw     = ctx.parser["--raw"];
+    const bool doYaml    = ctx.parser["--yaml"];
+    const bool doDecoded = !doYaml && !doRaw;
+
+    if (doRaw && doYaml)
+    {
+        std::cerr << "Error: --raw and --yaml are exlusive flags\n";
+        return 1;
+    }
+
+    spdlog::trace("stack_info: stackMin={}, stackMax={}, doRaw={}, doYaml={}",
+        stackMin, stackMax, doRaw, doYaml);
 
     auto [mvlc, ec] = make_and_connect_default_mvlc(ctx.parser);
 
     if (!mvlc || ec)
         return 1;
 
-    for (unsigned stackId=1; stackId<stacks::StackCount; ++stackId)
+    struct StackInfoEntry
+    {
+        unsigned stackId;
+        std::error_code ec;
+        StackInfo stackInfo;
+    };
+
+    std::vector<StackInfoEntry> stackInfos;
+
+    for (unsigned stackId=stackMin; stackId<stackMax; ++stackId)
     {
         auto [stackInfo, ec] = read_stack_info(mvlc, stackId);
+
+        StackInfoEntry e;
+        e.stackId = stackId;
+        e.ec = ec;
+        e.stackInfo = stackInfo;
+
+        stackInfos.emplace_back(e);
 
         if (ec && ec != make_error_code(MVLCErrorCode::InvalidStackHeader))
         {
@@ -228,11 +278,22 @@ DEF_EXEC_FUNC(mvlc_stack_info_command)
                 stackId, ec.message());
             return 1;
         }
-        else if (ec == make_error_code(MVLCErrorCode::InvalidStackHeader))
+    }
+
+    // TODO: leftoff here on 230707
+
+    for (const auto &entry: stackInfos)
+    {
+        const auto &stackId = entry.stackId;
+        const auto &ec = entry.ec;
+        const auto &stackInfo = entry.stackInfo;
+
+        if (ec == make_error_code(MVLCErrorCode::InvalidStackHeader))
         {
             std::cerr << fmt::format("- stack#{}: triggers=0x{:02x}, offset={}, startAddress=0x{:04x}"
-                ", could not read stack contents: {}\n",
-                stackId, stackInfo.triggers, stackInfo.offset, stackInfo.startAddress, ec.message());
+                ", empty stack (does not start with a StackStart header)\n",
+                stackId, stackInfo.triggers, stackInfo.offset, stackInfo.startAddress);
+            continue;
         }
         else
         {
@@ -240,13 +301,15 @@ DEF_EXEC_FUNC(mvlc_stack_info_command)
                 stackId, stackInfo.triggers, stackInfo.offset, stackInfo.startAddress,
                 stackInfo.contents.size());
 
-            //for (auto &word: stackInfo.contents)
-            //    std::cout << fmt::format("  0x{:08x}\n", word);
-            //std::cout << "  --\n";
+            for (auto &word: stackInfo.contents)
+                std::cout << fmt::format("  0x{:08x}\n", word);
+            std::cout << "--\n";
 
             auto stackBuilder = stack_builder_from_buffer(stackInfo.contents);
             for (const auto &cmd: stackBuilder.getCommands())
+            {
                 std::cout << "  " << to_string(cmd) << "\n";
+            }
         }
     }
 
@@ -256,7 +319,16 @@ DEF_EXEC_FUNC(mvlc_stack_info_command)
 static const Command MvlcStackInfoCommand =
 {
     .name = "stack_info",
-    .help = R"~(retrieve and print the readout stacks from an MVLC
+    .help = R"~(usage: mvlc-cli stack_info [--raw] [--yaml] [<stackId>]
+
+    Read and print command stack info and contents. If no stackId is given all event readout
+    stacks (stack1..7) are read.
+
+options & args:
+
+    --raw           Print the raw stack buffer instead of decoded commands.
+    --yaml          Output the stack(s) in yaml format, suitable for loading with 'upload_stack'.
+    <stackId>       Optional numeric stack id. Range 0..7.
 )~",
     .exec = mvlc_stack_info_command,
 };
@@ -271,24 +343,34 @@ usage: mvlc-cli [-v | --version] [-h | --help [-a]] [--log-level=(off|error|warn
 
 Core Commands:
     help <command>
-        print help text for the given command.
+        Show help for the given command and exit.
 
     list-commands | help -a
-        print list of available commands
+        Print list of available commands.
+
+Core Switches:
+    -v | --version
+        Show mvlc-cli and mesytec-mvlc versions and exit.
+
+    -h <command> | --help <command>
+        Show help for the given command and exit.
+
+    -h -a | --help -a
+        Same as list-commands: print a list of available commands.
 
 MVLC low level commands:
 
     version
-        print MVLC hardware and firmware revisions
+        Print MVLC hardware and firmware revisions.
 
     status
-        gather status and version information from MVLC
+        Gather status and version information from MVLC.
 
     read_register
-        read an internal register
+        Read an internal MVLC register.
 
     write_register
-        write an internal register
+        Write an internal MVLC register.
 
 VME access and utility commands:
 
