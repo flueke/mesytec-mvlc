@@ -47,9 +47,12 @@ namespace vme_amods
     static const u8 MBLT64      = a32UserBlock64;
     static const u8 Blk2eSST64  = 0x20;
 
+    // amods are 6 bits wide
+    static const unsigned VmeAmodMask = 0b111111u;
+
     inline bool is_block_mode(u8 amod)
     {
-        switch (amod)
+        switch (amod & VmeAmodMask)
         {
             case a32UserBlock:
             case a32UserBlock64:
@@ -66,7 +69,7 @@ namespace vme_amods
 
     inline bool is_blt_mode(u8 amod)
     {
-        switch (amod)
+        switch (amod & VmeAmodMask)
         {
             case a32UserBlock:
             case a32PrivBlock:
@@ -80,7 +83,7 @@ namespace vme_amods
 
     inline bool is_mblt_mode(u8 amod)
     {
-        switch (amod)
+        switch (amod & VmeAmodMask)
         {
             case a32UserBlock64:
             case a32PrivBlock64:
@@ -92,7 +95,7 @@ namespace vme_amods
 
     inline bool is_esst64_mode(u8 amod)
     {
-        return (amod == Blk2eSST64);
+        return ((amod & VmeAmodMask) == Blk2eSST64);
     }
 }
 }
