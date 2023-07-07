@@ -1012,6 +1012,7 @@ std::error_code Impl::connect()
     }
     #endif
 
+    #if 0
     // Send an initial empty frame to the UDP data pipe port so that
     // the MVLC knows where to send the readout data.
     {
@@ -1031,6 +1032,7 @@ std::error_code Impl::connect()
             return ec;
         }
     }
+    #endif
 
     logger->trace("ETH connect sequence finished");
 
