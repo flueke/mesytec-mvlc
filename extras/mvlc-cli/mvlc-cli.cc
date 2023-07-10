@@ -1,10 +1,36 @@
 // Fore some info on how to use argh effectively see
 // https://a4z.gitlab.io/blog/2019/04/30/Git-like-sub-commands-with-argh.html
 
-#include <mesytec-mvlc/mesytec-mvlc.h>
 #include <argh.h>
+#include <string>
+#include <mesytec-mvlc/mesytec-mvlc.h>
+#include <mesytec-mvlc/scanbus_support.h>
 
 using namespace mesytec::mvlc;
+
+// https://stackoverflow.com/a/24900770
+inline std::string unindent(const char* p)
+{
+    std::string result;
+    if (*p == '\n') ++p;
+    const char* p_leading = p;
+    while (std::isspace(*p) && *p != '\n')
+        ++p;
+    size_t leading_len = p - p_leading;
+    while (*p)
+    {
+        result += *p;
+        if (*p++ == '\n')
+        {
+            for (size_t i = 0; i < leading_len; ++i)
+                if (p[i] != p_leading[i])
+                    goto dont_skip_leading;
+            p += leading_len;
+        }
+      dont_skip_leading: ;
+    }
+    return result;
+}
 
 std::string str_tolower(std::string s)
 {
@@ -22,15 +48,15 @@ void trace_log_parser_info(const argh::parser &parser, const std::string context
     if (auto params = parser.params(); !params.empty())
     {
         for (const auto &param: params)
-            spdlog::trace("{} argh-parse parameter: {}={}", context, param.first, param.second);
+            spdlog::trace("argh-parse {} parameter: {}={}", context, param.first, param.second);
     }
 
     if (auto flags = parser.flags(); !flags.empty())
-        spdlog::trace("{} argh-parse flags: {}", context, fmt::join(flags, ", "));
+        spdlog::trace("argh-parse {} flags: {}", context, fmt::join(flags, ", "));
 
     if (auto pos_args = parser.pos_args(); !pos_args.empty())
     {
-        spdlog::trace("{} argh-parse pos args: {}", context, fmt::join(pos_args, ", "));
+        spdlog::trace("argh-parse {} pos args: {}", context, fmt::join(pos_args, ", "));
     }
 }
 
@@ -59,6 +85,15 @@ MVLC make_mvlc_from_standard_params(argh::parser &parser)
         return make_mvlc_eth(arg);
 
     return MVLC{};
+}
+
+MVLC make_mvlc_from_standard_params(const char **argv)
+{
+    argh::parser parser;
+    for (const auto &p: MvlcStandardParams)
+        parser.add_param(p);
+    parser.parse(argv);
+    return make_mvlc_from_standard_params(parser);
 }
 
 std::pair<MVLC, std::error_code> make_and_connect_default_mvlc(argh::parser &parser)
@@ -291,7 +326,7 @@ DEF_EXEC_FUNC(mvlc_stack_info_command)
         if (ec == make_error_code(MVLCErrorCode::InvalidStackHeader))
         {
             std::cerr << fmt::format("- stack#{}: triggers=0x{:02x}, offset={}, startAddress=0x{:04x}"
-                ", empty stack (does not start with a StackStart header)\n",
+                ", empty stack (does not start with a StackStart (0xF3) header)\n",
                 stackId, stackInfo.triggers, stackInfo.offset, stackInfo.startAddress);
             continue;
         }
@@ -319,18 +354,195 @@ DEF_EXEC_FUNC(mvlc_stack_info_command)
 static const Command MvlcStackInfoCommand =
 {
     .name = "stack_info",
-    .help = R"~(usage: mvlc-cli stack_info [--raw] [--yaml] [<stackId>]
+    .help = unindent(
+R"~(usage: mvlc-cli stack_info [--raw] [--yaml] [<stackId>]
 
     Read and print command stack info and contents. If no stackId is given all event readout
     stacks (stack1..7) are read.
 
-options & args:
+options:
 
     --raw           Print the raw stack buffer instead of decoded commands.
     --yaml          Output the stack(s) in yaml format, suitable for loading with 'upload_stack'.
     <stackId>       Optional numeric stack id. Range 0..7.
-)~",
+)~"),
     .exec = mvlc_stack_info_command,
+};
+
+DEF_EXEC_FUNC(scanbus_command)
+{
+    spdlog::trace("entered mvlc_scanbus_command()");
+
+    auto parser = ctx.parser;
+    parser.add_params({"--scan-begin", "--scan-end", "--probe-register", "--probe-amod", "--probe-datawidth"});
+    parser.parse(argv);
+    trace_log_parser_info(parser, "mvlc_scanbus_command");
+
+    u16 scanBegin = 0x0u;
+    u16 scanEnd   = 0xffffu;
+    u16 probeRegister = 0;
+    u8  probeAmod = 0x09;
+    VMEDataWidth probeDataWidth = VMEDataWidth::D16;
+    std::string str;
+
+    if (parser("--scan-begin") >> str)
+    {
+        try { scanBegin = std::stoul(str, nullptr, 0); }
+        catch (const std::exception &e)
+        {
+            std::cerr << "Error: could not parse address value for --scan-begin\n";
+            return 1;
+        }
+    }
+
+    if (parser("--scan-end") >> str)
+    {
+        try { scanEnd = std::stoul(str, nullptr, 0); }
+        catch (const std::exception &e)
+        {
+            std::cerr << "Error: could not parse address value for --scan-end\n";
+            return 1;
+        }
+    }
+
+    if (parser("--probe-register") >> str)
+    {
+        try { probeRegister = std::stoul(str, nullptr, 0); }
+        catch (const std::exception &e)
+        {
+            std::cerr << "Error: could not parse address value for --probe-register\n";
+            return 1;
+        }
+    }
+
+    if (parser("--probe-amod") >> str)
+    {
+        try { probeAmod = std::stoul(str, nullptr, 0); }
+        catch (const std::exception &e)
+        {
+            std::cerr << "Error: could not parse value for --probe-amod\n";
+            return 1;
+        }
+    }
+
+    if (parser("--probe-datawidth") >> str)
+    {
+        auto dwStr = str_tolower(str);
+
+        if (dwStr == "d16" || dwStr == "16")
+            probeDataWidth = VMEDataWidth::D16;
+        else if (dwStr == "d32" || dwStr == "32")
+            probeDataWidth = VMEDataWidth::D32;
+        else
+        {
+            std::cerr << fmt::format("Error: invalid --probe-datawidth given: {}\n", str);
+            return 1;
+        }
+
+        str.clear();
+    }
+
+    if (scanEnd < scanBegin)
+        std::swap(scanEnd, scanBegin);
+
+    auto [mvlc, ec] = make_and_connect_default_mvlc(ctx.parser);
+
+    if (!mvlc || ec)
+        return 1;
+
+    std::cout << fmt::format("scanbus scan range: [{:#06x}, {:#06x}), {} addresses, probeRegister={:#06x}"
+        ", probeAmod={:#04x}, probeDataWidth={}\n",
+        scanBegin, scanEnd, scanEnd - scanBegin, probeRegister,
+        probeAmod, probeDataWidth == VMEDataWidth::D16 ? "d16" : "d32");
+
+    using namespace scanbus;
+
+    auto candidates = scan_vme_bus_for_candidates(mvlc, scanBegin, scanEnd,
+        probeRegister, probeAmod, probeDataWidth);
+
+    if (!candidates.empty())
+    {
+        if (candidates.size() == 1)
+            std::cout << fmt::format("Found {} module candidate address: {:#010x}\n",
+                candidates.size(), fmt::join(candidates, ", "));
+        else
+            std::cout << fmt::format("Found {} module candidate addresses: {:#010x}\n",
+                candidates.size(), fmt::join(candidates, ", "));
+
+        for (auto addr: candidates)
+        {
+            VMEModuleInfo moduleInfo{};
+
+            if (auto ec = mvlc.vmeRead(addr + FirmwareRegister, moduleInfo.fwId, vme_amods::A32, VMEDataWidth::D16))
+            {
+                std::cout << fmt::format("Error checking address {#:010x}: {}\n", addr, ec.message());
+                continue;
+            }
+
+            if (auto ec = mvlc.vmeRead(addr + HardwareIdRegister, moduleInfo.hwId, vme_amods::A32, VMEDataWidth::D16))
+            {
+                std::cout << fmt::format("Error checking address {#:010x}: {}\n", addr, ec.message());
+                continue;
+            }
+
+            if (moduleInfo.hwId == 0 && moduleInfo.fwId == 0)
+            {
+                if (auto ec = mvlc.vmeRead(addr + MVHV4FirmwareRegister, moduleInfo.fwId, vme_amods::A32, VMEDataWidth::D16))
+                {
+                    std::cout << fmt::format("Error checking address {#:010x}: {}\n", addr, ec.message());
+                    continue;
+                }
+
+                if (auto ec = mvlc.vmeRead(addr + MVHV4HardwareIdRegister, moduleInfo.hwId, vme_amods::A32, VMEDataWidth::D16))
+                {
+                    std::cout << fmt::format("Error checking address {#:010x}: {}\n", addr, ec.message());
+                    continue;
+                }
+            }
+
+            auto msg = fmt::format("Found module at {:#010x}: hwId={:#06x}, fwId={:#06x}, type={}",
+                addr, moduleInfo.hwId, moduleInfo.fwId, moduleInfo.moduleTypeName());
+
+            if (is_mdpp(moduleInfo.hwId))
+                msg += fmt::format(", mdpp_fw_type={}", moduleInfo.mdppFirmwareTypeName());
+
+            std::cout << fmt::format("{}\n", msg);
+        }
+    }
+    else
+        std::cout << fmt::format("scanbus did not find any mesytec VME modules\n");
+
+    return 0;
+}
+
+static const Command ScanbusCommand
+{
+    .name = "scanbus",
+    .help = unindent(R"~(
+usage: mvlc-cli scanbus [--scan-begin=<addr>] [--scan-end=<addr>] [--probe-register=<addr>]
+                        [--probe-amod=<amod>] [--probe-datawidth=<datawidth>]
+
+    Scans the upper 16 bits of the VME address space for the presence of (mesytec) VME modules.
+    Displays the hardware and firmware revisions of found modules and additionally the loaded
+    firmware type for MDPP-like modules.
+
+options:
+    --scan-begin=<addr> (default=0x0000)
+        16-bit start address for the scan.
+
+    --scan-end=<addr> (default=0xffff)
+        16-bit one-past-end address for the scan.
+
+    --probe-register=<addr> (default=0)
+        The 16-bit register address to read from.
+
+    --probe-amod=<amod> (default=0x09)
+        The VME amod to use when reading the probe register.
+
+    --probe-datawidth=(d16|16|d32|32) (default=d16)
+        VME datawidth to use when reading the probe register.
+)~"),
+    .exec = scanbus_command,
 };
 
 int main(int argc, char *argv[])
@@ -440,6 +652,7 @@ MVLC connection URIs:
     ctx.commands.insert(ListCmdsCommand);
     ctx.commands.insert(MvlcVersionCommand);
     ctx.commands.insert(MvlcStackInfoCommand);
+    ctx.commands.insert(ScanbusCommand);
     ctx.parser = parser;
 
     // mvlc-cli                 // show generalHelp
