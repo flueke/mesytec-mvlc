@@ -405,8 +405,8 @@ MVLC connection URIs:
 )~";
 
 
-    spdlog::set_level(spdlog::level::critical);
-    mesytec::mvlc::set_global_log_level(spdlog::level::critical);
+    spdlog::set_level(spdlog::level::warn);
+    mesytec::mvlc::set_global_log_level(spdlog::level::warn);
 
     if (argc < 2)
     {
@@ -422,11 +422,13 @@ MVLC connection URIs:
     {
         std::string logLevelName;
         if (parser("--log-level") >> logLevelName)
-        {
             logLevelName = str_tolower(logLevelName);
-            spdlog::set_level(spdlog::level::from_str(logLevelName));
-            mesytec::mvlc::set_global_log_level(spdlog::level::from_str(logLevelName));
-        }
+        else if (parser["--trace"])
+            logLevelName = "trace";
+        else if (parser["--debug"])
+            logLevelName = "debug";
+
+        spdlog::set_level(spdlog::level::from_str(logLevelName));
     }
 
     trace_log_parser_info(parser, "mvlc-cli");
