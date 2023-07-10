@@ -247,7 +247,7 @@ inline std::error_code write_to_socket(
 // Amount of receive buffer space requested from the OS for both the command
 // and data sockets. It's not considered an error if less buffer space is
 // granted.
-static const int DesiredSocketReceiveBufferSize = 1024 * 1024 * 100;
+static const int DesiredSocketReceiveBufferSize = 1024 * 1024 * 10;
 
 /* Ethernet throttling implementation:
  * The MVLC now has a new 'delay pipe' on port 0x8002. It accepts delay
