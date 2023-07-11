@@ -1521,12 +1521,14 @@ u32 Impl::getDataAddress() const
 
 std::string Impl::connectionInfo() const
 {
-    std::string remoteIP = format_ipv4(getCmdAddress());
+    u32 cmdAddress = getCmdAddress();
+    std::string remoteIP = cmdAddress ? format_ipv4(cmdAddress) : std::string{};
 
     if (getHost() != remoteIP)
     {
         std::string result = "host=" + getHost();
-        result += ", address=" + remoteIP;
+        if (!remoteIP.empty())
+            result += ", address=" + remoteIP;
         return result;
     }
 

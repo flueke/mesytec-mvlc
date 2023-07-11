@@ -98,7 +98,7 @@ ReadoutInitResults MESYTEC_MVLC_EXPORT init_readout(
     MVLC &mvlc, const CrateConfig &crateConfig,
     const CommandExecOptions stackExecOptions)
 {
-    auto logger = get_logger("readout_worker");
+    auto logger = get_logger("init_readout");
 
     ReadoutInitResults ret;
 
@@ -136,7 +136,7 @@ ReadoutInitResults MESYTEC_MVLC_EXPORT init_readout(
         {
             ret.ec = ec;
             logger->error("init_readout(): Error running DAQ init commands: {}", ec.message());
-            return ret;
+            if (!stackExecOptions.continueOnVMEError) return ret;
         }
     }
 

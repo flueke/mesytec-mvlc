@@ -3,7 +3,7 @@
 #include <mesytec-mvlc/mesytec-mvlc.h>
 #include <mesytec-mvlc/mvlc_impl_usb.h>
 #include <mesytec-mvlc/mvlc_impl_eth.h>
-#include <mesytec-mvlc/mvlc_apiv2.h>
+#include <mesytec-mvlc/mvlc.h>
 #include <lyra/lyra.hpp>
 #include <future>
 #include <list>
@@ -20,7 +20,7 @@ using namespace mesytec::mvlc;
 #if 1
 
 // test some super commands
-void super_rw_test(apiv2::MVLC &mvlc, std::atomic<size_t> &superTransactions, std::atomic<bool> &quit)
+void super_rw_test(MVLC &mvlc, std::atomic<size_t> &superTransactions, std::atomic<bool> &quit)
 {
 #ifdef __linux__
     prctl(PR_SET_NAME,"super_rw_test",0,0,0);
@@ -57,7 +57,7 @@ void super_rw_test(apiv2::MVLC &mvlc, std::atomic<size_t> &superTransactions, st
 }
 
 // Test a vme read
-void vmeread_test(apiv2::MVLC &mvlc, std::atomic<size_t> &stackTransactions, std::atomic<bool> &quit)
+void vmeread_test(MVLC &mvlc, std::atomic<size_t> &stackTransactions, std::atomic<bool> &quit)
 {
 #ifdef __linux__
     prctl(PR_SET_NAME,"vmeread_test",0,0,0);
@@ -80,7 +80,7 @@ void vmeread_test(apiv2::MVLC &mvlc, std::atomic<size_t> &stackTransactions, std
 }
 
 // Test a vme write
-void vmewrite_test(apiv2::MVLC &mvlc, std::atomic<size_t> &stackTransactions, std::atomic<bool> &quit)
+void vmewrite_test(MVLC &mvlc, std::atomic<size_t> &stackTransactions, std::atomic<bool> &quit)
 {
 #ifdef __linux__
     prctl(PR_SET_NAME,"vmewrite_test",0,0,0);
@@ -103,7 +103,7 @@ void vmewrite_test(apiv2::MVLC &mvlc, std::atomic<size_t> &stackTransactions, st
 int main(int argc, char *argv[])
 {
     //{
-    //    auto logger = apiv2::setup_logger();
+    //    auto logger = setup_logger();
     //    spdlog::register_logger(logger);
     //}
 
@@ -157,7 +157,7 @@ int main(int argc, char *argv[])
 
     assert(impl);
 
-    apiv2::MVLC mvlc(std::move(impl));
+    MVLC mvlc(std::move(impl));
 
 
     // FIXME: disabling triggers via the old dialog does not work because the
@@ -223,7 +223,7 @@ static constexpr int PARALLEL_VMEWRITE_TESTS = 2;
         // DSO
         //
 
-        auto self_write_throw = [] (apiv2::MVLC &mvlc, u32 address, u16 value)
+        auto self_write_throw = [] (MVLC &mvlc, u32 address, u16 value)
         {
             if (auto ec = mvlc.vmeWrite(
                     SelfVMEAddress + address, value,

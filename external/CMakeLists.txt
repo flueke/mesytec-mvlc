@@ -28,7 +28,7 @@ set(SKIP_INSTALL_ALL ON)
 add_subdirectory(minizip)
 
 target_compile_options(minizip
-    PRIVATE $<${not-msvc}:-Wno-stringop-truncation -Wno-stringop-overflow -Wno-unused-variable>
+    PRIVATE $<${not-msvc}:-Wno-unused-variable -Wno-unused-but-set-variable>
     PRIVATE $<${not-msvc}:-Wno-unused-parameter -Wno-cast-function-type -Wno-unused-local-typedefs>)
 
 target_include_directories(minizip
@@ -46,6 +46,7 @@ option(YAML_CPP_BUILD_CONTRIB "Enable contrib stuff in library" OFF)
 option(YAML_CPP_INSTALL "Enable generation of install target" OFF)
 option(YAML_BUILD_SHARED_LIBS "Build Shared Libraries" OFF)
 add_subdirectory(yaml-cpp)
+target_compile_options(yaml-cpp PRIVATE -Wno-shadow)
 
 # Enable the PIC flag to fix a relocation error when linking against the
 # static version of yaml-cpp.
@@ -64,3 +65,5 @@ option(SPDLOG_FMT_EXTERNAL "Use external fmt library instead of bundled" OFF)
 option(SPDLOG_INSTALL "Generate the install target" ON)
 add_subdirectory(spdlog)
 set_target_properties(spdlog PROPERTIES POSITION_INDEPENDENT_CODE ON)
+
+add_subdirectory(argh)

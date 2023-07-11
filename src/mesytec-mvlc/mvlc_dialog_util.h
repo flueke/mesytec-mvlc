@@ -132,14 +132,10 @@ std::error_code read_daq_mode(DIALOG_API &mvlc, u32 &daqMode)
     return mvlc.readRegister(DAQModeEnableRegister, daqMode);
 }
 
-// Disables MVLC DAQ mode and all stack triggers, all in a single stack
-// transaction. Used to end a DAQ run.
-template<typename DIALOG_API>
-std::error_code disable_all_triggers_and_daq_mode(DIALOG_API &mvlc)
+inline SuperCommandBuilder get_disable_all_triggers_and_daq_mode_commands()
 {
     SuperCommandBuilder sb;
     sb.addReferenceWord(std::rand() % 0xffff);
-
     sb.addWriteLocal(DAQModeEnableRegister, 0);
 
     for (u8 stackId = 0; stackId < stacks::StackCount; stackId++)
@@ -148,6 +144,15 @@ std::error_code disable_all_triggers_and_daq_mode(DIALOG_API &mvlc)
         sb.addWriteLocal(addr, stacks::NoTrigger);
     }
 
+    return sb;
+}
+
+// Disables MVLC DAQ mode and all stack triggers, all in a single stack
+// transaction. Used to end a DAQ run.
+template<typename DIALOG_API>
+std::error_code disable_all_triggers_and_daq_mode(DIALOG_API &mvlc)
+{
+    auto sb = get_disable_all_triggers_and_daq_mode_commands();
     std::vector<u32> responseBuffer;
     auto ec = mvlc.superTransaction(sb, responseBuffer);
     log_buffer(get_logger("dialog_util"), spdlog::level::trace,
@@ -155,18 +160,29 @@ std::error_code disable_all_triggers_and_daq_mode(DIALOG_API &mvlc)
     return ec;
 }
 
-template<typename DIALOG_API>
-std::error_code reset_stack_offsets(DIALOG_API &mvlc)
+inline SuperCommandBuilder get_reset_stack_offsets_commands()
 {
+    SuperCommandBuilder sb;
+    sb.addReferenceWord(std::rand() % 0xffff);
+
     for (u8 stackId = 0; stackId < stacks::StackCount; stackId++)
     {
         u16 addr = stacks::get_offset_register(stackId);
-
-        if (auto ec = mvlc.writeRegister(addr, 0))
-            return ec;
+        sb.addWriteLocal(addr, 0);
     }
 
-    return {};
+    return sb;
+}
+
+template<typename DIALOG_API>
+std::error_code reset_stack_offsets(DIALOG_API &mvlc)
+{
+    auto sb = get_reset_stack_offsets_commands();
+    std::vector<u32> responseBuffer;
+    auto ec = mvlc.superTransaction(sb, responseBuffer);
+    log_buffer(get_logger("dialog_util"), spdlog::level::trace,
+               responseBuffer, "response from reset_stack_offsets()");
+    return ec;
 }
 
 // Builds, uploads and sets up the readout stack for each event in the vme
@@ -194,22 +210,25 @@ std::error_code setup_readout_stacks(
         u16 uploadAddress = uploadWordOffset * AddressIncrement;
         u16 endAddress    = uploadAddress + stackBuffer.size() * AddressIncrement;
 
-        if (endAddress >= stacks::StackMemoryEnd)
+        if (mvlc::stacks::StackMemoryBegin + endAddress >= mvlc::stacks::StackMemoryEnd)
             return make_error_code(MVLCErrorCode::StackMemoryExceeded);
 
         u8 stackOutputPipe = stackBuilder.suppressPipeOutput() ? SuppressPipeOutput : DataPipe;
 
-        if (auto ec = mvlc.uploadStack(stackOutputPipe, uploadAddress, stackBuilder))
+        if (auto ec = mvlc.uploadStack(stackOutputPipe, uploadAddress, stackBuffer))
             return ec;
 
         u16 offsetRegister = stacks::get_offset_register(stackId);
 
-        if (auto ec = mvlc.writeRegister(offsetRegister, uploadAddress & stacks::StackOffsetBitMaskBytes))
+        uploadAddress = uploadAddress & mvlc::stacks::StackOffsetBitMaskBytes;
+
+        if (auto ec = mvlc.writeRegister(offsetRegister, uploadAddress))
             return ec;
 
         stackId++;
-        // again leave a 1 word gap between stacks
-        uploadWordOffset += stackBuffer.size() + 1;
+
+        // again leave a 1 word gap between stacks and account for the F3/F4 stack begin/end words
+        uploadWordOffset += stackBuffer.size() + 1 + 2;
     }
 
     return {};

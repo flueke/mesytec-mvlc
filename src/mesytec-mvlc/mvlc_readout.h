@@ -46,7 +46,8 @@ class MESYTEC_MVLC_EXPORT MVLCReadout
 
         ~MVLCReadout();
 
-        std::error_code start(const std::chrono::seconds &timeToRun = {});
+        std::error_code start(const std::chrono::seconds &timeToRun = {},
+                              const CommandExecOptions initSequenceOptions = {});
         std::error_code stop();
         std::error_code pause();
         std::error_code resume();

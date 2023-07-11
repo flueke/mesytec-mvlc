@@ -104,11 +104,10 @@ namespace stack_commands
         StackEnd            = 0xF4, // Last word in a command stack.
         VMERead             = 0x12, // VME read requests including block reads.
 
-        VMEMBLTSwapped      = 0x13, // Special MBLT read command which swaps the order of the two 32-bit
-                                    // words in each received 64-bit word. Argument wise it's the same as
-                                    // the VMERead command but should only be used with the MBLT64 address
-                                    // modifier.
-                                    //
+        VMEReadSwapped      = 0x13, // For MBLT and 2eSST block reads: swaps word order. Use this instead
+                                    // of VMERead if your module data arrives in the wrong ordder.
+        VMEMBLTSwapped      = 0x13, // legacy name for VMEReadSwapped
+
         VMEWrite            = 0x23, // VME write requests.
         WriteMarker         = 0xC2, // Writes a 32-bit marker value into the output data stream.
         WriteSpecial        = 0xC1, // Write a special value into the output data stream.

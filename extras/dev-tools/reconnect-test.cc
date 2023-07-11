@@ -62,7 +62,7 @@ int main(int argc, char *argv[])
 
     assert(impl);
 
-    apiv2::MVLC mvlc(std::move(impl));
+    MVLC mvlc(std::move(impl));
 
     mvlc.setDisableTriggersOnConnect(true);
 

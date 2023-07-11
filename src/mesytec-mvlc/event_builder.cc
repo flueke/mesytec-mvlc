@@ -85,7 +85,7 @@ ModuleData module_data_from_event_storage(const ModuleEventStorage &input)
 {
     auto result = ModuleData
     {
-        { input.data.data(), static_cast<u32>(input.data.size()) },
+        .data = { input.data.data(), static_cast<u32>(input.data.size()) },
         .prefixSize = 0,
         .dynamicSize = static_cast<u32>(input.data.size()),
         .suffixSize = 0,
@@ -693,7 +693,7 @@ size_t EventBuilder::Private::buildEvents(int eventIndex, Callbacks &callbacks, 
     {
         u32 mainModuleTimestamp = mainBuffer.front().timestamp;
         std::fill(eventAssembly_.begin(), eventAssembly_.end(), ModuleData{});
-        u32 eventInvScore = 0u;
+        //u32 eventInvScore = 0u;
 
         for (size_t moduleIndex = 0; moduleIndex < moduleCount; ++moduleIndex)
         {
@@ -739,7 +739,7 @@ size_t EventBuilder::Private::buildEvents(int eventIndex, Callbacks &callbacks, 
                         // pop the event off the queue yet as the eventAssembly
                         // points to the queue.
                         eventAssembly_[moduleIndex] = module_data_from_event_storage(moduleEvent);
-                        eventInvScore += matchResult.invscore;
+                        //eventInvScore += matchResult.invscore;
                         invScores.at(moduleIndex) += matchResult.invscore;
                         moduleDone = true;
                         break;

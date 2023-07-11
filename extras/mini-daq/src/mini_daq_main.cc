@@ -172,13 +172,15 @@ int main(int argc, char *argv[])
     std::string opt_listfileCompressionType = "lz4";
     int opt_listfileCompressionLevel = 0;
     std::string opt_crateConfig;
-    unsigned opt_secondsToRun = 10;
+    unsigned opt_secondsToRun = 0;
     bool opt_printReadoutData = false;
     bool opt_noPeriodicCounterDumps = false;
 
     bool opt_showHelp = false;
     bool opt_logDebug = false;
     bool opt_logTrace = false;
+    bool opt_initOnly = false;
+    bool opt_ignoreInitErrors = false;
 
     auto cli
         = lyra::help(opt_showHelp)
@@ -219,6 +221,12 @@ int main(int argc, char *argv[])
         | lyra::opt(opt_noPeriodicCounterDumps)
             ["--no-periodic-counter-dumps"]("do not periodcally print readout and parser counters to stdout")
 
+        | lyra::opt(opt_initOnly)
+            ["--init-only"]("run the DAQ init sequence and exit")
+
+        | lyra::opt(opt_ignoreInitErrors)
+            ["--ignore-vme-init-errors"]("ignore VME errors during the DAQ init sequence")
+
         // logging
         | lyra::opt(opt_logDebug)["--debug"]("enable debug logging")
         | lyra::opt(opt_logTrace)["--trace"]("enable trace logging")
@@ -228,7 +236,7 @@ int main(int argc, char *argv[])
             ("crate config yaml file").required()
 
         | lyra::arg(opt_secondsToRun, "secondsToRun")
-            ("duration the DAQ should run in seconds").required()
+            ("duration the DAQ should run in seconds").optional()
         ;
 
     auto cliParseResult = cli.parse({ argc, argv });
@@ -307,6 +315,31 @@ int main(int argc, char *argv[])
         {
             cerr << "Error connecting to MVLC: " << ec.message() << endl;
             return 1;
+        }
+
+        CommandExecOptions initOptions{};
+        initOptions.continueOnVMEError = opt_ignoreInitErrors;
+
+        if (opt_initOnly)
+        {
+            cout << "Running DAQ init sequence and exiting.\n";
+            auto initResults = init_readout(mvlc, crateConfig, initOptions);
+
+            if (initResults.ec)
+                std::cerr << fmt::format("  Error during DAQ init sequence: {}\n", initResults.ec.message());
+
+            for (const auto &cmdResult: initResults.init)
+            {
+                if (cmdResult.ec)
+                {
+                    std::cerr << fmt::format("  Error during DAQ init sequence: cmd={}, ec={}\n",
+                        to_string(cmdResult.cmd), cmdResult.ec.message());
+                }
+            }
+
+            if (initResults.ec)
+                return opt_ignoreInitErrors ? 0 : 1;
+            return 0;
         }
 
         //cout << "Connected to MVLC " << mvlc.connectionInfo() << endl;
@@ -451,4 +484,3 @@ int main(int argc, char *argv[])
 
     return 0;
 }
-

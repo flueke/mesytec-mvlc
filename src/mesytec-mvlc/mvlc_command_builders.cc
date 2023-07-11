@@ -8,7 +8,7 @@
 
 #include "mvlc_command_builders.h"
 #include "mvlc_constants.h"
-#include "util/fmt.h"
+#include "util/logging.h"
 #include "util/string_util.h"
 #include "vme_constants.h"
 
@@ -214,7 +214,7 @@ std::string to_string(const VMEDataWidth &dw)
             return "d32";
     }
 
-    throw std::runtime_error("invalid VMEDataWidth");
+    throw std::runtime_error(fmt::format("invalid VMEDataWidth '{}'", static_cast<unsigned>(dw)));
 }
 
 VMEDataWidth vme_data_width_from_string(const std::string &str)
@@ -257,8 +257,7 @@ std::string to_string(const StackCommand &cmd)
                 return ret;
             }
 
-            // block mode
-            // FIXME: Blk2eSST is missing
+            // block modes including 2eSST
             return fmt::format(
                 "vme_block_read {:#04x} {} {:#010x}",
                 cmd.amod, cmd.transfers, cmd.address);
@@ -464,7 +463,7 @@ StackCommand stack_command_from_string(const std::string &str)
         }
     }
     else
-        throw std::runtime_error("invalid command");
+        throw std::runtime_error(fmt::format("invalid command '{}'", name));
 
     return result;
 }
@@ -1143,6 +1142,7 @@ StackCommandBuilder stack_builder_from_buffer(const std::vector<u32> &buffer)
 
 // TODO: error handling (std::pair?)
 std::vector<StackCommand> stack_commands_from_buffer(const std::vector<u32> &buffer)
+//std::pair<std::vector<StackCommand>, std::string> decode_command_buffer(const std::vector<u32> &buffer)
 {
     using namespace stack_commands;
     using StackCT = StackCommand::CommandType;
@@ -1154,6 +1154,9 @@ std::vector<StackCommand> stack_commands_from_buffer(const std::vector<u32> &buf
         u8 sct = (*it >> CmdShift) & CmdMask;
         u8 arg0 = (*it >> CmdArg0Shift) & CmdArg0Mask;
         u16 arg1 = (*it >> CmdArg1Shift) & CmdArg1Mask;
+
+        spdlog::debug("decode_stack: word=0x{:08x}, sct=0x{:02x}, arg0=0x{:02x}, arg1=0x{:04x}",
+            *it, sct, arg0, arg1);
 
         StackCommand cmd = {};
 
@@ -1180,14 +1183,12 @@ std::vector<StackCommand> stack_commands_from_buffer(const std::vector<u32> &buf
             case StackCT::VMERead:
             case StackCT::VMEMBLTSwapped:
             case StackCT::ReadToAccu:
-                cmd.amod = arg0;
+                cmd.amod = arg0 & vme_amods::VmeAmodMask;
 
-                if (!vme_amods::is_block_mode(cmd.amod))
+                if (vme_amods::is_esst64_mode(cmd.amod))
                 {
-                    u32 dataWidth = arg1 & 0b11u;
-                    bool lateRead = (arg1 >> stack_commands::LateReadShift) & 0b1u;
-                    cmd.dataWidth = static_cast<VMEDataWidth>(dataWidth);
-                    cmd.lateRead = lateRead;
+                    cmd.rate = static_cast<Blk2eSSTRate>(arg0 >> Blk2eSSTRateShift);
+                    cmd.transfers = arg1;
                 }
                 else if (vme_amods::is_blt_mode(cmd.amod))
                 {
@@ -1197,10 +1198,18 @@ std::vector<StackCommand> stack_commands_from_buffer(const std::vector<u32> &buf
                 {
                     cmd.transfers = arg1;
                 }
-                else if (vme_amods::is_esst64_mode(cmd.amod))
+                else if (!vme_amods::is_block_mode(cmd.amod))
                 {
-                    cmd.rate = static_cast<Blk2eSSTRate>(cmd.amod >> Blk2eSSTRateShift);
-                    cmd.transfers = arg1;
+                    u32 dataWidth = arg1 & 0b11u;
+                    bool lateRead = (arg1 >> stack_commands::LateReadShift) & 0b1u;
+                    cmd.dataWidth = static_cast<VMEDataWidth>(dataWidth);
+                    cmd.lateRead = lateRead;
+                }
+                else
+                {
+                    // TODO: error out
+                    spdlog::warn("decode_stack: unhandled vme amod value 0x{:02x} in command 0x{:08x}",
+                        cmd.amod, *it);
                 }
 
                 if (++it != buffer.end()) // TODO: else error
@@ -1210,7 +1219,7 @@ std::vector<StackCommand> stack_commands_from_buffer(const std::vector<u32> &buf
 
             case StackCT::VMEWrite:
                 cmd.amod = arg0;
-                cmd.dataWidth = static_cast<VMEDataWidth>(arg1);
+                cmd.dataWidth = static_cast<VMEDataWidth>(arg1 & 0b11u);
 
                 if (++it != buffer.end()) // TODO: else error
                     cmd.address = *it;

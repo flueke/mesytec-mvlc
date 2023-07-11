@@ -92,30 +92,39 @@ struct MESYTEC_MVLC_EXPORT StackCommand
     // A crude way of extending the StackCommandType enum.
     enum class CommandType: u8
     {
-        Invalid             = static_cast<u8>(0x0u),
+        Invalid                 = static_cast<u8>(0x0u),
 
-        StackStart          = static_cast<u8>(StackCommandType::StackStart),
-        StackEnd            = static_cast<u8>(StackCommandType::StackEnd),
-        VMERead             = static_cast<u8>(StackCommandType::VMERead),
-        VMEWrite            = static_cast<u8>(StackCommandType::VMEWrite),
-        VMEMBLTSwapped      = static_cast<u8>(StackCommandType::VMEMBLTSwapped),
-        WriteMarker         = static_cast<u8>(StackCommandType::WriteMarker),
-        WriteSpecial        = static_cast<u8>(StackCommandType::WriteSpecial),
-        SetAddressIncMode   = static_cast<u8>(StackCommandType::SetAddressIncMode),
-        Wait                = static_cast<u8>(StackCommandType::Wait),
-        SignalAccu          = static_cast<u8>(StackCommandType::SignalAccu),
-        MaskShiftAccu       = static_cast<u8>(StackCommandType::MaskShiftAccu),
-        SetAccu             = static_cast<u8>(StackCommandType::SetAccu),
-        ReadToAccu          = static_cast<u8>(StackCommandType::ReadToAccu),
-        CompareLoopAccu     = static_cast<u8>(StackCommandType::CompareLoopAccu),
+        StackStart              = static_cast<u8>(StackCommandType::StackStart),
+        StackEnd                = static_cast<u8>(StackCommandType::StackEnd),
+        VMERead                 = static_cast<u8>(StackCommandType::VMERead),
+        VMEWrite                = static_cast<u8>(StackCommandType::VMEWrite),
+        VMEMBLTSwapped          = static_cast<u8>(StackCommandType::VMEMBLTSwapped),
+        WriteMarker             = static_cast<u8>(StackCommandType::WriteMarker),
+        WriteSpecial            = static_cast<u8>(StackCommandType::WriteSpecial),
+        SetAddressIncMode       = static_cast<u8>(StackCommandType::SetAddressIncMode),
+        Wait                    = static_cast<u8>(StackCommandType::Wait),
+        SignalAccu              = static_cast<u8>(StackCommandType::SignalAccu),
+        MaskShiftAccu           = static_cast<u8>(StackCommandType::MaskShiftAccu),
+        SetAccu                 = static_cast<u8>(StackCommandType::SetAccu),
+        ReadToAccu              = static_cast<u8>(StackCommandType::ReadToAccu),
+        CompareLoopAccu         = static_cast<u8>(StackCommandType::CompareLoopAccu),
+
+        // Software side accumulator available when executing command lists. Not
+        // available in readout stacks uploaded to the MVLC.
+        // TODO: implement the software accu
+        #if 0
+        SoftwareAccuSet         = 0xD0u,
+        SoftwareAccuMaskShift   = 0xD1u,
+        SoftwareAccuTest        = 0xD2u,
+        #endif
 
         // A value not in use by the MVLC protocol is used for the
         // SoftwareDelay command.
-        SoftwareDelay       = static_cast<u8>(0xEDu),
+        SoftwareDelay           = 0xEDu,
 
         // Special value for custom (binary) stack data. The stack data words are
         // stored in the 'customValues' member.
-        Custom              = static_cast<u8>(0xEEu),
+        Custom                  = 0xEEu,
     };
 
     CommandType type = CommandType::Invalid;

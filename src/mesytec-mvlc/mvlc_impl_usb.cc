@@ -311,7 +311,6 @@ std::error_code post_connect_cleanup(mesytec::mvlc::usb::Impl &impl)
     logger->debug("begin post_connect_cleanup");
 
     static const int DisableTriggerRetryCount = 5;
-    static const auto ReadDataPipeMaxWait = std::chrono::seconds(10);
 
     mesytec::mvlc::MVLCDialog_internal dlg(&impl);
 
@@ -1182,9 +1181,11 @@ std::string Impl::connectionInfo() const
     else if (devInfo.flags & DeviceInfo::Flags::USB3)
         result += "USB3";
     else
-        result += "unknown";
+        result += "<unknown>";
 
-    result += ", serial=" + devInfo.serial;
+    const auto serialString = !devInfo.serial.empty() ? std::string("<unknown>") : devInfo.serial;
+
+    result += ", serial='" + serialString + "'";
 
     return result;
 }
