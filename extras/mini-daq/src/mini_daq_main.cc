@@ -172,7 +172,7 @@ int main(int argc, char *argv[])
     std::string opt_listfileCompressionType = "lz4";
     int opt_listfileCompressionLevel = 0;
     std::string opt_crateConfig;
-    unsigned opt_secondsToRun = 10;
+    unsigned opt_secondsToRun = 0;
     bool opt_printReadoutData = false;
     bool opt_noPeriodicCounterDumps = false;
 
@@ -236,7 +236,7 @@ int main(int argc, char *argv[])
             ("crate config yaml file").required()
 
         | lyra::arg(opt_secondsToRun, "secondsToRun")
-            ("duration the DAQ should run in seconds").required()
+            ("duration the DAQ should run in seconds").optional()
         ;
 
     auto cliParseResult = cli.parse({ argc, argv });

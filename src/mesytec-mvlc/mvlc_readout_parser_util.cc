@@ -101,18 +101,17 @@ void run_readout_parser(
 std::ostream &print_counters(std::ostream &out, const ReadoutParserCounters &counters)
 {
     auto print_hits_and_sizes = [&out] (
-        const std::string &partTitle,
         const ReadoutParserCounters::GroupPartHits &hits,
         const ReadoutParserCounters::GroupPartSizes &sizes)
     {
         if (!hits.empty())
         {
-            out << "group " + partTitle + " hits: ";
+            out << "module hits: ";
 
             for (const auto &kv: hits)
             {
                 out << fmt::format(
-                    "eventIndex={}, groupIndex={}, hits={}; ",
+                    "eventIndex={}, group/moduleIndex={}, hits={}; ",
                     kv.first.first, kv.first.second, kv.second);
             }
 
@@ -121,12 +120,12 @@ std::ostream &print_counters(std::ostream &out, const ReadoutParserCounters &cou
 
         if (!sizes.empty())
         {
-            out << "group " + partTitle + " sizes: ";
+            out << "module data sizes: ";
 
             for (const auto &kv: sizes)
             {
                 out << fmt::format(
-                    "eventIndex={}, groupIndex={}, min={}, max={}, avg={}; ",
+                    "eventIndex={}, group/moduleIndex={}, min={}, max={}, avg={:.2f}; ",
                     kv.first.first, kv.first.second,
                     kv.second.min,
                     kv.second.max,
@@ -175,7 +174,7 @@ std::ostream &print_counters(std::ostream &out, const ReadoutParserCounters &cou
         out << fmt::format("ei={}, hits={}, ", kv.first, kv.second);
     out << endl;
 
-    print_hits_and_sizes("prefix", counters.groupHits, counters.groupSizes);
+    print_hits_and_sizes(counters.groupHits, counters.groupSizes);
 
     return out;
 }
