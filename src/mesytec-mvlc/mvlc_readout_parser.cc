@@ -1310,6 +1310,7 @@ ParseResult parse_readout_buffer_eth(
     ++counters.buffersProcessed;
     auto unusedBytes = input.size() * sizeof(u32);
     counters.unusedBytes += unusedBytes;
+    counters.bytesProcessed += bufferBytes;
 
     logger->trace("end parsing ETH buffer {}, size={} bytes, unused bytes={}",
               bufferNumber, bufferBytes, unusedBytes);
@@ -1380,6 +1381,7 @@ ParseResult parse_readout_buffer_usb(
 
     ++counters.buffersProcessed;
     counters.unusedBytes += input.size() * sizeof(u32);
+    counters.bytesProcessed += bufferBytes;
     logger->trace("end parsing USB buffer {}, size={} bytes", bufferNumber, bufferBytes);
 
     return {};
