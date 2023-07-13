@@ -250,6 +250,8 @@ struct MESYTEC_MVLC_EXPORT ReadoutParserCounters
     // Total number of buffers processed so far.
     u32 buffersProcessed = 0;
 
+    u64 bytesProcessed = 0;
+
     // Number of bytes skipped by the parser. This can happen due to internal
     // buffer loss, ethernet packet loss or unexpected/corrupted incoming data.
     u64 unusedBytes = 0;

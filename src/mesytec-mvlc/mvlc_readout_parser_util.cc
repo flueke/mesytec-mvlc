@@ -138,6 +138,7 @@ std::ostream &print_counters(std::ostream &out, const ReadoutParserCounters &cou
 
     out << "internalBufferLoss=" << counters.internalBufferLoss << endl;
     out << "buffersProcessed=" << counters.buffersProcessed << endl;
+    out << "bytesProcessed=" << counters.bytesProcessed << endl;
     out << "unusedBytes=" << counters.unusedBytes << endl;
     out << "ethPacketsProcessed=" << counters.ethPacketsProcessed << endl;
     out << "ethPacketLoss=" << counters.ethPacketLoss << endl;
