@@ -37,7 +37,7 @@ void trace_log_parser_info(const argh::parser &parser, const std::string context
 static const std::vector<std::string> MvlcStandardParams =
     {"--mvlc", "--mvlc-usb-index", "--mvlc-usb-serial", "--mvlc-eth"};
 
-MVLC make_mvlc_from_standard_params(argh::parser &parser)
+MVLC make_mvlc_from_standard_params(const argh::parser &parser)
 {
     trace_log_parser_info(parser, "make_mvlc_from_standard_params");
     std::string arg;
@@ -396,6 +396,7 @@ MVLC connection URIs:
                 std::cout << cmd->help;
                 return 0;
             }
+
             spdlog::trace("parsed cli: executing cmd='{}'", cmd->name);
             return cmd->exec(ctx, *cmd, argc, const_cast<const char **>(argv));
         }
