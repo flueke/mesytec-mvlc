@@ -296,9 +296,16 @@ std::string to_string(const StackCommand &cmd)
                 return fmt::format("set_accu {}", cmd.value);
 
         case CT::ReadToAccu:
+        {
                 // same as non-block vme reads
-                return fmt::format("read_to_accu {:#04x} {} {:#010x}",
+                auto ret = fmt::format("read_to_accu {:#04x} {} {:#010x}",
                     cmd.amod, to_string(cmd.dataWidth), cmd.address);
+
+                if (cmd.lateRead)
+                    ret += " late";
+
+                return ret;
+        }
 
         case CT::CompareLoopAccu:
                 // args: compare mode, value

@@ -408,7 +408,9 @@ inline bool try_handle_system_event(
 
             // It should be guaranteed that the whole frame fits into the buffer.
             if (input.size() <= frameInfo.len)
-                throw end_of_buffer("SystemEvent frame size exceeds input buffer size.");
+                throw end_of_buffer(fmt::format(
+                    "SystemEvent frame (0x{:08x}) size ({}) exceeds input buffer size ({}).",
+                        frameHeader, frameInfo.len, input.size()));
 
             u8 subtype = system_event::extract_subtype(frameHeader);
             ++counters.systemEvents[subtype];

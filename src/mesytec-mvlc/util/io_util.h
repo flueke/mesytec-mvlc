@@ -20,7 +20,7 @@ Out &log_buffer(Out &out, const View &buffer, const std::string &header = {})
     out << "begin buffer '" << header << "' (size=" << buffer.size() << ")" << std::endl;
 
     for (const auto &value: buffer)
-        out << fmt::format("  0x{:008X}", value) << std::endl;
+        out << fmt::format("  0x{:008x}", value) << std::endl;
 
     out << "end buffer " << header << "' (size=" << buffer.size() << ")" << std::endl;
 
@@ -40,12 +40,12 @@ Out &log_buffer(Out &out, const View &buffer, const std::string &header,
     out << numStartWords << " first words:" << std::endl;
 
     for (size_t i=0; i<numStartWords; i++)
-        out << fmt::format("  0x{:008X}", buffer[i]) << std::endl;
+        out << fmt::format("  0x{:008x}", buffer[i]) << std::endl;
 
     out << numEndWords << " last words:" << std::endl;
 
     for (size_t i=buffer.size() - (numEndWords + 1); i < buffer.size(); i++)
-        out << fmt::format("  0x{:008X}", buffer[i]) << std::endl;
+        out << fmt::format("  0x{:008x}", buffer[i]) << std::endl;
 
     out << "end buffer " << header << "' (size=" << buffer.size() << ")" << std::endl;
 
