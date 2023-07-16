@@ -27,6 +27,8 @@
 #include "mvlc_constants.h"
 #include "util/fmt.h"
 #include "util/string_util.h"
+#include "util/string_view.hpp"
+#include "mvlc_eth_interface.h"
 
 using namespace mesytec::mvlc;
 
@@ -202,6 +204,93 @@ std::string system_event_type_to_string(u8 eventType)
     }
 
     return fmt::format("custom (0x{:02x})", eventType);
+}
+
+// Follows the framing structure inside the buffer until an incomplete frame
+// which doesn't fit into the buffer is detected. The incomplete data is moved
+// over to the tempBuffer so that the readBuffer ends with a complete frame.
+//
+// The input buffer must start with a frame header (skip_count will be called
+// with the first word of the input buffer on the first iteration).
+//
+// The SkipCountFunc must return the number of words to skip to get to the next
+// frame header or 0 if there is not enough data left in the input iterator to
+// determine the frames size.
+// Signature of SkipCountFunc:  u32 skip_count(const basic_string_view<const u8> &view);
+// Returns the number of trailing bytes copied from msgBuf into tmpBuf.
+template<typename SkipCountFunc>
+size_t fixup_buffer(
+    const u8 *msgBuf, size_t msgUsed,
+    std::vector<u8> &tmpBuf,
+    SkipCountFunc skip_count)
+{
+    using namespace nonstd;
+    auto view = basic_string_view<const u8>(msgBuf, msgUsed);
+
+    while (!view.empty())
+    {
+        if (view.size() >= sizeof(u32))
+        {
+            u32 wordsToSkip = skip_count(view);
+
+            //cout << "wordsToSkip=" << wordsToSkip << ", view.size()=" << view.size() << ", in words:" << view.size() / sizeof(u32));
+
+            if (wordsToSkip == 0 || wordsToSkip > view.size() / sizeof(u32))
+            {
+                tmpBuf.reserve(tmpBuf.size() + view.size());
+                std::copy(std::begin(view), std::end(view), std::back_inserter(tmpBuf));
+                return view.size();
+            }
+
+            // Skip over the SystemEvent frame or the ETH packet data.
+            view.remove_prefix(wordsToSkip * sizeof(u32));
+        }
+    }
+
+    return 0u;
+}
+
+size_t fixup_buffer_mvlc_usb(const u8 *buf, size_t bufUsed, std::vector<u8> &tmpBuf)
+{
+    using namespace nonstd;
+    auto skip_func = [] (const basic_string_view<const u8> &view) -> u32
+    {
+        if (view.size() < sizeof(u32))
+            return 0u;
+
+        u32 header = *reinterpret_cast<const u32 *>(view.data());
+        return 1u + extract_frame_info(header).len;
+    };
+
+    return fixup_buffer(buf, bufUsed, tmpBuf, skip_func);
+}
+
+size_t fixup_buffer_mvlc_eth(const u8 *buf, size_t bufUsed, std::vector<u8> &tmpBuf)
+{
+    using namespace nonstd;
+    auto skip_func = [](const basic_string_view<const u8> &view) -> u32
+    {
+        if (view.size() < sizeof(u32))
+            return 0u;
+
+        // Either a SystemEvent header or the first of the two ETH packet headers
+        u32 header = *reinterpret_cast<const u32 *>(view.data());
+
+        if (get_frame_type(header) == frame_headers::SystemEvent)
+            return 1u + extract_frame_info(header).len;
+
+        if (view.size() >= 2 * sizeof(u32))
+        {
+            u32 header1 = *reinterpret_cast<const u32 *>(view.data() + sizeof(u32));
+            eth::PayloadHeaderInfo ethHdrs{ header, header1 };
+            return eth::HeaderWords + ethHdrs.dataWordCount();
+        }
+
+        // Not enough data to get the 2nd ETH header word.
+        return 0u;
+    };
+
+    return fixup_buffer(buf, bufUsed, tmpBuf, skip_func);
 }
 
 

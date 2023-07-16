@@ -43,110 +43,12 @@ const ReplayErrorCategory theReplayErrorCateogry {};
 
 constexpr auto FreeBufferWaitTimeout_ms = std::chrono::milliseconds(100);
 
-// Follows the framing structure inside the buffer until an incomplete frame
-// which doesn't fit into the buffer is detected. The incomplete data is moved
-// over to the tempBuffer so that the readBuffer ends with a complete frame.
-//
-// The input buffer must start with a frame header (skip_count will be called
-// with the first word of the input buffer on the first iteration).
-//
-// The SkipCountFunc must return the number of words to skip to get to the next
-// frame header or 0 if there is not enough data left in the input iterator to
-// determine the frames size.
-// Signature of SkipCountFunc:  u32 skip_count(const basic_string_view<const u8> &view);
-template<typename SkipCountFunc>
-inline void fixup_buffer(
-    ReadoutBuffer &readBuffer,
-    ReadoutBuffer &tempBuffer,
-    SkipCountFunc skip_count)
-{
-    auto view = readBuffer.viewU8();
-
-    while (!view.empty())
-    {
-        if (view.size() >= sizeof(u32))
-        {
-            u32 wordsToSkip = skip_count(view);
-
-            //cout << "wordsToSkip=" << wordsToSkip << ", view.size()=" << view.size() << ", in words:" << view.size() / sizeof(u32));
-
-            if (wordsToSkip == 0 || wordsToSkip > view.size() / sizeof(u32))
-            {
-                // Move the trailing data into the temporary buffer. This will
-                // truncate the readBuffer to the last complete frame or packet
-                // boundary.
-
-
-                tempBuffer.ensureFreeSpace(view.size());
-
-                std::memcpy(tempBuffer.data() + tempBuffer.used(),
-                            view.data(), view.size());
-                tempBuffer.use(view.size());
-                readBuffer.setUsed(readBuffer.used() - view.size());
-                return;
-            }
-
-            // Skip over the SystemEvent frame or the ETH packet data.
-            view.remove_prefix(wordsToSkip * sizeof(u32));
-        }
-    }
-}
-
 } // end anon namespace
 
 std::error_code make_error_code(ReplayWorkerError error)
 {
     return { static_cast<int>(error), theReplayErrorCateogry };
 }
-
-// The listfile contains two types of data:
-// - System event sections identified by a header word with 0xFA in the highest
-//   byte.
-// - ETH packet data starting with the two ETH specific header words followed
-//   by the packets payload
-// The first ETH packet header can never have the value 0xFA because the
-// highest two bits are always 0.
-void fixup_buffer_eth(ReadoutBuffer &readBuffer, ReadoutBuffer &tempBuffer)
-{
-    auto skip_func = [](const basic_string_view<const u8> &view) -> u32
-    {
-        if (view.size() < sizeof(u32))
-            return 0u;
-
-        // Either a SystemEvent header or the first of the two ETH packet headers
-        u32 header = *reinterpret_cast<const u32 *>(view.data());
-
-        if (get_frame_type(header) == frame_headers::SystemEvent)
-            return 1u + extract_frame_info(header).len;
-
-        if (view.size() >= 2 * sizeof(u32))
-        {
-            u32 header1 = *reinterpret_cast<const u32 *>(view.data() + sizeof(u32));
-            eth::PayloadHeaderInfo ethHdrs{ header, header1 };
-            return eth::HeaderWords + ethHdrs.dataWordCount();
-        }
-
-        // Not enough data to get the 2nd ETH header word.
-        return 0u;
-    };
-
-    fixup_buffer(readBuffer, tempBuffer, skip_func);
-}
-
-void fixup_buffer_usb(ReadoutBuffer &readBuffer, ReadoutBuffer &tempBuffer)
-{
-    auto skip_func = [] (const basic_string_view<const u8> &view) -> u32
-    {
-        if (view.size() < sizeof(u32))
-            return 0u;
-
-        u32 header = *reinterpret_cast<const u32 *>(view.data());
-        return 1u + extract_frame_info(header).len;
-    };
-
-    fixup_buffer(readBuffer, tempBuffer, skip_func);
-}
-
 
 struct ReplayWorker::Private
 {
@@ -156,7 +58,7 @@ struct ReplayWorker::Private
     listfile::ReadHandle *lfh = nullptr;
     ConnectionType listfileFormat;
     Protected<Counters> counters;
-    ReadoutBuffer previousData;
+    std::vector<u8> previousData;
     ReadoutBuffer *outputBuffer_ = nullptr;
     u32 nextOutputBufferNumber = 1u;
     std::thread replayThread;
@@ -275,12 +177,13 @@ void ReplayWorker::Private::loop(std::promise<std::error_code> promise)
             {
                 if (auto destBuffer = getOutputBuffer())
                 {
-                    if (previousData.used())
+                    if (!previousData.empty())
                     {
-                        destBuffer->ensureFreeSpace(previousData.used());
-                        std::memcpy(destBuffer->data() + destBuffer->used(),
-                                    previousData.data(), previousData.used());
-                        destBuffer->use(previousData.used());
+                        // move bytes from previousData into destBuffer
+                        destBuffer->ensureFreeSpace(previousData.size());
+                        std::copy(std::begin(previousData), std::end(previousData),
+                            destBuffer->data() + destBuffer->used());
+                        destBuffer->use(previousData.size());
                         previousData.clear();
                     }
 
@@ -300,16 +203,9 @@ void ReplayWorker::Private::loop(std::promise<std::error_code> promise)
 
                     //mvlc::util::log_buffer(std::cout, destBuffer->viewU32(), "mvlc_replay: pre fixup workBuffer");
 
-                    switch (listfileFormat)
-                    {
-                        case ConnectionType::ETH:
-                            fixup_buffer_eth(*destBuffer, previousData);
-                            break;
-
-                        case ConnectionType::USB:
-                            fixup_buffer_usb(*destBuffer, previousData);
-                            break;
-                    }
+                    size_t bytesMoved = fixup_buffer(listfileFormat,
+                        destBuffer->data(), destBuffer->used(), previousData);
+                    destBuffer->setUsed(destBuffer->used() - bytesMoved);
 
                     //mvlc::util::log_buffer(std::cout, destBuffer->viewU32(), "mvlc_replay: post fixup workBuffer");
 

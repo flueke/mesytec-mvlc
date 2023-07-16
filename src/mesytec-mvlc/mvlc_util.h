@@ -150,6 +150,20 @@ inline std::string trigger_value_to_string(u32 trigval)
     return trigger_to_string(decode_trigger_value(trigval));
 }
 
+size_t fixup_buffer_mvlc_usb(const u8 *buf, size_t bufUsed, std::vector<u8> &tmpBuf);
+size_t fixup_buffer_mvlc_eth(const u8 *buf, size_t bufUsed, std::vector<u8> &tmpBuf);
+
+inline size_t fixup_buffer(
+    ConnectionType bufferType,
+    const u8 *msgBuf, size_t msgUsed,
+    std::vector<u8> &tmpBuf)
+{
+    if (bufferType == ConnectionType::ETH)
+        return fixup_buffer_mvlc_eth(msgBuf, msgUsed, tmpBuf);
+
+    return fixup_buffer_mvlc_usb(msgBuf, msgUsed, tmpBuf);
+}
+
 } // end namespace mvlc
 } // end namespace mesytec
 

@@ -1,6 +1,4 @@
 // =========================
-//    MVLC readout outline
-// =========================
 //
 // * Two different formats depending on connection type (ETH, USB).
 // * Pass only complete frames around. For readout the detection has to be done
@@ -1180,6 +1178,7 @@ inline bool is_valid_readout_frame(const FrameInfo &frameInfo)
 // Note that invalid data words (ones that do not pass
 // is_valid_readout_frame()) are just skipped and left in the buffer without
 // modification. This has to be taken into account on the analysis side.
+// TODO: replace with fixup_buffer() from mvlc_util.h (it cannot count framing errors! :<)
 inline void fixup_usb_buffer(
     ReadoutBuffer &readBuffer,
     ReadoutBuffer &tempBuffer,

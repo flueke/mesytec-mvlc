@@ -86,16 +86,15 @@ struct ListfileReaderHelper
         ReadoutBuffer(1u << 20),
     };
 
+    ReadoutBuffer destBuf_ = ReadoutBuffer{1u << 20};
+    std::vector<u8> tmpBuf_;
     ReadHandle *readHandle = nullptr;
     Preamble preamble;
     ConnectionType bufferFormat;
     size_t totalBytesRead = 0;
 
-    unsigned destBufIndex = 0;
-    unsigned tempBufIndex = 1;
-
-    ReadoutBuffer *destBuf() { return &buffers[destBufIndex]; };
-    ReadoutBuffer *tempBuf() { return &buffers[tempBufIndex]; }
+    ReadoutBuffer &destBuf() { return destBuf_; };
+    std::vector<u8> &tempBuf() { return tmpBuf_; }
 };
 
 inline ListfileReaderHelper make_listfile_reader_helper(ReadHandle *readHandle)
@@ -106,8 +105,8 @@ inline ListfileReaderHelper make_listfile_reader_helper(ReadHandle *readHandle)
     result.bufferFormat = (result.preamble.magic == get_filemagic_usb()
         ? ConnectionType::USB
         : ConnectionType::ETH);
-    result.destBuf()->setType(result.bufferFormat);
-    result.tempBuf()->setType(result.bufferFormat);
+    result.destBuf().setType(result.bufferFormat);
+    result.tempBuf().reserve(result.destBuf().capacity());
     result.totalBytesRead = get_filemagic_len();
     return result;
 }
@@ -118,18 +117,26 @@ inline const ReadoutBuffer *read_next_buffer(ListfileReaderHelper &rh)
     // data => swap dest and temp buffers, clear the new temp buffer and read
     // into the new dest buffer taking into account that it may already contain
     // data.
-    std::swap(rh.destBufIndex, rh.tempBufIndex);
-    rh.tempBuf()->clear();
 
-    size_t bytesRead = rh.readHandle->read(rh.destBuf()->data() + rh.destBuf()->used(), rh.destBuf()->free());
-    rh.destBuf()->use(bytesRead);
+    auto &destBuf = rh.destBuf();
+    auto &tempBuf = rh.tempBuf();
+    destBuf.ensureFreeSpace(tempBuf.size());
+
+    std::copy(std::begin(tempBuf), std::end(tempBuf), destBuf.data() + destBuf.used());
+    destBuf.use(tempBuf.size());
+    tempBuf.clear();
+
+    size_t bytesRead = rh.readHandle->read(destBuf.data() + destBuf.used(),
+        destBuf.free());
+    destBuf.use(bytesRead);
     rh.totalBytesRead += bytesRead;
 
     // Ensures that destBuf contains only complete frames/packets. Can move
     // trailing data from destBuf into tempBuf.
-    mvlc::fixup_buffer(rh.bufferFormat, *rh.destBuf(), *rh.tempBuf());
+    size_t bytesMoved = mvlc::fixup_buffer(rh.bufferFormat, destBuf.data(), destBuf.used(), tempBuf);
+    destBuf.setUsed(destBuf.used() - bytesMoved);
 
-    return rh.destBuf();
+    return &destBuf;
 }
 
 } // end namespace listfile

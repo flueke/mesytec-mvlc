@@ -6,6 +6,7 @@
 #include "mesytec-mvlc/mesytec-mvlc_export.h"
 
 #include "mesytec-mvlc/mvlc_listfile.h"
+#include "mesytec-mvlc/mvlc_util.h"
 #include "mesytec-mvlc/readout_buffer_queues.h"
 #include "mesytec-mvlc/util/protected.h"
 
@@ -61,28 +62,6 @@ enum class ReplayWorkerError
 };
 
 std::error_code MESYTEC_MVLC_EXPORT make_error_code(ReplayWorkerError error);
-
-void MESYTEC_MVLC_EXPORT fixup_buffer_eth(
-    ReadoutBuffer &readBuffer, ReadoutBuffer &tempBuffer);
-
-void MESYTEC_MVLC_EXPORT fixup_buffer_usb(
-    ReadoutBuffer &readBuffer, ReadoutBuffer &tempBuffer);
-
-inline void fixup_buffer(
-    ConnectionType bufferType,
-    ReadoutBuffer &readBuffer, ReadoutBuffer &tempBuffer)
-{
-    switch (bufferType)
-    {
-        case ConnectionType::ETH:
-            fixup_buffer_eth(readBuffer, tempBuffer);
-            break;
-
-        case ConnectionType::USB:
-            fixup_buffer_usb(readBuffer, tempBuffer);
-            break;
-    }
-}
 
 } // end namespace mvlc
 } // end namespace mesytec
