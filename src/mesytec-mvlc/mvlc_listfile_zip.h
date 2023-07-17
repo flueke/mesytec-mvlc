@@ -237,6 +237,32 @@ class MESYTEC_MVLC_EXPORT ZipReader
         std::unique_ptr<Private> d;
 };
 
+#if 0
+// XXX: leftoff here (230717)
+class MESYTEC_MVLC_EXPORT SplitZipReader
+{
+    public:
+        SplitZipReader();
+        ~SplitZipReader();
+
+        void openArchive(const std::string &archiveName);
+        void closeArchive();
+        std::vector<std::string> entryNameList();
+
+        // open a non-split entry
+        ZipReadHandle *openEntry(const std::string &name);
+        ZipReadHandle *currentEntry();
+        void closeCurrentEntry();
+        size_t readCurrentEntry(u8 *dest, size_t maxSize);
+        std::string currentEntryName() const;
+        const ZipEntryInfo &entryInfo() const;
+
+        SplitZipReadHandle *openSplitEntry(const std::string &name);
+
+        std::string firstListfileEntryName();
+};
+#endif
+
 } // end namespace listfile
 } // end namespace mvlc
 } // end namespace mesytec

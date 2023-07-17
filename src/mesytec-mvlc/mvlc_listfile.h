@@ -17,6 +17,9 @@ namespace mvlc
 namespace listfile
 {
 
+// Note: most of the classes and functions here do their error reporting by
+// throwing std::runtime_error!
+
 class MESYTEC_MVLC_EXPORT WriteHandle
 {
     public:
@@ -149,8 +152,10 @@ constexpr size_t PreambleReadMaxSize = util::Megabytes(100);
 // the start of the file. This means the SystemEvent sections making up the
 // preamble will be read again and are available for processing by e.g. the
 // readout parser.
+// throws std::runtime_error
 Preamble MESYTEC_MVLC_EXPORT read_preamble(
     ReadHandle &rh, size_t preambleMaxSize = PreambleReadMaxSize);
+
 
 inline std::vector<u8> get_sysevent_data(const std::vector<SystemEvent> &sysEvents, const u8 sysEventType)
 {
