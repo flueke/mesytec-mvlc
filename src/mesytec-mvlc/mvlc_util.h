@@ -32,7 +32,7 @@ namespace mesytec
 namespace mvlc
 {
 
-struct FrameInfo
+struct MESYTEC_MVLC_EXPORT FrameInfo
 {
     u16 len;
     u8 type;
@@ -150,8 +150,8 @@ inline std::string trigger_value_to_string(u32 trigval)
     return trigger_to_string(decode_trigger_value(trigval));
 }
 
-size_t fixup_buffer_mvlc_usb(const u8 *buf, size_t bufUsed, std::vector<u8> &tmpBuf);
-size_t fixup_buffer_mvlc_eth(const u8 *buf, size_t bufUsed, std::vector<u8> &tmpBuf);
+size_t MESYTEC_MVLC_EXPORT fixup_buffer_mvlc_usb(const u8 *buf, size_t bufUsed, std::vector<u8> &tmpBuf);
+size_t MESYTEC_MVLC_EXPORT fixup_buffer_mvlc_eth(const u8 *buf, size_t bufUsed, std::vector<u8> &tmpBuf);
 
 inline size_t fixup_buffer(
     ConnectionType bufferType,
