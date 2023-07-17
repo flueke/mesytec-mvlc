@@ -10,9 +10,7 @@
 #include "mesytec-mvlc/readout_buffer_queues.h"
 #include "mesytec-mvlc/util/protected.h"
 
-namespace mesytec
-{
-namespace mvlc
+namespace mesytec::mvlc
 {
 
 class MESYTEC_MVLC_EXPORT ReplayWorker
@@ -63,7 +61,11 @@ enum class ReplayWorkerError
 
 std::error_code MESYTEC_MVLC_EXPORT make_error_code(ReplayWorkerError error);
 
-} // end namespace mvlc
-} // end namespace mesytec
+} // end namespace mesytec::mvlc
+
+namespace std
+{
+    template<> struct is_error_code_enum<mesytec::mvlc::ReplayWorkerError>: true_type {};
+}
 
 #endif /* __MESYTEC_MVLC_MVLC_REPLAY_WORKER_H__ */

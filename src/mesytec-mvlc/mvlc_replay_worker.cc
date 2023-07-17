@@ -29,12 +29,27 @@ class ReplayErrorCategory: public std::error_category
 
     std::string message(int ev) const override
     {
-        return std::to_string(ev); // TODO: strings here
+        switch (static_cast<ReplayWorkerError>(ev))
+        {
+        case ReplayWorkerError::NoError:
+            return "No Error";
+        case ReplayWorkerError::ReplayNotIdle:
+            return "Replay not idle";
+        case ReplayWorkerError::ReplayNotRunning:
+            return "Replay not running";
+        case ReplayWorkerError::ReplayNotPaused:
+            return "Replay not paused";
+        case ReplayWorkerError::UnknownListfileFormat:
+            return "Unknown listfile format";
+        }
+
+        return fmt::format("unknown error ({})", ev);
     }
 
     std::error_condition default_error_condition(int ev) const noexcept override
     {
-        (void) ev; // TODO: define and use error conditions
+        // No dedicated error condition yet so just return a default value.
+        (void) ev;
         return {};
     }
 };
