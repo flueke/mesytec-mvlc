@@ -5,7 +5,7 @@
 # libraries unit tests.
 
 # Example docker build invocation from the root of the source tree:
-#   DOCKER_BUILDKIT=1 docker build  -f ./Dockerfile.debian-stable .
+#   DOCKER_BUILDKIT=1 docker build  -f ./tools/dockerfiles/Dockerfile.debian-stable_ctest .
 
 FROM debian:stable
 
@@ -17,5 +17,4 @@ WORKDIR /build
 
 # Run cmake then compile and install the server binary.
 RUN cmake -GNinja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_INSTALL_PREFIX=/install /sources \
-    && ninja && ninja install
-RUN ctest .
+    && ninja && ninja install && ctest .
