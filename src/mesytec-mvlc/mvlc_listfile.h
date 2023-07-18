@@ -34,8 +34,14 @@ class MESYTEC_MVLC_EXPORT ReadHandle
 {
     public:
         virtual ~ReadHandle();
+
+        // Reads maxSize bytes into dest. Returns the number of bytes read.
         virtual size_t read(u8 *dest, size_t maxSize) = 0;
-        virtual void seek(size_t pos) = 0;
+
+        // Seeks from the beginning of the current entry to the given pos.
+        // Returns the position that could be reached before EOF which can be
+        // less than the desired position.
+        virtual size_t seek(size_t pos) = 0;
 };
 
 //

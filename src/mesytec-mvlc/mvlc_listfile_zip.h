@@ -136,6 +136,8 @@ struct MESYTEC_MVLC_EXPORT SplitListfileSetup
     // listfile part.
     std::vector<u8> preamble;
 
+    // Called when an archive is created, either manually via createArchive()
+    // or automatically due to the file splitting setup.
     OpenArchiveCallback openArchiveCallback;
 
     // Called upon closing the current archive either manually via
@@ -206,8 +208,13 @@ class MESYTEC_MVLC_EXPORT ZipReadHandle: public ReadHandle
             : m_zipReader(reader)
         { }
 
+        // Reads maxSize bytes into dest. Returns the number of bytes read.
         size_t read(u8 *dest, size_t maxSize) override;
-        void seek(size_t pos) override;
+
+        // Seeks from the beginning of the current entry to the given pos.
+        // Returns the position that could be reached before EOF which can be
+        // less than the desired position.
+        size_t seek(size_t pos) override;
 
     private:
         ZipReader *m_zipReader = nullptr;
@@ -237,11 +244,32 @@ class MESYTEC_MVLC_EXPORT ZipReader
         std::unique_ptr<Private> d;
 };
 
-#if 0
-// XXX: leftoff here (230717)
+std::string next_archive_name(const std::string currentArchiveName);
+
+class SplitZipReader;
+
+class MESYTEC_MVLC_EXPORT SplitZipReadHandle: public ReadHandle
+{
+    public:
+        explicit SplitZipReadHandle(SplitZipReader *reader)
+            : m_zipReader(reader)
+        { }
+
+        size_t read(u8 *dest, size_t maxSize) override;
+        size_t seek(size_t pos) override;
+
+    private:
+        SplitZipReader *m_zipReader = nullptr;
+};
+
 class MESYTEC_MVLC_EXPORT SplitZipReader
 {
     public:
+        // Invoked when the currently open archives changes, either due to a
+        // call to openArchive() or because the next part has been opened
+        // internally.
+        using ArchiveChangedCallback = std::function<void (SplitZipReader *, const std::string &archiveName)>;
+
         SplitZipReader();
         ~SplitZipReader();
 
@@ -257,11 +285,20 @@ class MESYTEC_MVLC_EXPORT SplitZipReader
         std::string currentEntryName() const;
         const ZipEntryInfo &entryInfo() const;
 
-        SplitZipReadHandle *openSplitEntry(const std::string &name);
-
         std::string firstListfileEntryName();
+
+        // open the (split) listfile entry
+        SplitZipReadHandle *openFirstListfileEntry();
+
+        void setArchiveChangedCallback(ArchiveChangedCallback cb);
+
+    private:
+        friend class SplitZipReadHandle;
+        size_t read(u8 *dest, size_t maxSize);
+        size_t seek(size_t pos);
+        struct Private;
+        std::unique_ptr<Private> d;
 };
-#endif
 
 } // end namespace listfile
 } // end namespace mvlc

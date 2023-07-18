@@ -17,6 +17,8 @@
 #include "util/io_util.h"
 #include "util/storage_sizes.h"
 
+#include <spdlog/spdlog.h>
+
 using std::cout;
 using std::endl;
 
@@ -295,6 +297,11 @@ TEST(mvlc_listfile_zip, Split_SplitBySize)
         "splitzip_bysize_archive_part003.zip",
     };
 
+    const std::vector<std::string> unexpectedParts =
+    {
+        "splitzip_bysize_archive_part004.zip",
+    };
+
     for (auto &part: expectedParts)
         ASSERT_FALSE(util::file_exists(part));
 
@@ -350,6 +357,9 @@ TEST(mvlc_listfile_zip, Split_SplitBySize)
 
     for (auto &part: expectedParts)
         ASSERT_TRUE(util::file_exists(part));
+
+    for (auto &part: unexpectedParts)
+        ASSERT_FALSE(util::file_exists(part));
 
     for (auto &part: expectedParts)
         ASSERT_TRUE(util::delete_file(part));
@@ -421,6 +431,122 @@ TEST(mvlc_listfile_zip, Split_SplitByTime)
     for (auto &part: expectedParts)
         ASSERT_TRUE(util::file_exists(part));
 
+    for (auto &part: expectedParts)
+        ASSERT_TRUE(util::delete_file(part));
+}
+
+TEST(mvlc_listfile_zip, Split_NextArchiveName)
+{
+    auto n = "splitzip_bysize_archive_part001.zip";
+    auto nn = next_archive_name(n);
+    ASSERT_EQ(nn, "splitzip_bysize_archive_part002.zip");
+
+    nn = next_archive_name(nn);
+    ASSERT_EQ(nn, "splitzip_bysize_archive_part003.zip");
+}
+
+TEST(mvlc_listfile_zip, Split_Read)
+{
+    const std::vector<std::string> expectedParts =
+    {
+        "splitzip_bysize_archive_part001.zip",
+        "splitzip_bysize_archive_part002.zip",
+        "splitzip_bysize_archive_part003.zip",
+    };
+
+    std::vector<u8> chunk(1050); // 1050 bytes per chunk with a splitsize of 1024
+
+    for (size_t i=0; i<chunk.size(); i++)
+        chunk[i] = i % 255u;
+
+    std::vector<u8> testChunk;
+    for (size_t cycle=0; cycle<3; ++cycle)
+        std::copy(std::begin(chunk), std::end(chunk), std::back_inserter(testChunk));
+
+    ASSERT_EQ(testChunk.size(), 3 * chunk.size());
+
+    // create same data as in Split_SplitBySize
+    {
+
+        for (auto &part: expectedParts)
+            ASSERT_FALSE(util::file_exists(part));
+
+        size_t openCallbackCalls = 0u;
+        size_t closeCallbackCalls = 0u;
+
+        auto  open_callback = [&openCallbackCalls] (SplitZipCreator *creator)
+        {
+            ASSERT_TRUE(creator != nullptr);
+            ++openCallbackCalls;
+        };
+
+        auto  close_callback = [&closeCallbackCalls] (SplitZipCreator *creator)
+        {
+            ASSERT_TRUE(creator != nullptr);
+            ++closeCallbackCalls;
+        };
+
+        SplitZipCreator creator;
+        SplitListfileSetup setup;
+        setup.splitMode = ZipSplitMode::SplitBySize;
+        setup.splitSize = 1024;
+        setup.entryType = ZipEntryInfo::ZIP;
+        setup.compressLevel = 0; // Disable compression to make sure the raw bytes written end up in the file.
+        setup.filenamePrefix = "splitzip_bysize_archive";
+        setup.openArchiveCallback = open_callback;
+        setup.closeArchiveCallback = close_callback;
+
+        creator.createArchive(setup);
+        std::unique_ptr<WriteHandle> wh(creator.createListfileEntry());
+
+        ASSERT_TRUE(wh != nullptr);
+        ASSERT_TRUE(creator.hasOpenEntry());
+        ASSERT_TRUE(creator.isSplitEntry());
+        ASSERT_EQ(openCallbackCalls, 1);
+
+        for (size_t cycle=0; cycle<3; ++cycle)
+        {
+            wh->write(chunk.data(), chunk.size());
+            //cout << fmt::format("cycle={}, entryInfo.bytesWrittenToFile={}\n",
+            //                    cycle, creator.entryInfo().bytesWrittenToFile());
+        }
+
+        creator.closeArchive();
+
+        ASSERT_EQ(openCallbackCalls, 3);
+        ASSERT_EQ(closeCallbackCalls, 3);
+
+        for (auto &part: expectedParts)
+            ASSERT_TRUE(util::file_exists(part));
+    }
+
+    // Now test split reading
+    {
+        size_t archiveChanges = 0u;
+        auto on_archive_changed = [&archiveChanges] (SplitZipReader *reader, const std::string archiveName)
+        {
+            (void) reader;
+            ASSERT_TRUE(!archiveName.empty());
+            ++archiveChanges;
+        };
+
+        SplitZipReader reader;
+        reader.setArchiveChangedCallback(on_archive_changed);
+        reader.openArchive("splitzip_bysize_archive_part001.zip");
+
+        ASSERT_EQ(reader.firstListfileEntryName(), "splitzip_bysize_archive_part001.mvlclst");
+        auto rh = reader.openFirstListfileEntry();
+        ASSERT_NE(rh, nullptr);
+
+        std::vector<u8> buffer(10240);
+        size_t bytesRead = rh->read(buffer.data(), buffer.size());
+        ASSERT_EQ(bytesRead, testChunk.size());
+        buffer.resize(bytesRead);
+        ASSERT_EQ(testChunk, buffer);
+        ASSERT_EQ(archiveChanges, 3);
+    }
+
+    //cleanup
     for (auto &part: expectedParts)
         ASSERT_TRUE(util::delete_file(part));
 }

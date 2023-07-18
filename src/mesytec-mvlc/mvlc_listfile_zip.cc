@@ -2,6 +2,7 @@
 
 #include <cassert>
 #include <chrono>
+#include <cstdlib>
 #include <cstring>
 #include <iostream>
 #include <regex>
@@ -581,18 +582,25 @@ size_t ZipReadHandle::read(u8 *dest, size_t maxSize)
     return m_zipReader->readCurrentEntry(dest, maxSize);
 }
 
-void ZipReadHandle::seek(size_t pos)
+size_t ZipReadHandle::seek(size_t pos)
 {
     std::string currentName = m_zipReader->currentEntryName();
+    // rewind by reopening
     m_zipReader->closeCurrentEntry();
     m_zipReader->openEntry(currentName);
 
     std::vector<u8> buffer(util::Megabytes(1));
+    size_t totalBytesRead = 0u;
 
-    while (pos > 0)
+    while (totalBytesRead < pos)
     {
-        pos -= read(buffer.data(), std::min(buffer.size(), pos));
+        auto bytesRead = read(buffer.data(), std::min(buffer.size(), pos-totalBytesRead));
+        totalBytesRead += bytesRead;
+        if (bytesRead == 0u)
+            break;
     }
+
+    return totalBytesRead;
 }
 
 struct ZipReader::Private
@@ -632,10 +640,6 @@ struct ZipReader::Private
 
     explicit Private(ZipReader *q_)
         : entryReadHandle(q_)
-    {
-    }
-
-    ~Private()
     {
     }
 
@@ -956,6 +960,191 @@ std::string ZipReader::firstListfileEntryName()
         });
 
     return (it != std::end(entryNames) ? *it : std::string{});
+}
+
+std::string next_archive_name(const std::string currentArchiveName)
+{
+    static const std::regex reSplitName("^(.+)_part([0-9]+)\\.zip");
+
+    std::smatch matches;
+    std::regex_match(currentArchiveName, matches, reSplitName);
+
+    if (matches.size() < 3)
+        return {};
+
+    auto partPrefix = matches[1].str();
+    auto partNumStr = matches[2].str();
+    auto partNumber = std::atoll(partNumStr.c_str());
+    auto filename = fmt::format("{}_part{:03d}.zip", partPrefix, partNumber + 1);
+    return filename;
+}
+
+size_t SplitZipReadHandle::read(u8 *dest, size_t maxSize)
+{
+    return m_zipReader->read(dest, maxSize);
+}
+
+size_t SplitZipReadHandle::seek(size_t pos)
+{
+    return m_zipReader->seek(pos);
+}
+
+struct SplitZipReader::Private
+{
+    SplitZipReader *q = nullptr;
+    ZipReader zipReader;
+    SplitZipReadHandle splitReadHandle;
+    bool isSplitEntry = false;
+    std::string firstArchiveName;
+    std::string currentArchiveName;
+    SplitZipReader::ArchiveChangedCallback archiveChangedCallback;
+
+    explicit Private(SplitZipReader *q_)
+        : q(q_)
+        , splitReadHandle(q)
+    {
+    }
+
+    std::string nextArchiveName() const
+    {
+        return next_archive_name(currentArchiveName);
+    }
+};
+
+SplitZipReader::SplitZipReader()
+    : d(std::make_unique<Private>(this))
+{
+}
+
+SplitZipReader::~SplitZipReader()
+{
+}
+
+void SplitZipReader::openArchive(const std::string &archiveName)
+{
+    d->zipReader.openArchive(archiveName);
+    d->firstArchiveName = archiveName;
+    d->currentArchiveName = archiveName;
+    if (d->archiveChangedCallback)
+        d->archiveChangedCallback(this, d->currentArchiveName);
+}
+
+void SplitZipReader::closeArchive()
+{
+    d->zipReader.closeArchive();
+}
+
+std::vector<std::string> SplitZipReader::entryNameList()
+{
+    return d->zipReader.entryNameList();
+}
+
+ZipReadHandle *SplitZipReader::openEntry(const std::string &name)
+{
+    d->isSplitEntry = false;
+    return d->zipReader.openEntry(name);
+}
+
+ZipReadHandle *SplitZipReader::currentEntry()
+{
+    return d->zipReader.currentEntry();
+}
+
+void SplitZipReader::closeCurrentEntry()
+{
+    d->zipReader.closeCurrentEntry();
+    d->isSplitEntry = false;
+}
+
+size_t SplitZipReader::readCurrentEntry(u8 *dest, size_t maxSize)
+{
+    return d->zipReader.readCurrentEntry(dest, maxSize);
+}
+
+std::string SplitZipReader::currentEntryName() const
+{
+    return d->zipReader.currentEntryName();
+}
+
+const ZipEntryInfo &SplitZipReader::entryInfo() const
+{
+    return d->zipReader.entryInfo();
+}
+
+std::string SplitZipReader::firstListfileEntryName()
+{
+    return d->zipReader.firstListfileEntryName();
+}
+
+SplitZipReadHandle *SplitZipReader::openFirstListfileEntry()
+{
+    auto name = d->zipReader.firstListfileEntryName();
+    d->zipReader.openEntry(name);
+    d->isSplitEntry = true;
+    return &d->splitReadHandle;
+}
+
+size_t SplitZipReader::read(u8 *dest, size_t maxSize)
+{
+    if (!d->isSplitEntry)
+        return d->zipReader.readCurrentEntry(dest, maxSize);
+
+    size_t totalBytesRead = 0u;
+
+    while (totalBytesRead < maxSize)
+    {
+        auto bytesRead = d->zipReader.readCurrentEntry(dest + totalBytesRead, maxSize - totalBytesRead);
+        totalBytesRead += bytesRead;
+
+        if (bytesRead == 0)
+        {
+            auto nextArchiveName = d->nextArchiveName();
+
+            if (!util::file_exists(nextArchiveName))
+                break;
+
+            d->zipReader.closeArchive();
+            d->zipReader.openArchive(nextArchiveName);
+            d->currentArchiveName = nextArchiveName;
+            d->zipReader.openEntry(d->zipReader.firstListfileEntryName());
+            if (d->archiveChangedCallback)
+                d->archiveChangedCallback(this, d->currentArchiveName);
+        }
+    }
+
+    return totalBytesRead;
+}
+
+size_t SplitZipReader::seek(size_t pos)
+{
+    if (!d->isSplitEntry)
+        return d->zipReader.currentEntry()->seek(pos);
+
+    // Go to the first archive in the series.
+    d->zipReader.closeArchive();
+    d->zipReader.openArchive(d->firstArchiveName);
+    d->currentArchiveName = d->firstArchiveName;
+    d->zipReader.openEntry(d->zipReader.firstListfileEntryName());
+    if (d->archiveChangedCallback)
+        d->archiveChangedCallback(this, d->currentArchiveName);
+
+    size_t totalBytesRead = 0;
+
+    while (totalBytesRead < pos)
+    {
+        auto bytesRead = d->zipReader.currentEntry()->seek(pos - totalBytesRead);
+        totalBytesRead += bytesRead;
+
+        if (bytesRead == 0u)
+            break;
+    }
+
+    return totalBytesRead;
+}
+
+void SplitZipReader::setArchiveChangedCallback(ArchiveChangedCallback cb)
+{
+    d->archiveChangedCallback = cb;
 }
 
 } // end namespace listfile
