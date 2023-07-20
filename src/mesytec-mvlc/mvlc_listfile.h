@@ -88,11 +88,23 @@ void MESYTEC_MVLC_EXPORT listfile_write_timestamp_section(
 // reading
 //
 
+// Reads the 8 magic bytes at the start of a mvlclst file.
 inline std::vector<u8> read_magic(ReadHandle &rh)
 {
     rh.seek(0);
     std::vector<u8> result(get_filemagic_len());
     rh.read(result.data(), result.size());
+    return result;
+}
+
+// Same as read_magic() but converts the result to std::string.
+inline std::string read_magic_str(ReadHandle &rh)
+{
+    auto magic = read_magic(rh);
+    std::string result;
+    std::transform(
+        std::begin(magic), std::end(magic), std::back_inserter(result),
+        [] (const u8 c) { return static_cast<char>(c); });
     return result;
 }
 

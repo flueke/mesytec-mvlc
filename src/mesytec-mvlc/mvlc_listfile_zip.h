@@ -294,7 +294,6 @@ class MESYTEC_MVLC_EXPORT SplitZipReader
 
     private:
         friend class SplitZipReadHandle;
-        size_t read(u8 *dest, size_t maxSize);
         size_t seek(size_t pos);
         struct Private;
         std::unique_ptr<Private> d;

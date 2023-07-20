@@ -21,6 +21,7 @@
 
 #include "util/filesystem.h"
 #include "util/fmt.h"
+#include "util/logging.h"
 #include "util/storage_sizes.h"
 #include "util/string_view.hpp"
 
@@ -981,7 +982,7 @@ std::string next_archive_name(const std::string currentArchiveName)
 
 size_t SplitZipReadHandle::read(u8 *dest, size_t maxSize)
 {
-    return m_zipReader->read(dest, maxSize);
+    return m_zipReader->readCurrentEntry(dest, maxSize);
 }
 
 size_t SplitZipReadHandle::seek(size_t pos)
@@ -998,16 +999,21 @@ struct SplitZipReader::Private
     std::string firstArchiveName;
     std::string currentArchiveName;
     SplitZipReader::ArchiveChangedCallback archiveChangedCallback;
+    std::shared_ptr<spdlog::logger> logger;
 
     explicit Private(SplitZipReader *q_)
         : q(q_)
         , splitReadHandle(q)
+        , logger(get_logger("SplitZipReader"))
     {
     }
 
     std::string nextArchiveName() const
     {
-        return next_archive_name(currentArchiveName);
+        auto result = next_archive_name(currentArchiveName);
+        logger->debug("firstArchiveName={}, currentArchvieName={}, nextArchiveName={}",
+            firstArchiveName, currentArchiveName, result);
+        return result;
     }
 };
 
@@ -1058,7 +1064,41 @@ void SplitZipReader::closeCurrentEntry()
 
 size_t SplitZipReader::readCurrentEntry(u8 *dest, size_t maxSize)
 {
-    return d->zipReader.readCurrentEntry(dest, maxSize);
+    if (!d->isSplitEntry)
+        return d->zipReader.readCurrentEntry(dest, maxSize);
+
+    size_t totalBytesRead = 0u;
+
+    while (totalBytesRead < maxSize)
+    {
+        auto bytesRead = d->zipReader.readCurrentEntry(dest + totalBytesRead, maxSize - totalBytesRead);
+        totalBytesRead += bytesRead;
+
+        if (bytesRead == 0)
+        {
+            auto nextArchiveName = d->nextArchiveName();
+
+            if (!util::file_exists(nextArchiveName))
+                break;
+
+            d->zipReader.closeArchive();
+            d->zipReader.openArchive(nextArchiveName);
+            d->currentArchiveName = nextArchiveName;
+            if (d->archiveChangedCallback)
+                d->archiveChangedCallback(this, d->currentArchiveName);
+            auto readHandle = d->zipReader.openEntry(d->zipReader.firstListfileEntryName());
+            // Have to read past the magic bytes at the start to land on the
+            // first frame or eth packet.
+            auto magic = read_magic_str(*readHandle);
+
+            if (magic != get_filemagic_eth() && magic != get_filemagic_usb())
+                d->logger->warn("archive={}, invalid magic bytes at start of file: '{}'!",
+                    magic);
+
+        }
+    }
+
+    return totalBytesRead;
 }
 
 std::string SplitZipReader::currentEntryName() const
@@ -1084,49 +1124,23 @@ SplitZipReadHandle *SplitZipReader::openFirstListfileEntry()
     return &d->splitReadHandle;
 }
 
-size_t SplitZipReader::read(u8 *dest, size_t maxSize)
-{
-    if (!d->isSplitEntry)
-        return d->zipReader.readCurrentEntry(dest, maxSize);
-
-    size_t totalBytesRead = 0u;
-
-    while (totalBytesRead < maxSize)
-    {
-        auto bytesRead = d->zipReader.readCurrentEntry(dest + totalBytesRead, maxSize - totalBytesRead);
-        totalBytesRead += bytesRead;
-
-        if (bytesRead == 0)
-        {
-            auto nextArchiveName = d->nextArchiveName();
-
-            if (!util::file_exists(nextArchiveName))
-                break;
-
-            d->zipReader.closeArchive();
-            d->zipReader.openArchive(nextArchiveName);
-            d->currentArchiveName = nextArchiveName;
-            d->zipReader.openEntry(d->zipReader.firstListfileEntryName());
-            if (d->archiveChangedCallback)
-                d->archiveChangedCallback(this, d->currentArchiveName);
-        }
-    }
-
-    return totalBytesRead;
-}
-
 size_t SplitZipReader::seek(size_t pos)
 {
     if (!d->isSplitEntry)
         return d->zipReader.currentEntry()->seek(pos);
 
     // Go to the first archive in the series.
-    d->zipReader.closeArchive();
-    d->zipReader.openArchive(d->firstArchiveName);
-    d->currentArchiveName = d->firstArchiveName;
+    if (d->currentArchiveName != d->firstArchiveName)
+    {
+        d->zipReader.closeArchive();
+        d->zipReader.openArchive(d->firstArchiveName);
+        d->currentArchiveName = d->firstArchiveName;
+        if (d->archiveChangedCallback)
+            d->archiveChangedCallback(this, d->currentArchiveName);
+    }
+    d->zipReader.closeCurrentEntry();
     d->zipReader.openEntry(d->zipReader.firstListfileEntryName());
-    if (d->archiveChangedCallback)
-        d->archiveChangedCallback(this, d->currentArchiveName);
+
 
     size_t totalBytesRead = 0;
 
