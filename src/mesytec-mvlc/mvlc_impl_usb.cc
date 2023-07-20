@@ -296,13 +296,13 @@ std::pair<std::error_code, size_t> read_pipe_until_empty(
 // running DAQ. This is done to make sure the command communication is working
 // properly and no readout data is clogging the USB.
 // Steps:
-// - Disable all triggers by writing 0 to the corresponding registers.
+// - Disable daq mode by writing 0 to the corresponding register.
 //   Errors are ignored except ErrorType::ConnectionError which indicate that
 //   we could not open the USB device or lost the connection.
 // - Read from the command pipe until no more data arrives. Again only
 //   ConnectionError type errors are considered fatal.
 // - Read from the data pipe until no more data arrives. These can be delayed
-//   responses from writing to the trigger registers or queued up stack error
+//   responses from writing to the daq mode register or queued up stack error
 //   notifications.
 // - Do a register read to check that communication is ok now.
 std::error_code post_connect_cleanup(mesytec::mvlc::usb::Impl &impl)
@@ -314,13 +314,13 @@ std::error_code post_connect_cleanup(mesytec::mvlc::usb::Impl &impl)
 
     mesytec::mvlc::MVLCDialog_internal dlg(&impl);
 
-    // Disable the triggers. There may be timeouts due to the data pipe being
+    // Disable daq mode. There may be timeouts due to the data pipe being
     // full and no command responses arriving on the command pipe. Also
     // notification data can be stuck in the command pipe so that the responses
     // are not parsed correctly.
 
-    // Try setting the trigger registers in a separate thread. This uses the
-    // command pipe for communication.
+    // Try writing the register in a separate thread. This uses the command pipe
+    // for communication.
     auto fCmd = std::async(std::launch::async, [&] ()
     {
         std::pair<std::error_code, size_t> ret = {};
