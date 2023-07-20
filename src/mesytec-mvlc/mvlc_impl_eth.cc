@@ -963,76 +963,33 @@ std::error_code Impl::connect()
 
     assert(m_cmdSock >= 0 && m_dataSock >= 0 && m_delaySock >= 0);
 
-    #if 0
-    // Attempt to read the trigger registers. If one has a non-zero value
-    // assume the MVLC is in use by another client. If the
-    // disableTriggersOnConnect flag is set try to disable the triggers,
-    // otherwise return MVLCErrorCode::InUse.
     {
-        logger->trace("reading MVLC trigger registers...");
-
+        logger->trace("reading MVLC DAQ mode register...");
         MVLCDialog_internal dlg(this);
-        bool inUse = false;
 
-        for (u8 stackId = 0; stackId < stacks::StackCount; stackId++)
+        u32 daqMode = 0;
+        if (auto ec = read_daq_mode(dlg, daqMode))
         {
-            u16 addr = stacks::get_trigger_register(stackId);
-            u32 regVal = 0u;
-
-            if (auto ec = dlg.readRegister(addr, regVal))
-            {
-                close_sockets();
-                return ec;
-            }
-
-            if (regVal != stacks::NoTrigger)
-            {
-                inUse = true;
-                break;
-            }
+            close_sockets();
+            return ec;
         }
 
-        if (inUse && !disableTriggersOnConnect())
+        if (daqMode && !disableTriggersOnConnect())
         {
             logger->warn("MVLC is in use");
             close_sockets();
             return make_error_code(MVLCErrorCode::InUse);
         }
-        else if (inUse)
+        else if (daqMode)
         {
-            assert(disableTriggersOnConnect());
-
-            if (auto ec = disable_all_triggers_and_daq_mode(dlg))
+            if (auto ec = disable_daq_mode(dlg))
             {
-                logger->error("MVLC is in use and mvme failed to disable triggers: {}", ec.message().c_str());
+                logger->error("MVLC is in use and DAQ mode could not be disabled: {}", ec.message());
                 close_sockets();
                 return ec;
             }
         }
     }
-    #endif
-
-    #if 0
-    // Send an initial empty frame to the UDP data pipe port so that
-    // the MVLC knows where to send the readout data.
-    {
-        logger->trace("Sending initial empty request to the UDP data port");
-
-        static const std::array<u32, 2> EmptyRequest = { 0xF1000000, 0xF2000000 };
-        size_t bytesTransferred = 0;
-
-        if (auto ec = this->write(
-                Pipe::Data,
-                reinterpret_cast<const u8 *>(EmptyRequest.data()),
-                EmptyRequest.size() * sizeof(u32),
-                bytesTransferred))
-        {
-            logger->error("Error sending initial empty request to the UDP data port: {}", ec.message().c_str());
-            close_sockets();
-            return ec;
-        }
-    }
-    #endif
 
     logger->trace("ETH connect sequence finished");
 
