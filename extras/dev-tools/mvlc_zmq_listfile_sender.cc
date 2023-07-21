@@ -70,17 +70,10 @@ int main(int argc, char *argv[])
 
     // Two buffers, one to read data into, one to store temporary data after
     // fixing up the destination buffer.
-    std::array<mvlc::ReadoutBuffer, 2> buffers =
-    {
-        mvlc::ReadoutBuffer(1u << 20),
-        mvlc::ReadoutBuffer(1u << 20),
-    };
+    mvlc::ReadoutBuffer destBuf(1u << 20);
+    std::vector<std::uint8_t> tempBuf;
 
-    mvlc::ReadoutBuffer *destBuf = &buffers[0];
-    mvlc::ReadoutBuffer *tempBuf = &buffers[1];
-
-    destBuf->setType(bufferFormat);
-    tempBuf->setType(bufferFormat);
+    destBuf.setType(bufferFormat);
 
     size_t totalBytesRead = 0;
     size_t totalBytesPublished = 0;
@@ -95,33 +88,32 @@ int main(int argc, char *argv[])
 
     while (true)
     {
-        // Note: taking into account that there can be unprocessed data from the
-        // fixup_buffer() call in the current destBuffer (destBuf->used() offset).
+        // Copy data from the temp buffer into the dest buffer.
+        destBuf.ensureFreeSpace(tempBuf.size());
+        std::copy(std::begin(tempBuf), std::end(tempBuf), destBuf.data());
+        destBuf.setUsed(tempBuf.size());
+        tempBuf.clear();
+
         size_t bytesRead = listfileReadHandle->read(
-            destBuf->data() + destBuf->used(), destBuf->free());
+            destBuf.data() + destBuf.used(), destBuf.free());
 
         if (bytesRead == 0)
             break;
 
-        destBuf->use(bytesRead);
+        destBuf.use(bytesRead);
         totalBytesRead += bytesRead;
 
         // Ensures that destBuf contains only complete frames/packets. Can move
         // trailing data from destBuf into tempBuf.
-        mvlc::fixup_buffer(bufferFormat, *destBuf, *tempBuf);
+        size_t bytesMoved = mvlc::fixup_buffer(bufferFormat, destBuf.data(), destBuf.used(), tempBuf);
+        destBuf.setUsed(destBuf.used() - bytesMoved);
 
-        zmq::message_t msg(destBuf->used());
-        std::memcpy(msg.data(), destBuf->data(), destBuf->used());
+        zmq::message_t msg(destBuf.used());
+        std::memcpy(msg.data(), destBuf.data(), destBuf.used());
         pub.send(msg, zmq::send_flags::none);
-        totalBytesPublished += destBuf->used();
+        totalBytesPublished += destBuf.used();
         ++messagesPublished;
-
-        // Clear dest buffer and swap the two buffers => On next iteration will
-        // read into tempBuf which may now contain temporary data from the fixup
-        // step. The now empty destBuf will be used as the new temporary buffer.
-        destBuf->clear();
-        std::swap(destBuf, tempBuf);
-
+        destBuf.clear();
     }
 
     std::cout << "Replay done, read " << totalBytesRead << " bytes from listfile"
