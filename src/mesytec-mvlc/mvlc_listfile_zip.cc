@@ -1087,14 +1087,14 @@ size_t SplitZipReader::readCurrentEntry(u8 *dest, size_t maxSize)
             if (d->archiveChangedCallback)
                 d->archiveChangedCallback(this, d->currentArchiveName);
             auto readHandle = d->zipReader.openEntry(d->zipReader.firstListfileEntryName());
+
             // Have to read past the magic bytes at the start to land on the
             // first frame or eth packet.
             auto magic = read_magic_str(*readHandle);
 
             if (magic != get_filemagic_eth() && magic != get_filemagic_usb())
-                d->logger->warn("archive={}, invalid magic bytes at start of file: '{}'!",
-                    magic);
-
+                d->logger->warn("SplitZipReader: archive={}, entry={}: invalid magic bytes at start of file: '{}'!",
+                    d->currentArchiveName, d->zipReader.firstListfileEntryName(), magic);
         }
     }
 

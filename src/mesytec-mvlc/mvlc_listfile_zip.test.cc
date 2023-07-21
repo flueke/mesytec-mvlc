@@ -454,18 +454,23 @@ TEST(mvlc_listfile_zip, Split_Read)
         "splitzip_bysize_archive_part003.zip",
     };
 
-    std::vector<u8> chunk(1050); // 1050 bytes per chunk with a splitsize of 1024
+    // Prepare the test data: 1052 bytes long, starts with the magic bytes for a
+    // MVLC_USB buffer, the rest is filled with i % 255.
+    std::vector<u8> chunk(1052); // 1052 bytes per chunk with a splitsize of 1024
 
-    for (size_t i=0; i<chunk.size(); i++)
-        chunk[i] = i % 255u;
+    {
+        auto magic = get_filemagic_usb();
 
-    std::vector<u8> testChunk;
-    for (size_t cycle=0; cycle<3; ++cycle)
-        std::copy(std::begin(chunk), std::end(chunk), std::back_inserter(testChunk));
+        for (size_t i=0; i<get_filemagic_len(); ++i)
+            chunk[i] = magic[i];
 
-    ASSERT_EQ(testChunk.size(), 3 * chunk.size());
+        for (size_t i = get_filemagic_len(); i < chunk.size(); ++i)
+            chunk[i] = i % 255u;
+    }
 
-    // create same data as in Split_SplitBySize
+    // create the split archives. Splitting is done after at least 1024 have
+    // been written. As we write 1052 bytes in one go we end up with 3 archives
+    // containing 1052 bytes each.
     {
 
         for (auto &part: expectedParts)
@@ -505,11 +510,7 @@ TEST(mvlc_listfile_zip, Split_Read)
         ASSERT_EQ(openCallbackCalls, 1);
 
         for (size_t cycle=0; cycle<3; ++cycle)
-        {
             wh->write(chunk.data(), chunk.size());
-            //cout << fmt::format("cycle={}, entryInfo.bytesWrittenToFile={}\n",
-            //                    cycle, creator.entryInfo().bytesWrittenToFile());
-        }
 
         creator.closeArchive();
 
@@ -520,7 +521,11 @@ TEST(mvlc_listfile_zip, Split_Read)
             ASSERT_TRUE(util::file_exists(part));
     }
 
-    // Now test split reading
+    // Now test split reading.
+    // There is a tricky part in the split zip reader: to make it appear to
+    // consumers as if the data is coming from a single listfile, on each archive
+    // change the 8 magic bytes at the start of each split entry are read before
+    // the handle is returned to the caller.
     {
         size_t archiveChanges = 0u;
         auto on_archive_changed = [&archiveChanges] (SplitZipReader *reader, const std::string archiveName)
@@ -540,10 +545,10 @@ TEST(mvlc_listfile_zip, Split_Read)
 
         std::vector<u8> buffer(10240);
         size_t bytesRead = rh->read(buffer.data(), buffer.size());
-        ASSERT_EQ(bytesRead, testChunk.size());
-        buffer.resize(bytesRead);
-        ASSERT_EQ(testChunk, buffer);
-        ASSERT_EQ(archiveChanges, 3);
+        ASSERT_EQ(bytesRead, chunk.size() * 3 - 2 * get_filemagic_len());
+
+        for (size_t i=0; i < get_filemagic_len(); ++i)
+            ASSERT_EQ(buffer[i], get_filemagic_usb()[i]);
     }
 
     //cleanup
