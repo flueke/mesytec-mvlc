@@ -678,6 +678,13 @@ ZipReader::ZipReader()
 
 ZipReader::~ZipReader()
 {
+    try
+    {
+        closeArchive();
+    }
+    catch(...)
+    { }
+
     mz_zip_reader_delete(&d->reader);
     mz_stream_os_delete(&d->osStream);
 }
