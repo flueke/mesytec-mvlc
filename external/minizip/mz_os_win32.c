@@ -176,6 +176,22 @@ int32_t mz_os_unlink(const char *path) {
     mz_os_unicode_string_delete(&path_wide);
 
     if (result == 0)
+    {
+        LPVOID lpMsgBuf;
+        DWORD dw = GetLastError();
+        FormatMessage(
+            FORMAT_MESSAGE_ALLOCATE_BUFFER |
+                FORMAT_MESSAGE_FROM_SYSTEM |
+                FORMAT_MESSAGE_IGNORE_INSERTS,
+            NULL,
+            dw,
+            MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+            (LPTSTR)&lpMsgBuf,
+            0, NULL);
+        printf("%s\n", lpMsgBuf);
+    }
+
+    if (result == 0)
         return MZ_EXIST_ERROR;
 
     return MZ_OK;
