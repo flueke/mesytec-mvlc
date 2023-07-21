@@ -13,7 +13,7 @@ namespace mvlc
 namespace listfile
 {
 
-struct ZipEntryInfo
+struct MESYTEC_MVLC_EXPORT ZipEntryInfo
 {
     enum Type { ZIP, LZ4 };
 
@@ -244,7 +244,7 @@ class MESYTEC_MVLC_EXPORT ZipReader
         std::unique_ptr<Private> d;
 };
 
-std::string next_archive_name(const std::string currentArchiveName);
+std::string MESYTEC_MVLC_EXPORT next_archive_name(const std::string currentArchiveName);
 
 class SplitZipReader;
 
