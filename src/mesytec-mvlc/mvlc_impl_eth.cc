@@ -964,8 +964,18 @@ std::error_code Impl::connect()
     assert(m_cmdSock >= 0 && m_dataSock >= 0 && m_delaySock >= 0);
 
     {
-        logger->trace("reading MVLC DAQ mode register...");
         MVLCDialog_internal dlg(this);
+
+        logger->trace("reading MVLC firmware revision...");
+
+        u32 fwRev = 0u;
+        if (auto ec = dlg.readRegister(registers::firmware_revision, fwRev))
+        {
+            close_sockets();
+            return ec;
+        }
+
+        logger->trace("reading MVLC DAQ mode register...");
 
         u32 daqMode = 0;
         if (auto ec = read_daq_mode(dlg, daqMode))
@@ -976,9 +986,15 @@ std::error_code Impl::connect()
 
         if (daqMode && !disableTriggersOnConnect())
         {
-            logger->warn("MVLC is in use");
-            close_sockets();
-            return make_error_code(MVLCErrorCode::InUse);
+            if (fwRev > 0x0034u)
+            {
+                logger->warn("MVLC is in use (DAQ mode register == 1)");
+                close_sockets();
+                return make_error_code(MVLCErrorCode::InUse);
+            }
+
+            logger->trace("DAQ mode is enabled but detected firmware FW{:04x} <= FW0034: "
+                "leaving DAQ mode unchanged", fwRev);
         }
         else if (daqMode)
         {
