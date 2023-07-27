@@ -640,7 +640,8 @@ MVLC connection URIs:
         else if (parser["--debug"])
             logLevelName = "debug";
 
-        spdlog::set_level(spdlog::level::from_str(logLevelName));
+        if (!logLevelName.empty())
+            spdlog::set_level(spdlog::level::from_str(logLevelName));
     }
 
     trace_log_parser_info(parser, "mvlc-cli");
