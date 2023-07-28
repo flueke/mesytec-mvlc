@@ -637,7 +637,7 @@ std::error_code Impl::connect()
 #ifndef __WIN32
     // Linux only: after post_connect_cleanup() is done set the command pipes
     // read timeout to 0 which has the effect of only reading from the FTDI
-    // libray buffer.
+    // library buffer.
     if (auto ec = set_endpoint_timeout(m_handle, get_endpoint(Pipe::Command, EndpointDirection::In), 0))
     {
         closeHandle();
@@ -1166,7 +1166,7 @@ std::error_code Impl::abortPipe(Pipe pipe, EndpointDirection dir)
 
 std::string Impl::connectionInfo() const
 {
-    std::string result = "speed=";
+    std::string result = "mvlc_usb: speed=";
 
     auto devInfo = getDeviceInfo();
 

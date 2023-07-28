@@ -1503,13 +1503,13 @@ std::string Impl::connectionInfo() const
 
     if (getHost() != remoteIP)
     {
-        std::string result = "host=" + getHost();
+        std::string result = "mvlc_eth: host=" + getHost();
         if (!remoteIP.empty())
             result += ", address=" + remoteIP;
         return result;
     }
 
-    return "address=" + remoteIP;
+    return "mvlc_eth: address=" + remoteIP;
 }
 
 s32 calc_packet_loss(u16 lastPacketNumber, u16 packetNumber)
