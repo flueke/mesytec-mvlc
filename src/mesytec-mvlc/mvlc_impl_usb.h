@@ -100,10 +100,7 @@ MESYTEC_MVLC_EXPORT DeviceInfoList get_device_info_list(
     const ListOptions opts = ListOptions::MVLCDevices);
 
 MESYTEC_MVLC_EXPORT DeviceInfo get_device_info_by_serial(
-    const std::string &serial);
-
-MESYTEC_MVLC_EXPORT DeviceInfo get_device_info_by_serial(
-    unsigned serial);
+    const DeviceInfoList &infoList, const std::string &serial);
 
 enum class EndpointDirection: u8
 {

@@ -410,10 +410,8 @@ DeviceInfoList get_device_info_list(const ListOptions opts)
     return result;
 }
 
-DeviceInfo get_device_info_by_serial(const std::string &serial)
+DeviceInfo get_device_info_by_serial(const DeviceInfoList &infoList, const std::string &serial)
 {
-    auto infoList = get_device_info_list();
-
     auto it = std::find_if(infoList.begin(), infoList.end(),
                            [&serial] (const DeviceInfo &di) {
         return di.serial == serial;
@@ -493,7 +491,8 @@ std::error_code Impl::connect()
     // Open the USB device. Try multiple times because with USB2 FT_Create()
     // sometimes fails the first time.
     const int MaxOpenAttempts = 3;
-    DeviceInfo devInfo = {};
+
+    auto infoList = get_device_info_list();
 
     for (int attempt=0; attempt<MaxOpenAttempts; ++attempt)
     {
@@ -502,12 +501,11 @@ std::error_code Impl::connect()
             case ConnectMode::First:
                 {
                     st = FT_DEVICE_NOT_FOUND;
-                    auto infoList = get_device_info_list();
 
                     if (!infoList.empty())
                     {
-                        devInfo = infoList[0];
-                        st = FT_Create(reinterpret_cast<void *>(devInfo.index),
+                        m_deviceInfo = infoList[0];
+                        st = FT_Create(reinterpret_cast<void *>(m_deviceInfo.index),
                                        FT_OPEN_BY_INDEX, &m_handle);
                     }
                 }
@@ -516,14 +514,13 @@ std::error_code Impl::connect()
             case ConnectMode::ByIndex:
                 {
                     st = FT_DEVICE_NOT_FOUND;
-                    auto infoList = get_device_info_list();
 
                     for (auto &info: infoList)
                     {
                         if (info.index == static_cast<int>(m_connectMode.index))
                         {
-                            devInfo = info;
-                            st = FT_Create(reinterpret_cast<void *>(devInfo.index),
+                            m_deviceInfo = info;
+                            st = FT_Create(reinterpret_cast<void *>(m_deviceInfo.index),
                                            FT_OPEN_BY_INDEX, &m_handle);
                             break;
                         }
@@ -535,10 +532,9 @@ std::error_code Impl::connect()
                 {
                     st = FT_DEVICE_NOT_FOUND;
 
-                    if ((devInfo = get_device_info_by_serial(m_connectMode.serial)))
+                    if ((m_deviceInfo = get_device_info_by_serial(infoList, m_connectMode.serial)))
                     {
-
-                        st = FT_Create(reinterpret_cast<void *>(devInfo.index),
+                        st = FT_Create(reinterpret_cast<void *>(m_deviceInfo.index),
                                        FT_OPEN_BY_INDEX, &m_handle);
                     }
                 }
@@ -555,8 +551,6 @@ std::error_code Impl::connect()
 
     if (ec)
         return ec;
-
-    m_deviceInfo = devInfo;
 
     if (auto ec = check_chip_configuration(m_handle))
     {
@@ -1183,7 +1177,7 @@ std::string Impl::connectionInfo() const
     else
         result += "<unknown>";
 
-    const auto serialString = !devInfo.serial.empty() ? std::string("<unknown>") : devInfo.serial;
+    const auto serialString = devInfo.serial.empty() ? std::string("<unknown>") : devInfo.serial;
 
     result += ", serial='" + serialString + "'";
 
