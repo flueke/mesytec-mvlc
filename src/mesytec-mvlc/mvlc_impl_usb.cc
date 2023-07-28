@@ -1183,7 +1183,7 @@ std::string Impl::connectionInfo() const
     else
         result += "<unknown>";
 
-    const auto serialString = !devInfo.serial.empty() ? std::string("<unknown>") : devInfo.serial;
+    const auto serialString = devInfo.serial.empty() ? std::string("<unknown>") : devInfo.serial;
 
     result += ", serial='" + serialString + "'";
 
