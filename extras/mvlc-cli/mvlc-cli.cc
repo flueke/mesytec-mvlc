@@ -570,35 +570,6 @@ Core Switches:
     -h -a | --help -a
         Same as list-commands: print a list of available commands.
 
-MVLC low level commands:
-
-    version
-        Print MVLC hardware and firmware revisions.
-
-    status
-        Gather status and version information from MVLC.
-
-    read_register
-        Read an internal MVLC register.
-
-    write_register
-        Write an internal MVLC register.
-
-VME access and utility commands:
-
-    vme_read
-    vme_read_swapped
-    vme_write
-    vme_scan_bus
-
-Command stacks and lists:
-
-    stack_info
-
-Crate/readout configuration
-
-
-
 MVLC connection URIs:
 
     mvlc-cli supports the following URI schemes with --mvlc <uri> to connect to MVLCs:
