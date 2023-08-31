@@ -43,59 +43,6 @@ std::string str_tolower(std::string s)
     return s;
 }
 
-void trace_log_parser_info(const argh::parser &parser, const std::string context)
-{
-    if (auto params = parser.params(); !params.empty())
-    {
-        for (const auto &param: params)
-            spdlog::trace("argh-parse {} parameter: {}={}", context, param.first, param.second);
-    }
-
-    if (auto flags = parser.flags(); !flags.empty())
-        spdlog::trace("argh-parse {} flags: {}", context, fmt::join(flags, ", "));
-
-    if (auto pos_args = parser.pos_args(); !pos_args.empty())
-    {
-        spdlog::trace("argh-parse {} pos args: {}", context, fmt::join(pos_args, ", "));
-    }
-}
-
-static const std::vector<std::string> MvlcStandardParams =
-    {"--mvlc", "--mvlc-usb-index", "--mvlc-usb-serial", "--mvlc-eth"};
-
-MVLC make_mvlc_from_standard_params(const argh::parser &parser)
-{
-    trace_log_parser_info(parser, "make_mvlc_from_standard_params");
-    std::string arg;
-
-    if (parser("--mvlc") >> arg)
-        return make_mvlc(arg); // mvlc URI
-
-    if (parser["--mvlc-usb"])
-        return make_mvlc_usb();
-
-    unsigned usbIndex = 0;
-    if (parser("--mvlc-usb-index") >> usbIndex)
-        return make_mvlc_usb(usbIndex);
-
-    if (parser("--mvlc-usb-serial") >> arg)
-        return make_mvlc_usb(arg);
-
-    if (parser("--mvlc-eth") >> arg)
-        return make_mvlc_eth(arg);
-
-    return MVLC{};
-}
-
-MVLC make_mvlc_from_standard_params(const char **argv)
-{
-    argh::parser parser;
-    for (const auto &p: MvlcStandardParams)
-        parser.add_param(p);
-    parser.parse(argv);
-    return make_mvlc_from_standard_params(parser);
-}
-
 std::pair<MVLC, std::error_code> make_and_connect_default_mvlc(argh::parser &parser)
 {
     // try the standard params first
@@ -598,8 +545,7 @@ MVLC connection URIs:
     }
 
     argh::parser parser({"-h", "--help", "--log-level"});
-    for (const auto &p: MvlcStandardParams)
-        parser.add_param(p);
+    add_mvlc_standard_params(parser);
     parser.parse(argv);
 
     {

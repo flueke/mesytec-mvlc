@@ -22,6 +22,7 @@ add_library(mesytec-mvlc SHARED
     mvlc_listfile_gen.cc
     mvlc_listfile_util.cc
     mvlc_listfile_zip.cc
+    mvlc_mvp_lib.cc
     mvlc_readout.cc
     mvlc_readout_config.cc
     mvlc_readout_parser.cc
@@ -54,6 +55,7 @@ target_link_libraries(mesytec-mvlc
     PRIVATE lz4_static
     PRIVATE minizip
     PRIVATE yaml-cpp
+    PUBLIC argh
     PUBLIC spdlog::spdlog
     PUBLIC Threads::Threads
     )
@@ -105,7 +107,7 @@ configure_package_config_file(
     ${project_config}
     INSTALL_DESTINATION lib/cmake/mesytec-mvlc)
 
-set(INSTALL_TARGETS mesytec-mvlc spdlog)
+set(INSTALL_TARGETS mesytec-mvlc spdlog argh)
 export(TARGETS ${INSTALL_TARGETS} NAMESPACE mesytec-mvlc::
     FILE ${PROJECT_BINARY_DIR}/${targets_export_name}.cmake)
 

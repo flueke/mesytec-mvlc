@@ -28,6 +28,7 @@
 #ifndef __MESYTEC_MVLC_MVLC_FACTORY_H__
 #define __MESYTEC_MVLC_MVLC_FACTORY_H__
 
+#include <argh.h>
 #include "mesytec-mvlc/mesytec-mvlc_export.h"
 #include "mvlc.h"
 #include "mvlc_readout_config.h"
@@ -48,12 +49,12 @@ MvlcUrl MESYTEC_MVLC_EXPORT mvlc_parse_url(const char *url);
 inline MvlcUrl mvlc_parse_url(const std::string &url) { return mvlc_parse_url(url.c_str()); }
 
 
-// usb
+// USB
 MVLC MESYTEC_MVLC_EXPORT make_mvlc_usb();
 MVLC MESYTEC_MVLC_EXPORT make_mvlc_usb(unsigned index);
 MVLC MESYTEC_MVLC_EXPORT make_mvlc_usb(const std::string &serial);
 
-// eth
+// ETH
 MVLC MESYTEC_MVLC_EXPORT make_mvlc_eth(const std::string &host);
 
 // from crateconfig info
@@ -68,6 +69,24 @@ MVLC MESYTEC_MVLC_EXPORT make_mvlc(const CrateConfig &crateConfig);
 // hostname                 No scheme part -> interpreted as a hostname for ETH/UDP
 MVLC MESYTEC_MVLC_EXPORT make_mvlc(const char *url);
 inline MVLC make_mvlc(const std::string &url) { return make_mvlc(url.c_str()); }
+
+// Helpers for CLI programs. Uses the 'argh' parser library to parse the
+// following arguments: "--mvlc", "--mvlc-usb-index", "--mvlc-usb-serial", "--mvlc-eth".
+// As a last resort the MVLC_ADDRESS env variable is examined and parsed as an
+// MVLC URL.
+const std::vector<std::string> &get_mvlc_standard_params();
+void add_mvlc_standard_params(argh::parser &parser);
+
+// The parser must have been setup with add_mvlc_standard_params() before
+// calling the next function.
+MVLC make_mvlc_from_standard_params(const argh::parser &parser);
+
+// Creates an internal parser, sets it up using 'add_mvlc_standard_params' and
+// parses the given command line.
+MVLC make_mvlc_from_standard_params(const char **argv);
+
+// Util to log parser info via spdlog::trace()
+void trace_log_parser_info(const argh::parser &parser, const std::string context);
 
 }
 }

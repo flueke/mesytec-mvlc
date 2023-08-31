@@ -26,6 +26,7 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 #include "mvlc_factory.h"
+#include <spdlog/spdlog.h>
 #include "mvlc_impl_eth.h"
 #include "mvlc_impl_usb.h"
 
@@ -115,6 +116,71 @@ MVLC make_mvlc(const char *urlStr)
     }
 
     return MVLC{};
+}
+
+const std::vector<std::string> &get_mvlc_standard_params()
+{
+    static const std::vector<std::string> MvlcStandardParams =
+        {"--mvlc", "--mvlc-usb-index", "--mvlc-usb-serial", "--mvlc-eth"};
+
+    return MvlcStandardParams;
+}
+
+void add_mvlc_standard_params(argh::parser &parser)
+{
+    for (const auto &p: get_mvlc_standard_params())
+        parser.add_param(p);
+}
+
+MVLC make_mvlc_from_standard_params(const argh::parser &parser)
+{
+    std::string arg;
+
+    if (parser("--mvlc") >> arg)
+        return make_mvlc(arg); // mvlc URI
+
+    if (parser["--mvlc-usb"])
+        return make_mvlc_usb();
+
+    unsigned usbIndex = 0;
+    if (parser("--mvlc-usb-index") >> usbIndex)
+        return make_mvlc_usb(usbIndex);
+
+    if (parser("--mvlc-usb-serial") >> arg)
+        return make_mvlc_usb(arg);
+
+    if (parser("--mvlc-eth") >> arg)
+        return make_mvlc_eth(arg);
+
+    if (char *envAddr = std::getenv("MVLC_ADDRESS"))
+        return make_mvlc(envAddr);
+
+    return MVLC{};
+}
+
+MVLC make_mvlc_from_standard_params(const char **argv)
+{
+    argh::parser parser;
+    add_mvlc_standard_params(parser);
+    parser.parse(argv);
+    return make_mvlc_from_standard_params(parser);
+}
+
+void trace_log_parser_info(const argh::parser &parser, const std::string context)
+{
+    if (auto params = parser.params(); !params.empty())
+    {
+        for (const auto &param: params)
+            spdlog::trace("argh-parse {} parameter: {}={}", context, param.first, param.second);
+    }
+
+    if (auto flags = parser.flags(); !flags.empty())
+        spdlog::trace("argh-parse {} flags: {}", context, fmt::join(flags, ", "));
+
+    if (auto pos_args = parser.pos_args(); !pos_args.empty())
+    {
+        spdlog::trace("argh-parse {} pos args: {}", context, fmt::join(pos_args, ", "));
+    }
 }
 
 }
