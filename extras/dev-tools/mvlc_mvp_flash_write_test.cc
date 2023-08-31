@@ -1,7 +1,7 @@
 #include <algorithm>
 #include <chrono>
 #include <mesytec-mvlc/mesytec-mvlc.h>
-#include "mvlc_mvp_lib.h"
+#include <mesytec-mvlc/mvlc_mvp_lib.h>
 
 using namespace mesytec::mvlc;
 
