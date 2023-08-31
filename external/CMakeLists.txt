@@ -66,4 +66,6 @@ option(SPDLOG_INSTALL "Generate the install target" ON)
 add_subdirectory(spdlog)
 set_target_properties(spdlog PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
+# argh command line parser
 add_subdirectory(argh)
+install(FILES "${CMAKE_CURRENT_LIST_DIR}/argh/argh.h" DESTINATION include/mesytec-mvlc)
