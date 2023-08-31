@@ -74,19 +74,19 @@ inline MVLC make_mvlc(const std::string &url) { return make_mvlc(url.c_str()); }
 // following arguments: "--mvlc", "--mvlc-usb-index", "--mvlc-usb-serial", "--mvlc-eth".
 // As a last resort the MVLC_ADDRESS env variable is examined and parsed as an
 // MVLC URL.
-const std::vector<std::string> &get_mvlc_standard_params();
-void add_mvlc_standard_params(argh::parser &parser);
+const std::vector<std::string> &MESYTEC_MVLC_EXPORT get_mvlc_standard_params();
+void MESYTEC_MVLC_EXPORT add_mvlc_standard_params(argh::parser &parser);
 
 // The parser must have been setup with add_mvlc_standard_params() before
 // calling the next function.
-MVLC make_mvlc_from_standard_params(const argh::parser &parser);
+MVLC MESYTEC_MVLC_EXPORT make_mvlc_from_standard_params(const argh::parser &parser);
 
 // Creates an internal parser, sets it up using 'add_mvlc_standard_params' and
 // parses the given command line.
-MVLC make_mvlc_from_standard_params(const char **argv);
+MVLC MESYTEC_MVLC_EXPORT make_mvlc_from_standard_params(const char **argv);
 
 // Util to log parser info via spdlog::trace()
-void trace_log_parser_info(const argh::parser &parser, const std::string context);
+void MESYTEC_MVLC_EXPORT trace_log_parser_info(const argh::parser &parser, const std::string context);
 
 }
 }
