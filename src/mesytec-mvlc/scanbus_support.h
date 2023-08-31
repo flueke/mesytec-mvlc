@@ -33,6 +33,7 @@ struct HardwareIds
     static const u16 VMMR_8  = 0x5006;
     static const u16 VMMR_16 = 0x5006;
     static const u16 MDPP_32 = 0x5007;
+    static const u16 MVLC    = 0x5008;
     static const u16 MVHV_4  = 0x5009;
 };
 
@@ -75,6 +76,7 @@ inline std::string hardware_id_to_module_name(u16 hwid)
         case HardwareIds::MDPP_16: return "MDPP-16";
         case HardwareIds::VMMR_8:  return "VMMR-8/16";
         case HardwareIds::MDPP_32: return "MDPP-32";
+        case HardwareIds::MVLC:    return "MVLC";
         case HardwareIds::MVHV_4:  return "MVHV-4";
     }
     return {};
@@ -119,14 +121,13 @@ std::vector<u32> scan_vme_bus_for_candidates(
     MVLC &mvlc,
     const u16 scanBaseBegin = 0u,
     const u16 scanBaseEnd   = 0xffffu,
-    const u16 probeRegister = 0u,
+    const u16 probeRegister = ProbeRegister,
     const u8 probeAmod = vme_amods::A32,
     const VMEDataWidth probeDataWidth = VMEDataWidth::D16)
 {
     std::vector<u32> response;
     std::vector<u32> result;
 
-    // Note: 0xffff itself is never checked as that is taken by the MVLC itself.
     const u32 baseMax = scanBaseEnd;
     u32 base = scanBaseBegin;
     size_t nStacks = 0u;
@@ -139,9 +140,9 @@ std::vector<u32> scan_vme_bus_for_candidates(
         u32 baseStart = base;
 
         while (get_encoded_stack_size(sb) < MirrorTransactionMaxContentsWords / 2 - 2
-                && base < baseMax)
+                && base <= baseMax)
         {
-            u32 readAddress = (base << 16) | (ProbeRegister & 0xffffu);
+            u32 readAddress = (base << 16) | (probeRegister & 0xffffu);
             sb.addVMERead(readAddress, probeAmod, probeDataWidth);
             ++base;
         }
@@ -189,12 +190,12 @@ std::vector<u32> scan_vme_bus_for_candidates(
 
         response.clear();
 
-    } while (base < baseMax);
+    } while (base <= baseMax);
 
     auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>((std::chrono::steady_clock::now() - tStart));
 
     spdlog::info("Scanned {} addresses in {} ms using {} stack transactions",
-        scanBaseEnd - scanBaseBegin, elapsed.count(), nStacks);
+        scanBaseEnd - scanBaseBegin + 1, elapsed.count(), nStacks);
 
     return result;
 }
