@@ -74,7 +74,7 @@ inline MVLC make_mvlc(const std::string &url) { return make_mvlc(url.c_str()); }
 // following arguments: "--mvlc", "--mvlc-usb-index", "--mvlc-usb-serial", "--mvlc-eth".
 // As a last resort the MVLC_ADDRESS env variable is examined and parsed as an
 // MVLC URL.
-const std::vector<std::string> &MESYTEC_MVLC_EXPORT get_mvlc_standard_params();
+MESYTEC_MVLC_EXPORT const std::vector<std::string> &get_mvlc_standard_params();
 void MESYTEC_MVLC_EXPORT add_mvlc_standard_params(argh::parser &parser);
 
 // The parser must have been setup with add_mvlc_standard_params() before
