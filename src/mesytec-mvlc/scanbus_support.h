@@ -1,6 +1,9 @@
 #ifndef SRC_MESYTEC_MVLC_SCANBUS_SUPPORT_H
 #define SRC_MESYTEC_MVLC_SCANBUS_SUPPORT_H
 
+#include <string>
+#include <vector>
+#include <mesytec-mvlc/mesytec-mvlc.h>
 #include "util/int_types.h"
 
 // Placing the VME module constants in the 'scanbus' namespace for now. At some
