@@ -22,7 +22,6 @@ add_library(mesytec-mvlc SHARED
     mvlc_listfile_gen.cc
     mvlc_listfile_util.cc
     mvlc_listfile_zip.cc
-    mvlc_mvp_lib.cc
     mvlc_readout.cc
     mvlc_readout_config.cc
     mvlc_readout_parser.cc
