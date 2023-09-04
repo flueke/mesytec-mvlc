@@ -407,6 +407,8 @@ DEF_EXEC_FUNC(scanbus_command)
     auto candidates = scan_vme_bus_for_candidates(mvlc, scanBegin, scanEnd,
         probeRegister, probeAmod, probeDataWidth);
 
+    size_t moduleCount = 0;
+
     if (!candidates.empty())
     {
         if (candidates.size() == 1)
@@ -454,7 +456,11 @@ DEF_EXEC_FUNC(scanbus_command)
                 msg += fmt::format(", mdpp_fw_type={}", moduleInfo.mdppFirmwareTypeName());
 
             std::cout << fmt::format("{}\n", msg);
+            ++moduleCount;
         }
+
+        if (moduleCount)
+            std::cout << fmt::format("Scan found {} modules in total.\n", moduleCount);
     }
     else
         std::cout << fmt::format("scanbus did not find any mesytec VME modules\n");
