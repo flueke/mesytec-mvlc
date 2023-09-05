@@ -716,6 +716,13 @@ std::vector<StackCommand> StackCommandBuilder::getCommands(const std::string &gr
     return getGroup(groupName).commands;
 }
 
+size_t StackCommandBuilder::commandCount() const
+{
+    size_t count = std::accumulate(std::begin(m_groups), std::end(m_groups), static_cast<size_t>(0u),
+        [] (size_t accu, const Group &g) { return accu + g.size(); });
+    return count;
+}
+
 const StackCommandBuilder::Group &StackCommandBuilder::getGroup(size_t groupIndex) const
 {
     return m_groups[groupIndex];

@@ -182,6 +182,7 @@ class MESYTEC_MVLC_EXPORT StackCommandBuilder
             bool operator!=(const Group &o) const { return !(*this == o); }
 
             bool empty() const { return commands.empty(); }
+            size_t size() const { return commands.size(); }
         };
 
         StackCommandBuilder() {}
@@ -281,8 +282,10 @@ class MESYTEC_MVLC_EXPORT StackCommandBuilder
 
         const StackCommand operator[](size_t i) const
         {
-            return getCommands()[i];
+            return getCommands()[i]; // expensive!
         }
+
+        size_t commandCount() const;
 
     private:
         std::string m_name;
