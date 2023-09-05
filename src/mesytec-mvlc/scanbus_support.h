@@ -120,7 +120,7 @@ inline bool is_mdpp(u16 hwId) { return is_mdpp16(hwId) || is_mdpp32(hwId); }
 // vme address.
 // Returns a list of candidate addresses (addresses where the read was
 // successful or resulted in BERR).
-std::vector<u32> scan_vme_bus_for_candidates(
+inline std::vector<u32> scan_vme_bus_for_candidates(
     MVLC &mvlc,
     const u16 scanBaseBegin = 0u,
     const u16 scanBaseEnd   = 0xffffu,
