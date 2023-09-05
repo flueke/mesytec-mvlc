@@ -4,44 +4,8 @@
 #include <argh.h>
 #include <string>
 #include <mesytec-mvlc/mesytec-mvlc.h>
-#include <mesytec-mvlc/scanbus_support.h>
 
 using namespace mesytec::mvlc;
-
-// https://stackoverflow.com/a/24900770
-inline std::string unindent(const char* p)
-{
-    std::string result;
-    if (*p == '\n') ++p;
-    const char* p_leading = p;
-    while (std::isspace(*p) && *p != '\n')
-        ++p;
-    size_t leading_len = p - p_leading;
-    while (*p)
-    {
-        result += *p;
-        if (*p++ == '\n')
-        {
-            for (size_t i = 0; i < leading_len; ++i)
-                if (p[i] != p_leading[i])
-                    goto dont_skip_leading;
-            p += leading_len;
-        }
-      dont_skip_leading: ;
-    }
-    return result;
-}
-
-std::string str_tolower(std::string s)
-{
-    std::transform(s.begin(), s.end(), s.begin(),
-                // static_cast<int(*)(int)>(std::tolower)         // wrong
-                // [](int c){ return std::tolower(c); }           // wrong
-                // [](char c){ return std::tolower(c); }          // wrong
-                   [](unsigned char c){ return std::tolower(c); } // correct
-                  );
-    return s;
-}
 
 std::pair<MVLC, std::error_code> make_and_connect_default_mvlc(argh::parser &parser)
 {
