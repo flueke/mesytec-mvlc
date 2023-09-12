@@ -4,6 +4,7 @@
 #include <string>
 #include <vector>
 #include <mesytec-mvlc/mesytec-mvlc.h>
+#include "mesytec-mvlc/mesytec-mvlc_export.h"
 #include "util/int_types.h"
 
 // Placing the VME module constants in the 'scanbus' namespace for now. At some
@@ -120,7 +121,7 @@ inline bool is_mdpp(u16 hwId) { return is_mdpp16(hwId) || is_mdpp32(hwId); }
 // vme address.
 // Returns a list of candidate addresses (addresses where the read was
 // successful or resulted in BERR).
-std::vector<u32> scan_vme_bus_for_candidates(
+MESYTEC_MVLC_EXPORT std::vector<u32> scan_vme_bus_for_candidates(
     MVLC &mvlc,
     const u16 scanBaseBegin = 0u,
     const u16 scanBaseEnd   = 0xffffu,
@@ -148,7 +149,7 @@ struct VMEModuleInfo
     }
 };
 
-std::error_code read_module_info(MVLC &mvlc, u32 vmeAddress, VMEModuleInfo &dest);
+MESYTEC_MVLC_EXPORT std::error_code read_module_info(MVLC &mvlc, u32 vmeAddress, VMEModuleInfo &dest);
 
 }
 
