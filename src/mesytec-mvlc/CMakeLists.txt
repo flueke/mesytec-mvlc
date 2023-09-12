@@ -35,6 +35,7 @@ add_library(mesytec-mvlc SHARED
     mvlc_util.cc
     readout_buffer.cc
     readout_buffer_queues.cc
+    scanbus_support.cc
     util/data_filter.cc
     util/filesystem.cc
     util/logging.cc

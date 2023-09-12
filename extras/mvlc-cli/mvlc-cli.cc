@@ -386,31 +386,10 @@ DEF_EXEC_FUNC(scanbus_command)
         {
             VMEModuleInfo moduleInfo{};
 
-            if (auto ec = mvlc.vmeRead(addr + FirmwareRegister, moduleInfo.fwId, vme_amods::A32, VMEDataWidth::D16))
+            if (auto ec = read_module_info(mvlc, addr, moduleInfo))
             {
                 std::cout << fmt::format("Error checking address {#:010x}: {}\n", addr, ec.message());
                 continue;
-            }
-
-            if (auto ec = mvlc.vmeRead(addr + HardwareIdRegister, moduleInfo.hwId, vme_amods::A32, VMEDataWidth::D16))
-            {
-                std::cout << fmt::format("Error checking address {#:010x}: {}\n", addr, ec.message());
-                continue;
-            }
-
-            if (moduleInfo.hwId == 0 && moduleInfo.fwId == 0)
-            {
-                if (auto ec = mvlc.vmeRead(addr + MVHV4FirmwareRegister, moduleInfo.fwId, vme_amods::A32, VMEDataWidth::D16))
-                {
-                    std::cout << fmt::format("Error checking address {#:010x}: {}\n", addr, ec.message());
-                    continue;
-                }
-
-                if (auto ec = mvlc.vmeRead(addr + MVHV4HardwareIdRegister, moduleInfo.hwId, vme_amods::A32, VMEDataWidth::D16))
-                {
-                    std::cout << fmt::format("Error checking address {#:010x}: {}\n", addr, ec.message());
-                    continue;
-                }
             }
 
             auto msg = fmt::format("Found module at {:#010x}: hwId={:#06x}, fwId={:#06x}, type={}",
