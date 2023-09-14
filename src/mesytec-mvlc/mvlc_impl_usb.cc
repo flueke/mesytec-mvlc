@@ -68,7 +68,7 @@ class FTErrorCategory: public std::error_category
             case FT_OK:                                 return "FT_OK";
             case FT_INVALID_HANDLE:                     return "FT_INVALID_HANDLE";
             case FT_DEVICE_NOT_FOUND:                   return "FT_DEVICE_NOT_FOUND";
-            case FT_DEVICE_NOT_OPENED:                  return "FT_DEVICE_NOT_OPENED";
+            case FT_DEVICE_NOT_OPENED:                  return "FT_DEVICE_NOT_OPENED (is it open in another application?)";
             case FT_IO_ERROR:                           return "FT_IO_ERROR";
             case FT_INSUFFICIENT_RESOURCES:             return "FT_INSUFFICIENT_RESOURCES";
             case FT_INVALID_PARAMETER: /* 6 */          return "FT_INVALID_PARAMETER";
