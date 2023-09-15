@@ -121,13 +121,19 @@ inline bool is_mdpp(u16 hwId) { return is_mdpp16(hwId) || is_mdpp32(hwId); }
 // vme address.
 // Returns a list of candidate addresses (addresses where the read was
 // successful or resulted in BERR).
+// Note: by default the stack sized used when scanning is limited to the size
+// reserved for the immediate exec stack. This can be set to
+// stacks::StackMemoryWords to make use of all stack memory which should speed
+// up the scan considerably.
 MESYTEC_MVLC_EXPORT std::vector<u32> scan_vme_bus_for_candidates(
     MVLC &mvlc,
     const u16 scanBaseBegin = 0u,
     const u16 scanBaseEnd   = 0xffffu,
     const u16 probeRegister = ProbeRegister,
     const u8 probeAmod = vme_amods::A32,
-    const VMEDataWidth probeDataWidth = VMEDataWidth::D16);
+    const VMEDataWidth probeDataWidth = VMEDataWidth::D16,
+    const unsigned maxStackSize = stacks::ImmediateStackReservedWords);
+    //const unsigned maxStackSize = stacks::StackMemoryWords);
 
 struct VMEModuleInfo
 {
