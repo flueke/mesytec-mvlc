@@ -388,7 +388,7 @@ DEF_EXEC_FUNC(scanbus_command)
 
             if (auto ec = read_module_info(mvlc, addr, moduleInfo))
             {
-                std::cout << fmt::format("Error checking address {#:010x}: {}\n", addr, ec.message());
+                std::cout << fmt::format("Error checking address {:#010x}: {}\n", addr, ec.message());
                 continue;
             }
 
