@@ -26,13 +26,10 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 #include "mvlc_factory.h"
-#include <spdlog/spdlog.h>
 #include "mvlc_impl_eth.h"
 #include "mvlc_impl_usb.h"
 
-namespace mesytec
-{
-namespace mvlc
+namespace mesytec::mvlc
 {
 
 MVLC make_mvlc_usb()
@@ -120,6 +117,7 @@ MVLC make_mvlc(const char *urlStr)
 
 const std::vector<std::string> &get_mvlc_standard_params()
 {
+    // Note: --mvlc-usb is not present here as it does not take an argument.
     static const std::vector<std::string> MvlcStandardParams =
         {"--mvlc", "--mvlc-usb-index", "--mvlc-usb-serial", "--mvlc-eth"};
 
@@ -166,22 +164,30 @@ MVLC make_mvlc_from_standard_params(const char **argv)
     return make_mvlc_from_standard_params(parser);
 }
 
-void trace_log_parser_info(const argh::parser &parser, const std::string context)
+void log_parser_info(
+    const argh::parser &parser,
+    const std::string &context,
+    const std::shared_ptr<spdlog::logger> &logger,
+    const spdlog::level::level_enum &level)
 {
     if (auto params = parser.params(); !params.empty())
     {
         for (const auto &param: params)
-            spdlog::trace("argh-parse {} parameter: {}={}", context, param.first, param.second);
+            logger->log(level, "argh-parse {} parameter: {}={}", context, param.first, param.second);
     }
 
     if (auto flags = parser.flags(); !flags.empty())
-        spdlog::trace("argh-parse {} flags: {}", context, fmt::join(flags, ", "));
+        logger->log(level, "argh-parse {} flags: {}", context, fmt::join(flags, ", "));
 
     if (auto pos_args = parser.pos_args(); !pos_args.empty())
-    {
-        spdlog::trace("argh-parse {} pos args: {}", context, fmt::join(pos_args, ", "));
-    }
+        logger->log(level, "argh-parse {} pos args: {}", context, fmt::join(pos_args, ", "));
 }
 
+void trace_log_parser_info(
+    const argh::parser &parser,
+    const std::string context)
+{
+    log_parser_info(parser, context, spdlog::default_logger(), spdlog::level::trace);
 }
+
 }

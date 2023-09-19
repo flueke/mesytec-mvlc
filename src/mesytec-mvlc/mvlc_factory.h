@@ -29,13 +29,12 @@
 #define __MESYTEC_MVLC_MVLC_FACTORY_H__
 
 #include <argh.h>
+#include <spdlog/spdlog.h>
 #include "mesytec-mvlc/mesytec-mvlc_export.h"
 #include "mvlc.h"
 #include "mvlc_readout_config.h"
 
-namespace mesytec
-{
-namespace mvlc
+namespace mesytec::mvlc
 {
 
 struct MvlcUrl
@@ -71,7 +70,8 @@ MVLC MESYTEC_MVLC_EXPORT make_mvlc(const char *url);
 inline MVLC make_mvlc(const std::string &url) { return make_mvlc(url.c_str()); }
 
 // Helpers for CLI programs. Uses the 'argh' parser library to parse the
-// following arguments: "--mvlc", "--mvlc-usb-index", "--mvlc-usb-serial", "--mvlc-eth".
+// following arguments: "--mvlc", "--mvlc-usb", "--mvlc-usb-index",
+// "--mvlc-usb-serial" and "--mvlc-eth".
 // As a last resort the MVLC_ADDRESS env variable is examined and parsed as an
 // MVLC URL.
 MESYTEC_MVLC_EXPORT const std::vector<std::string> &get_mvlc_standard_params();
@@ -81,14 +81,21 @@ void MESYTEC_MVLC_EXPORT add_mvlc_standard_params(argh::parser &parser);
 // calling the next function.
 MVLC MESYTEC_MVLC_EXPORT make_mvlc_from_standard_params(const argh::parser &parser);
 
-// Creates an internal parser, sets it up using 'add_mvlc_standard_params' and
-// parses the given command line.
+// Creates an internal parser, sets it up using 'add_mvlc_standard_params',
+// parses the given command line and creates and MVLC from the result.
 MVLC MESYTEC_MVLC_EXPORT make_mvlc_from_standard_params(const char **argv);
 
-// Util to log parser info via spdlog::trace()
-void MESYTEC_MVLC_EXPORT trace_log_parser_info(const argh::parser &parser, const std::string context);
+// Util to log argh parser info via spdlog
+void MESYTEC_MVLC_EXPORT log_parser_info(
+    const argh::parser &parser,
+    const std::string &context, // context string added to log messages
+    const std::shared_ptr<spdlog::logger> &logger,
+    const spdlog::level::level_enum &level = spdlog::level::trace);
 
-}
+void MESYTEC_MVLC_EXPORT trace_log_parser_info(
+    const argh::parser &parser,
+    const std::string context);
+
 }
 
 #endif /* __MESYTEC_MVLC_MVLC_FACTORY_H__ */
