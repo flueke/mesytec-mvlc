@@ -104,9 +104,9 @@ SuperCommandBuilder &SuperCommandBuilder::addCommands(const std::vector<SuperCom
 
 // Below are shortcut methods which internally create a stack using
 // outputPipe=CommandPipe(=0) and offset=0
-SuperCommandBuilder &SuperCommandBuilder::addVMERead(u32 address, u8 amod, VMEDataWidth dataWidth, bool lateRead)
+SuperCommandBuilder &SuperCommandBuilder::addVMERead(u32 address, u8 amod, VMEDataWidth dataWidth, bool lateRead, bool fifo)
 {
-    auto stack = StackCommandBuilder().addVMERead(address, amod, dataWidth, lateRead);
+    auto stack = StackCommandBuilder().addVMERead(address, amod, dataWidth, lateRead, fifo);
     return addCommands(make_stack_upload_commands(CommandPipe, 0u, stack));
 }
 
@@ -637,10 +637,10 @@ bool StackCommandBuilder::operator==(const StackCommandBuilder &o) const
         && m_groups == o.m_groups;
 }
 
-StackCommandBuilder &StackCommandBuilder::addVMERead(u32 address, u8 amod, VMEDataWidth dataWidth, bool lateRead)
+StackCommandBuilder &StackCommandBuilder::addVMERead(u32 address, u8 amod, VMEDataWidth dataWidth, bool lateRead, bool fifo)
 {
     StackCommand cmd = {};
-    cmd.type = CommandType::VMERead;
+    cmd.type = fifo ? CommandType::VMERead : CommandType::VMEReadMem;
     cmd.address = address;
     cmd.amod = amod;
     cmd.dataWidth = dataWidth;

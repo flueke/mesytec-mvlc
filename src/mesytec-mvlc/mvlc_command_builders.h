@@ -198,9 +198,15 @@ class MESYTEC_MVLC_EXPORT StackCommandBuilder
         // Note: these methods each add a single command to the currently open
         // group. If there exists no open group a new group with an empty name
         // will be created.
+
+        // Note: this is for single value VME reads but still has the FIFO flag
+        // like the block reads below. The reason is that the MVLC stack
+        // accumulator can turn the VME read into a block transfer, which means
+        // there must be a way to control if the read address should be
+        // increment or not.
         StackCommandBuilder &addVMERead(
             u32 address, u8 amod, VMEDataWidth dataWidth,
-            bool lateRead = false);
+            bool lateRead = false, bool fifo = true);
 
         StackCommandBuilder &addVMEBlockRead(u32 address, u8 amod, u16 maxTransfers, bool fifo = true); // BLT, MBLT
         StackCommandBuilder &addVMEBlockRead(u32 address, const Blk2eSSTRate &rate, u16 maxTransfers, bool fifo = true); // 2eSST
