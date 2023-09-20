@@ -106,7 +106,6 @@ namespace stack_commands
 
         VMEReadSwapped      = 0x13, // For MBLT and 2eSST block reads: swaps word order. Use this instead
                                     // of VMERead if your module data arrives in the wrong ordder.
-        VMEMBLTSwapped      = 0x13, // legacy name for VMEReadSwapped
 
         VMEWrite            = 0x23, // VME write requests.
         WriteMarker         = 0xC2, // Writes a 32-bit marker value into the output data stream.

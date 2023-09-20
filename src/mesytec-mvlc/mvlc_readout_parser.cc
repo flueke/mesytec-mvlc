@@ -109,7 +109,7 @@ namespace
                         break;
                 }
             }
-            else if (cmd.type == StackCT::VMERead || cmd.type == StackCT::VMEMBLTSwapped)
+            else if (cmd.type == StackCT::VMERead || cmd.type == StackCT::VMEReadSwapped)
             {
                 // Handles vme block reads and reads with active accu, making
                 // the structure have a dynamic size.

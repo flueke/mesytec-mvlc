@@ -41,7 +41,7 @@ bool is_stack_command(u8 v)
             || v == static_cast<u8>(StackCT::StackEnd)
             || v == static_cast<u8>(StackCT::VMEWrite)
             || v == static_cast<u8>(StackCT::VMERead)
-            || v == static_cast<u8>(StackCT::VMEMBLTSwapped)
+            || v == static_cast<u8>(StackCT::VMEReadSwapped)
             || v == static_cast<u8>(StackCT::WriteMarker)
             || v == static_cast<u8>(StackCT::WriteSpecial)
             || v == static_cast<u8>(StackCT::SetAddressIncMode)
@@ -262,9 +262,9 @@ std::string to_string(const StackCommand &cmd)
                 "vme_block_read {:#04x} {} {:#010x}",
                 cmd.amod, cmd.transfers, cmd.address);
 
-        case CT::VMEMBLTSwapped:
+        case CT::VMEReadSwapped:
             return fmt::format(
-                "vme_mblt_swapped {:#04x} {} {:#010x}",
+                "vme_read_swapped {:#04x} {} {:#010x}",
                 cmd.amod, cmd.transfers, cmd.address);
 
         case CT::VMEWrite:
@@ -379,9 +379,10 @@ StackCommand stack_command_from_string(const std::string &str)
         iss >> arg; result.transfers = std::stoul(arg, nullptr, 0);
         iss >> arg; result.address = std::stoul(arg, nullptr, 0);
     }
-    else if (name == "vme_mblt_swapped")
+    // Note: vme_mblt_swapped is the legacy name for vme_read_swapped
+    else if (name == "vme_read_swapped" || name == "vme_mblt_swapped")
     {
-        result.type = CT::VMEMBLTSwapped;
+        result.type = CT::VMEReadSwapped;
         iss >> arg; result.amod = std::stoul(arg, nullptr, 0);
         iss >> arg; result.transfers = std::stoul(arg, nullptr, 0);
         iss >> arg; result.address = std::stoul(arg, nullptr, 0);
@@ -543,7 +544,7 @@ StackCommandBuilder &StackCommandBuilder::addVMEBlockRead(u32 address, const Blk
 StackCommandBuilder &StackCommandBuilder::addVMEBlockReadSwapped(u32 address, u16 maxTransfers)
 {
     StackCommand cmd = {};
-    cmd.type = CommandType::VMEMBLTSwapped;
+    cmd.type = CommandType::VMEReadSwapped;
     cmd.address = address;
     cmd.amod = vme_amods::MBLT64;
     cmd.transfers = maxTransfers;
@@ -554,7 +555,7 @@ StackCommandBuilder &StackCommandBuilder::addVMEBlockReadSwapped(u32 address, u1
 StackCommandBuilder &StackCommandBuilder::addVMEBlockReadSwapped(u32 address, const Blk2eSSTRate &rate, u16 maxTransfers)
 {
     StackCommand cmd = {};
-    cmd.type  = CommandType::VMEMBLTSwapped;
+    cmd.type  = CommandType::VMEReadSwapped;
     cmd.address = address;
     cmd.amod = vme_amods::Blk2eSST64;
     cmd.rate = rate;
@@ -767,7 +768,7 @@ bool MESYTEC_MVLC_EXPORT produces_output(const StackCommand &cmd)
     switch (cmd.type)
     {
         case StackCommand::CommandType::VMERead:
-        case StackCommand::CommandType::VMEMBLTSwapped:
+        case StackCommand::CommandType::VMEReadSwapped:
         case StackCommand::CommandType::WriteMarker:
         case StackCommand::CommandType::WriteSpecial:
             return true;
@@ -846,7 +847,7 @@ size_t get_encoded_size(const StackCommand::CommandType &type)
             return 1;
 
         case StackCT::VMERead:
-        case StackCT::VMEMBLTSwapped:
+        case StackCT::VMEReadSwapped:
         case StackCT::MaskShiftAccu:
         case StackCT::SetAccu:
         case StackCT::ReadToAccu:
@@ -1026,7 +1027,7 @@ std::vector<u32> make_stack_buffer(const std::vector<StackCommand> &stack)
         switch (cmd.type)
         {
             case CommandType::VMERead:
-            case CommandType::VMEMBLTSwapped:
+            case CommandType::VMEReadSwapped:
                 if (!vme_amods::is_block_mode(cmd.amod))
                 {
                     cmdWord |= cmd.amod << stack_commands::CmdArg0Shift;
@@ -1195,7 +1196,7 @@ std::vector<StackCommand> stack_commands_from_buffer(const std::vector<u32> &buf
                 continue;
 
             case StackCT::VMERead:
-            case StackCT::VMEMBLTSwapped:
+            case StackCT::VMEReadSwapped:
             case StackCT::ReadToAccu:
                 cmd.amod = arg0 & vme_amods::VmeAmodMask;
 
