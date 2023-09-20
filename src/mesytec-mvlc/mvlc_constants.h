@@ -102,17 +102,28 @@ namespace stack_commands
     {
         StackStart          = 0xF3, // First word in a command stack.
         StackEnd            = 0xF4, // Last word in a command stack.
+
         VMERead             = 0x12, // VME read requests including block reads.
+                                    // Always FIFO mode reads (no address increment) for block transfers since FW0036.
+                                    // Sensitive to the (stack scoped) SetAddressIncMode in earlier firmware versions.
 
         VMEReadSwapped      = 0x13, // For MBLT and 2eSST block reads: swaps word order. Use this instead
-                                    // of VMERead if your module data arrives in the wrong ordder.
+                                    // of VMERead if your module data arrives in the wrong order.
+                                    // Always FIFO mode since FW0036 like VMERead above.
+
+        VMEReadMem          = 0x32, // Same as VMERead but for reads from memory where the read address needs
+                                    // to be incremented. New in FW0036.
+        VMEReadMemSwapped   = 0x33, // Word swapped version of VMEReadMem. New in FW0036.
 
         VMEWrite            = 0x23, // VME write requests.
         WriteMarker         = 0xC2, // Writes a 32-bit marker value into the output data stream.
         WriteSpecial        = 0xC1, // Write a special value into the output data stream.
                                     // Values: 0=timestamp, 1=accumulator
 
-        SetAddressIncMode   = 0xC3, // Address increment for block reads: 0=FIFO read, 1=memory read
+        SetAddressIncMode   = 0xC3, // Address increment for block reads: 0=FIFO read, 1=memory read.
+                                    // Reset to 'FIFO' at the start of a stack execution.
+                                    // Obsolete since FW0036. Functionality replaced by VMEReadMem and VMEReadMemSwapped.
+
         Wait                = 0xC4, // Delay in units of MVLC clocks. The number of clocks to delay is
                                     // specified as a 24-bit number.
 

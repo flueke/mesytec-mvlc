@@ -507,11 +507,11 @@ class CmdApi
         std::error_code vmeRead(u32 address, u32 &value, u8 amod, VMEDataWidth dataWidth);
         std::error_code vmeWrite(u32 address, u32 value, u8 amod, VMEDataWidth dataWidth);
 
-        std::error_code vmeBlockRead(u32 address, u8 amod, u16 maxTransfers, std::vector<u32> &dest);
-        std::error_code vmeBlockRead(u32 address, const Blk2eSSTRate &rate, u16 maxTransfers, std::vector<u32> &dest);
+        std::error_code vmeBlockRead(u32 address, u8 amod, u16 maxTransfers, std::vector<u32> &dest, bool fifo = true);
+        std::error_code vmeBlockRead(u32 address, const Blk2eSSTRate &rate, u16 maxTransfers, std::vector<u32> &dest, bool fifo = true);
 
-        std::error_code vmeBlockReadSwapped(u32 address, u16 maxTransfers, std::vector<u32> &dest);
-        std::error_code vmeBlockReadSwapped(u32 address, const Blk2eSSTRate &rate, u16 maxTransfers, std::vector<u32> &dest);
+        std::error_code vmeBlockReadSwapped(u32 address, u16 maxTransfers, std::vector<u32> &dest, bool fifo = true);
+        std::error_code vmeBlockReadSwapped(u32 address, const Blk2eSSTRate &rate, u16 maxTransfers, std::vector<u32> &dest, bool fifo = true);
 
         std::error_code uploadStack(u8 stackOutputPipe, u16 stackMemoryOffset,
                                     const std::vector<StackCommand> &commands);
@@ -895,7 +895,7 @@ std::error_code CmdApi::vmeWrite(
 }
 
 std::error_code CmdApi::vmeBlockRead(
-    u32 address, u8 amod, u16 maxTransfers, std::vector<u32> &dest)
+    u32 address, u8 amod, u16 maxTransfers, std::vector<u32> &dest, bool fifo)
 {
     if (!vme_amods::is_block_mode(amod))
         return make_error_code(MVLCErrorCode::NonBlockAddressMode);
@@ -904,7 +904,7 @@ std::error_code CmdApi::vmeBlockRead(
 
     StackCommandBuilder stackBuilder;
     stackBuilder.addWriteMarker(stackRef);
-    stackBuilder.addVMEBlockRead(address, amod, maxTransfers);
+    stackBuilder.addVMEBlockRead(address, amod, maxTransfers, fifo);
 
     if (auto ec = stackTransaction(stackRef, stackBuilder, dest))
         return ec;
@@ -926,13 +926,13 @@ std::error_code CmdApi::vmeBlockRead(
 }
 
 std::error_code CmdApi::vmeBlockRead(
-    u32 address, const Blk2eSSTRate &rate, u16 maxTransfers, std::vector<u32> &dest)
+    u32 address, const Blk2eSSTRate &rate, u16 maxTransfers, std::vector<u32> &dest, bool fifo)
 {
     u32 stackRef = readerContext_.nextStackReference++;
 
     StackCommandBuilder stackBuilder;
     stackBuilder.addWriteMarker(stackRef);
-    stackBuilder.addVMEBlockRead(address, rate, maxTransfers);
+    stackBuilder.addVMEBlockRead(address, rate, maxTransfers, fifo);
 
     if (auto ec = stackTransaction(stackRef, stackBuilder, dest))
         return ec;
@@ -954,13 +954,13 @@ std::error_code CmdApi::vmeBlockRead(
 }
 
 std::error_code CmdApi::vmeBlockReadSwapped(
-    u32 address, u16 maxTransfers, std::vector<u32> &dest)
+    u32 address, u16 maxTransfers, std::vector<u32> &dest, bool fifo)
 {
     u32 stackRef = readerContext_.nextStackReference++;
 
     StackCommandBuilder stackBuilder;
     stackBuilder.addWriteMarker(stackRef);
-    stackBuilder.addVMEBlockReadSwapped(address, maxTransfers);
+    stackBuilder.addVMEBlockReadSwapped(address, maxTransfers, fifo);
 
     if (auto ec = stackTransaction(stackRef, stackBuilder, dest))
         return ec;
@@ -982,13 +982,13 @@ std::error_code CmdApi::vmeBlockReadSwapped(
 }
 
 std::error_code CmdApi::vmeBlockReadSwapped(
-    u32 address, const Blk2eSSTRate &rate, u16 maxTransfers, std::vector<u32> &dest)
+    u32 address, const Blk2eSSTRate &rate, u16 maxTransfers, std::vector<u32> &dest, bool fifo)
 {
     u32 stackRef = readerContext_.nextStackReference++;
 
     StackCommandBuilder stackBuilder;
     stackBuilder.addWriteMarker(stackRef);
-    stackBuilder.addVMEBlockReadSwapped(address, rate, maxTransfers);
+    stackBuilder.addVMEBlockReadSwapped(address, rate, maxTransfers, fifo);
 
     if (auto ec = stackTransaction(stackRef, stackBuilder, dest))
         return ec;
@@ -1234,28 +1234,28 @@ std::error_code MVLC::vmeWrite(u32 address, u32 value, u8 amod, VMEDataWidth dat
 }
 
 
-std::error_code MVLC::vmeBlockRead(u32 address, u8 amod, u16 maxTransfers, std::vector<u32> &dest)
+std::error_code MVLC::vmeBlockRead(u32 address, u8 amod, u16 maxTransfers, std::vector<u32> &dest, bool fifo)
 {
     auto guard = d->locks_.lockCmd();
-    return d->resultCheck(d->cmdApi_.vmeBlockRead(address, amod, maxTransfers, dest));
+    return d->resultCheck(d->cmdApi_.vmeBlockRead(address, amod, maxTransfers, dest, fifo));
 }
 
-std::error_code MVLC::vmeBlockRead(u32 address, const Blk2eSSTRate &rate, u16 maxTransfers, std::vector<u32> &dest)
+std::error_code MVLC::vmeBlockRead(u32 address, const Blk2eSSTRate &rate, u16 maxTransfers, std::vector<u32> &dest, bool fifo)
 {
     auto guard = d->locks_.lockCmd();
-    return d->resultCheck(d->cmdApi_.vmeBlockRead(address, rate, maxTransfers, dest));
+    return d->resultCheck(d->cmdApi_.vmeBlockRead(address, rate, maxTransfers, dest, fifo));
 }
 
-std::error_code MVLC::vmeBlockReadSwapped(u32 address, u16 maxTransfers, std::vector<u32> &dest)
+std::error_code MVLC::vmeBlockReadSwapped(u32 address, u16 maxTransfers, std::vector<u32> &dest, bool fifo)
 {
     auto guard = d->locks_.lockCmd();
-    return d->resultCheck(d->cmdApi_.vmeBlockReadSwapped(address, maxTransfers, dest));
+    return d->resultCheck(d->cmdApi_.vmeBlockReadSwapped(address, maxTransfers, dest, fifo));
 }
 
-std::error_code MVLC::vmeBlockReadSwapped(u32 address, const Blk2eSSTRate &rate, u16 maxTransfers, std::vector<u32> &dest)
+std::error_code MVLC::vmeBlockReadSwapped(u32 address, const Blk2eSSTRate &rate, u16 maxTransfers, std::vector<u32> &dest, bool fifo)
 {
     auto guard = d->locks_.lockCmd();
-    return d->resultCheck(d->cmdApi_.vmeBlockReadSwapped(address, rate, maxTransfers, dest));
+    return d->resultCheck(d->cmdApi_.vmeBlockReadSwapped(address, rate, maxTransfers, dest, fifo));
 }
 
 std::error_code MVLC::uploadStack(

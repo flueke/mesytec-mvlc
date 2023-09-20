@@ -110,27 +110,27 @@ SuperCommandBuilder &SuperCommandBuilder::addVMERead(u32 address, u8 amod, VMEDa
     return addCommands(make_stack_upload_commands(CommandPipe, 0u, stack));
 }
 
-SuperCommandBuilder &SuperCommandBuilder::addVMEBlockRead(u32 address, u8 amod, u16 maxTransfers)
+SuperCommandBuilder &SuperCommandBuilder::addVMEBlockRead(u32 address, u8 amod, u16 maxTransfers, bool fifo)
 {
-    auto stack = StackCommandBuilder().addVMEBlockRead(address, amod, maxTransfers);
+    auto stack = StackCommandBuilder().addVMEBlockRead(address, amod, maxTransfers, fifo);
     return addCommands(make_stack_upload_commands(CommandPipe, 0u, stack));
 }
 
-SuperCommandBuilder &SuperCommandBuilder::addVMEBlockRead(u32 address, const Blk2eSSTRate &rate, u16 maxTransfers)
+SuperCommandBuilder &SuperCommandBuilder::addVMEBlockRead(u32 address, const Blk2eSSTRate &rate, u16 maxTransfers, bool fifo)
 {
-    auto stack = StackCommandBuilder().addVMEBlockRead(address, rate, maxTransfers);
+    auto stack = StackCommandBuilder().addVMEBlockRead(address, rate, maxTransfers, fifo);
     return addCommands(make_stack_upload_commands(CommandPipe, 0u, stack));
 }
 
-SuperCommandBuilder &SuperCommandBuilder::addVMEBlockReadSwapped(u32 address, u16 maxTransfers)
+SuperCommandBuilder &SuperCommandBuilder::addVMEBlockReadSwapped(u32 address, u16 maxTransfers, bool fifo)
 {
-    auto stack = StackCommandBuilder().addVMEBlockReadSwapped(address, maxTransfers);
+    auto stack = StackCommandBuilder().addVMEBlockReadSwapped(address, maxTransfers, fifo);
     return addCommands(make_stack_upload_commands(CommandPipe, 0u, stack));
 }
 
-SuperCommandBuilder &SuperCommandBuilder::addVMEBlockReadSwapped(u32 address, const Blk2eSSTRate &rate, u16 maxTransfers)
+SuperCommandBuilder &SuperCommandBuilder::addVMEBlockReadSwapped(u32 address, const Blk2eSSTRate &rate, u16 maxTransfers, bool fifo)
 {
-    auto stack = StackCommandBuilder().addVMEBlockReadSwapped(address, rate, maxTransfers);
+    auto stack = StackCommandBuilder().addVMEBlockReadSwapped(address, rate, maxTransfers, fifo);
     return addCommands(make_stack_upload_commands(CommandPipe, 0u, stack));
 }
 
@@ -256,15 +256,96 @@ std::string to_string(const StackCommand &cmd)
 
                 return ret;
             }
+            else if (vme_amods::is_esst64_mode(cmd.amod))
+            {
+                return fmt::format(
+                    "vme_block_read {:#04x} {} {:#010x} {}",
+                    cmd.amod, cmd.transfers, cmd.address, static_cast<unsigned>(cmd.rate));
+            }
 
-            // block modes including 2eSST
+            // BLT/MBLT
             return fmt::format(
                 "vme_block_read {:#04x} {} {:#010x}",
                 cmd.amod, cmd.transfers, cmd.address);
 
         case CT::VMEReadSwapped:
+            if (!vme_amods::is_block_mode(cmd.amod))
+            {
+                // No difference for single register reads as they are at most
+                // 32-bits wide.
+                auto ret = fmt::format(
+                    "vme_read {:#04x} {} {:#010x}",
+                    cmd.amod, to_string(cmd.dataWidth), cmd.address);
+
+                if (cmd.lateRead)
+                    ret += " late";
+
+                return ret;
+            }
+            else if (vme_amods::is_esst64_mode(cmd.amod))
+            {
+                // 2eSST word swapped
+                return fmt::format(
+                    "vme_read_swapped {:#04x} {} {:#010x} {}",
+                    cmd.amod, cmd.transfers, cmd.address, static_cast<unsigned>(cmd.rate));
+            }
+
+            // BLT/MBLT word swapped
             return fmt::format(
                 "vme_read_swapped {:#04x} {} {:#010x}",
+                cmd.amod, cmd.transfers, cmd.address);
+
+        case CT::VMEReadMem:
+            if (!vme_amods::is_block_mode(cmd.amod))
+            {
+                // VMERead and VMEReadMem are exactly the same for non-block vme amods.
+                auto ret = fmt::format(
+                    "vme_read {:#04x} {} {:#010x}",
+                    cmd.amod, to_string(cmd.dataWidth), cmd.address);
+
+                if (cmd.lateRead)
+                    ret += " late";
+
+                return ret;
+            }
+            else if (vme_amods::is_esst64_mode(cmd.amod))
+            {
+                return fmt::format(
+                    "vme_block_read_mem {:#04x} {} {:#010x} {}",
+                    cmd.amod, cmd.transfers, cmd.address, static_cast<unsigned>(cmd.rate));
+            }
+
+            // BLT/MBLT
+            return fmt::format(
+                "vme_block_read_mem {:#04x} {} {:#010x}",
+                cmd.amod, cmd.transfers, cmd.address);
+
+        case CT::VMEReadMemSwapped:
+            if (!vme_amods::is_block_mode(cmd.amod))
+            {
+                // VMERead and VMEReadMem are exactly the same for non-block vme amods.
+                // No difference for single register reads as they are at most
+                // 32-bits wide.
+                auto ret = fmt::format(
+                    "vme_read {:#04x} {} {:#010x}",
+                    cmd.amod, to_string(cmd.dataWidth), cmd.address);
+
+                if (cmd.lateRead)
+                    ret += " late";
+
+                return ret;
+            }
+            else if (vme_amods::is_esst64_mode(cmd.amod))
+            {
+                // 2eSST word swapped
+                return fmt::format(
+                    "vme_read_mem_swapped {:#04x} {} {:#010x} {}",
+                    cmd.amod, cmd.transfers, cmd.address, static_cast<unsigned>(cmd.rate));
+            }
+
+            // BLT/MBLT word swapped
+            return fmt::format(
+                "vme_read_mem_swapped {:#04x} {} {:#010x}",
                 cmd.amod, cmd.transfers, cmd.address);
 
         case CT::VMEWrite:
@@ -373,11 +454,16 @@ StackCommand stack_command_from_string(const std::string &str)
     }
     else if (name == "vme_block_read")
     {
-        // FIXME: Blk2eSST is missing
         result.type = CT::VMERead;
         iss >> arg; result.amod = std::stoul(arg, nullptr, 0);
         iss >> arg; result.transfers = std::stoul(arg, nullptr, 0);
         iss >> arg; result.address = std::stoul(arg, nullptr, 0);
+
+        if (vme_amods::is_esst64_mode(result.amod))
+        {
+            arg = {};
+            iss >> arg; result.rate = static_cast<Blk2eSSTRate>(std::stoul(arg, nullptr, 0));
+        }
     }
     // Note: vme_mblt_swapped is the legacy name for vme_read_swapped
     else if (name == "vme_read_swapped" || name == "vme_mblt_swapped")
@@ -386,6 +472,38 @@ StackCommand stack_command_from_string(const std::string &str)
         iss >> arg; result.amod = std::stoul(arg, nullptr, 0);
         iss >> arg; result.transfers = std::stoul(arg, nullptr, 0);
         iss >> arg; result.address = std::stoul(arg, nullptr, 0);
+
+        if (vme_amods::is_esst64_mode(result.amod))
+        {
+            arg = {};
+            iss >> arg; result.rate = static_cast<Blk2eSSTRate>(std::stoul(arg, nullptr, 0));
+        }
+    }
+    else if (name == "vme_block_read_mem")
+    {
+        result.type = CT::VMEReadMem;
+        iss >> arg; result.amod = std::stoul(arg, nullptr, 0);
+        iss >> arg; result.transfers = std::stoul(arg, nullptr, 0);
+        iss >> arg; result.address = std::stoul(arg, nullptr, 0);
+
+        if (vme_amods::is_esst64_mode(result.amod))
+        {
+            arg = {};
+            iss >> arg; result.rate = static_cast<Blk2eSSTRate>(std::stoul(arg, nullptr, 0));
+        }
+    }
+    else if (name == "vme_read_mem_swapped")
+    {
+        result.type = CT::VMEReadMemSwapped;
+        iss >> arg; result.amod = std::stoul(arg, nullptr, 0);
+        iss >> arg; result.transfers = std::stoul(arg, nullptr, 0);
+        iss >> arg; result.address = std::stoul(arg, nullptr, 0);
+
+        if (vme_amods::is_esst64_mode(result.amod))
+        {
+            arg = {};
+            iss >> arg; result.rate = static_cast<Blk2eSSTRate>(std::stoul(arg, nullptr, 0));
+        }
     }
     else if (name == "vme_write")
     {
@@ -518,10 +636,10 @@ StackCommandBuilder &StackCommandBuilder::addVMERead(u32 address, u8 amod, VMEDa
     return addCommand(cmd);
 }
 
-StackCommandBuilder &StackCommandBuilder::addVMEBlockRead(u32 address, u8 amod, u16 maxTransfers)
+StackCommandBuilder &StackCommandBuilder::addVMEBlockRead(u32 address, u8 amod, u16 maxTransfers, bool fifo)
 {
     StackCommand cmd = {};
-    cmd.type = CommandType::VMERead;
+    cmd.type = fifo ? CommandType::VMERead : CommandType::VMEReadMem;
     cmd.address = address;
     cmd.amod = amod;
     cmd.transfers = maxTransfers;
@@ -529,10 +647,10 @@ StackCommandBuilder &StackCommandBuilder::addVMEBlockRead(u32 address, u8 amod, 
     return addCommand(cmd);
 }
 
-StackCommandBuilder &StackCommandBuilder::addVMEBlockRead(u32 address, const Blk2eSSTRate &rate, u16 maxTransfers)
+StackCommandBuilder &StackCommandBuilder::addVMEBlockRead(u32 address, const Blk2eSSTRate &rate, u16 maxTransfers, bool fifo)
 {
     StackCommand cmd = {};
-    cmd.type  = CommandType::VMERead;
+    cmd.type = fifo ? CommandType::VMERead : CommandType::VMEReadMem;
     cmd.address = address;
     cmd.amod = vme_amods::Blk2eSST64;
     cmd.rate = rate;
@@ -541,10 +659,10 @@ StackCommandBuilder &StackCommandBuilder::addVMEBlockRead(u32 address, const Blk
     return addCommand(cmd);
 }
 
-StackCommandBuilder &StackCommandBuilder::addVMEBlockReadSwapped(u32 address, u16 maxTransfers)
+StackCommandBuilder &StackCommandBuilder::addVMEBlockReadSwapped(u32 address, u16 maxTransfers, bool fifo)
 {
     StackCommand cmd = {};
-    cmd.type = CommandType::VMEReadSwapped;
+    cmd.type = fifo ? CommandType::VMEReadSwapped : CommandType::VMEReadMemSwapped;
     cmd.address = address;
     cmd.amod = vme_amods::MBLT64;
     cmd.transfers = maxTransfers;
@@ -552,10 +670,10 @@ StackCommandBuilder &StackCommandBuilder::addVMEBlockReadSwapped(u32 address, u1
     return addCommand(cmd);
 }
 
-StackCommandBuilder &StackCommandBuilder::addVMEBlockReadSwapped(u32 address, const Blk2eSSTRate &rate, u16 maxTransfers)
+StackCommandBuilder &StackCommandBuilder::addVMEBlockReadSwapped(u32 address, const Blk2eSSTRate &rate, u16 maxTransfers, bool fifo)
 {
     StackCommand cmd = {};
-    cmd.type  = CommandType::VMEReadSwapped;
+    cmd.type = fifo ? CommandType::VMEReadSwapped : CommandType::VMEReadMemSwapped;
     cmd.address = address;
     cmd.amod = vme_amods::Blk2eSST64;
     cmd.rate = rate;
@@ -588,6 +706,8 @@ StackCommandBuilder &StackCommandBuilder::addWriteMarker(u32 value)
 
 StackCommandBuilder &StackCommandBuilder::addSetAddressIncMode(const AddressIncrementMode &mode)
 {
+    spdlog::warn("StackCommandBuilder::addSetAddressIncMode(): SetAddressIncMode is obsolete since FW0036. "
+        "Use the 'fifo' argument of addVMEBlockRead() instead!");
     StackCommand cmd = {};
     cmd.type = CommandType::SetAddressIncMode;
     cmd.value = static_cast<u32>(mode);
@@ -848,6 +968,8 @@ size_t get_encoded_size(const StackCommand::CommandType &type)
 
         case StackCT::VMERead:
         case StackCT::VMEReadSwapped:
+        case StackCT::VMEReadMem:
+        case StackCT::VMEReadMemSwapped:
         case StackCT::MaskShiftAccu:
         case StackCT::SetAccu:
         case StackCT::ReadToAccu:
@@ -1028,6 +1150,8 @@ std::vector<u32> make_stack_buffer(const std::vector<StackCommand> &stack)
         {
             case CommandType::VMERead:
             case CommandType::VMEReadSwapped:
+            case CommandType::VMEReadMem:
+            case CommandType::VMEReadMemSwapped:
                 if (!vme_amods::is_block_mode(cmd.amod))
                 {
                     cmdWord |= cmd.amod << stack_commands::CmdArg0Shift;
@@ -1197,6 +1321,8 @@ std::vector<StackCommand> stack_commands_from_buffer(const std::vector<u32> &buf
 
             case StackCT::VMERead:
             case StackCT::VMEReadSwapped:
+            case StackCT::VMEReadMem:
+            case StackCT::VMEReadMemSwapped:
             case StackCT::ReadToAccu:
                 cmd.amod = arg0 & vme_amods::VmeAmodMask;
 

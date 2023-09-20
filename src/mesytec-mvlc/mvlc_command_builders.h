@@ -57,11 +57,11 @@ class MESYTEC_MVLC_EXPORT SuperCommandBuilder
         // outputPipe=CommandPipe(=0) and stackMemoryOffset=0
         SuperCommandBuilder &addVMERead(u32 address, u8 amod, VMEDataWidth dataWidth, bool lateRead = false);
 
-        SuperCommandBuilder &addVMEBlockRead(u32 address, u8 amod, u16 maxTransfers);
-        SuperCommandBuilder &addVMEBlockRead(u32 address, const Blk2eSSTRate &rate, u16 maxTransfers);
+        SuperCommandBuilder &addVMEBlockRead(u32 address, u8 amod, u16 maxTransfers, bool fifo = true);
+        SuperCommandBuilder &addVMEBlockRead(u32 address, const Blk2eSSTRate &rate, u16 maxTransfers, bool fifo = true);
 
-        SuperCommandBuilder &addVMEBlockReadSwapped(u32 address, u16 maxTransfers);
-        SuperCommandBuilder &addVMEBlockReadSwapped(u32 address, const Blk2eSSTRate &rate, u16 maxTransfers);
+        SuperCommandBuilder &addVMEBlockReadSwapped(u32 address, u16 maxTransfers, bool fifo = true);
+        SuperCommandBuilder &addVMEBlockReadSwapped(u32 address, const Blk2eSSTRate &rate, u16 maxTransfers, bool fifo = true);
 
         SuperCommandBuilder &addVMEWrite(u32 address, u32 value, u8 amod, VMEDataWidth dataWidth);
 
@@ -96,9 +96,11 @@ struct MESYTEC_MVLC_EXPORT StackCommand
 
         StackStart              = static_cast<u8>(StackCommandType::StackStart),
         StackEnd                = static_cast<u8>(StackCommandType::StackEnd),
-        VMERead                 = static_cast<u8>(StackCommandType::VMERead),
         VMEWrite                = static_cast<u8>(StackCommandType::VMEWrite),
+        VMERead                 = static_cast<u8>(StackCommandType::VMERead),
         VMEReadSwapped          = static_cast<u8>(StackCommandType::VMEReadSwapped),
+        VMEReadMem              = static_cast<u8>(StackCommandType::VMEReadMem),
+        VMEReadMemSwapped       = static_cast<u8>(StackCommandType::VMEReadMemSwapped),
         WriteMarker             = static_cast<u8>(StackCommandType::WriteMarker),
         WriteSpecial            = static_cast<u8>(StackCommandType::WriteSpecial),
         SetAddressIncMode       = static_cast<u8>(StackCommandType::SetAddressIncMode),
@@ -200,11 +202,11 @@ class MESYTEC_MVLC_EXPORT StackCommandBuilder
             u32 address, u8 amod, VMEDataWidth dataWidth,
             bool lateRead = false);
 
-        StackCommandBuilder &addVMEBlockRead(u32 address, u8 amod, u16 maxTransfers); // BLT, MBLT
-        StackCommandBuilder &addVMEBlockRead(u32 address, const Blk2eSSTRate &rate, u16 maxTransfers); // 2eSST
+        StackCommandBuilder &addVMEBlockRead(u32 address, u8 amod, u16 maxTransfers, bool fifo = true); // BLT, MBLT
+        StackCommandBuilder &addVMEBlockRead(u32 address, const Blk2eSSTRate &rate, u16 maxTransfers, bool fifo = true); // 2eSST
 
-        StackCommandBuilder &addVMEBlockReadSwapped(u32 address, u16 maxTransfers); // MBLT
-        StackCommandBuilder &addVMEBlockReadSwapped(u32 address, const Blk2eSSTRate &rate, u16 maxTransfers); // 2eSST
+        StackCommandBuilder &addVMEBlockReadSwapped(u32 address, u16 maxTransfers, bool fifo = true); // MBLT
+        StackCommandBuilder &addVMEBlockReadSwapped(u32 address, const Blk2eSSTRate &rate, u16 maxTransfers, bool fifo = true); // 2eSST
 
         StackCommandBuilder &addVMEWrite(u32 address, u32 value, u8 amod, VMEDataWidth dataWidth);
         StackCommandBuilder &addWriteMarker(u32 value);
