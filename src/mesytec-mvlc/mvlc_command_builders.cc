@@ -298,9 +298,13 @@ std::string to_string(const StackCommand &cmd)
         case CT::VMEReadMem:
             if (!vme_amods::is_block_mode(cmd.amod))
             {
-                // VMERead and VMEReadMem are exactly the same for non-block vme amods.
+                // Technically for non-block amods VMERead and VMEReadMem are
+                // exactly the same. But MVLCs accumulator feature turning these
+                // single value VME reads into block reads requires us to have a
+                // separate command to control if the read address is
+                // incremented or not.
                 auto ret = fmt::format(
-                    "vme_read {:#04x} {} {:#010x}",
+                    "vme_read_mem {:#04x} {} {:#010x}",
                     cmd.amod, to_string(cmd.dataWidth), cmd.address);
 
                 if (cmd.lateRead)
@@ -446,6 +450,15 @@ StackCommand stack_command_from_string(const std::string &str)
     else if (name == "vme_read")
     {
         result.type = CT::VMERead;
+        iss >> arg; result.amod = std::stoul(arg, nullptr, 0);
+        iss >> arg; result.dataWidth = vme_data_width_from_string(arg);
+        iss >> arg; result.address = std::stoul(arg, nullptr, 0);
+        arg = {};
+        iss >> arg; result.lateRead = (arg == "slow" || arg == "late");
+    }
+    else if (name == "vme_read_mem")
+    {
+        result.type = CT::VMEReadMem;
         iss >> arg; result.amod = std::stoul(arg, nullptr, 0);
         iss >> arg; result.dataWidth = vme_data_width_from_string(arg);
         iss >> arg; result.address = std::stoul(arg, nullptr, 0);
