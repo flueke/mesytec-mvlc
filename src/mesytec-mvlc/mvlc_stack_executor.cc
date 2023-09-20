@@ -51,6 +51,7 @@ CommandExecResult run_command(
             break;
 
         case CT::VMERead:
+        case CT::VMEReadMem:
             if (!vme_amods::is_block_mode(cmd.amod))
             {
                 u32 value = 0;
@@ -63,17 +64,47 @@ CommandExecResult run_command(
 
                 result.response.push_back(value);
             }
+            else if (vme_amods::is_esst64_mode(cmd.amod))
+            {
+                bool fifo = cmd.type == CT::VMERead;
+                result.ec = mvlc.vmeBlockRead(
+                    cmd.address, cmd.rate, cmd.transfers, result.response, fifo);
+            }
             else
             {
+                bool fifo = cmd.type == CT::VMERead;
                 result.ec = mvlc.vmeBlockRead(
-                    cmd.address, cmd.amod, cmd.transfers, result.response);
+                    cmd.address, cmd.amod, cmd.transfers, result.response, fifo);
             }
             break;
 
 
         case CT::VMEReadSwapped:
-            result.ec = mvlc.vmeBlockReadSwapped(
-                cmd.address, cmd.transfers, result.response);
+        case CT::VMEReadMemSwapped:
+            if (!vme_amods::is_block_mode(cmd.amod))
+            {
+                u32 value = 0;
+
+                result.ec = mvlc.vmeRead(
+                    cmd.address, value, cmd.amod, cmd.dataWidth);
+
+                if (cmd.dataWidth == VMEDataWidth::D16)
+                    value &= 0xffffu;
+
+                result.response.push_back(value);
+            }
+            else if (vme_amods::is_esst64_mode(cmd.amod))
+            {
+                bool fifo = cmd.type == CT::VMEReadSwapped;
+                result.ec = mvlc.vmeBlockReadSwapped(
+                    cmd.address, cmd.rate, cmd.transfers, result.response, fifo);
+            }
+            else
+            {
+                bool fifo = cmd.type == CT::VMEReadSwapped;
+                result.ec = mvlc.vmeBlockReadSwapped(
+                    cmd.address, cmd.amod, cmd.transfers, result.response, fifo);
+            }
             break;
 
         case CT::VMEWrite:
