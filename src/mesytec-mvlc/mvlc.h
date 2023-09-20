@@ -115,9 +115,9 @@ class MESYTEC_MVLC_EXPORT MVLC
         std::error_code vmeBlockRead(u32 address, const Blk2eSSTRate &rate, u16 maxTransfers,
                                      std::vector<u32> &dest, bool fifo = true);
 
-        // Swaps the two 32-bit words for  64-bit reads.
-        std::error_code vmeBlockReadSwapped(u32 address, u16 maxTransfers,
-                                            std::vector<u32> &dest, bool fifo = true);                                                          // MBLT
+        // Swaps the two 32-bit words for  64-bit reads. amod must be one of the MBLT amods!
+        std::error_code vmeBlockReadSwapped(u32 address, u8 amod, u16 maxTransfers,
+                                            std::vector<u32> &dest, bool fifo = true);
         std::error_code vmeBlockReadSwapped(u32 address, const Blk2eSSTRate &rate, u16 maxTransfers,
                                             std::vector<u32> &dest, bool fifo = true);
 

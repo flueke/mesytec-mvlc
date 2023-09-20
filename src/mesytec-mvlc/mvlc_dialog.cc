@@ -686,7 +686,7 @@ std::error_code MVLCDialog_internal::vmeMBLTSwapped(
 {
     SuperCommandBuilder cmdList;
     cmdList.addReferenceWord(m_referenceWord++);
-    cmdList.addVMEBlockReadSwapped(address, maxTransfers);
+    cmdList.addVMEBlockReadSwapped(address, vme_amods::MBLT64, maxTransfers);
 
     auto request = make_command_buffer(cmdList);
 

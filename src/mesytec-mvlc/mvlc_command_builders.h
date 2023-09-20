@@ -55,12 +55,12 @@ class MESYTEC_MVLC_EXPORT SuperCommandBuilder
 
         // Below are shortcut methods which internally create a stack using
         // outputPipe=CommandPipe(=0) and stackMemoryOffset=0
-        SuperCommandBuilder &addVMERead(u32 address, u8 amod, VMEDataWidth dataWidth, bool lateRead = false);
+        SuperCommandBuilder &addVMERead(u32 address, u8 amod, VMEDataWidth dataWidth, bool lateRead = false, bool fifo = true);
 
         SuperCommandBuilder &addVMEBlockRead(u32 address, u8 amod, u16 maxTransfers, bool fifo = true);
         SuperCommandBuilder &addVMEBlockRead(u32 address, const Blk2eSSTRate &rate, u16 maxTransfers, bool fifo = true);
 
-        SuperCommandBuilder &addVMEBlockReadSwapped(u32 address, u16 maxTransfers, bool fifo = true);
+        SuperCommandBuilder &addVMEBlockReadSwapped(u32 address, u8 amod, u16 maxTransfers, bool fifo = true);
         SuperCommandBuilder &addVMEBlockReadSwapped(u32 address, const Blk2eSSTRate &rate, u16 maxTransfers, bool fifo = true);
 
         SuperCommandBuilder &addVMEWrite(u32 address, u32 value, u8 amod, VMEDataWidth dataWidth);
@@ -211,7 +211,7 @@ class MESYTEC_MVLC_EXPORT StackCommandBuilder
         StackCommandBuilder &addVMEBlockRead(u32 address, u8 amod, u16 maxTransfers, bool fifo = true); // BLT, MBLT
         StackCommandBuilder &addVMEBlockRead(u32 address, const Blk2eSSTRate &rate, u16 maxTransfers, bool fifo = true); // 2eSST
 
-        StackCommandBuilder &addVMEBlockReadSwapped(u32 address, u16 maxTransfers, bool fifo = true); // MBLT
+        StackCommandBuilder &addVMEBlockReadSwapped(u32 address, u8 amod, u16 maxTransfers, bool fifo = true); // MBLT
         StackCommandBuilder &addVMEBlockReadSwapped(u32 address, const Blk2eSSTRate &rate, u16 maxTransfers, bool fifo = true); // 2eSST
 
         StackCommandBuilder &addVMEWrite(u32 address, u32 value, u8 amod, VMEDataWidth dataWidth);

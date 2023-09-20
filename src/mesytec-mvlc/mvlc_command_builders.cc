@@ -122,9 +122,9 @@ SuperCommandBuilder &SuperCommandBuilder::addVMEBlockRead(u32 address, const Blk
     return addCommands(make_stack_upload_commands(CommandPipe, 0u, stack));
 }
 
-SuperCommandBuilder &SuperCommandBuilder::addVMEBlockReadSwapped(u32 address, u16 maxTransfers, bool fifo)
+SuperCommandBuilder &SuperCommandBuilder::addVMEBlockReadSwapped(u32 address, u8 amod, u16 maxTransfers, bool fifo)
 {
-    auto stack = StackCommandBuilder().addVMEBlockReadSwapped(address, maxTransfers, fifo);
+    auto stack = StackCommandBuilder().addVMEBlockReadSwapped(address, amod, maxTransfers, fifo);
     return addCommands(make_stack_upload_commands(CommandPipe, 0u, stack));
 }
 
@@ -651,6 +651,7 @@ StackCommandBuilder &StackCommandBuilder::addVMERead(u32 address, u8 amod, VMEDa
 
 StackCommandBuilder &StackCommandBuilder::addVMEBlockRead(u32 address, u8 amod, u16 maxTransfers, bool fifo)
 {
+    assert(vme_amods::is_blt_mode(amod) || vme_amods::is_mblt_mode(amod));
     StackCommand cmd = {};
     cmd.type = fifo ? CommandType::VMERead : CommandType::VMEReadMem;
     cmd.address = address;
@@ -672,12 +673,13 @@ StackCommandBuilder &StackCommandBuilder::addVMEBlockRead(u32 address, const Blk
     return addCommand(cmd);
 }
 
-StackCommandBuilder &StackCommandBuilder::addVMEBlockReadSwapped(u32 address, u16 maxTransfers, bool fifo)
+StackCommandBuilder &StackCommandBuilder::addVMEBlockReadSwapped(u32 address, u8 amod, u16 maxTransfers, bool fifo)
 {
+    assert(vme_amods::is_mblt_mode(amod)); // Does not make sense for 32-bit BLT as no word swapping can be done.
     StackCommand cmd = {};
     cmd.type = fifo ? CommandType::VMEReadSwapped : CommandType::VMEReadMemSwapped;
     cmd.address = address;
-    cmd.amod = vme_amods::MBLT64;
+    cmd.amod = amod;
     cmd.transfers = maxTransfers;
 
     return addCommand(cmd);
