@@ -103,7 +103,6 @@ struct MESYTEC_MVLC_EXPORT StackCommand
         VMEReadMemSwapped       = static_cast<u8>(StackCommandType::VMEReadMemSwapped),
         WriteMarker             = static_cast<u8>(StackCommandType::WriteMarker),
         WriteSpecial            = static_cast<u8>(StackCommandType::WriteSpecial),
-        SetAddressIncMode       = static_cast<u8>(StackCommandType::SetAddressIncMode),
         Wait                    = static_cast<u8>(StackCommandType::Wait),
         SignalAccu              = static_cast<u8>(StackCommandType::SignalAccu),
         MaskShiftAccu           = static_cast<u8>(StackCommandType::MaskShiftAccu),
@@ -217,7 +216,6 @@ class MESYTEC_MVLC_EXPORT StackCommandBuilder
         StackCommandBuilder &addVMEWrite(u32 address, u32 value, u8 amod, VMEDataWidth dataWidth);
         StackCommandBuilder &addWriteMarker(u32 value);
 
-        StackCommandBuilder &addSetAddressIncMode(const AddressIncrementMode &mode);
         StackCommandBuilder &addWait(u32 clocks);
         StackCommandBuilder &addSignalAccu();
         StackCommandBuilder &addMaskShiftAccu(u32 mask, u8 shift);
@@ -350,9 +348,6 @@ MESYTEC_MVLC_EXPORT std::vector<SuperCommand> make_stack_upload_commands(
     u8 stackOutputPipe, u16 StackMemoryOffset, const std::vector<u32> &stackBuffer);
 
 // Command parsing utilities
-MESYTEC_MVLC_EXPORT std::string address_inc_mode_to_string(AddressIncrementMode mode);
-MESYTEC_MVLC_EXPORT AddressIncrementMode address_inc_mode_from_string(const std::string &mode);
-
 MESYTEC_MVLC_EXPORT std::string accu_comparator_to_string(AccuComparator comp);
 MESYTEC_MVLC_EXPORT AccuComparator accu_comparator_from_string(const std::string &comparator);
 

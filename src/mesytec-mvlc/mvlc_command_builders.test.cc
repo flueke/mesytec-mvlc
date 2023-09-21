@@ -348,7 +348,6 @@ TEST(mvlc_commands, StackFromBuffer)
     builder.addVMEBlockRead(0x1338u, vme_amods::BLT32, 42);
     builder.addVMEWrite(0x1339u, 43, 0x09u, VMEDataWidth::D32);
     builder.addWriteMarker(0x87654321u);
-    builder.addSetAddressIncMode(AddressIncrementMode::Memory);
     builder.addWait(42069);
     builder.addSignalAccu();
     builder.addMaskShiftAccu(0x0FF0, 7);

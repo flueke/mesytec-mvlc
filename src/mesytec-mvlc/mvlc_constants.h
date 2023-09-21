@@ -120,14 +120,11 @@ namespace stack_commands
         WriteSpecial        = 0xC1, // Write a special value into the output data stream.
                                     // Values: 0=timestamp, 1=accumulator
 
-        SetAddressIncMode   = 0xC3, // Address increment for block reads: 0=FIFO read, 1=memory read.
-                                    // Reset to 'FIFO' at the start of a stack execution.
-                                    // Obsolete since FW0036. Functionality replaced by VMEReadMem and VMEReadMemSwapped.
-
         Wait                = 0xC4, // Delay in units of MVLC clocks. The number of clocks to delay is
                                     // specified as a 24-bit number.
 
-        SignalAccu          = 0xC6, // Constant data word used to activate the interal signal array.
+        SignalAccu          = 0xC6, // Constant data word used to activate the interal signal array. This creates an
+                                    // MVLC-internal IRQ signal.
         MaskShiftAccu       = 0xC5, // first mask is applied, then the left rotation
         SetAccu             = 0xC8, // Set the accumulator to a specific 32 bit value.
         ReadToAccu          = 0x14, // Single register VME read into the accumulator.
@@ -296,12 +293,6 @@ enum class SpecialWord: u8
 {
     Timestamp,
     Accu,
-};
-
-enum class AddressIncrementMode: u8
-{
-    FIFO,
-    Memory
 };
 
 enum class AccuComparator: u8
