@@ -253,13 +253,13 @@ TEST(mvlc_commands, StackVMEWrite)
 
 TEST(mvlc_commands, StackVMEBlockRead)
 {
-    auto builder = StackCommandBuilder().addVMEBlockRead(0x1337u, 0x09u, 111);
+    auto builder = StackCommandBuilder().addVMEBlockRead(0x1337u, vme_amods::MBLT64, 111);
     auto commands = builder.getCommands();
     ASSERT_EQ(builder.getGroupCount(), 1);
     ASSERT_EQ(commands.size(), 1u);
     ASSERT_EQ(commands.front().type, StackCommand::CommandType::VMERead);
     ASSERT_EQ(commands.front().address, 0x1337u);
-    ASSERT_EQ(commands.front().amod, 0x09u);
+    ASSERT_EQ(commands.front().amod, vme_amods::MBLT64);
     ASSERT_EQ(commands.front().transfers, 111);
 }
 
@@ -278,13 +278,13 @@ TEST(mvlc_commands, StackVMEBlockRead2eSST)
 
 TEST(mvlc_commands, StackVMEBlockReadSwapped)
 {
-    auto builder = StackCommandBuilder().addVMEBlockReadSwapped(0x1337u, 111);
+    auto builder = StackCommandBuilder().addVMEBlockReadSwapped(0x1337u, vme_amods::MBLT64, 111);
     auto commands = builder.getCommands();
     ASSERT_EQ(builder.getGroupCount(), 1);
     ASSERT_EQ(commands.size(), 1u);
-    ASSERT_EQ(commands.front().type, StackCommand::CommandType::VMEMBLTSwapped);
+    ASSERT_EQ(commands.front().type, StackCommand::CommandType::VMEReadSwapped);
     ASSERT_EQ(commands.front().address, 0x1337u);
-    ASSERT_EQ(commands.front().amod, 0x08u); // MBLT
+    ASSERT_EQ(commands.front().amod, vme_amods::MBLT64); // MBLT
     ASSERT_EQ(commands.front().transfers, 111);
 }
 
@@ -294,7 +294,7 @@ TEST(mvlc_commands, StackVMEBlockRead2eSSTSwapped)
     auto commands = builder.getCommands();
     ASSERT_EQ(builder.getGroupCount(), 1);
     ASSERT_EQ(commands.size(), 1u);
-    ASSERT_EQ(commands.front().type, StackCommand::CommandType::VMEMBLTSwapped);
+    ASSERT_EQ(commands.front().type, StackCommand::CommandType::VMEReadSwapped);
     ASSERT_EQ(commands.front().address, 0x1337u);
     ASSERT_EQ(commands.front().amod, vme_amods::Blk2eSST64);
     ASSERT_EQ(commands.front().rate, Blk2eSSTRate::Rate276MB);
