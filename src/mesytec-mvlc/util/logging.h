@@ -21,6 +21,9 @@ std::shared_ptr<spdlog::logger> MESYTEC_MVLC_EXPORT
 std::shared_ptr<spdlog::logger> MESYTEC_MVLC_EXPORT
     create_logger(const std::string &name, const std::vector<spdlog::sink_ptr> &sinks = {});
 
+std::shared_ptr<spdlog::logger> MESYTEC_MVLC_EXPORT
+    default_logger();
+
 void MESYTEC_MVLC_EXPORT
     set_global_log_level(spdlog::level::level_enum level);
 

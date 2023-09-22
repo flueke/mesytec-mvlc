@@ -39,6 +39,11 @@ std::shared_ptr<spdlog::logger>
     return logger;
 }
 
+std::shared_ptr<spdlog::logger> default_logger()
+{
+    return spdlog::default_logger();
+}
+
 void set_global_log_level(spdlog::level::level_enum level)
 {
     spdlog::set_level(level);
