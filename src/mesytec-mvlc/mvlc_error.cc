@@ -112,6 +112,9 @@ class MVLCErrorCategory: public std::error_category
             case MVLCErrorCode::UDPDataWordCountExceedsPacketSize:
                  return "UDP dataWordCount exceeds received packet length";
 
+            case MVLCErrorCode::UdpMaxOutgoingPacketSizeExceeded:
+                 return "UDP outgoing max packet size exceeded";
+
             case MVLCErrorCode::StackCountExceeded:
                  return "number of stacks exceeded";
 
@@ -225,6 +228,7 @@ class MVLCErrorCategory: public std::error_category
             case MVLCErrorCode::UnexpectedBufferHeader:
             case MVLCErrorCode::UDPPacketChannelOutOfRange:
             case MVLCErrorCode::UDPDataWordCountExceedsPacketSize:
+            case MVLCErrorCode::UdpMaxOutgoingPacketSizeExceeded:
             case MVLCErrorCode::NonBlockAddressMode:
             case MVLCErrorCode::ShortSuperFrame:
             case MVLCErrorCode::SuperFormatError:

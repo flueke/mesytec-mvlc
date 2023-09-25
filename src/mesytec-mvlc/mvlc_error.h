@@ -38,6 +38,9 @@ enum class MVLCErrorCode
     SocketWriteTimeout,
     UDPPacketChannelOutOfRange,
     UDPDataWordCountExceedsPacketSize, // dataWordCount in header0 exceeds received packet length
+    // Returned by the ETH implementation if the outgoing payload size exceeds
+    // the max size of outgoing UDP packets.
+    UdpMaxOutgoingPacketSizeExceeded,
     StackCountExceeded,
     StackMemoryExceeded,
     ImmediateStackReservedMemoryExceeded,
@@ -47,6 +50,7 @@ enum class MVLCErrorCode
     MirrorTransactionMaxWordsExceeded,
     InvalidStackHeader,
     NonBlockAddressMode,
+
 
     // Readout setup releated (e.g. mvlc_daq.cc)
     TimerCountExceeded,
