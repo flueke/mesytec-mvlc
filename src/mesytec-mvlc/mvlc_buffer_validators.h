@@ -16,6 +16,11 @@ inline bool is_super_buffer(u32 header)
     return get_frame_type(header) == frame_headers::SuperFrame;
 }
 
+inline bool is_super_buffer_continuation(u32 header)
+{
+    return get_frame_type(header) == frame_headers::SuperContinuation;
+}
+
 inline bool is_stack_buffer(u32 header)
 {
     return get_frame_type(header) == frame_headers::StackFrame;
@@ -46,6 +51,7 @@ inline bool is_known_frame_header(u32 header)
     const u8 type = get_frame_type(header);
 
     return (type == frame_headers::SuperFrame
+            || type == frame_headers::SuperContinuation
             || type == frame_headers::StackFrame
             || type == frame_headers::BlockRead
             || type == frame_headers::StackError

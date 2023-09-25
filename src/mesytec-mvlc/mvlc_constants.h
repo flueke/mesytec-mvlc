@@ -46,7 +46,8 @@ static const u32 FrameSizeMask = 0xFFFF;
 // Limitation of the MVLC firmware when running lists of super commands.
 // Subtract 2 for CmdBufferStart and CmdBufferEnd which have to be added to
 // form a valid super command buffer.
-static const size_t MirrorTransactionMaxWords = 255;
+// Note: ETH is additionally limited by the maximum size of ethernet frames!
+static const size_t MirrorTransactionMaxWords = 2048; // FIXME: get rid of this. uploadStack() now decides based on whether ETH or USB is used
 static const size_t MirrorTransactionMaxContentsWords = MirrorTransactionMaxWords - 2;
 
 // Super commands are commands that are directly interpreted and executed
@@ -140,6 +141,8 @@ namespace frame_headers
     enum FrameTypes: u8
     {
         SuperFrame          = 0xF1, // Outermost command buffer response frame.
+        SuperContinuation   = 0xF2, // Since FW0036: Continuation frame for Super Command mirror responses.
+                                    // Same mechanism as 0xF3/0xF9 for the stack command layer.
         StackFrame          = 0xF3, // Outermost frame for readout data produced by command stack execution.
         BlockRead           = 0xF5, // Inner frame for block reads. Always contained within a StackFrame.
         StackError          = 0xF7, // Error notification frame embedded either between readout data or
