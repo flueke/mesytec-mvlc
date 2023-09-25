@@ -206,19 +206,27 @@ void cmd_pipe_reader(ReaderContext &context)
         };
     };
 
+    auto logger = get_logger("cmd_pipe_reader");
+
     auto is_good_header = [] (const u32 header) -> bool
     {
         return is_super_buffer(header)
+            || is_super_buffer_continuation(header)
             || is_stack_buffer(header)
             || is_stackerror_notification(header);
     };
 
-    auto contains_complete_frame = [=] (const u32 *begin, const u32 *end) -> bool
+    auto contains_complete_frame = [&] (const u32 *begin, const u32 *const end) -> bool
     {
-        if (end - begin == 0)
-            return false;
+        assert(end - begin >= 0);
 
-        assert(end - begin > 0);
+        if (end - begin == 0)
+        {
+            logger->warn("contains_complete_frame: empty data given -> returning false");
+            assert(!"do not call me with empty data!");
+            return false;
+        }
+
         assert(is_good_header(*begin));
 
         auto frameInfo = extract_frame_info(*begin);
@@ -231,6 +239,17 @@ void cmd_pipe_reader(ReaderContext &context)
         {
             begin += frameInfo.len + 1;
             avail = end - begin;
+
+            if (avail <= 0)
+                return false;
+
+            if (!is_good_header(*begin))
+            {
+                logger->warn("contains_complete_frame landed on bad header word: 0x{:08X}, avail={}", *begin, avail);
+                assert(false);
+                return false;
+            }
+
             frameInfo = extract_frame_info(*begin);
 
             if (frameInfo.len + 1 > avail)
@@ -246,7 +265,6 @@ void cmd_pipe_reader(ReaderContext &context)
 #ifdef __linux__
     prctl(PR_SET_NAME,"cmd_pipe_reader",0,0,0);
 #endif
-    auto logger = get_logger("cmd_pipe_reader");
 
     logger->debug("cmd_pipe_reader starting");
 
@@ -312,26 +330,30 @@ void cmd_pipe_reader(ReaderContext &context)
                 else if (is_super_buffer(buffer[0]))
                 {
                     ++counters.superBuffers;
+
                     auto pendingResponse = context.pendingSuper.access();
+                    size_t toConsume = 0;
                     std::error_code ec;
 
                     if (get_frame_length(buffer[0]) == 0)
                     {
                         ec = make_error_code(MVLCErrorCode::ShortSuperFrame);
                         ++counters.shortSuperBuffers;
-                        buffer.consume(1);
+                        toConsume = 1;
                     }
                     else
                     {
                         using namespace super_commands;
 
+                        toConsume += get_frame_length(buffer[0]) + 1;
+
                         u32 refCmd = buffer[1];
+
                         if (((refCmd >> SuperCmdShift) & SuperCmdMask) != static_cast<u32>(SuperCommandType::ReferenceWord))
                         {
                             logger->warn("cmd_pipe_reader: super buffer does not start with ref command");
                             ec = make_error_code(MVLCErrorCode::SuperFormatError);
                             ++counters.superFormatErrors;
-                            buffer.consume(get_frame_length(buffer[0]) + 1);
                         }
                         else
                         {
@@ -344,15 +366,27 @@ void cmd_pipe_reader(ReaderContext &context)
                                 ec = make_error_code(MVLCErrorCode::SuperReferenceMismatch);
                                 ++counters.superRefMismatches;
                             }
-                            else
-                            {
-                                fullfill_pending_response(
-                                    pendingResponse.ref(), {}, &buffer[0], get_frame_length(buffer[0] + 1));
-                            }
-
-                            buffer.consume(get_frame_length(buffer[0]) + 1);
                         }
                     }
+
+                    const u32 *header = &buffer[0];
+                    auto frameInfo = extract_frame_info(*header);
+
+                    while (frameInfo.flags & frame_flags::Continue)
+                    {
+                        header += frameInfo.len + 1;
+                        frameInfo = extract_frame_info(*header);
+                        toConsume += frameInfo.len + 1;
+                    }
+
+                    if (ec)
+                        fullfill_pending_response(
+                            pendingResponse.ref(), ec);
+                    else
+                        fullfill_pending_response(
+
+                            pendingResponse.ref(), ec, &buffer[0], toConsume);
+                    buffer.consume(toConsume);
                 }
                 // stack buffers
                 else if (is_stack_buffer(buffer[0]))
@@ -360,16 +394,17 @@ void cmd_pipe_reader(ReaderContext &context)
                     ++counters.stackBuffers;
 
                     auto pendingResponse = context.pendingStack.access();
-                    size_t toConsume = 1;
+                    size_t toConsume = 0;
                     std::error_code ec;
 
-                    if (get_frame_length(buffer[0]) < 1)
+                    if (get_frame_length(buffer[0]) == 0)
                     {
-                        ec = make_error_code(MVLCErrorCode::MirrorShortResponse);
+                        ec = make_error_code(MVLCErrorCode::StackFormatError);
+                        toConsume = 1;
                     }
                     else
                     {
-                        toConsume += get_frame_length(buffer[0]);
+                        toConsume += get_frame_length(buffer[0]) + 1;
 
                         u32 stackRef = buffer[1];
 
@@ -407,8 +442,17 @@ void cmd_pipe_reader(ReaderContext &context)
             }
             else
             {
-                // No complete frame in the buffer
-                break;
+                if (logger->should_log(spdlog::level::trace))
+                {
+                    // No complete frame in the buffer
+                    auto pendingSuper = context.pendingSuper.access();
+                    auto pendingStack = context.pendingStack.access();
+                    logger->trace("cmd_pipe_reader: incomplete frame in buffer, trying to read more data "
+                        "(pendingSuper: pending={}, ref={:#06X}, pendingStack: pending={}, ref={:#010X})",
+                        pendingSuper->pending, pendingSuper->reference,
+                        pendingStack->pending, pendingStack->reference);
+                }
+                break; // break out of the loop to read more data below
             }
         }
 
@@ -566,7 +610,8 @@ std::error_code CmdApi::superTransaction(
 
     if (rf.wait_for(ResultWaitTimeout) != std::future_status::ready)
     {
-        get_logger("mvlc_apiv2")->warn("superTransaction super future not ready -> SuperCommandTimeout");
+        get_logger("mvlc_apiv2")->warn("superTransaction super future not ready -> SuperCommandTimeout (reference={:#06X})",
+            readerContext_.pendingSuper.access()->reference);
         return fullfill_pending_response(readerContext_.pendingSuper, make_error_code(MVLCErrorCode::SuperCommandTimeout));
     }
 
@@ -672,7 +717,8 @@ std::error_code CmdApi::stackTransaction(
 
     if (superFuture.wait_for(ResultWaitTimeout) != std::future_status::ready)
     {
-        get_logger("mvlc_apiv2")->warn("stackTransaction super future still not ready -> SuperCommandTimeout");
+        get_logger("mvlc_apiv2")->warn("stackTransaction super future still not ready -> SuperCommandTimeout (reference={:#06X})",
+            readerContext_.pendingSuper.access()->reference);
         ec = make_error_code(MVLCErrorCode::SuperCommandTimeout);
         fullfill_pending_response(readerContext_.pendingSuper, ec);
         return fullfill_pending_response(readerContext_.pendingStack, ec);
@@ -684,7 +730,8 @@ std::error_code CmdApi::stackTransaction(
     // stack response
     if (stackFuture.wait_for(ResultWaitTimeout) != std::future_status::ready)
     {
-        get_logger("mvlc_apiv2")->warn("stackTransaction stack future still not ready -> StackCommandTimeout");
+        get_logger("mvlc_apiv2")->warn("stackTransaction stack future still not ready -> StackCommandTimeout (reference={:#010X})",
+            readerContext_.pendingStack.access()->reference);
         ec = make_error_code(MVLCErrorCode::StackCommandTimeout);
         return fullfill_pending_response(readerContext_.pendingStack, ec);
     }
@@ -701,21 +748,31 @@ std::error_code CmdApi::uploadStack(
     // - each word of StackContents
     // - StackEnd
     //
-    // The maximum size of a single super command transaction is 255 words.
-    // Each memory write requires two super command words: the WriteLocal
-    // command and the value being written. To stay below the 255 word limit
-    // the stackContents are split into parts of max size 125, guaranteeing
-    // that we stay at or below the limit even when both StackStart and
-    // StackEnd are written out in the same part.
+    // Limits for the number of stack words that can be uploaded in a single
+    // super transaction:
+    // ETH is limited by the non-jumbo UDP max payload size. Using 181 stack
+    // words per part results in 1+181*2=362 super words (reference word +
+    // (write command + payload) for each stack word. If the part is the first
+    // and/or last part, StackStart and/or StackEnd also have to be written.
+    // Extreme case without ref word: StackStart + 181 words + StackEnd = 183 words.
+    // With WriteLocal commands: 183 * 2 + 1 ref word: 367 words * 4 bytes = 1468 bytes.
+    static const size_t EthPartMaxSize = 181;
+
+    // USB is theoretically unlimited but there are 0xF1/0xF2 framing issues:
+    // the last frame sometimes has an off-by-one error in the frame size!
+    static const size_t UsbPartMaxSize = 181;
+
+    const size_t PartMaxSize = (dynamic_cast<usb::MVLC_USB_Interface *>(readerContext_.mvlc)
+                                    ? UsbPartMaxSize : EthPartMaxSize);
 
     auto logger = get_logger("mvlc_uploadStack");
-    static const size_t PartMaxSize = 125;
     size_t stackWordsWritten = 0u;
     const auto stackBegin = std::begin(stackContents);
     const auto stackEnd = std::end(stackContents);
     auto partIter = stackBegin;
     u16 writeAddress = stacks::StackMemoryBegin + stackMemoryOffset;
     std::vector<u32> superResponse;
+    size_t partCount = 0;
 
     while (partIter != stackEnd)
     {
@@ -769,17 +826,19 @@ std::error_code CmdApi::uploadStack(
         }
 
         auto superBuffer = make_command_buffer(super);
-        logger->trace("stack part superBuffer.size()={}", superBuffer.size());
-        log_buffer(logger, spdlog::level::trace, superBuffer, "partial stack upload");
+        logger->debug("stack part #{}: superBuffer.size()={}", partCount+1, superBuffer.size());
+        //log_buffer(logger, spdlog::level::trace, superBuffer, fmt::format("partial stack upload part {}", partCount+1));
         assert(superBuffer.size() <= MirrorTransactionMaxWords);
 
         if (auto ec = superTransaction(superRef, superBuffer, superResponse))
             return ec;
+
+        ++partCount;
     }
 
     assert(partIter == stackEnd);
-    logger->trace("stackWordsWritten={}, stackContents.size()={}",
-                 stackWordsWritten, stackContents.size());
+    logger->debug("stackWordsWritten={}, stackContents.size()={}, partCount={}",
+                 stackWordsWritten, stackContents.size(), partCount);
     assert(stackWordsWritten == stackContents.size());
 
     return {};
