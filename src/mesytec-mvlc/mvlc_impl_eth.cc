@@ -224,7 +224,14 @@ inline std::error_code write_to_socket(
 inline std::error_code write_to_socket(
     int socket, const u8 *buffer, size_t size, size_t &bytesTransferred)
 {
-    assert(size <= MaxOutgoingPayloadSize);
+    if (size > MaxOutgoingPayloadSize)
+    {
+        get_logger("mvlc_eth")->error("write_to_socket: UdpMaxOutgoingPacketSizeExceeded: size={}, max={}",
+            size, MaxOutgoingPayloadSize);
+        // Assertion to catch it in debug builds, error code returned in release builds.
+        assert(size <= MaxOutgoingPayloadSize);
+        return make_error_code(MVLCErrorCode::UdpMaxOutgoingPacketSizeExceeded);
+    }
 
     bytesTransferred = 0;
 
