@@ -243,14 +243,16 @@ void cmd_pipe_reader(ReaderContext &context)
             if (avail <= 0)
                 return false;
 
-            if (!is_good_header(*begin))
+            u32 header = *begin;
+
+            if (!is_good_header(header))
             {
-                logger->warn("contains_complete_frame landed on bad header word: 0x{:08X}, avail={}", *begin, avail);
-                assert(false);
+                logger->warn("contains_complete_frame landed on bad header word: 0x{:08X}, avail={}", header, avail);
+                assert(!"bad header word");
                 return false;
             }
 
-            frameInfo = extract_frame_info(*begin);
+            frameInfo = extract_frame_info(header);
 
             if (frameInfo.len + 1 > avail)
                 return false;
@@ -282,6 +284,7 @@ void cmd_pipe_reader(ReaderContext &context)
     if (recordOut.fail())
         throw std::runtime_error("Error opening cmd_pipe_reader debug file");
 #endif
+    bool logNextIncomplete = false;
 
     while (!context.quit.load(std::memory_order_relaxed))
     {
@@ -313,6 +316,8 @@ void cmd_pipe_reader(ReaderContext &context)
 
             if (contains_complete_frame(buffer.begin(), buffer.end()))
             {
+                logNextIncomplete = true;
+
                 if (is_stackerror_notification(buffer[0]))
                 {
                     ++counters.errorBuffers;
@@ -361,7 +366,7 @@ void cmd_pipe_reader(ReaderContext &context)
 
                             if (superRef != pendingResponse->reference)
                             {
-                                logger->warn("cmd_pipe_reader: super ref mismatch, wanted={:#x}, got={:#x}",
+                                logger->warn("cmd_pipe_reader: super ref mismatch, wanted=0x{:04x}, got=0x{:04x}",
                                              pendingResponse->reference, superRef);
                                 ec = make_error_code(MVLCErrorCode::SuperReferenceMismatch);
                                 ++counters.superRefMismatches;
@@ -410,7 +415,7 @@ void cmd_pipe_reader(ReaderContext &context)
 
                         if (stackRef != pendingResponse->reference)
                         {
-                            logger->warn("cmd_pipe_reader: stack ref mismatch, wanted={:#x}, got={:#x}",
+                            logger->warn("cmd_pipe_reader: stack ref mismatch, wanted=0x{:08x}, got=0x{:08x}",
                                          pendingResponse->reference, stackRef);
                             ec = make_error_code(MVLCErrorCode::StackReferenceMismatch);
                             ++counters.stackRefMismatches;
@@ -442,15 +447,17 @@ void cmd_pipe_reader(ReaderContext &context)
             }
             else
             {
-                if (logger->should_log(spdlog::level::trace))
+                if (logNextIncomplete && logger->should_log(spdlog::level::trace))
                 {
                     // No complete frame in the buffer
                     auto pendingSuper = context.pendingSuper.access();
                     auto pendingStack = context.pendingStack.access();
                     logger->trace("cmd_pipe_reader: incomplete frame in buffer, trying to read more data "
-                        "(pendingSuper: pending={}, ref={:#06X}, pendingStack: pending={}, ref={:#010X})",
+                        "(pendingSuper: pending={}, ref=0x{:04X}, pendingStack: pending={}, ref=0x{:08X})",
                         pendingSuper->pending, pendingSuper->reference,
                         pendingStack->pending, pendingStack->reference);
+                    logNextIncomplete = false;
+                    log_buffer(logger, spdlog::level::trace, buffer, "cmd_pipe_reader incomplete frame", LogBuffersMaxWords);
                 }
                 break; // break out of the loop to read more data below
             }
@@ -511,7 +518,7 @@ void cmd_pipe_reader(ReaderContext &context)
         if (bytesTransferred > 0)
         {
             logger->trace("received {} bytes", bytesTransferred);
-            //log_buffer(logger, spdlog::level::trace, buffer, "cmd_pipe_reader read buffer", LogBuffersMaxWords);
+            log_buffer(logger, spdlog::level::trace, buffer, "cmd_pipe_reader read buffer", LogBuffersMaxWords);
         }
 
         ++counters.reads;
@@ -610,7 +617,7 @@ std::error_code CmdApi::superTransaction(
 
     if (rf.wait_for(ResultWaitTimeout) != std::future_status::ready)
     {
-        get_logger("mvlc_apiv2")->warn("superTransaction super future not ready -> SuperCommandTimeout (reference={:#06X})",
+        get_logger("mvlc_apiv2")->warn("superTransaction super future not ready -> SuperCommandTimeout (ref=0x{:04X})",
             readerContext_.pendingSuper.access()->reference);
         return fullfill_pending_response(readerContext_.pendingSuper, make_error_code(MVLCErrorCode::SuperCommandTimeout));
     }
@@ -717,7 +724,7 @@ std::error_code CmdApi::stackTransaction(
 
     if (superFuture.wait_for(ResultWaitTimeout) != std::future_status::ready)
     {
-        get_logger("mvlc_apiv2")->warn("stackTransaction super future still not ready -> SuperCommandTimeout (reference={:#06X})",
+        get_logger("mvlc_apiv2")->warn("stackTransaction super future still not ready -> SuperCommandTimeout (ref=0x{:04X})",
             readerContext_.pendingSuper.access()->reference);
         ec = make_error_code(MVLCErrorCode::SuperCommandTimeout);
         fullfill_pending_response(readerContext_.pendingSuper, ec);
@@ -730,7 +737,7 @@ std::error_code CmdApi::stackTransaction(
     // stack response
     if (stackFuture.wait_for(ResultWaitTimeout) != std::future_status::ready)
     {
-        get_logger("mvlc_apiv2")->warn("stackTransaction stack future still not ready -> StackCommandTimeout (reference={:#010X})",
+        get_logger("mvlc_apiv2")->warn("stackTransaction stack future still not ready -> StackCommandTimeout (ref=0x{:08X})",
             readerContext_.pendingStack.access()->reference);
         ec = make_error_code(MVLCErrorCode::StackCommandTimeout);
         return fullfill_pending_response(readerContext_.pendingStack, ec);
