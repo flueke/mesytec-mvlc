@@ -213,6 +213,7 @@ void cmd_pipe_reader(ReaderContext &context)
         return is_super_buffer(header)
             || is_super_buffer_continuation(header)
             || is_stack_buffer(header)
+            || is_stack_buffer_continuation(header)
             || is_stackerror_notification(header);
     };
 
