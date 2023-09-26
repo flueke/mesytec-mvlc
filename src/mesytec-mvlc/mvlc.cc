@@ -767,7 +767,7 @@ std::error_code CmdApi::uploadStack(
 
     // USB is theoretically unlimited but there are 0xF1/0xF2 framing issues:
     // the last frame sometimes has an off-by-one error in the frame size!
-    static const size_t UsbPartMaxSize = 181;
+    static const size_t UsbPartMaxSize = 100;
 
     const size_t PartMaxSize = (dynamic_cast<usb::MVLC_USB_Interface *>(readerContext_.mvlc)
                                     ? UsbPartMaxSize : EthPartMaxSize);
