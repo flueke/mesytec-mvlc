@@ -630,64 +630,6 @@ std::error_code CmdApi::stackTransaction(
     u32 stackRef, const StackCommandBuilder &stackBuilder,
     std::vector<u32> &stackResponse)
 {
-    #if 0
-    u16 superRef = readerContext_.nextSuperReference++;
-
-    SuperCommandBuilder superBuilder;
-    superBuilder.addReferenceWord(superRef);
-    superBuilder.addStackUpload(stackBuilder, CommandPipe, stacks::ImmediateStackStartOffsetBytes);
-    superBuilder.addWriteLocal(stacks::Stack0OffsetRegister, stacks::ImmediateStackStartOffsetBytes);
-    superBuilder.addWriteLocal(stacks::Stack0TriggerRegister, 1u << stacks::ImmediateShift);
-    auto cmdBuffer = make_command_buffer(superBuilder);
-
-    if (cmdBuffer.size() > MirrorTransactionMaxWords)
-        return make_error_code(MVLCErrorCode::MirrorTransactionMaxWordsExceeded);
-
-    log_buffer(get_logger("mvlc_apiv2"), spdlog::level::trace,
-        cmdBuffer, "stackTransaction: upload command buffer", LogBuffersMaxWords);
-
-    std::vector<u32> superResponse;
-
-    auto superFuture = set_pending_response(readerContext_.pendingSuper, superResponse, superRef);
-    auto stackFuture = set_pending_response(readerContext_.pendingStack, stackResponse, stackRef);
-
-    size_t bytesWritten = 0;
-
-    auto ec = readerContext_.mvlc->write(
-        Pipe::Command,
-        reinterpret_cast<const u8 *>(cmdBuffer.data()),
-        cmdBuffer.size() * sizeof(u32),
-        bytesWritten);
-
-    // super response
-    if (ec)
-    {
-        // On write error use the same error_code to fullfill both responses.
-        fullfill_pending_response(readerContext_.pendingSuper, ec);
-        return fullfill_pending_response(readerContext_.pendingStack, ec);
-    }
-
-    if (superFuture.wait_for(ResultWaitTimeout) != std::future_status::ready)
-    {
-        get_logger("mvlc_apiv2")->warn("stackTransaction super future still not ready -> SuperCommandTimeout");
-        ec = make_error_code(MVLCErrorCode::SuperCommandTimeout);
-        fullfill_pending_response(readerContext_.pendingSuper, ec);
-        return fullfill_pending_response(readerContext_.pendingStack, ec);
-    }
-
-    if (auto ec = superFuture.get())
-        return fullfill_pending_response(readerContext_.pendingStack, ec);
-
-    // stack response
-    if (stackFuture.wait_for(ResultWaitTimeout) != std::future_status::ready)
-    {
-        get_logger("mvlc_apiv2")->warn("stackTransaction stack future still not ready -> StackCommandTimeout");
-        ec = make_error_code(MVLCErrorCode::StackCommandTimeout);
-        return fullfill_pending_response(readerContext_.pendingStack, ec);
-    }
-
-    return stackFuture.get();
-    #else
     if (auto ec = uploadStack(CommandPipe, stacks::ImmediateStackStartOffsetBytes, make_stack_buffer(stackBuilder)))
         return ec;
 
@@ -745,7 +687,6 @@ std::error_code CmdApi::stackTransaction(
     }
 
     return stackFuture.get();
-    #endif
 }
 
 std::error_code CmdApi::uploadStack(
