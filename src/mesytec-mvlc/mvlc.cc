@@ -458,7 +458,7 @@ void cmd_pipe_reader(ReaderContext &context)
                         pendingSuper->pending, pendingSuper->reference,
                         pendingStack->pending, pendingStack->reference);
                     logNextIncomplete = false;
-                    log_buffer(logger, spdlog::level::trace, buffer, "cmd_pipe_reader incomplete frame", LogBuffersMaxWords);
+                    //log_buffer(logger, spdlog::level::trace, buffer, "cmd_pipe_reader incomplete frame", LogBuffersMaxWords);
                 }
                 break; // break out of the loop to read more data below
             }
@@ -518,8 +518,8 @@ void cmd_pipe_reader(ReaderContext &context)
 
         if (bytesTransferred > 0)
         {
-            logger->trace("received {} bytes", bytesTransferred);
-            log_buffer(logger, spdlog::level::trace, buffer, "cmd_pipe_reader read buffer", LogBuffersMaxWords);
+            logger->trace("received {} bytes, {} words", bytesTransferred, bytesTransferred / sizeof(u32));
+            //log_buffer(logger, spdlog::level::trace, buffer, "cmd_pipe_reader read buffer", LogBuffersMaxWords);
         }
 
         ++counters.reads;
@@ -764,12 +764,19 @@ std::error_code CmdApi::uploadStack(
     // and/or last part, StackStart and/or StackEnd also have to be written.
     // Extreme case without ref word: StackStart + 181 words + StackEnd = 183 words.
     // With WriteLocal commands: 183 * 2 + 1 ref word: 367 words * 4 bytes = 1468 bytes.
-    static const size_t EthPartMaxSize = 181;
+    //static const size_t EthPartMaxSize = 181;
 
     // USB is theoretically unlimited but there are 0xF1/0xF2 framing issues
     // when the size gets too large (FW0036_10). 512 is the limit where MVP
     // firmware updates still work.
-    static const size_t UsbPartMaxSize = 512;
+    //static const size_t UsbPartMaxSize = 512;
+
+    // Temporary old limit of 125 until FW0036 issues are fixed. (Large stack
+    // responses do not work anymore since the F1/F2 super continuation changes:
+    // stack responses now also get split into F1/F2. Fix hopefully incoming.)
+    static const size_t EthPartMaxSize = 125;
+    static const size_t UsbPartMaxSize = EthPartMaxSize;
+
 
     const size_t PartMaxSize = (dynamic_cast<usb::MVLC_USB_Interface *>(readerContext_.mvlc)
                                     ? UsbPartMaxSize : EthPartMaxSize);
@@ -840,7 +847,12 @@ std::error_code CmdApi::uploadStack(
         assert(superBuffer.size() <= MirrorTransactionMaxWords);
 
         if (auto ec = superTransaction(superRef, superBuffer, superResponse))
+        {
+            logger->warn("upload superTransaction for part #{} failed: {}", partCount+1, ec.message());
             return ec;
+        }
+        else
+            logger->trace("successful superTransaction for stack part #{}", partCount+1);
 
         ++partCount;
     }
