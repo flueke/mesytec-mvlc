@@ -248,7 +248,7 @@ void cmd_pipe_reader(ReaderContext &context)
 
             if (!is_good_header(header))
             {
-                logger->warn("contains_complete_frame landed on bad header word: 0x{:08X}, avail={}", header, avail);
+                logger->warn("contains_complete_frame: landed on bad header word: 0x{:08X}, avail={}", header, avail);
                 assert(!"bad header word");
                 return false;
             }
@@ -766,9 +766,10 @@ std::error_code CmdApi::uploadStack(
     // With WriteLocal commands: 183 * 2 + 1 ref word: 367 words * 4 bytes = 1468 bytes.
     static const size_t EthPartMaxSize = 181;
 
-    // USB is theoretically unlimited but there are 0xF1/0xF2 framing issues:
-    // the last frame sometimes has an off-by-one error in the frame size!
-    static const size_t UsbPartMaxSize = 100;
+    // USB is theoretically unlimited but there are 0xF1/0xF2 framing issues
+    // when the size gets too large (FW0036_10). 512 is the limit where MVP
+    // firmware updates still work.
+    static const size_t UsbPartMaxSize = 512;
 
     const size_t PartMaxSize = (dynamic_cast<usb::MVLC_USB_Interface *>(readerContext_.mvlc)
                                     ? UsbPartMaxSize : EthPartMaxSize);
