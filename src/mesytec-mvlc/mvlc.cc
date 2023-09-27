@@ -705,19 +705,14 @@ std::error_code CmdApi::uploadStack(
     // and/or last part, StackStart and/or StackEnd also have to be written.
     // Extreme case without ref word: StackStart + 181 words + StackEnd = 183 words.
     // With WriteLocal commands: 183 * 2 + 1 ref word: 367 words * 4 bytes = 1468 bytes.
-    //static const size_t EthPartMaxSize = 181;
+    static const size_t EthPartMaxSize = 181;
 
-    // USB is theoretically unlimited but there are 0xF1/0xF2 framing issues
-    // when the size gets too large (FW0036_10). 512 is the limit where MVP
-    // firmware updates still work.
-    //static const size_t UsbPartMaxSize = 512;
-
-    // Temporary old limit of 125 until FW0036 issues are fixed. (Large stack
-    // responses do not work anymore since the F1/F2 super continuation changes:
-    // stack responses now also get split into F1/F2. Fix hopefully incoming.)
-    static const size_t EthPartMaxSize = 125;
-    static const size_t UsbPartMaxSize = EthPartMaxSize;
-
+    // USB is theoretically unlimited but there are issues with large buffers
+    // (FW0036_11 and earlier): the super response from the MVLC is missing
+    // data, e.g. 1619 words are uploaded but the response is missing 1020 words
+    // in the middle. The current part size of 768 was determined through trial
+    // and error.
+    static const size_t UsbPartMaxSize = 768;
 
     const size_t PartMaxSize = (dynamic_cast<usb::MVLC_USB_Interface *>(readerContext_.mvlc)
                                     ? UsbPartMaxSize : EthPartMaxSize);
