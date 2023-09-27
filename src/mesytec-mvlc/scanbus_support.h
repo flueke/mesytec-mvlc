@@ -133,7 +133,14 @@ MESYTEC_MVLC_EXPORT std::vector<u32> scan_vme_bus_for_candidates(
     const u8 probeAmod = vme_amods::A32,
     const VMEDataWidth probeDataWidth = VMEDataWidth::D16,
     const unsigned maxStackSize = stacks::ImmediateStackReservedWords);
-    //const unsigned maxStackSize = stacks::StackMemoryWords);
+
+// Same as above using default parameters for everything but the max stack size.
+inline std::vector<u32> scan_vme_bus_for_candidates_stacksize(
+    MVLC &mvlc, const unsigned maxStackSize)
+{
+    return scan_vme_bus_for_candidates(mvlc, 0u, 0xffffu, ProbeRegister,
+        vme_amods::A32, VMEDataWidth::D16, maxStackSize);
+}
 
 struct VMEModuleInfo
 {
