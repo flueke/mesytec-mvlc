@@ -788,7 +788,7 @@ std::error_code CmdApi::uploadStack(
         }
 
         auto superBuffer = make_command_buffer(super);
-        logger->debug("stack part #{}: superBuffer.size()={}", partCount+1, superBuffer.size());
+        logger->trace("stack part #{}: superBuffer.size()={}", partCount+1, superBuffer.size());
         //log_buffer(logger, spdlog::level::trace, superBuffer, fmt::format("partial stack upload part {}", partCount+1));
         assert(superBuffer.size() <= MirrorTransactionMaxWords);
 
@@ -804,7 +804,7 @@ std::error_code CmdApi::uploadStack(
     }
 
     assert(partIter == stackEnd);
-    logger->debug("stackWordsWritten={}, stackContents.size()={}, partCount={}",
+    logger->trace("stackWordsWritten={}, stackContents.size()={}, partCount={}",
                  stackWordsWritten, stackContents.size(), partCount);
     assert(stackWordsWritten == stackContents.size());
 
