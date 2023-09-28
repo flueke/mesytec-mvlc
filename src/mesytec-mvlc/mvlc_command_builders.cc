@@ -864,10 +864,11 @@ StackCommandBuilder &StackCommandBuilder::addGroup(
 
 bool MESYTEC_MVLC_EXPORT produces_output(const StackCommand &cmd)
 {
+    if (is_read_command(cmd))
+        return true;
+
     switch (cmd.type)
     {
-        case StackCommand::CommandType::VMERead:
-        case StackCommand::CommandType::VMEReadSwapped:
         case StackCommand::CommandType::WriteMarker:
         case StackCommand::CommandType::WriteSpecial:
             return true;

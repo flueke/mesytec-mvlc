@@ -66,10 +66,10 @@ namespace readout_parser
 
 namespace
 {
+    using StackCT = StackCommand::CommandType;
+
     ModuleReadoutStructure parse_module_readout_commands(const std::vector<StackCommand> &commands)
     {
-        using StackCT = StackCommand::CommandType;
-
         enum State { Prefix, Dynamic, Suffix };
         State state = Prefix;
         ModuleReadoutStructure modParts = {};
@@ -86,7 +86,7 @@ namespace
 
         for (const auto &cmd: commands)
         {
-            if ((cmd.type == StackCT::VMERead
+            if ((is_read_command(cmd)
                  && !vme_amods::is_block_mode(cmd.amod)
                  && !accumulatorActive)
                 || cmd.type == StackCT::WriteMarker
@@ -109,7 +109,7 @@ namespace
                         break;
                 }
             }
-            else if (cmd.type == StackCT::VMERead || cmd.type == StackCT::VMEReadSwapped)
+            else if (is_read_command(cmd))
             {
                 // Handles vme block reads and reads with active accu, making
                 // the structure have a dynamic size.

@@ -166,6 +166,25 @@ struct MESYTEC_MVLC_EXPORT StackCommand
 std::string MESYTEC_MVLC_EXPORT to_string(const StackCommand &cmd);
 StackCommand MESYTEC_MVLC_EXPORT stack_command_from_string(const std::string &str);
 
+// True for output producing read commands.
+inline bool is_read_command(const StackCommand &cmd)
+{
+    using StackCT = StackCommand::CommandType;
+
+    switch (cmd.type)
+    {
+    case StackCT::VMERead:
+    case StackCT::VMEReadSwapped:
+    case StackCT::VMEReadMem:
+    case StackCT::VMEReadMemSwapped:
+        return true;
+    default:
+        break;
+    }
+
+    return false;
+}
+
 class MESYTEC_MVLC_EXPORT StackCommandBuilder
 {
     public:
