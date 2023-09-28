@@ -714,6 +714,16 @@ std::error_code CmdApi::uploadStack(
     // and error.
     static const size_t UsbPartMaxSize = 768;
 
+    // Update (230928): when continuously writing, the MVLC firmware can handle
+    // 256 incoming words at a time, so large buffers would have to be split
+    // into max 256 word sized pieces (with buffer start and end words). These
+    // pieces could be written out one after the other, without having to wait
+    // for each individual response. The incoming responses could be read in
+    // parallel while still writing data. The current system with one pending
+    // super and one pending stack response can't handle this (I think). As this
+    // most likely only affects things like MVP firmware updates over VME the
+    // code is not going to be rewritten now.
+
     const size_t PartMaxSize = (dynamic_cast<usb::MVLC_USB_Interface *>(readerContext_.mvlc)
                                     ? UsbPartMaxSize : EthPartMaxSize);
 
