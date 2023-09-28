@@ -1131,11 +1131,11 @@ std::error_code MVLC::connect()
         }
 
         // Read hardware id and firmware revision.
-        u32 hardwareId = 0;
-        u32 firmwareRevision = 0;
+        u32 hwId = 0;
+        u32 fwRev = 0;
 
         logger->debug("reading hardware_id register");
-        if (auto ec = d->cmdApi_.readRegister(registers::hardware_id, hardwareId))
+        if (auto ec = d->cmdApi_.readRegister(registers::hardware_id, hwId))
         {
             logger->error("error reading hardware_id register: {}", ec.message());
             d->isConnected_ = false;
@@ -1143,17 +1143,17 @@ std::error_code MVLC::connect()
         }
 
         logger->debug("reading firmware_revision register");
-        if (auto ec = d->cmdApi_.readRegister(registers::firmware_revision, firmwareRevision))
+        if (auto ec = d->cmdApi_.readRegister(registers::firmware_revision, fwRev))
         {
             logger->error("error reading firmware_revision register: {}", ec.message());
             d->isConnected_ = false;
             return ec;
         }
 
-        d->hardwareId_ = hardwareId;
-        d->firmwareRevision_ = firmwareRevision;
+        d->hardwareId_ = hwId;
+        d->firmwareRevision_ = fwRev;
 
-        logger->info("connected to MVLC ({})", connectionInfo());
+        logger->info("connected to MVLC ({}, firmware=FW{:04X})", connectionInfo(), firmwareRevision());
     }
     else
     {
