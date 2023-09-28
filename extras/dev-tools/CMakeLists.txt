@@ -41,13 +41,6 @@ if (MVLC_BUILD_DEV_TOOLS)
 endif(MVLC_BUILD_DEV_TOOLS)
 
 if (MVLC_BUILD_TOOLS)
-    add_executable(mvlc-vme-scan-bus mvlc_vme_scan_bus.cc)
-    target_link_libraries(mvlc-vme-scan-bus
-        PRIVATE mesytec-mvlc
-        PRIVATE BFG::Lyra
-        PRIVATE spdlog::spdlog)
-    install(TARGETS mvlc-vme-scan-bus RUNTIME DESTINATION bin)
-
     add_executable(mvlc-listfile-info mvlc_listfile_info.cc)
     target_link_libraries(mvlc-listfile-info
         PRIVATE mesytec-mvlc
