@@ -395,7 +395,7 @@ DEF_EXEC_FUNC(scanbus_command)
             auto msg = fmt::format("Found module at {:#010x}: hwId={:#06x}, fwId={:#06x}, type={}",
                 addr, moduleInfo.hwId, moduleInfo.fwId, moduleInfo.moduleTypeName());
 
-            if (is_mdpp(moduleInfo.hwId))
+            if (vme_modules::is_mdpp(moduleInfo.hwId))
                 msg += fmt::format(", mdpp_fw_type={}", moduleInfo.mdppFirmwareTypeName());
 
             std::cout << fmt::format("{}\n", msg);

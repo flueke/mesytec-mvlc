@@ -111,6 +111,8 @@ std::vector<u32> scan_vme_bus_for_candidates(
 
 std::error_code read_module_info(MVLC &mvlc, u32 vmeAddress, VMEModuleInfo &dest)
 {
+    using namespace vme_modules;
+
     if (auto ec = mvlc.vmeRead(vmeAddress + FirmwareRegister, dest.fwId, vme_amods::A32, VMEDataWidth::D16))
         return ec;
 
