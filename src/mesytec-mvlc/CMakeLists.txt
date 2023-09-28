@@ -81,8 +81,8 @@ endif()
 set(MVLC_SPDLOG_ACTIVE_LEVEL "SPDLOG_LEVEL_WARN" CACHE STRING "Compile time spdlog level for the library")
 
 target_compile_definitions(mesytec-mvlc PRIVATE SPDLOG_ACTIVE_LEVEL=${MVLC_SPDLOG_ACTIVE_LEVEL})
-target_compile_options(mesytec-mvlc PRIVATE -Wall -Wextra)
-target_compile_features(mesytec-mvlc PUBLIC cxx_std_14)
+target_compile_options(mesytec-mvlc PRIVATE -Wall -Wextra -Wimplicit-fallthrough)
+target_compile_features(mesytec-mvlc PUBLIC cxx_std_17)
 
 if (WIN32)
     target_link_libraries(mesytec-mvlc PRIVATE ws2_32 winmm)
