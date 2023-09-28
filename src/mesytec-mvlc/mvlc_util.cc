@@ -73,6 +73,7 @@ std::string decode_frame_header(u32 header)
 
         case frame_headers::SuperContinuation:
             ss << "SuperFrameContinuation (len=" << headerInfo.len;
+            break;
 
         case frame_headers::StackFrame:
             ss << "StackResultFrame (len=" << headerInfo.len;
