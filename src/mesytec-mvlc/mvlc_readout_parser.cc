@@ -94,6 +94,7 @@ namespace
             {
                 // Handles non-block vme reads and marker/special commands which
                 // produce a single output word each.
+                assert(produces_output(cmd));
 
                 switch (state)
                 {
@@ -115,6 +116,7 @@ namespace
                 // the structure have a dynamic size.
 
                 assert(vme_amods::is_block_mode(cmd.amod) || accumulatorActive);
+                assert(produces_output(cmd));
 
                 switch (state)
                 {
