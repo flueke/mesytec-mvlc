@@ -47,6 +47,10 @@ namespace vme_amods
     static const u8 MBLT64      = a32UserBlock64;
     static const u8 Blk2eSST64  = 0x20;
 
+    // aliases
+    static const u8 BLT         = BLT32;
+    static const u8 MBLT        = MBLT64;
+
     // amods are 6 bits wide
     static const unsigned VmeAmodMask = 0b111111u;
 
