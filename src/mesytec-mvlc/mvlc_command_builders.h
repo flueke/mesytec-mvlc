@@ -112,7 +112,7 @@ struct MESYTEC_MVLC_EXPORT StackCommand
 
         // Software side accumulator available when executing command lists. Not
         // available in readout stacks uploaded to the MVLC.
-        // TODO: implement the software accu
+        // TODO (maybe): implement the software accu
         #if 0
         SoftwareAccuSet         = 0xD0u,
         SoftwareAccuMaskShift   = 0xD1u,

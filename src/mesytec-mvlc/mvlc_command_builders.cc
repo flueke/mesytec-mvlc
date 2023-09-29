@@ -270,13 +270,13 @@ std::string to_string(const StackCommand &cmd)
             {
                 // 2eSST word swapped
                 return fmt::format(
-                    "vme_read_swapped {:#04x} {} {:#010x} {}",
+                    "vme_block_read_swapped {:#04x} {} {:#010x} {}",
                     cmd.amod, cmd.transfers, cmd.address, static_cast<unsigned>(cmd.rate));
             }
 
             // BLT/MBLT word swapped
             return fmt::format(
-                "vme_read_swapped {:#04x} {} {:#010x}",
+                "vme_block_read_swapped {:#04x} {} {:#010x}",
                 cmd.amod, cmd.transfers, cmd.address);
 
         case CT::VMEReadMem:
@@ -327,13 +327,13 @@ std::string to_string(const StackCommand &cmd)
             {
                 // 2eSST word swapped
                 return fmt::format(
-                    "vme_read_mem_swapped {:#04x} {} {:#010x} {}",
+                    "vme_block_read_mem_swapped {:#04x} {} {:#010x} {}",
                     cmd.amod, cmd.transfers, cmd.address, static_cast<unsigned>(cmd.rate));
             }
 
             // BLT/MBLT word swapped
             return fmt::format(
-                "vme_read_mem_swapped {:#04x} {} {:#010x}",
+                "vme_block_read_mem_swapped {:#04x} {} {:#010x}",
                 cmd.amod, cmd.transfers, cmd.address);
 
         case CT::VMEWrite:
@@ -458,8 +458,8 @@ StackCommand stack_command_from_string(const std::string &str)
             iss >> arg; result.rate = static_cast<Blk2eSSTRate>(std::stoul(arg, nullptr, 0));
         }
     }
-    // Note: vme_mblt_swapped is the legacy name for vme_read_swapped
-    else if (name == "vme_read_swapped" || name == "vme_mblt_swapped")
+    // Note: vme_mblt_swapped is the legacy name for vme_block_read_swapped
+    else if (name == "vme_block_read_swapped" || name == "vme_mblt_swapped")
     {
         result.type = CT::VMEReadSwapped;
         iss >> arg; result.amod = std::stoul(arg, nullptr, 0);
@@ -485,7 +485,7 @@ StackCommand stack_command_from_string(const std::string &str)
             iss >> arg; result.rate = static_cast<Blk2eSSTRate>(std::stoul(arg, nullptr, 0));
         }
     }
-    else if (name == "vme_read_mem_swapped")
+    else if (name == "vme_block_read_mem_swapped")
     {
         result.type = CT::VMEReadMemSwapped;
         iss >> arg; result.amod = std::stoul(arg, nullptr, 0);
@@ -577,7 +577,7 @@ StackCommand stack_command_from_string(const std::string &str)
         }
     }
     else
-        throw std::runtime_error(fmt::format("invalid command '{}'", name));
+        throw std::runtime_error(fmt::format("unhandled command '{}' in line '{}'", name, str));
 
     return result;
 }

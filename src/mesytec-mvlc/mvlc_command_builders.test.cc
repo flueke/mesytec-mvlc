@@ -493,8 +493,32 @@ TEST(mvlc_commands, StackGroups)
 TEST(mvlc_commands, StackCommandToString)
 {
     StackCommandBuilder builder;
-    builder.addVMERead(0x1337u, 0x09u, VMEDataWidth::D16);
-    builder.addVMEBlockRead(0x1338u, vme_amods::BLT32, 42);
+
+    // Single reads. FIFO flag is for block reads created by MVLCs accumulator
+    // feature.
+    builder.addVMERead(0x1337u, vme_amods::A16, VMEDataWidth::D16); // !late, fifo
+    builder.addVMERead(0x1338u, vme_amods::A24, VMEDataWidth::D16, true); // late, fifo
+    builder.addVMERead(0x1339u, vme_amods::A24, VMEDataWidth::D16, true, false); // late, !fifo
+    builder.addVMERead(0x133au, vme_amods::A32, VMEDataWidth::D32, false, false); // !late, !fifo
+
+    // BLT
+    builder.addVMEBlockRead(0x2342, vme_amods::BLT, 10000, true); // BLT, 10k cycles, fifo
+    builder.addVMEBlockRead(0x4223, vme_amods::BLT, 20000, false); // BLT, 20k cycles, !fifo
+
+    // MBLT
+    builder.addVMEBlockRead(0x2342, vme_amods::MBLT, 10000, true); // MBLT, 10k cycles, fifo
+    builder.addVMEBlockRead(0x2342, vme_amods::MBLT, 10000, false); // MBLT, 10k cycles, !fifo
+    builder.addVMEBlockReadSwapped(0x2342, vme_amods::MBLT, 10000, true); // MBLT swapped, 10k cycles, fifo
+    builder.addVMEBlockReadSwapped(0x2342, vme_amods::MBLT, 10000, false); // MBLT swapped, 10k cycles, !fifo
+
+    // 2eSST
+    builder.addVMEBlockRead(0x1234, Blk2eSSTRate::Rate160MB, 0xffff, true);
+    builder.addVMEBlockRead(0x1234, Blk2eSSTRate::Rate276MB, 0xffff, false);
+    builder.addVMEBlockReadSwapped(0x1234, Blk2eSSTRate::Rate320MB, 0xffff, true);
+    builder.addVMEBlockReadSwapped(0x1234, Blk2eSSTRate::Rate160MB, 0xffff, true);
+
+
+    // some other commands (TODO: add more)
     builder.addVMEWrite(0x1339u, 43, 0x09u, VMEDataWidth::D32);
     builder.addWriteMarker(0x87654321u);
     builder.addSoftwareDelay(std::chrono::milliseconds(100));
@@ -512,6 +536,8 @@ TEST(mvlc_commands, StackCommandToString)
 
     builder.addCommand(custom);
 
+    // Convert the command to string, parse the string back to a command and
+    // compare both the original and reparsed commands
     for (const auto &cmd: builder.getCommands())
     {
         auto cmdString = to_string(cmd);
