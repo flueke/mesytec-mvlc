@@ -949,7 +949,7 @@ std::error_code Impl::connect()
             if (res != 0)
                 return std::error_code(errno, std::system_category());
 
-            logger->info("pipe={}, SO_RCVBUF={}", static_cast<unsigned>(pipe), actualBufferSize);
+            logger->debug("pipe={}, SO_RCVBUF={}", static_cast<unsigned>(pipe), actualBufferSize);
 
             if (actualBufferSize < DesiredSocketReceiveBufferSize)
             {
