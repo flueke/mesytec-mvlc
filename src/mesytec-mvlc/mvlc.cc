@@ -1153,7 +1153,7 @@ std::error_code MVLC::connect()
         d->hardwareId_ = hwId;
         d->firmwareRevision_ = fwRev;
 
-        logger->info("connected to MVLC ({}, firmware=FW{:04X})", connectionInfo(), firmwareRevision());
+        logger->info("Connected to MVLC ({}, firmware=FW{:04X})", connectionInfo(), firmwareRevision());
     }
     else
     {
