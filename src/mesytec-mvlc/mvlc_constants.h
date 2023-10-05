@@ -338,21 +338,20 @@ namespace stacks
     // device register. This is a software-side convention only, hardware wise
     // nothing special is going on.
     static const u8 ImmediateStackID = 0;
+
     // Offset the immediate stack by this number of words from the start of the
     // stack memory. This allows deactivating a stack by settings its offset to 0
     // which will never contain a valid stack buffer.
     static const u16 ImmediateStackStartOffsetWords = 1;
     static const u16 ImmediateStackStartOffsetBytes = ImmediateStackStartOffsetWords * 4;
-    // Other stacks must start after this point. Using 128-StartOffset to
-    // divide the 1024 words into 8 sections of 128 words each.
-    static const u16 ImmediateStackReservedWords = 128 - ImmediateStackStartOffsetWords;
+
+    // Readout stacks must start after this point.
+    static const u16 ImmediateStackReservedWords = 256 - ImmediateStackStartOffsetWords;
     static const u16 ImmediateStackReservedBytes = ImmediateStackReservedWords * 4;
-    // One past the end of the immediate stack reserved segment.
-    static const u16 ImmediateStackEndWord       = 129u;
-    static const u16 ImmediateStackEndByte       = ImmediateStackEndWord * 4;
-    // Constant for the standard layout where every stack is allocated 128
+
+    // Constant for the standard layout where every stack is allocated 256
     // words of stack memory.
-    static const u16 StackMemorySegmentSize = 128;
+    static const u16 StackMemorySegmentSize = 256;
 
     // All stacks other than the one reserved for immediate execution can be
     // used as readout stacks activated by IRQ or via the Trigger/IO system.
