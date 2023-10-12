@@ -186,6 +186,14 @@ class MESYTEC_MVLC_EXPORT SplitZipCreator
         std::unique_ptr<Private> d;
 };
 
+template<typename ZipCreator, typename Container>
+void add_file_to_archive(ZipCreator *zipCreator, const std::string &filename, const Container &data)
+{
+    auto writeHandle = zipCreator->createZIPEntry(filename, 0); // uncompressed zip entry
+    writeHandle->write(reinterpret_cast<const u8 *>(data.data()), data.size());
+    zipCreator->closeCurrentEntry();
+}
+
 class MESYTEC_MVLC_EXPORT SplitZipWriteHandle: public WriteHandle
 {
     public:
