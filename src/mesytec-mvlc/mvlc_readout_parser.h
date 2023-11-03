@@ -104,7 +104,11 @@ struct ModuleData
 inline bool size_consistency_check(const ModuleData &md)
 {
     u64 partSum = md.prefixSize + md.dynamicSize + md.suffixSize;
-    return partSum == md.data.size;
+    bool sumOk = partSum == md.data.size;
+    // Note: cannot test the opposite: the current dynamicSize can be 0 but
+    // hasDynamic can be true at the same time, e.g. from empty block reads.
+    bool dynOk = md.dynamicSize > 0 ? md.hasDynamic : true;
+    return sumOk && dynOk;
 }
 
 inline DataBlock prefix_span(const ModuleData &md)
