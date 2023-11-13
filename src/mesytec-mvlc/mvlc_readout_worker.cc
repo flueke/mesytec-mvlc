@@ -995,28 +995,31 @@ std::error_code ReadoutWorker::Private::startReadout()
             logger->info("enable_daq_mode done");
 
             const int McstMaxTries = 5;
-            for (int try_=0; try_<McstMaxTries; ++try_)
+            if (!mcstDaqStart.empty())
             {
-                logger->info("Running MCST DAQ start commands (try {}/{})", try_+1, McstMaxTries);
-                auto mcstResults = run_commands(mvlc, mcstDaqStart);
-                ec = get_first_error(mcstResults);
+                for (int try_=0; try_<McstMaxTries; ++try_)
+                {
+                    logger->info("Running MCST DAQ start commands (try {}/{})", try_+1, McstMaxTries);
+                    auto mcstResults = run_commands(mvlc, mcstDaqStart);
+                    ec = get_first_error(mcstResults);
 
-                if (ec && ec == ErrorType::ConnectionError)
-                {
-                    logger->error("ConnectionError from running MCST DAQ start commands: {}", ec.message());
-                    break;
-                }
-                else if (ec)
-                {
-                    auto res = get_first_error_result(mcstResults);
-                    logger->error("Error running MCST DAQ start command '{}': {}",
-                                  to_string(res.cmd), res.ec.message());
-                    continue;
-                }
-                else
-                {
-                    logger->info("Done with MCST DAQ start commands");
-                    break;
+                    if (ec && ec == ErrorType::ConnectionError)
+                    {
+                        logger->error("ConnectionError from running MCST DAQ start commands: {}", ec.message());
+                        break;
+                    }
+                    else if (ec)
+                    {
+                        auto res = get_first_error_result(mcstResults);
+                        logger->error("Error running MCST DAQ start command '{}': {}",
+                                    to_string(res.cmd), res.ec.message());
+                        continue;
+                    }
+                    else
+                    {
+                        logger->info("Done with MCST DAQ start commands");
+                        break;
+                    }
                 }
             }
         } while (false);
@@ -1090,28 +1093,31 @@ std::error_code ReadoutWorker::Private::terminateReadout()
         {
             const int MaxTries = 5;
 
-            for (int try_=0; try_<MaxTries; ++try_)
+            if (!mcstDaqStop.empty())
             {
-                logger->info("Running MCST DAQ stop commands (try {}/{})", try_+1, MaxTries);
-                auto mcstResults = run_commands(mvlc, mcstDaqStop);
-                ec = get_first_error(mcstResults);
+                for (int try_=0; try_<MaxTries; ++try_)
+                {
+                    logger->info("Running MCST DAQ stop commands (try {}/{})", try_+1, MaxTries);
+                    auto mcstResults = run_commands(mvlc, mcstDaqStop);
+                    ec = get_first_error(mcstResults);
 
-                if (ec && ec == ErrorType::ConnectionError)
-                {
-                    logger->error("ConnectionError from running MCST DAQ stop commands: {}", ec.message());
-                    break;
-                }
-                else if (ec)
-                {
-                    auto res = get_first_error_result(mcstResults);
-                    logger->error("Error running MCST DAQ stop command '{}': {}",
-                                  to_string(res.cmd), res.ec.message());
-                    continue; // next try
-                }
-                else
-                {
-                    logger->info("Done with MCST DAQ stop commands");
-                    break;
+                    if (ec && ec == ErrorType::ConnectionError)
+                    {
+                        logger->error("ConnectionError from running MCST DAQ stop commands: {}", ec.message());
+                        break;
+                    }
+                    else if (ec)
+                    {
+                        auto res = get_first_error_result(mcstResults);
+                        logger->error("Error running MCST DAQ stop command '{}': {}",
+                                    to_string(res.cmd), res.ec.message());
+                        continue; // next try
+                    }
+                    else
+                    {
+                        logger->info("Done with MCST DAQ stop commands");
+                        break;
+                    }
                 }
             }
 
