@@ -56,6 +56,11 @@ struct MESYTEC_MVLC_EXPORT PayloadHeaderInfo
         return (header0 >> header0::PacketNumberShift)  & header0::PacketNumberMask;
     }
 
+    inline u16 controllerId() const
+    {
+        return (header0 >> header0::CtrlIdShift) & header0::CtrlIdMask;
+    }
+
     inline u16 dataWordCount() const
     {
         return (header0 >> header0::NumDataWordsShift)  & header0::NumDataWordsMask;

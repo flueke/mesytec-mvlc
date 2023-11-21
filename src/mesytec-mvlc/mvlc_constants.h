@@ -437,6 +437,8 @@ namespace eth
 
         // 3 Reserved Bits
         // TODO: this should contain the ctrl_id
+        static const u32 CtrlIdMask        = 0x7;
+        static const u32 CtrlIdShift       = 13;
 
         // 13 bit number of data words
         // This is the number of data words following the two header words.
