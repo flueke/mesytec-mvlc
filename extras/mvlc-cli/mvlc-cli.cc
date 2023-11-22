@@ -441,6 +441,50 @@ options:
     .exec = scanbus_command,
 };
 
+DEF_EXEC_FUNC(mvlc_set_id_command)
+{
+    spdlog::trace("entered mvlc_set_id_command()");
+    trace_log_parser_info(ctx.parser, "mvlc_set_id_command");
+
+    unsigned ctrlId;
+
+    if (!(ctx.parser(2) >> ctrlId))
+    {
+        std::cerr << "Error: invalid ctrlId given\n";
+        return 1;
+    }
+
+    spdlog::trace("mvlc_set_id_command: ctrlId={}", ctrlId);
+
+    auto [mvlc, ec] = make_and_connect_default_mvlc(ctx.parser);
+
+    if (!mvlc || ec)
+        return 1;
+
+    if (auto ec = mvlc.writeRegister(ControllerIdRegister, ctrlId))
+    {
+        std::cerr << fmt::format("Error setting controller id: {}\n", ctrlId);
+        return 1;
+    }
+
+    std::cout << fmt::format("MVLC controller id set to {}\n", ctrlId);
+
+    return 0;
+}
+
+static const Command MvlcSetIdCommand
+{
+    .name = "set_id",
+    .help = unindent(
+R"~(usage: mvlc-cli set_id <ctrlId>
+
+    Sets the MVLC controller id which is transmitted with every command response and in
+    readout data frames.
+
+)~"),
+    .exec = mvlc_set_id_command,
+};
+
 int main(int argc, char *argv[])
 {
     std::string generalHelp = R"~(
@@ -520,6 +564,7 @@ MVLC connection URIs:
     ctx.commands.insert(MvlcVersionCommand);
     ctx.commands.insert(MvlcStackInfoCommand);
     ctx.commands.insert(ScanbusCommand);
+    ctx.commands.insert(MvlcSetIdCommand);
     ctx.parser = parser;
 
     // mvlc-cli                 // show generalHelp
