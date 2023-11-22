@@ -1223,8 +1223,8 @@ PacketReadResult Impl::read_packet(Pipe pipe_, u8 *buffer, size_t size)
         return res;
     }
 
-    logger->trace("read_packet: pipe={}, header0=0x{:008x} -> packetChannel={}, packetNumber={}, wordCount={}",
-              pipe, res.header0(), res.packetChannel(), res.packetNumber(), res.dataWordCount());
+    logger->trace("read_packet: pipe={}, header0=0x{:008x} -> packetChannel={}, packetNumber={}, controllerId={}, wordCount={}",
+              pipe, res.header0(), res.packetChannel(), res.packetNumber(), res.controllerId(), res.dataWordCount());
 
     logger->trace("read_packet: pipe={}, header1=0x{:008x} -> udpTimestamp={}, nextHeaderPointer={}",
               pipe, res.header1(), res.udpTimestamp(), res.nextHeaderPointer());
