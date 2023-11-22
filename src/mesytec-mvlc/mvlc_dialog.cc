@@ -37,7 +37,7 @@
 #define LOG_LEVEL_TRACE 400
 
 #ifndef MVLC_DIALOG_LOG_LEVEL
-#define MVLC_DIALOG_LOG_LEVEL LOG_LEVEL_OFF
+#define MVLC_DIALOG_LOG_LEVEL LOG_LEVEL_TRACE
 #endif
 
 #define LOG_LEVEL_SETTING MVLC_DIALOG_LOG_LEVEL
@@ -128,6 +128,8 @@ std::error_code MVLCDialog_internal::readWords(u32 *dest, size_t count, size_t &
         return {};
     }
 
+    m_logger->trace("begin readWords(): dest={}, count={}", fmt::ptr(dest), count);
+
     std::error_code ec;
     size_t bytesToTransfer = count * sizeof(u32);
     size_t bytesTransferred = 0u;
@@ -155,10 +157,14 @@ std::error_code MVLCDialog_internal::readWords(u32 *dest, size_t count, size_t &
 
     do
     {
+        m_logger->trace("readWords(): calling mvlc->read(): bytesToTransfer={}", bytesToTransfer);
         ec = m_mvlc->read(Pipe::Command,
                           reinterpret_cast<u8 *>(dest),
                           bytesToTransfer,
                           bytesTransferred);
+
+        m_logger->trace("readWords(): mvlc->read() returned {}, bytesTransferred={}",
+            ec.message(), bytesTransferred);
 
         //std::cout << __PRETTY_FUNCTION__
         //    << " attempt=" << usedAttempts + 1
@@ -177,29 +183,35 @@ std::error_code MVLCDialog_internal::readWords(u32 *dest, size_t count, size_t &
 
     wordsTransferred = bytesTransferred / sizeof(u32);
 
-    if (ec)
-        return ec;
+    if (!ec)
+    {
+        if (bytesTransferred != bytesToTransfer)
+            ec = make_error_code(MVLCErrorCode::ShortRead);
+    }
 
-    if (bytesTransferred != bytesToTransfer)
-        return make_error_code(MVLCErrorCode::ShortRead);
-
+    m_logger->trace("end readWords(): dest={}, count={}, ec={}", fmt::ptr(dest), count, ec.message());
     return ec;
 }
 
 std::error_code MVLCDialog_internal::readKnownBuffer(std::vector<u32> &dest)
 {
+    m_logger->trace("begin readKnownBuffer(): dest.size()={}", dest.size());
     dest.resize(0);
 
     u32 header = 0u;
     size_t wordsTransferred = 0u;
 
     if (auto ec = readWords(&header, 1, wordsTransferred))
+    {
+        m_logger->trace("readKnownBuffer(): error reading header word: {}", ec.message());
         return ec;
+    }
 
     if (!is_known_frame_header(header))
     {
         dest.resize(1);
         dest[0] = header;
+        m_logger->trace("readKnownBuffer(): error: did not receive a known frame header: 0x{:08x}", header);
         return make_error_code(MVLCErrorCode::InvalidBufferHeader);
     }
 
@@ -216,11 +228,14 @@ std::error_code MVLCDialog_internal::readKnownBuffer(std::vector<u32> &dest)
         dest.resize(1 + wordsTransferred);
     }
 
+    m_logger->trace("end readKnownBuffer(): dest.size()={}, ret={}", dest.size(), ec.message());
+
     return ec;
 }
 
 std::error_code MVLCDialog_internal::readResponse(BufferHeaderValidator bhv, std::vector<u32> &dest)
 {
+    m_logger->trace("begin readResponse(), dest.size()={}", dest.size());
     assert(bhv);
 
     using Clock = std::chrono::steady_clock;
@@ -261,11 +276,13 @@ std::error_code MVLCDialog_internal::readResponse(BufferHeaderValidator bhv, std
         return make_error_code(MVLCErrorCode::UnexpectedBufferHeader);
     }
 
+    m_logger->trace("end readResponse(), dest.size()={}", dest.size());
     return {};
 }
 
 std::error_code MVLCDialog_internal::readRegister(u16 address, u32 &value)
 {
+    m_logger->trace("begin readRegister(): address=0x{:08x}", address);
     SuperCommandBuilder cmdList;
     cmdList.addReferenceWord(m_referenceWord++);
     cmdList.addReadLocal(address);
@@ -281,6 +298,8 @@ std::error_code MVLCDialog_internal::readRegister(u16 address, u32 &value)
         return make_error_code(MVLCErrorCode::UnexpectedResponseSize);
 
     value = m_responseBuffer[3];
+
+    m_logger->trace("end readRegister(): address=0x{:08x}, value=0x{:08x}", address, value);
 
     return {};
 }
@@ -348,6 +367,7 @@ std::error_code MVLCDialog_internal::writeRegister(u16 address, u32 value)
 std::error_code MVLCDialog_internal::superTransaction(
     const std::vector<u32> &cmdBuffer, std::vector<u32> &dest)
 {
+    m_logger->trace("begin superTransaction()");
     if (cmdBuffer.size() > MirrorTransactionMaxWords)
         return make_error_code(MVLCErrorCode::MirrorTransactionMaxWordsExceeded);
 
@@ -389,6 +409,8 @@ std::error_code MVLCDialog_internal::superTransaction(
         // verify the mirror response
         return check_mirror(cmdBuffer, dest);
     }
+
+    m_logger->trace("end superTransaction(), ret={}", ret.message());
 
     return ret;
 }
