@@ -104,6 +104,11 @@ struct MESYTEC_MVLC_EXPORT PacketReadResult
         return PayloadHeaderInfo{header0(), header1()}.packetNumber();
     }
 
+    inline u16 controllerId() const
+    {
+        return PayloadHeaderInfo{header0(), header1()}.controllerId();
+    }
+
     inline u16 dataWordCount() const
     {
         return PayloadHeaderInfo{header0(), header1()}.dataWordCount();
