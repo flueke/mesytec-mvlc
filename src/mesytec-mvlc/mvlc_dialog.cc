@@ -203,7 +203,7 @@ std::error_code MVLCDialog_internal::readKnownBuffer(std::vector<u32> &dest)
         return make_error_code(MVLCErrorCode::InvalidBufferHeader);
     }
 
-    u16 responseLength = (header & FrameSizeMask);
+    u16 responseLength = (header & frame_headers::LengthMask);
     dest.resize(1 + responseLength);
     dest[0] = header;
 

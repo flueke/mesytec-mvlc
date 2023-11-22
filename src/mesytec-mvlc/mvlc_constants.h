@@ -41,7 +41,6 @@ namespace mvlc
 
 static const u32 AddressIncrement = 4;
 static const u32 ReadLocalBlockMaxWords = 768;
-static const u32 FrameSizeMask = 0xFFFF;
 
 // Limitation of the MVLC firmware when running lists of super commands.
 // Subtract 2 for CmdBufferStart and CmdBufferEnd which have to be added to
@@ -310,10 +309,10 @@ static const u16 InternalRegisterMax = 0x5FFF;
 
 // Setting bit 0 to 1 enables autonomous execution of stacks in
 // reaction to triggers.
-static const u32 DAQModeEnableRegister = 0x1300;
+static const u32 DAQModeEnableRegister = 0x1300; // TODO: move into registers namespace
 
 // R/W, 3 bit wide controller id. Transmitted in F3/F9 frames and ETH header0.
-static const u32 ControllerIdRegister  = 0x1304;
+static const u32 ControllerIdRegister  = 0x1304; // TODO: move into registers namespace
 
 namespace stacks
 {
