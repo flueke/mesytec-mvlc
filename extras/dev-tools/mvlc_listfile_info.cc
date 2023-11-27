@@ -112,6 +112,7 @@ bool process_listfile(const std::string &listfile)
         catch (const std::exception &e)
         {
             std::cout << fmt::format("  Error parsing MVLC CrateConfig found in listfile: {}\n", e.what());
+            throw;
         }
     }
 
@@ -154,14 +155,14 @@ bool process_listfile(const std::string &listfile)
         parserCallbacks.systemEvent = [] (void *, int, const u32 *header, u32 size)
         {
             assert(header);
-            //std::cout << fmt::format("    SystemEvent: header={:#010x}, {}\n", *header, mvlc::decode_frame_header(*header));
+            std::cout << fmt::format("    SystemEvent: header={:#010x}, {}\n", *header, mvlc::decode_frame_header(*header));
         };
 
         parserCallbacks.eventData = [] (void *, int, int ei,
             const mvlc::readout_parser::ModuleData *moduleDataList, unsigned moduleCount)
         {
             assert(moduleDataList);
-            //std::cout << fmt::format("    ReadoutEvent: eventIndex={}, moduleCount={}\n", ei, moduleCount);
+            std::cout << fmt::format("    ReadoutEvent: eventIndex={}, moduleCount={}\n", ei, moduleCount);
         };
     }
 
@@ -172,6 +173,7 @@ bool process_listfile(const std::string &listfile)
 
     while (true)
     {
+        readerHelper.destBuf().clear();
         auto buffer = read_next_buffer(readerHelper);
 
         if (!buffer->used())
