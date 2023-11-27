@@ -455,7 +455,8 @@ StackCommand stack_command_from_string(const std::string &str)
         if (vme_amods::is_esst64_mode(result.amod))
         {
             arg = {};
-            iss >> arg; result.rate = static_cast<Blk2eSSTRate>(std::stoul(arg, nullptr, 0));
+            if (iss >> arg)
+                result.rate = static_cast<Blk2eSSTRate>(std::stoul(arg, nullptr, 0));
         }
     }
     // Note: vme_mblt_swapped is the legacy name for vme_block_read_swapped
