@@ -126,15 +126,21 @@ inline const ReadoutBuffer *read_next_buffer(ListfileReaderHelper &rh)
     destBuf.use(tempBuf.size());
     tempBuf.clear();
 
-    size_t bytesRead = rh.readHandle->read(destBuf.data() + destBuf.used(),
-        destBuf.free());
-    destBuf.use(bytesRead);
-    rh.totalBytesRead += bytesRead;
+    try
+    {
+        size_t bytesRead = rh.readHandle->read(destBuf.data() + destBuf.used(),
+            destBuf.free());
+        destBuf.use(bytesRead);
+        rh.totalBytesRead += bytesRead;
 
-    // Ensures that destBuf contains only complete frames/packets. Can move
-    // trailing data from destBuf into tempBuf.
-    size_t bytesMoved = mvlc::fixup_buffer(rh.bufferFormat, destBuf.data(), destBuf.used(), tempBuf);
-    destBuf.setUsed(destBuf.used() - bytesMoved);
+        // Ensures that destBuf contains only complete frames/packets. Can move
+        // trailing data from destBuf into tempBuf.
+        size_t bytesMoved = mvlc::fixup_buffer(rh.bufferFormat, destBuf.data(), destBuf.used(), tempBuf);
+        destBuf.setUsed(destBuf.used() - bytesMoved);
+    }
+    catch (const std::exception &e)
+    {
+    }
 
     return &destBuf;
 }

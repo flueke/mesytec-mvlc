@@ -43,10 +43,10 @@ void listfile_write_magic(WriteHandle &lf_out, ConnectionType ct)
     listfile_write_raw(lf_out, reinterpret_cast<const u8 *>(magic), std::strlen(magic));
 }
 
-void listfile_write_endian_marker(WriteHandle &lf_out)
+void listfile_write_endian_marker(WriteHandle &lf_out, u8 crateId)
 {
     listfile_write_system_event(
-        lf_out, system_event::subtype::EndianMarker,
+        lf_out, crateId, system_event::subtype::EndianMarker,
         &system_event::EndianMarkerValue, 1);
 }
 
@@ -59,18 +59,18 @@ void listfile_write_crate_config(WriteHandle &lf_out, const CrateConfig &config)
         yaml += ' ';
 
     listfile_write_system_event(
-            lf_out, system_event::subtype::MVLCCrateConfig,
+            lf_out, config.crateId, system_event::subtype::MVLCCrateConfig,
             reinterpret_cast<const u32 *>(yaml.c_str()),
             yaml.size() / sizeof(u32));
 }
 
 void listfile_write_system_event(
-    WriteHandle &lf_out, u8 subtype,
+    WriteHandle &lf_out, u8 crateId, u8 subtype,
     const u32 *buffp, size_t totalWords)
 {
     if (totalWords == 0)
     {
-        listfile_write_system_event(lf_out, subtype);
+        listfile_write_system_event(lf_out, crateId, subtype);
         return;
     }
 
@@ -89,6 +89,7 @@ void listfile_write_system_event(
         bool isLastSection = (wordsInSection == wordsLeft);
 
         u32 sectionHeader = (frame_headers::SystemEvent << frame_headers::TypeShift)
+            | ((crateId & system_event::CtrlIdMask) << system_event::CtrlIdShift)
             | ((subtype & system_event::SubtypeMask) << system_event::SubtypeShift);
 
         if (!isLastSection)
@@ -116,12 +117,13 @@ void listfile_write_system_event(
     assert(buffp == endp);
 }
 
-void listfile_write_system_event(WriteHandle &lf_out, u8 subtype)
+void listfile_write_system_event(WriteHandle &lf_out, u8 crateId, u8 subtype)
 {
     if (subtype > system_event::subtype::SubtypeMax)
         throw std::runtime_error("system event subtype out of range");
 
     u32 sectionHeader = (frame_headers::SystemEvent << frame_headers::TypeShift)
+        | ((crateId & system_event::CtrlIdMask) << system_event::CtrlIdShift)
         | ((subtype & system_event::SubtypeMask) << system_event::SubtypeShift);
 
     listfile_write_raw(lf_out, reinterpret_cast<const u8 *>(&sectionHeader),
@@ -129,14 +131,14 @@ void listfile_write_system_event(WriteHandle &lf_out, u8 subtype)
 }
 
 void MESYTEC_MVLC_EXPORT listfile_write_timestamp_section(
-    WriteHandle &lf_out, u8 subtype)
+    WriteHandle &lf_out, u8 crateId, u8 subtype)
 {
     auto now = std::chrono::system_clock::now();
     auto epoch = now.time_since_epoch();
     u64 timestamp = std::chrono::duration_cast<std::chrono::seconds>(epoch).count();
 
     listfile_write_system_event(
-        lf_out, subtype,
+        lf_out, crateId, subtype,
         reinterpret_cast<u32 *>(&timestamp),
         sizeof(timestamp) / sizeof(u32));
 }

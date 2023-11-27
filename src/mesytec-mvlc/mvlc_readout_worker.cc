@@ -372,7 +372,7 @@ class TimetickPlugin: public ReadoutLoopPlugin
                 "TimetickPlugin: writing initial BeginRun timetick");
             // Write the initial timestamp in a BeginRun section
             listfile_write_timestamp_section(
-                args.listfileHandle, system_event::subtype::BeginRun);
+                args.listfileHandle, args.crateId, system_event::subtype::BeginRun);
 
             tLastTick_ = std::chrono::steady_clock::now();
         }
@@ -383,7 +383,7 @@ class TimetickPlugin: public ReadoutLoopPlugin
                 "TimetickPlugin: writing final EndRun timetick");
             // Write the final timestamp in an EndRun section.
             listfile_write_timestamp_section(
-                args.listfileHandle, system_event::subtype::EndRun);
+                args.listfileHandle, args.crateId, system_event::subtype::EndRun);
         }
 
         Result operator()(Arguments &args) override
@@ -396,7 +396,7 @@ class TimetickPlugin: public ReadoutLoopPlugin
                 get_logger("readout_worker")->debug(
                     "TimetickPlugin: writing periodic timetick");
                 listfile_write_timestamp_section(
-                    args.listfileHandle, system_event::subtype::UnixTimetick);
+                    args.listfileHandle, args.crateId, system_event::subtype::UnixTimetick);
                 tLastTick_ = now;
             }
 
@@ -442,7 +442,7 @@ class StackErrorsPlugin: public ReadoutLoopPlugin
                 {
                     logger->debug("StackErrorsPlugin: error counters changed, "
                                   "writing system_event::StackErrors listfile section");
-                    writeStackErrorsEvent(args.listfileHandle, counters);
+                    writeStackErrorsEvent(args.listfileHandle, args.crateId, counters);
                     prevCounters_ = counters;
                 }
                 else
@@ -459,14 +459,14 @@ class StackErrorsPlugin: public ReadoutLoopPlugin
         std::string pluginName() const override { return "StackErrorsPlugin"; }
 
     private:
-        void writeStackErrorsEvent(listfile::WriteHandle &lfh, const StackErrorCounters &counters)
+        void writeStackErrorsEvent(listfile::WriteHandle &lfh, u8 crateId, const StackErrorCounters &counters)
         {
             auto buffer = stack_errors_to_sysevent_data(counters.stackErrors);
 
             if (!buffer.empty())
             {
                 listfile_write_system_event(
-                    lfh, system_event::subtype::StackErrors,
+                    lfh, crateId, system_event::subtype::StackErrors,
                     buffer.data(), buffer.size());
             }
         }
@@ -700,6 +700,7 @@ void ReadoutWorker::Private::loop(std::promise<std::error_code> promise)
     // ConnectionType specifics
     this->mvlcETH = nullptr;
     this->mvlcUSB = nullptr;
+    static const u8 crateId = 0; // FIXME: single crate only for now
 
     switch (mvlc.connectionType())
     {
@@ -755,7 +756,7 @@ void ReadoutWorker::Private::loop(std::promise<std::error_code> promise)
         listfile::ReadoutBufferWriteHandle wh(*getOutputBuffer());
 
         // Prepare plugin args for the readoutStart() call.
-        ReadoutLoopPlugin::Arguments pluginArgs { *q, wh };
+        ReadoutLoopPlugin::Arguments pluginArgs { *q, wh, crateId };
 
         for (auto &plugin: plugins_)
             plugin->readoutStart(pluginArgs);
@@ -783,7 +784,7 @@ void ReadoutWorker::Private::loop(std::promise<std::error_code> promise)
                 // Invoke plugins
                 {
                     listfile::ReadoutBufferWriteHandle wh(*getOutputBuffer());
-                    ReadoutLoopPlugin::Arguments pluginArgs { *q, wh };
+                    ReadoutLoopPlugin::Arguments pluginArgs { *q, wh, crateId };
                     bool stopReadout = false;
 
                     for (auto &plugin: plugins_)
@@ -827,7 +828,7 @@ void ReadoutWorker::Private::loop(std::promise<std::error_code> promise)
                 {
                     terminateReadout();
                     listfile::ReadoutBufferWriteHandle wh(*getOutputBuffer());
-                    listfile_write_timestamp_section(wh, system_event::subtype::Pause);
+                    listfile_write_timestamp_section(wh, crateId, system_event::subtype::Pause);
                     setState(State::Paused);
                     logger->debug("MVLC readout paused");
                 }
@@ -836,7 +837,7 @@ void ReadoutWorker::Private::loop(std::promise<std::error_code> promise)
                 {
                     startReadout();
                     listfile::ReadoutBufferWriteHandle wh(*getOutputBuffer());
-                    listfile_write_timestamp_section(wh, system_event::subtype::Resume);
+                    listfile_write_timestamp_section(wh, crateId, system_event::subtype::Resume);
                     setState(State::Running);
                     logger->debug("MVLC readout resumed");
                 }
@@ -902,7 +903,7 @@ void ReadoutWorker::Private::loop(std::promise<std::error_code> promise)
     // Invoke readoutStop() on the plugins
     {
         listfile::ReadoutBufferWriteHandle wh(*getOutputBuffer());
-        ReadoutLoopPlugin::Arguments pluginArgs { *q, wh };
+        ReadoutLoopPlugin::Arguments pluginArgs { *q, wh, crateId };
 
         for (auto &plugin: plugins_)
             plugin->readoutStop(pluginArgs);

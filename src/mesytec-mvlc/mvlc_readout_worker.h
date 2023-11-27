@@ -96,6 +96,7 @@ class ReadoutLoopPlugin
         {
             ReadoutWorker &readoutWorker;
             listfile::WriteHandle &listfileHandle;
+            u8 crateId;
         };
 
         virtual ~ReadoutLoopPlugin() {};

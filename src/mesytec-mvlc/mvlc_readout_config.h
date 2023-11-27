@@ -13,6 +13,9 @@ namespace mvlc
 
 struct MESYTEC_MVLC_EXPORT CrateConfig
 {
+    // crate/controller id. transmitted in data buffer headers
+    unsigned crateId = 0;
+
     /// How to connect to the MVLC, USB or ETH.
     ConnectionType connectionType;
 

@@ -41,7 +41,8 @@ ConnectionType connection_type_from_string(const std::string &str)
 
 bool CrateConfig::operator==(const CrateConfig &o) const
 {
-    return connectionType == o.connectionType
+    return crateId == o.crateId
+        && connectionType == o.connectionType
         && usbIndex == o.usbIndex
         && usbSerial == o.usbSerial
         && ethHost == o.ethHost
@@ -126,6 +127,7 @@ std::string to_yaml(const CrateConfig &crateConfig)
     out << YAML::BeginMap;
     out << YAML::Key << "crate" << YAML::Value << YAML::BeginMap;
 
+    out << YAML::Key << "crateId" << YAML::Value << crateConfig.crateId;
     out << YAML::Key << "mvlc_connection" << YAML::Value << YAML::BeginMap;
     out << YAML::Key << "type" << YAML::Value << to_string(crateConfig.connectionType);
     out << YAML::Key << "usbIndex" << YAML::Value << std::to_string(crateConfig.usbIndex);
@@ -179,6 +181,9 @@ CrateConfig crate_config_from_yaml(std::istream &input)
 
     if (const auto &yCrate = yRoot["crate"])
     {
+        if (yRoot["crateId"])
+            result.crateId = yCrate["crateId"].as<unsigned>();
+
         if (const auto &yCon = yCrate["mvlc_connection"])
         {
             result.connectionType = connection_type_from_string(yCon["type"].as<std::string>());

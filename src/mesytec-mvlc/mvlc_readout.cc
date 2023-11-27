@@ -96,7 +96,7 @@ std::error_code MVLCReadout::stop()
     }
 
     if (d->lfh)
-        listfile_write_system_event(*d->lfh, system_event::subtype::EndOfFile);
+        listfile_write_system_event(*d->lfh, d->crateConfig.crateId, system_event::subtype::EndOfFile);
 
     return disable_all_triggers_and_daq_mode(d->mvlc);
 }

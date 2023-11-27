@@ -54,7 +54,7 @@ inline size_t listfile_write_raw(WriteHandle &lf_out, const u8 *buffer, size_t s
 }
 
 void MESYTEC_MVLC_EXPORT listfile_write_magic(WriteHandle &lf_out, ConnectionType ct);
-void MESYTEC_MVLC_EXPORT listfile_write_endian_marker(WriteHandle &lf_out);
+void MESYTEC_MVLC_EXPORT listfile_write_endian_marker(WriteHandle &lf_out, u8 crateId);
 void MESYTEC_MVLC_EXPORT listfile_write_crate_config(WriteHandle &lf_out, const CrateConfig &config);
 
 // Writes the magic bytes, an endian marker and the CrateConfig to the output
@@ -63,7 +63,7 @@ void MESYTEC_MVLC_EXPORT listfile_write_crate_config(WriteHandle &lf_out, const 
 inline void listfile_write_preamble(WriteHandle &lf_out, const CrateConfig &config)
 {
     listfile_write_magic(lf_out, config.connectionType);
-    listfile_write_endian_marker(lf_out);
+    listfile_write_endian_marker(lf_out, config.crateId);
     listfile_write_crate_config(lf_out, config);
 }
 
@@ -73,16 +73,16 @@ inline void listfile_write_preamble(WriteHandle &lf_out, const CrateConfig &conf
 // listfile section size into multiple sections with each section headers
 // continue bit set for all but the last section.
 void MESYTEC_MVLC_EXPORT listfile_write_system_event(
-    WriteHandle &lf_out, u8 subtype,
+    WriteHandle &lf_out, u8 crateId, u8 subtype,
     const u32 *buffp, size_t totalWords);
 
 // Writes an empty system_event section
 void MESYTEC_MVLC_EXPORT listfile_write_system_event(
-    WriteHandle &lf_out, u8 subtype);
+    WriteHandle &lf_out, u8 crateId, u8 subtype);
 
 // Writes a system_event section with the given subtype containing a unix timestamp.
 void MESYTEC_MVLC_EXPORT listfile_write_timestamp_section(
-    WriteHandle &lf_out, u8 subtype);
+    WriteHandle &lf_out, u8 crateId, u8 subtype);
 
 //
 // reading
