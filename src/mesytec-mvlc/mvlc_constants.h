@@ -304,19 +304,12 @@ enum class AccuComparator: u8
     GT, // >
 };
 
-static const u16 InternalRegisterMin = 0x0001;
-static const u16 InternalRegisterMax = 0x5FFF;
-
-// Setting bit 0 to 1 enables autonomous execution of stacks in
-// reaction to triggers.
-static const u32 DAQModeEnableRegister = 0x1300; // TODO: move into registers namespace
-
-// R/W, 3 bit wide controller id. Transmitted in F3/F9 frames and ETH header0.
-static const u32 ControllerIdRegister  = 0x1304; // TODO: move into registers namespace
-
 namespace stacks
 {
-    static const u8 StackCount = 8;
+    // 16 stacks since FW0037, 8 stacks in earlier firmware versions.
+    static const u8 StackCount = 16;
+
+    // First stack trigger register.
     static const u16 Stack0TriggerRegister = 0x1100;
 
     // Note: The stack offset registers take offsets from StackMemoryBegin, not
@@ -386,6 +379,8 @@ namespace stacks
 
     // TODO: this belongs into a trigger_io module. It was added in here during
     // mvme development.
+    // TODO FW0037 Rename to StackTimersCount and use it for the internal timers
+    // used exclusively for triggering stacks.
     static const u16 TimerCount = 4;
     static const u16 TimerPeriodMin_ns = 16;
     static const u16 TimerPeriodMax = 0xffff;
@@ -487,6 +482,14 @@ namespace eth
 // address 0xffff0000.
 namespace registers
 {
+    // Setting bit 0 to 1 enables autonomous execution of stacks in reaction to
+    // triggers.
+    static const u16 daq_mode = 0x1300;
+
+    // R/W, 3 bit wide controller id. Transmitted in F3/F9 frames and ETH header0.
+    static const u16 controller_id   = 0x1304;
+
+
     // Send gap for USB in 0.415us. Defaults to 20000 == 8.3ms
     static const u16 usb_send_gap           = 0x0400;
 

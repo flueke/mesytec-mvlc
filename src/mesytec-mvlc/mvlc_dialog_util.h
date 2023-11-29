@@ -117,26 +117,26 @@ read_stack_info(DIALOG_API &mvlc, u8 id)
 template<typename DIALOG_API>
 std::error_code enable_daq_mode(DIALOG_API &mvlc)
 {
-    return mvlc.writeRegister(DAQModeEnableRegister, 1);
+    return mvlc.writeRegister(registers::daq_mode, 1);
 }
 
 template<typename DIALOG_API>
 std::error_code disable_daq_mode(DIALOG_API &mvlc)
 {
-    return mvlc.writeRegister(DAQModeEnableRegister, 0);
+    return mvlc.writeRegister(registers::daq_mode, 0);
 }
 
 template<typename DIALOG_API>
 std::error_code read_daq_mode(DIALOG_API &mvlc, u32 &daqMode)
 {
-    return mvlc.readRegister(DAQModeEnableRegister, daqMode);
+    return mvlc.readRegister(registers::daq_mode, daqMode);
 }
 
 inline SuperCommandBuilder get_disable_all_triggers_and_daq_mode_commands()
 {
     SuperCommandBuilder sb;
     sb.addReferenceWord(std::rand() % 0xffff);
-    sb.addWriteLocal(DAQModeEnableRegister, 0);
+    sb.addWriteLocal(registers::daq_mode, 0);
 
     for (u8 stackId = 0; stackId < stacks::StackCount; stackId++)
     {
@@ -194,7 +194,7 @@ std::error_code setup_readout_stacks(
     const std::vector<StackCommandBuilder> &readoutStacks)
 {
     // Stack0 is reserved for immediate exec
-    u8 stackId = stacks::ImmediateStackID + 1;
+    u8 stackId = stacks::FirstReadoutStackID;
 
     // 1 word gap between immediate stack and first readout stack
     u16 uploadWordOffset = stacks::ImmediateStackStartOffsetWords + stacks::ImmediateStackReservedWords + 1;
@@ -220,7 +220,7 @@ std::error_code setup_readout_stacks(
 
         u16 offsetRegister = stacks::get_offset_register(stackId);
 
-        uploadAddress = uploadAddress & mvlc::stacks::StackOffsetBitMaskBytes;
+        //uploadAddress = uploadAddress & mvlc::stacks::StackOffsetBitMaskBytes;
 
         if (auto ec = mvlc.writeRegister(offsetRegister, uploadAddress))
             return ec;
@@ -273,8 +273,11 @@ std::error_code setup_readout_stack(
 
     if (auto ec = mvlc.writeRegister(
             stacks::get_offset_register(stackId),
-            uploadAddress & stacks::StackOffsetBitMaskBytes))
+            uploadAddress))
+            //uploadAddress & stacks::StackOffsetBitMaskBytes))
+    {
         return ec;
+    }
 
     return write_stack_trigger_value(mvlc, stackId, stackTriggerValue);
 }
@@ -329,7 +332,7 @@ std::error_code setup_readout_triggers(
 {
     SuperCommandBuilder sb;
     sb.addReferenceWord(std::rand() % 0xffff);
-    u8 stackId = stacks::ImmediateStackID + 1;
+    u8 stackId = stacks::FirstReadoutStackID;
 
     for (u32 triggerVal: triggerValues)
     {

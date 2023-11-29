@@ -461,7 +461,7 @@ DEF_EXEC_FUNC(mvlc_set_id_command)
     if (!mvlc || ec)
         return 1;
 
-    if (auto ec = mvlc.writeRegister(ControllerIdRegister, ctrlId))
+    if (auto ec = mvlc.writeRegister(registers::controller_id, ctrlId))
     {
         std::cerr << fmt::format("Error setting controller id: {}\n", ctrlId);
         return 1;
