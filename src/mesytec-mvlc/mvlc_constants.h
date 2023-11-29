@@ -484,11 +484,14 @@ namespace registers
 {
     // Setting bit 0 to 1 enables autonomous execution of stacks in reaction to
     // triggers.
-    static const u16 daq_mode = 0x1300;
+    static const u16 daq_mode               = 0x1300;
 
     // R/W, 3 bit wide controller id. Transmitted in F3/F9 frames and ETH header0.
-    static const u16 controller_id   = 0x1304;
+    static const u16 controller_id          = 0x1304;
 
+    // Since FW0037: allows to generate master trigger signals without having to
+    // use trigger io resources. 4 valid bits, one for each master trigger.
+    static const u16 send_master_trigger    = 0x1306;
 
     // Send gap for USB in 0.415us. Defaults to 20000 == 8.3ms
     static const u16 usb_send_gap           = 0x0400;
@@ -525,7 +528,7 @@ namespace registers
     static const u16 eth_delay_read         = 0x4432;
 
     // Mask specifying what should be reset on a write to 0x6090.
-    // TODO: document the bits
+    // TODO: document the bits and find out what works and what doesn't
     static const u16 reset_register_mask    = 0x0202;
     // Counter/state reset register.
     static const u16 reset_register         = 0x6090;
