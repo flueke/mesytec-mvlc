@@ -1387,4 +1387,21 @@ std::pair<bool, std::error_code> MVLC::jumboFramesEnabled()
 //    return set_pending_response(d->readerContext_.pendingStack, dest, stackRef);
 //}
 
+std::error_code MESYTEC_MVLC_EXPORT redirect_eth_data_stream(MVLC &mvlc)
+{
+    if (mvlc.connectionType() != ConnectionType::ETH)
+        return {};
+
+    static const std::array<u32, 2> EmptyRequest = { 0xF1000000, 0xF2000000 };
+    size_t bytesTransferred = 0;
+
+    auto dataGuard = mvlc.getLocks().lockData();
+
+    return mvlc.getImpl()->write(
+            Pipe::Data,
+            reinterpret_cast<const u8 *>(EmptyRequest.data()),
+            EmptyRequest.size() * sizeof(u32),
+            bytesTransferred);
+}
+
 }

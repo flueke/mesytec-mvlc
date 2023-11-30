@@ -160,6 +160,10 @@ class MESYTEC_MVLC_EXPORT MVLC
         std::shared_ptr<Private> d;
 };
 
+// Sends an empty data frame to the UDP data pipe port to tell the MVLC where to
+// send the readout data. Does nothing for MVLC_USB.
+std::error_code MESYTEC_MVLC_EXPORT redirect_eth_data_stream(MVLC &theMvlc);
+
 }
 
 #endif /* __MESYTEC_MVLC_MVLC_H__ */

@@ -304,6 +304,5 @@ size_t fixup_buffer_mvlc_eth(const u8 *buf, size_t bufUsed, std::vector<u8> &tmp
     return fixup_buffer(buf, bufUsed, tmpBuf, skip_func);
 }
 
-
 } // end namespace mvlc
 } // end namespace mesytec

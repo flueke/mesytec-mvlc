@@ -711,22 +711,11 @@ void ReadoutWorker::Private::loop(std::promise<std::error_code> promise)
 
             // Send an initial empty frame to the UDP data pipe port so that
             // the MVLC knows where to send the readout data.
+            if (auto ec = redirect_eth_data_stream(mvlc))
             {
-                static const std::array<u32, 2> EmptyRequest = { 0xF1000000, 0xF2000000 };
-                size_t bytesTransferred = 0;
-
-                auto dataGuard = mvlc.getLocks().lockData();
-
-                if (auto ec = mvlc.getImpl()->write(
-                        Pipe::Data,
-                        reinterpret_cast<const u8 *>(EmptyRequest.data()),
-                        EmptyRequest.size() * sizeof(u32),
-                        bytesTransferred))
-                {
-                    promise.set_value(ec);
-                    setState(State::Idle);
-                    return;
-                }
+                promise.set_value(ec);
+                setState(State::Idle);
+                return;
             }
             break;
 
