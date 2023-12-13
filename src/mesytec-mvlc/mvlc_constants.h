@@ -355,7 +355,7 @@ namespace stacks
         NoTrigger   = 0,
         IRQWithIACK = 1,
         IRQNoIACK   = 2,
-        External    = 3,
+        External    = 3, // external trigger via Trigger/IO system
     };
 
     // Note: For IRQ triggers the TriggerBits have to be set to the value
@@ -376,6 +376,36 @@ namespace stacks
     {
         return Stack0OffsetRegister + stackId * AddressIncrement;
     }
+
+    enum Triggers
+    {
+        IRQ1   =  0,
+        IRQ2   =  1,
+        IRQ3   =  2,
+        IRQ4   =  3,
+        IRQ5   =  4,
+        IRQ6   =  5,
+        IRQ7   =  6, // last VME IRQ
+        IRQ8   =  7,
+        IRQ9   =  8,
+        IRQ10  =  9,
+        IRQ11  = 10,
+        IRQ12  = 11,
+        IRQ13  = 12,
+        IRQ14  = 13,
+        IRQ15  = 14,
+        IRQ16  = 15,
+
+        Slave0 = 16,
+        Slave1 = 17,
+        Slave2 = 18,
+        Slave3 = 19,
+
+        Timer0 = 20,
+        Timer1 = 21,
+        Timer2 = 22,
+        Timer3 = 23,
+    };
 
     // TODO: this belongs into a trigger_io module. It was added in here during
     // mvme development.
