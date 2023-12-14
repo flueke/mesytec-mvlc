@@ -412,8 +412,6 @@ namespace stacks
     // TODO FW0037 Rename to StackTimersCount and use it for the internal timers
     // used exclusively for triggering stacks.
     static const u16 StackTimersCount = 4;
-    static const u16 TimerPeriodMin_ns = 16;
-    static const u16 TimerPeriodMax = 0xffff;
 } // end namespace stacks
 
 constexpr const u32 SelfVMEAddress = 0xFFFF0000u;
