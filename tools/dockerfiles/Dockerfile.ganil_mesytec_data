@@ -1,0 +1,21 @@
+# syntax=docker/dockerfile:1.5
+# vim:ft=dockerfile
+
+FROM debian:stable
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates build-essential git cmake ninja-build zlib1g-dev \
+    libzmq3-dev cppzmq-dev
+
+COPY . /mesytec-mvlc-sources
+WORKDIR /mesytec-mlvc-build
+
+RUN cmake -GNinja -DCMAKE_BUILD_TYPE=Release /mesytec-mvlc-sources \
+    && ninja && ninja install && ctest .
+
+WORKDIR /
+RUN git clone https://gitlab.in2p3.fr/mesytec-ganil/mesytec_data
+
+WORKDIR /ganil-mesytec_data-build
+RUN cmake -GNinja -DCMAKE_BUILD_TYPE=Release /mesytec_data \
+    && ninja && ninja install
