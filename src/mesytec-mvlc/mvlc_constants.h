@@ -396,22 +396,34 @@ namespace stacks
         IRQ15  = 14,
         IRQ16  = 15,
 
-        Slave0 = 16,
-        Slave1 = 17,
-        Slave2 = 18,
-        Slave3 = 19,
+        // Since FW0037: triggers activated on MasterTrigger signal.
+        Master0 = 16,
+        Master1 = 17,
+        Master2 = 18,
+        Master3 = 19,
 
+        // Since FW0037: timers dedicated to periodic stack execution.
         Timer0 = 20,
         Timer1 = 21,
         Timer2 = 22,
         Timer3 = 23,
     };
 
-    // TODO: this belongs into a trigger_io module. It was added in here during
-    // mvme development.
-    // TODO FW0037 Rename to StackTimersCount and use it for the internal timers
-    // used exclusively for triggering stacks.
+    static const u16 MasterTriggersCount = 4;
+
+    // Since FW0037: StackTimer units that are not part of the Trigger I/O
+    // module: can be used to periodically start stacks without having to use a
+    // Timer unit connected to a StackStart unit. Uses Triggers::Timer0-3 as the
+    // trigger values.
     static const u16 StackTimersCount = 4;
+    static const u16 StackTimer0OffsetRegister  = 0x1180;
+
+    inline u16 get_stacktimer_register(u8 timerId)
+    {
+        // Does not use the default AddressIncrement of 4 for some reason!
+        return StackTimer0OffsetRegister + timerId * 2;
+    }
+
 } // end namespace stacks
 
 constexpr const u32 SelfVMEAddress = 0xFFFF0000u;
