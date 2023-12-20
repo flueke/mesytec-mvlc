@@ -37,7 +37,6 @@
 #endif
 
 #include "mvlc_buffer_validators.h"
-#include "mvlc_dialog.h"
 #include "mvlc_error.h"
 #include "mvlc_eth_interface.h"
 #include "mvlc_usb_interface.h"
@@ -1104,7 +1103,6 @@ std::error_code MVLC::connect()
 
     if (!isConnected())
     {
-        // Terminate the command pipe reader thread if it is still running.
         assert(!d->readerThread_.joinable());
 
         if (d->readerThread_.joinable())
@@ -1124,36 +1122,6 @@ std::error_code MVLC::connect()
             return ec;
         }
 
-        MVLCDialog_internal dlg(d->impl_.get());
-
-        // Read hardware id and firmware revision.
-        u32 hwId = 0;
-        u32 fwRev = 0;
-
-        logger->debug("reading hardware_id register");
-        if (auto ec = dlg.readRegister(registers::hardware_id, hwId))
-        {
-            logger->error("error reading hardware_id register: {}", ec.message());
-            d->isConnected_ = false;
-            d->impl_->disconnect();
-            return ec;
-        }
-
-        logger->debug("reading firmware_revision register");
-        if (auto ec = dlg.readRegister(registers::firmware_revision, fwRev))
-        {
-            logger->error("error reading firmware_revision register: {}", ec.message());
-            d->isConnected_ = false;
-            d->impl_->disconnect();
-            return ec;
-        }
-
-        d->hardwareId_ = hwId;
-        d->firmwareRevision_ = fwRev;
-
-        logger->info("Connected to MVLC ({}, firmware=FW{:04X})", connectionInfo(), firmwareRevision());
-
-        // Start the command pipe reader thread.
         if (!d->readerThread_.joinable())
         {
             d->readerContext_.quit = false;
@@ -1161,6 +1129,31 @@ std::error_code MVLC::connect()
             d->readerContext_.counters.access().ref() = {};
             d->readerThread_ = std::thread(cmd_pipe_reader, std::ref(d->readerContext_));
         }
+
+        // Read hardware id and firmware revision.
+        u32 hwId = 0;
+        u32 fwRev = 0;
+
+        logger->debug("reading hardware_id register");
+        if (auto ec = d->cmdApi_.readRegister(registers::hardware_id, hwId))
+        {
+            logger->error("error reading hardware_id register: {}", ec.message());
+            d->isConnected_ = false;
+            return ec;
+        }
+
+        logger->debug("reading firmware_revision register");
+        if (auto ec = d->cmdApi_.readRegister(registers::firmware_revision, fwRev))
+        {
+            logger->error("error reading firmware_revision register: {}", ec.message());
+            d->isConnected_ = false;
+            return ec;
+        }
+
+        d->hardwareId_ = hwId;
+        d->firmwareRevision_ = fwRev;
+
+        logger->info("Connected to MVLC ({}, firmware=FW{:04X})", connectionInfo(), firmwareRevision());
     }
     else
     {
