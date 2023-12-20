@@ -1113,8 +1113,8 @@ std::error_code ReadoutWorker::Private::terminateReadout()
 
             for (int try_=0; try_<MaxTries; ++try_)
             {
-                logger->info("Disabling stack triggers and DAQ mode");
-                ec = disable_all_triggers_and_daq_mode(mvlc);
+                logger->info("Disabling DAQ mode");
+                ec = disable_daq_mode(mvlc);
 
                 if (ec && ec == ErrorType::ConnectionError)
                 {
