@@ -883,6 +883,9 @@ std::error_code CmdApi::vmeRead(
     if (frameFlags & frame_flags::BusError)
         return MVLCErrorCode::VMEBusError;
 
+    if (frameFlags & frame_flags::SyntaxError)
+        return MVLCErrorCode::StackSyntaxError;
+
     const u32 Mask = (dataWidth == VMEDataWidth::D16 ? 0x0000FFFF : 0xFFFFFFFF);
 
     value = stackResponse[2] & Mask;
@@ -917,6 +920,9 @@ std::error_code CmdApi::vmeWrite(
     if (frameFlags & frame_flags::BusError)
         return MVLCErrorCode::VMEBusError;
 
+    if (frameFlags & frame_flags::SyntaxError)
+        return MVLCErrorCode::StackSyntaxError;
+
     return {};
 }
 
@@ -946,6 +952,9 @@ std::error_code CmdApi::vmeBlockRead(
 
         if (frameFlags & frame_flags::BusError)
             return MVLCErrorCode::VMEBusError;
+
+        if (frameFlags & frame_flags::SyntaxError)
+            return MVLCErrorCode::StackSyntaxError;
     }
 
     return {};
@@ -974,6 +983,9 @@ std::error_code CmdApi::vmeBlockRead(
 
         if (frameFlags & frame_flags::BusError)
             return MVLCErrorCode::VMEBusError;
+
+        if (frameFlags & frame_flags::SyntaxError)
+            return MVLCErrorCode::StackSyntaxError;
     }
 
     return {};
@@ -1002,6 +1014,9 @@ std::error_code CmdApi::vmeBlockReadSwapped(
 
         if (frameFlags & frame_flags::BusError)
             return MVLCErrorCode::VMEBusError;
+
+        if (frameFlags & frame_flags::SyntaxError)
+            return MVLCErrorCode::StackSyntaxError;
     }
 
     return {};
@@ -1030,6 +1045,9 @@ std::error_code CmdApi::vmeBlockReadSwapped(
 
         if (frameFlags & frame_flags::BusError)
             return MVLCErrorCode::VMEBusError;
+
+        if (frameFlags & frame_flags::SyntaxError)
+            return MVLCErrorCode::StackSyntaxError;
     }
 
     return {};

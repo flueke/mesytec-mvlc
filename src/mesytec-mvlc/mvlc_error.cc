@@ -125,7 +125,7 @@ class MVLCErrorCategory: public std::error_category
                  return "immediate stack reserved memory exceeeded";
 
             case MVLCErrorCode::StackSyntaxError:
-                 return "Stack syntax error";
+                 return "Stack syntax error (wrong amod or opcode?)";
 
             case MVLCErrorCode::StackSegmentSizeExceeded:
                  return "Stack segment size (128 words) exceeded";
