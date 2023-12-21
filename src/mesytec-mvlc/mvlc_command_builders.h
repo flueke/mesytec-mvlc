@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -162,6 +163,15 @@ struct MESYTEC_MVLC_EXPORT StackCommand
         return type != CommandType::Invalid;
     }
 };
+
+// throws std::runtime_error if dw is invalid
+std::string MESYTEC_MVLC_EXPORT to_string(const VMEDataWidth &dw);
+
+// throws std::runtime_error if str cannot be converted
+VMEDataWidth MESYTEC_MVLC_EXPORT vme_data_width_from_string(const std::string &str);
+
+// version of the above that does not throw
+std::optional<VMEDataWidth> MESYTEC_MVLC_EXPORT parse_vme_datawidth(const std::string &str);
 
 std::string MESYTEC_MVLC_EXPORT to_string(const StackCommand &cmd);
 StackCommand MESYTEC_MVLC_EXPORT stack_command_from_string(const std::string &str);

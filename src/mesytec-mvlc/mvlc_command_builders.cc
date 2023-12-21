@@ -184,9 +184,6 @@ AccuComparator accu_comparator_from_string(const std::string &comparator)
     throw std::runtime_error("invalid AccuComparator");
 }
 
-namespace
-{
-
 std::string to_string(const VMEDataWidth &dw)
 {
     switch (dw)
@@ -203,15 +200,26 @@ std::string to_string(const VMEDataWidth &dw)
 
 VMEDataWidth vme_data_width_from_string(const std::string &str)
 {
-    if (str == "d16")
+    auto dwStr = util::str_tolower(str);
+
+    if (dwStr == "d16" || dwStr == "16")
         return VMEDataWidth::D16;
-    else if (str == "d32")
+    else if (dwStr == "d32" || dwStr == "32")
         return VMEDataWidth::D32;
 
     throw std::runtime_error("invalid VMEDataWidth");
 }
 
-} // end anon namespace
+std::optional<VMEDataWidth> parse_vme_datawidth(const std::string &str)
+{
+    try
+    {
+        return vme_data_width_from_string(str);
+    }
+    catch(const std::exception& e) { }
+
+    return {};
+}
 
 std::string to_string(const StackCommand &cmd)
 {

@@ -2,8 +2,8 @@
 // https://a4z.gitlab.io/blog/2019/04/30/Git-like-sub-commands-with-argh.html
 
 #include <argh.h>
-#include <string>
 #include <mesytec-mvlc/mesytec-mvlc.h>
+#include <string>
 
 using namespace mesytec::mvlc;
 
@@ -104,7 +104,7 @@ DEF_EXEC_FUNC(help_command)
 static const Command HelpCommand =
 {
     .name = "help",
-    .help = R"~(Raw help for the 'help' command
+    .help = R"~(This is the help text for the 'help' command
 )~",
     .exec = help_command,
 };
@@ -226,8 +226,6 @@ DEF_EXEC_FUNC(mvlc_stack_info_command)
         }
     }
 
-    // TODO: leftoff here on 230707
-
     for (const auto &entry: stackInfos)
     {
         const auto &stackId = entry.stackId;
@@ -284,7 +282,7 @@ DEF_EXEC_FUNC(scanbus_command)
 {
     spdlog::trace("entered mvlc_scanbus_command()");
 
-    auto parser = ctx.parser;
+    auto &parser = ctx.parser;
     parser.add_params({"--scan-begin", "--scan-end", "--probe-register", "--probe-amod", "--probe-datawidth"});
     parser.parse(argv);
     trace_log_parser_info(parser, "mvlc_scanbus_command");
@@ -338,25 +336,21 @@ DEF_EXEC_FUNC(scanbus_command)
 
     if (parser("--probe-datawidth") >> str)
     {
-        auto dwStr = str_tolower(str);
-
-        if (dwStr == "d16" || dwStr == "16")
-            probeDataWidth = VMEDataWidth::D16;
-        else if (dwStr == "d32" || dwStr == "32")
-            probeDataWidth = VMEDataWidth::D32;
+        if (auto dw = parse_vme_datawidth(str))
+        {
+            probeDataWidth = *dw;
+        }
         else
         {
             std::cerr << fmt::format("Error: invalid --probe-datawidth given: {}\n", str);
             return 1;
         }
-
-        str.clear();
     }
 
     if (scanEnd < scanBegin)
         std::swap(scanEnd, scanBegin);
 
-    auto [mvlc, ec] = make_and_connect_default_mvlc(ctx.parser);
+    auto [mvlc, ec] = make_and_connect_default_mvlc(parser);
 
     if (!mvlc || ec)
         return 1;
@@ -485,6 +479,118 @@ R"~(usage: mvlc-cli set_id <ctrlId>
     .exec = mvlc_set_id_command,
 };
 
+DEF_EXEC_FUNC(vme_read_command)
+{
+    spdlog::trace("entered vme_read_command()");
+
+    auto &parser = ctx.parser;
+    parser.add_params({"--amod", "--datawidth"});
+    parser.parse(argv);
+    trace_log_parser_info(parser, "vme_read_command");
+
+    u8 amod = 0x09u;
+    VMEDataWidth dataWidth = VMEDataWidth::D16;
+    u32 address = 0x0u;
+    std::string str;
+
+    if (parser("--amod") >> str)
+    {
+        if (auto val = parse_unsigned<u8>(str))
+        {
+            amod = *val;
+
+            if (vme_amods::is_block_mode(amod))
+            {
+                std::cerr << fmt::format("Error: expected non-block vme amod value.\n");
+                return 1;
+            }
+        }
+        else
+        {
+            std::cerr << fmt::format("Error: invalid --amod value given: {}\n", str);
+            return 1;
+        }
+    }
+
+    if (parser("--datawidth") >> str)
+    {
+        if (auto dw = parse_vme_datawidth(str))
+        {
+            dataWidth = *dw;
+        }
+        else
+        {
+            std::cerr << fmt::format("Error: invalid --datawidth given: {}\n", str);
+            return 1;
+        }
+    }
+
+    auto addressStr = parser[2];
+
+    spdlog::trace("addressStr='{}'", addressStr);
+
+    if (auto val = parse_unsigned<u32>(addressStr))
+    {
+        address = *val;
+    }
+    else
+    {
+        std::cerr << fmt::format("Error: invalid <address> value given: {}\n", addressStr);
+        return 1;
+    }
+
+    spdlog::trace("vme_read_command: amod=0x{:02x}, dataWidth={}, address=0x{:08x}",
+        amod, dataWidth == VMEDataWidth::D16 ? "d16" : "d32", address);
+
+    auto [mvlc, ec] = make_and_connect_default_mvlc(parser);
+
+    if (!mvlc || ec)
+        return 1;
+
+    u32 value = 0;
+
+    if (auto ec = mvlc.vmeRead(address, value, amod, dataWidth))
+    {
+        if (ec == MVLCErrorCode::StackSyntaxError)
+        {
+            std::cerr << fmt::format("Error from VME read: {}. Check --amod value.\n",
+                ec.message());
+        }
+        else
+        {
+            std::cerr << fmt::format("Error from VME read: {}\n", ec.message());
+        }
+        return 1;
+    }
+
+    std::cout << fmt::format("vme_read 0x{:02x} {} 0x{:08x} -> 0x{:08x} ({} decimal)\n",
+        amod, dataWidth == VMEDataWidth::D16 ? "d16" : "d32", address, value, value);
+
+    return 0;
+}
+
+static const Command VmeReadCommand
+{
+    .name = "vme_read",
+    .help = R"~(
+usage: mvlc-cli vme_read [--amod=0x09] [--datawidth=16] <address>
+
+    Perform a single value vme read.
+
+options:
+    --amod=<amod> (default=0x09)
+        VME address modifier to send with the read command. Only non-block amods are allowed.
+        A list of address modifiers is available here: https://www.vita.com/page-1855176.
+
+    --datawidth=(d16|16|d32|32) (default=d16)
+        VME datawidth to use for the read.
+
+    <address>
+        32-bit VME address to read from.
+)~",
+    .exec = vme_read_command,
+};
+
 int main(int argc, char *argv[])
 {
     std::string generalHelp = R"~(
@@ -565,6 +671,7 @@ MVLC connection URIs:
     ctx.commands.insert(MvlcStackInfoCommand);
     ctx.commands.insert(ScanbusCommand);
     ctx.commands.insert(MvlcSetIdCommand);
+    ctx.commands.insert(VmeReadCommand);
     ctx.parser = parser;
 
     // mvlc-cli                 // show generalHelp
