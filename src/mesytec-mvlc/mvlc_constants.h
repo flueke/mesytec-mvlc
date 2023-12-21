@@ -497,7 +497,7 @@ namespace eth
     {
         Command, // Command and mirror responses
         Stack,   // Data produced by stack executions routed to the command
-                 // pipe (F7 error notifications).
+                 // pipe (immediate stack executions and F7 error notifications).
         Data,    // Readout data produced by stacks routed to the data pipe
     };
 

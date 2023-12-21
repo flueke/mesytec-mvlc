@@ -527,8 +527,6 @@ DEF_EXEC_FUNC(vme_read_command)
 
     auto addressStr = parser[2];
 
-    spdlog::trace("addressStr='{}'", addressStr);
-
     if (auto val = parse_unsigned<u32>(addressStr))
     {
         address = *val;
@@ -589,6 +587,129 @@ options:
         32-bit VME address to read from.
 )~",
     .exec = vme_read_command,
+};
+
+DEF_EXEC_FUNC(vme_write_command)
+{
+    spdlog::trace("entered vme_write_command()");
+
+    auto &parser = ctx.parser;
+    parser.add_params({"--amod", "--datawidth"});
+    parser.parse(argv);
+    trace_log_parser_info(parser, "vme_write_command");
+
+    u8 amod = 0x09u;
+    VMEDataWidth dataWidth = VMEDataWidth::D16;
+    u32 address = 0x0u;
+    u32 value = 0x0u;
+    std::string str;
+
+    if (parser("--amod") >> str)
+    {
+        if (auto val = parse_unsigned<u8>(str))
+        {
+            amod = *val;
+
+            if (vme_amods::is_block_mode(amod))
+            {
+                std::cerr << fmt::format("Error: expected non-block vme amod value.\n");
+                return 1;
+            }
+        }
+        else
+        {
+            std::cerr << fmt::format("Error: invalid --amod value given: {}\n", str);
+            return 1;
+        }
+    }
+
+    if (parser("--datawidth") >> str)
+    {
+        if (auto dw = parse_vme_datawidth(str))
+        {
+            dataWidth = *dw;
+        }
+        else
+        {
+            std::cerr << fmt::format("Error: invalid --datawidth given: {}\n", str);
+            return 1;
+        }
+    }
+
+    auto addressStr = parser[2];
+    auto valueStr = parser[3];
+
+    if (auto val = parse_unsigned<u32>(addressStr))
+    {
+        address = *val;
+    }
+    else
+    {
+        std::cerr << fmt::format("Error: invalid <address> value given: {}\n", addressStr);
+        return 1;
+    }
+
+    if (auto val = parse_unsigned<u32>(valueStr))
+    {
+        value = *val;
+    }
+    else
+    {
+        std::cerr << fmt::format("Error: invalid <value> given: {}\n", addressStr);
+        return 1;
+    }
+
+    spdlog::trace("vme_write_command: amod=0x{:02x}, dataWidth={}, address=0x{:08x}, value=0x{:08x}",
+        amod, dataWidth == VMEDataWidth::D16 ? "d16" : "d32", address, value);
+
+    auto [mvlc, ec] = make_and_connect_default_mvlc(parser);
+
+    if (!mvlc || ec)
+        return 1;
+
+    if (auto ec = mvlc.vmeWrite(address, value, amod, dataWidth))
+    {
+        if (ec == MVLCErrorCode::StackSyntaxError)
+        {
+            std::cerr << fmt::format("Error from VME write: {}. Check --amod value.\n",
+                ec.message());
+        }
+        else
+        {
+            std::cerr << fmt::format("Error from VME write: {}\n", ec.message());
+        }
+        return 1;
+    }
+
+    std::cout << fmt::format("vme_write 0x{:02x} {} 0x{:08x} 0x{:08x} ({} decimal) ok\n",
+        amod, dataWidth == VMEDataWidth::D16 ? "d16" : "d32", address, value, value);
+
+    return 0;
+}
+
+static const Command VmeWriteCommand
+{
+    .name = "vme_write",
+    .help = R"~(
+usage: mvlc-cli vme_write [--amod=0x09] [--datawidth=16] <address> <value>
+
+    Perform a single value vme write.
+
+options:
+    --amod=<amod> (default=0x09)
+        VME address modifier to send with the write command. Only non-block amods are allowed.
+        A list of address modifiers is available here: https://www.vita.com/page-1855176.
+
+    --datawidth=(d16|16|d32|32) (default=d16)
+        VME datawidth to use for the write.
+
+    <address>
+        32 bit VME address to write to.
+
+    <value>
+        16/32 bit value to write.
+)~",
+    .exec = vme_write_command,
 };
 
 int main(int argc, char *argv[])
@@ -672,6 +793,7 @@ MVLC connection URIs:
     ctx.commands.insert(ScanbusCommand);
     ctx.commands.insert(MvlcSetIdCommand);
     ctx.commands.insert(VmeReadCommand);
+    ctx.commands.insert(VmeWriteCommand);
     ctx.parser = parser;
 
     // mvlc-cli                 // show generalHelp
