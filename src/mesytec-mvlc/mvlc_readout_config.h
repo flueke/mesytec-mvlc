@@ -37,6 +37,10 @@ struct MESYTEC_MVLC_EXPORT CrateConfig
     // The trigger value for each of the command stacks.
     std::vector<u32> triggers;
 
+    // Writes to internal registers as part of the DAQ init sequence.
+    // Currently contains the StackTimer setup added in FW0037.
+    std::vector<std::pair<u16, u32>> initRegisters;
+
     // Dedicated command list for initializing the trigger/io system.
     StackCommandBuilder initTriggerIO;
 

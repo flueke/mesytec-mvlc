@@ -5,6 +5,9 @@
 #include <yaml-cpp/yaml.h>
 #include <yaml-cpp/emittermanip.h>
 
+#include "util/fmt.h"
+#include "util/string_util.h"
+
 namespace mesytec
 {
 namespace mvlc
@@ -48,6 +51,7 @@ bool CrateConfig::operator==(const CrateConfig &o) const
         && ethHost == o.ethHost
         && stacks == o.stacks
         && triggers == o.triggers
+        && initRegisters == o.initRegisters
         && initTriggerIO == o.initTriggerIO
         && initCommands == o.initCommands
         && stopCommands == o.stopCommands
@@ -144,6 +148,15 @@ std::string to_yaml(const CrateConfig &crateConfig)
     out << YAML::EndSeq; // end readout_stacks
 
     out << YAML::Key << "stack_triggers" << YAML::Value << crateConfig.triggers;
+
+    out << YAML::Key << "init_registers" << YAML::Value << YAML::BeginMap;
+    for (const auto &regWrite: crateConfig.initRegisters)
+    {
+        out << YAML::Key << fmt::format("0x{:04x}", regWrite.first)
+            << YAML::Value << fmt::format("0x{:08x}", regWrite.second);
+    }
+    out << YAML::EndMap; // end init_registers
+
     out << YAML::Key << "init_trigger_io" << YAML::Value << crateConfig.initTriggerIO;
     out << YAML::Key << "init_commands" << YAML::Value << crateConfig.initCommands;
     out << YAML::Key << "stop_commands" << YAML::Value << crateConfig.stopCommands;
@@ -203,6 +216,21 @@ CrateConfig crate_config_from_yaml(std::istream &input)
         {
             for (const auto &yTrig: yTriggers)
                 result.triggers.push_back(yTrig.as<u32>());
+        }
+
+        if (const auto &yInitRegisters = yCrate["init_registers"])
+        {
+            for (auto it = yInitRegisters.begin(); it != yInitRegisters.end(); ++it)
+            {
+                auto sAddr = it->first.as<std::string>();
+                auto sVal  = it->second.as<std::string>();
+                auto addr = util::parse_unsigned<u16>(sAddr);
+                auto val  = util::parse_unsigned<u32>(sVal);
+                if (addr && val)
+                {
+                    result.initRegisters.emplace_back(std::make_pair(*addr, *val));
+                }
+            }
         }
 
         result.initTriggerIO = stack_command_builder_from_yaml(yCrate["init_trigger_io"]);

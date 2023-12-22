@@ -39,6 +39,7 @@ TEST(mvlc_readout_config, CrateConfigYaml)
         cc.usbIndex = 42;
         cc.usbSerial = "1234";
         cc.ethHost = "example.com";
+        cc.initRegisters.emplace_back(std::make_pair(0x1180, 500)); // TODO: add tests for this
 
         {
             StackCommandBuilder sb("event0");
