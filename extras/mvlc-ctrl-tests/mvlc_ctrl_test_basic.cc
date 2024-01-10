@@ -83,7 +83,7 @@ TEST_P(MVLCTestBase, TestRegisterReadWrite)
     ASSERT_EQ(value, 0x87654321);
 }
 
-#ifndef _WIN32
+//#ifndef _WIN32
 TEST_P(MVLCTestBase, TestRegisterReadWriteMultiThreaded)
 {
     auto ec = mvlc.connect();
@@ -118,7 +118,7 @@ TEST_P(MVLCTestBase, TestRegisterReadWriteMultiThreaded)
     for (auto &f: futures)
         f.get();
 }
-#endif
+//#endif
 
 
 namespace
@@ -177,12 +177,13 @@ TEST_P(MVLCTestBase, TestUploadShortStack)
         sb.addVMEBlockRead(i*4, 0x09, 65535);
 
     auto stackBuffer = make_stack_buffer(sb);
+    static const u16 uploadAddress = 512 * 4;
 
-    ec = mvlc.uploadStack(DataPipe, stacks::ImmediateStackEndWord, stackBuffer);
+    ec = mvlc.uploadStack(DataPipe, uploadAddress, stackBuffer);
 
     ASSERT_TRUE(!ec) << ec.message();
 
-    auto readBuffer = read_stack_from_memory(mvlc, stacks::ImmediateStackEndWord);
+    auto readBuffer = read_stack_from_memory(mvlc, uploadAddress);
 
     //log_buffer(get_logger("test"), spdlog::level::info, readBuffer, "stack memory");
 
@@ -201,12 +202,13 @@ TEST_P(MVLCTestBase, TestUploadLongStack)
         sb.addVMEBlockRead(i*4, 0x09, 65535);
 
     auto stackBuffer = make_stack_buffer(sb);
+    static const u16 uploadAddress = 512 * 4;
 
     spdlog::info("uploading stack of size {} (bytes={})",
                  stackBuffer.size(), stackBuffer.size() * sizeof(stackBuffer[0]));
 
     auto tStart = std::chrono::steady_clock::now();
-    ec = mvlc.uploadStack(DataPipe, stacks::ImmediateStackEndWord, stackBuffer);
+    ec = mvlc.uploadStack(DataPipe, uploadAddress, stackBuffer);
     auto elapsed = std::chrono::steady_clock::now() - tStart;
 
     spdlog::info("stack upload took {} ms",
@@ -217,7 +219,7 @@ TEST_P(MVLCTestBase, TestUploadLongStack)
     spdlog::info("reading back stack memory");
 
     tStart = std::chrono::steady_clock::now();
-    auto readBuffer = read_stack_from_memory(mvlc, stacks::ImmediateStackEndWord);
+    auto readBuffer = read_stack_from_memory(mvlc, uploadAddress);
     elapsed = std::chrono::steady_clock::now() - tStart;
 
     spdlog::info("stack memory read took {} ms",
@@ -240,11 +242,19 @@ TEST_P(MVLCTestBase, TestUploadExceedStackMem)
         sb.addVMEBlockRead(i*4, 0x09, 65535);
 
     auto stackBuffer = make_stack_buffer(sb);
+    static const u16 uploadAddress = 512 * 4;
 
-    ec = mvlc.uploadStack(DataPipe, stacks::ImmediateStackEndWord, stackBuffer);
+    ec = mvlc.uploadStack(DataPipe, uploadAddress, stackBuffer);
 
     // Should fail due to exceeding the stack memory area
     ASSERT_TRUE(ec) << ec.message();
 }
 
-INSTANTIATE_TEST_CASE_P(MVLCTest, MVLCTestBase, ::testing::Values("eth", "usb"));
+auto name_generator = [] (const ::testing::TestParamInfo<MVLCTestBase::ParamType> &info)
+{
+    return info.param;
+};
+
+INSTANTIATE_TEST_SUITE_P(MVLCTest, MVLCTestBase,
+    ::testing::Values("eth", "usb"),
+    [] (const auto &info) { return info.param; });

@@ -27,7 +27,7 @@ TEST(mvlc_readout_config, StackCommandBuilderYaml)
 
     auto sb1 = stack_command_builder_from_yaml(yamlText);
 
-    ASSERT_EQ(sb, sb1);
+    ASSERT_EQ(sb, sb1); // depends on StackCommandBuilder::operator==() being correct!
 }
 
 TEST(mvlc_readout_config, CrateConfigYaml)
@@ -39,7 +39,7 @@ TEST(mvlc_readout_config, CrateConfigYaml)
         cc.usbIndex = 42;
         cc.usbSerial = "1234";
         cc.ethHost = "example.com";
-        cc.initRegisters.emplace_back(std::make_pair(0x1180, 500)); // TODO: add tests for this
+        cc.initRegisters.emplace_back(std::make_pair(0x1180, 500));
 
         {
             StackCommandBuilder sb("event0");
@@ -74,6 +74,6 @@ TEST(mvlc_readout_config, CrateConfigYaml)
 
         cout << to_yaml(cc2) << endl;
 
-        ASSERT_EQ(cc, cc2);
+        ASSERT_EQ(cc, cc2); // depends on CrateConfig::operator==() being correct!
     }
 }

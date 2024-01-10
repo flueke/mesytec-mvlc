@@ -338,12 +338,13 @@ namespace stacks
     static const u16 ImmediateStackStartOffsetBytes = ImmediateStackStartOffsetWords * 4;
 
     // Readout stacks must start after this point.
+    // TODO (longterm): use stack#15 for immediate exec.
     static const u16 ImmediateStackReservedWords = 256 - ImmediateStackStartOffsetWords;
     static const u16 ImmediateStackReservedBytes = ImmediateStackReservedWords * 4;
 
-    // Constant for the standard layout where every stack is allocated 256
-    // words of stack memory.
-    static const u16 StackMemorySegmentSize = 256;
+    // Constant for the standard layout where every stack is allocated a fixed
+    // amount of memory.
+    static const u16 StackMemorySegmentSize = 128; // TODO: get rid of this.
 
     // All stacks other than the one reserved for immediate execution can be
     // used as readout stacks activated by IRQ or via the Trigger/IO system.
