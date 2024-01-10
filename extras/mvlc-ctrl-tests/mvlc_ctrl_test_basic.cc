@@ -27,10 +27,16 @@ class MVLCTestBase: public ::testing::TestWithParam<const char *>
             }
             else if (mvlcType == "eth")
             {
-                std::string address("mvlc-0066");
+                //std::string address("mvlc-0066");
+                std::string address;
 
                 if (char *envAddress = getenv("MVLC_TEST_ETH_ADDR"))
                     address = envAddress;
+
+                if (address.empty())
+                {
+                    spdlog::warn("No MVLC ETH address given. Set MVLC_TEST_ETH_ADDR in the environment.");
+                }
 
                 spdlog::info("MVLCTestBase using MVLC_ETH (address={})", address);
                 mvlc = make_mvlc_eth(address);
@@ -174,7 +180,7 @@ TEST_P(MVLCTestBase, TestUploadShortStack)
     StackCommandBuilder sb;
 
     for (int i=0; i<10; ++i)
-        sb.addVMEBlockRead(i*4, 0x09, 65535);
+        sb.addVMEBlockRead(i*4, vme_amods::BLT32, 65535);
 
     auto stackBuffer = make_stack_buffer(sb);
     static const u16 uploadAddress = 512 * 4;
@@ -199,7 +205,7 @@ TEST_P(MVLCTestBase, TestUploadLongStack)
     StackCommandBuilder sb;
 
     for (int i=0; i<400; ++i)
-        sb.addVMEBlockRead(i*4, 0x09, 65535);
+        sb.addVMEBlockRead(i*4, vme_amods::BLT32, 65535);
 
     auto stackBuffer = make_stack_buffer(sb);
     static const u16 uploadAddress = 512 * 4;
@@ -239,15 +245,15 @@ TEST_P(MVLCTestBase, TestUploadExceedStackMem)
     StackCommandBuilder sb;
 
     for (int i=0; i<1000; ++i)
-        sb.addVMEBlockRead(i*4, 0x09, 65535);
+        sb.addVMEBlockRead(i*4, vme_amods::BLT32, 65535);
 
     auto stackBuffer = make_stack_buffer(sb);
-    static const u16 uploadAddress = 512 * 4;
+    static const u16 uploadAddress = stacks::StackMemoryWords - 100;
 
     ec = mvlc.uploadStack(DataPipe, uploadAddress, stackBuffer);
 
     // Should fail due to exceeding the stack memory area
-    ASSERT_TRUE(ec) << ec.message();
+    ASSERT_EQ(ec, MVLCErrorCode::StackMemoryExceeded);
 }
 
 auto name_generator = [] (const ::testing::TestParamInfo<MVLCTestBase::ParamType> &info)
