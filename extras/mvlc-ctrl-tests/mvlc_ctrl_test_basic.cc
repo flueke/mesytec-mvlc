@@ -89,42 +89,52 @@ TEST_P(MVLCTestBase, TestRegisterReadWrite)
     ASSERT_EQ(value, 0x87654321);
 }
 
-//#ifndef _WIN32
 TEST_P(MVLCTestBase, TestRegisterReadWriteMultiThreaded)
 {
+    static const unsigned ThreadCount = 4;      // total number of threads to spawn
+    static const unsigned LoopCount   = 1000;   // total number of loops each thread performs
+
     auto ec = mvlc.connect();
     ASSERT_TRUE(!ec) << ec.message();
     ASSERT_TRUE(mvlc.isConnected());
 
-    auto test_fun = [&]()
+    auto test_fun = [&](unsigned threadIndex)
     {
-        for (int i=0; i<100; ++i)
+        spdlog::info("Started test thread {}/{}", threadIndex+1, ThreadCount);
+
+        for (unsigned i=0; i<LoopCount; ++i)
         {
-            auto ec = mvlc.writeRegister(stacks::StackMemoryBegin, 0);
+            // Note: checking the values read back from the stack memory works
+            // as long as each thread writes to a distinct memory address.
+            u32 writeValue = threadIndex * 4;
+            u32 readValue = 0;
+
+            auto ec = mvlc.writeRegister(stacks::StackMemoryBegin + threadIndex * 4, writeValue);
             ASSERT_TRUE(!ec) << ec.message();
 
-            u32 value = 0;
+            ec = mvlc.readRegister(stacks::StackMemoryBegin + threadIndex * 4, readValue);
+            ASSERT_TRUE(!ec) << ec.message();
+            ASSERT_EQ(readValue, writeValue);
 
-            ec = mvlc.readRegister(stacks::StackMemoryBegin, value);
+            ec = mvlc.writeRegister(stacks::StackMemoryBegin + threadIndex * 4, 0x87654321);
             ASSERT_TRUE(!ec) << ec.message();
 
-            ec = mvlc.writeRegister(stacks::StackMemoryBegin, 0x87654321);
+            ec = mvlc.readRegister(stacks::StackMemoryBegin + threadIndex * 4, readValue);
             ASSERT_TRUE(!ec) << ec.message();
-
-            ec = mvlc.readRegister(stacks::StackMemoryBegin, value);
-            ASSERT_TRUE(!ec) << ec.message();
+            ASSERT_EQ(readValue, 0x87654321);
         }
+
+        spdlog::info("Test thread {}/{} done", threadIndex+1, ThreadCount);
     };
 
     std::vector<std::future<void>> futures;
 
-    for (int i=0; i<10; ++i)
-        futures.emplace_back(std::async(std::launch::async, test_fun));
+    for (unsigned i=0; i<ThreadCount; ++i)
+        futures.emplace_back(std::async(std::launch::async, test_fun, i));
 
     for (auto &f: futures)
         f.get();
 }
-//#endif
 
 
 namespace
