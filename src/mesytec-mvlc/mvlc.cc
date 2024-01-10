@@ -604,6 +604,7 @@ std::error_code CmdApi::superTransaction(
         return make_error_code(MVLCErrorCode::MirrorTransactionMaxWordsExceeded);
 
     auto rf = set_pending_response(readerContext_.pendingSuper, responseBuffer, ref);
+    auto tSet = std::chrono::steady_clock::now();
 
     size_t bytesWritten = 0;
 
@@ -618,8 +619,13 @@ std::error_code CmdApi::superTransaction(
 
     if (rf.wait_for(ResultWaitTimeout) != std::future_status::ready)
     {
-        get_logger("mvlc_apiv2")->warn("superTransaction super future not ready -> SuperCommandTimeout (ref=0x{:04X})",
-            readerContext_.pendingSuper.access()->reference);
+        auto elapsed = std::chrono::steady_clock::now() - tSet;
+        get_logger("mvlc_apiv2")->warn(
+            "superTransaction super future not ready -> SuperCommandTimeout"
+            " (ref=0x{:04X}, timed_out after {}ms)",
+            readerContext_.pendingSuper.access()->reference,
+            std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count()
+            );
         return fullfill_pending_response(readerContext_.pendingSuper, make_error_code(MVLCErrorCode::SuperCommandTimeout));
     }
 
