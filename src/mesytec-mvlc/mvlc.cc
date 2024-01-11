@@ -549,7 +549,7 @@ void cmd_pipe_reader(ReaderContext &context)
         context.pendingStack.access().ref(),
         ec ? ec : make_error_code(MVLCErrorCode::IsDisconnected));
 
-    logger->trace("cmd_pipe_reader exiting");
+    logger->debug("cmd_pipe_reader exiting");
 }
 
 // ============================================
