@@ -21,7 +21,7 @@ static const u32 ProbeRegister = 0x0000u;
 // vme address.
 // Returns a list of candidate addresses (addresses where the read was
 // successful or resulted in BERR).
-// Note: by default the stack sized used when scanning is limited to the size
+// Note: by default the max stack size used when scanning is limited to the size
 // reserved for the immediate exec stack. This can be set to
 // stacks::StackMemoryWords to make use of all stack memory which should speed
 // up the scan considerably.
