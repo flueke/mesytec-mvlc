@@ -1086,9 +1086,7 @@ struct MVLC::Private
 
     ~Private()
     {
-        readerContext_.quit = true;
-        if (readerThread_.joinable())
-            readerThread_.join();
+        stopCmdReader();
     }
 
     std::error_code resultCheck(const std::error_code &ec)
@@ -1098,6 +1096,31 @@ struct MVLC::Private
         if (ec == ErrorType::ConnectionError)
             isConnected_ = false;
         return ec;
+    }
+
+    void startCmdReader()
+    {
+        if (!readerThread_.joinable())
+        {
+            readerContext_.quit = false;
+            readerContext_.stackErrors.access().ref() = {};
+            readerContext_.counters.access().ref() = {};
+            readerThread_ = std::thread(cmd_pipe_reader, std::ref(readerContext_));
+        }
+    }
+
+    void stopCmdReader()
+    {
+        if (readerThread_.joinable())
+        {
+            readerContext_.quit = true;
+            readerThread_.join();
+        }
+    }
+
+    bool cmdReaderIsRunning()
+    {
+        return readerThread_.joinable();
     }
 
     mutable Locks locks_;
@@ -1135,15 +1158,8 @@ std::error_code MVLC::connect()
 
     if (!isConnected())
     {
-        assert(!d->readerThread_.joinable());
-
-        if (d->readerThread_.joinable())
-        {
-            d->readerContext_.quit = true;
-            d->readerThread_.join();
-        }
-
-        assert(!d->readerThread_.joinable());
+        assert(!d->cmdReaderIsRunning()); // The cmd reader should be stopped as this point.
+        d->stopCmdReader();
 
         ec = d->impl_->connect();
         d->isConnected_ = d->impl_->isConnected();
@@ -1154,13 +1170,11 @@ std::error_code MVLC::connect()
             return ec;
         }
 
-        if (!d->readerThread_.joinable())
-        {
-            d->readerContext_.quit = false;
-            d->readerContext_.stackErrors.access().ref() = {};
-            d->readerContext_.counters.access().ref() = {};
-            d->readerThread_ = std::thread(cmd_pipe_reader, std::ref(d->readerContext_));
-        }
+        d->startCmdReader();
+
+        // At this point the cmd_pipe_reader is running and thus the CmdApi can
+        // be used for communication. Direct methods like MVLC::readRegister()
+        // cannot be used as those take the cmd lock which we are still holding.
 
         // Read hardware id and firmware revision.
         u32 hwId = 0;
@@ -1171,6 +1185,7 @@ std::error_code MVLC::connect()
         {
             logger->error("error reading hardware_id register: {}", ec.message());
             d->isConnected_ = false;
+            d->stopCmdReader();
             return ec;
         }
 
@@ -1179,6 +1194,7 @@ std::error_code MVLC::connect()
         {
             logger->error("error reading firmware_revision register: {}", ec.message());
             d->isConnected_ = false;
+            d->stopCmdReader();
             return ec;
         }
 
