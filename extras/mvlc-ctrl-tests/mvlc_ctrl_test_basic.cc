@@ -266,11 +266,7 @@ TEST_P(MVLCTestBase, TestUploadExceedStackMem)
     ASSERT_EQ(ec, MVLCErrorCode::StackMemoryExceeded);
 }
 
-auto name_generator = [] (const ::testing::TestParamInfo<MVLCTestBase::ParamType> &info)
-{
-    return info.param;
-};
-
 INSTANTIATE_TEST_SUITE_P(MVLCTest, MVLCTestBase,
     ::testing::Values("eth", "usb"),
-    [] (const auto &info) { return info.param; });
+    [] (const auto &info) { return info.param; } /* name generator */
+    );
