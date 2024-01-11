@@ -622,7 +622,7 @@ std::error_code CmdApi::superTransaction(
         auto elapsed = std::chrono::steady_clock::now() - tSet;
         get_logger("mvlc_apiv2")->warn(
             "superTransaction super future not ready -> SuperCommandTimeout"
-            " (ref=0x{:04X}, timed_out after {}ms)",
+            " (ref=0x{:04x}, timed_out after {}ms)",
             readerContext_.pendingSuper.access()->reference,
             std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count()
             );
