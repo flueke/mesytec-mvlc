@@ -36,6 +36,7 @@
 #include <sys/prctl.h>
 #endif
 
+#include "firmware_checks.h"
 #include "mvlc_buffer_validators.h"
 #include "mvlc_error.h"
 #include "mvlc_eth_interface.h"
@@ -1202,6 +1203,14 @@ std::error_code MVLC::connect()
         d->firmwareRevision_ = fwRev;
 
         logger->info("Connected to MVLC ({}, firmware=FW{:04X})", connectionInfo(), firmwareRevision());
+
+        if (!firmware_checks::is_supported(hwId, fwRev))
+        {
+            logger->error("At least firmware FW{:04X} required, found FW{:04X}",
+                firmware_checks::minimum_required_firmware(hwId), fwRev);
+            d->stopCmdReader();
+            return MVLCErrorCode::FirmwareTooOld;
+        }
     }
     else
     {
