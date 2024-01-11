@@ -323,26 +323,31 @@ void cmd_pipe_reader(ReaderContext &context)
                 {
                     ++counters.errorBuffers;
 
+                    const auto frameLength = get_frame_length(buffer[0]);
                     auto frameBegin = buffer.begin();
-                    auto frameEnd = buffer.begin() + get_frame_length(buffer[0]) + 1;
+                    auto frameEnd = buffer.begin() + frameLength + 1;
 
                     update_stack_error_counters(
                         context.stackErrors.access().ref(),
                         basic_string_view<u32>(frameBegin, frameEnd-frameBegin));
 
-                    buffer.consume(get_frame_length(buffer[0]) + 1);
+                    buffer.consume(frameLength + 1);
+                    logger->trace("handled stack error notification frame of length {}", frameLength);
                 }
                 // super buffers
                 else if (is_super_buffer(buffer[0]))
                 {
+                    const auto frameLength = get_frame_length(buffer[0]);
+
                     ++counters.superBuffers;
 
                     auto pendingResponse = context.pendingSuper.access();
                     size_t toConsume = 0;
                     std::error_code ec;
 
-                    if (get_frame_length(buffer[0]) == 0)
+                    if (frameLength == 0)
                     {
+                        logger->warn("cmd_pipe_reader: short super frame, consuming frame header");
                         ec = make_error_code(MVLCErrorCode::ShortSuperFrame);
                         ++counters.shortSuperBuffers;
                         toConsume = 1;
@@ -351,7 +356,7 @@ void cmd_pipe_reader(ReaderContext &context)
                     {
                         using namespace super_commands;
 
-                        toConsume += get_frame_length(buffer[0]) + 1;
+                        toConsume += frameLength + 1;
 
                         u32 refCmd = buffer[1];
 
@@ -516,6 +521,9 @@ void cmd_pipe_reader(ReaderContext &context)
         if (ec && ec != ErrorType::Timeout)
             logger->trace("cmd_pipe_reader: error from read(): {}", ec.message());
 
+        if (ec == ErrorType::Timeout)
+            logger->trace("cmd_pipe_reader: read() timed out");
+
         if (bytesTransferred > 0)
         {
             logger->trace("received {} bytes, {} words", bytesTransferred, bytesTransferred / sizeof(u32));
@@ -588,7 +596,7 @@ class CmdApi
             u32 stackRef, const StackCommandBuilder &stackBuilder, std::vector<u32> &stackResponse);
 
     private:
-        static constexpr std::chrono::milliseconds ResultWaitTimeout = std::chrono::milliseconds(2000);
+        static constexpr std::chrono::milliseconds ResultWaitTimeout = std::chrono::milliseconds(4000);
 
         ReaderContext &readerContext_;
 };
