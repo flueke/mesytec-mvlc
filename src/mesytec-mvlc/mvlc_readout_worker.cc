@@ -991,6 +991,10 @@ std::error_code ReadoutWorker::Private::startReadout()
                 {
                     logger->info("Running MCST DAQ start commands (try {}/{})", try_+1, McstMaxTries);
                     auto mcstResults = run_commands(mvlc, mcstDaqStart);
+                    for (const auto &result: mcstResults)
+                    {
+                        logger->info("  {}: {}", to_string(result.cmd), result.ec.message());
+                    }
                     ec = get_first_error(mcstResults);
 
                     if (ec && ec == ErrorType::ConnectionError)
@@ -1089,6 +1093,10 @@ std::error_code ReadoutWorker::Private::terminateReadout()
                 {
                     logger->info("Running MCST DAQ stop commands (try {}/{})", try_+1, MaxTries);
                     auto mcstResults = run_commands(mvlc, mcstDaqStop);
+                    for (const auto &result: mcstResults)
+                    {
+                        logger->info("  {}: {}", to_string(result.cmd), result.ec.message());
+                    }
                     ec = get_first_error(mcstResults);
 
                     if (ec && ec == ErrorType::ConnectionError)
