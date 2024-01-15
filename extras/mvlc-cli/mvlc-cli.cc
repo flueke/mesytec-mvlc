@@ -482,6 +482,132 @@ R"~(usage: mvlc-cli set_id <ctrlId>
     .exec = mvlc_set_id_command,
 };
 
+DEF_EXEC_FUNC(register_read_command)
+{
+    spdlog::trace("entered register_read_command()");
+
+    auto &parser = ctx.parser;
+    trace_log_parser_info(parser, "register_read_command");
+
+    u16 address = 0x0u;
+    auto addressStr = parser[2];
+
+    if (auto val = parse_unsigned<u16>(addressStr))
+    {
+        address = *val;
+    }
+    else
+    {
+        std::cerr << fmt::format("Error: invalid <address> value given: {}\n", addressStr);
+        return 1;
+    }
+
+    spdlog::trace("register_read_command: address=0x{:04x}", address);
+
+    auto [mvlc, ec] = make_and_connect_default_mvlc(parser);
+
+    if (!mvlc || ec)
+        return 1;
+
+    u32 value = 0;
+
+    if (auto ec = mvlc.readRegister(address, value))
+    {
+        std::cerr << fmt::format("Error from register read: {}\n", ec.message());
+        return 1;
+    }
+
+    std::cout << fmt::format("register_read 0x{:04x} -> 0x{:08x} ({} decimal)\n",
+        address, value, value);
+
+    return 0;
+}
+
+static const Command RegisterReadCommand
+{
+    .name = "register_read",
+    .help = R"~(
+usage: mvlc-cli register_read <address>
+
+    Read one of the internal MVLC registers.
+
+options:
+    <address>
+        16-bit register address to read from.
+)~",
+    .exec = register_read_command,
+};
+
+DEF_EXEC_FUNC(register_write_command)
+{
+    spdlog::trace("entered register_write_command()");
+
+    auto &parser = ctx.parser;
+    trace_log_parser_info(parser, "register_write_command");
+
+    u16 address = 0x0u;
+    u32 value = 0x0u;
+
+    auto addressStr = parser[2];
+    auto valueStr = parser[3];
+
+    if (auto val = parse_unsigned<u16>(addressStr))
+    {
+        address = *val;
+    }
+    else
+    {
+        std::cerr << fmt::format("Error: invalid <address> value given: {}\n", addressStr);
+        return 1;
+    }
+
+    if (auto val = parse_unsigned<u32>(valueStr))
+    {
+        value = *val;
+    }
+    else
+    {
+        std::cerr << fmt::format("Error: invalid <value> given: {}\n", valueStr);
+        return 1;
+    }
+
+    spdlog::trace("register_write_command: address=0x{:04x}, value=0x{:08x}", address, value);
+
+    auto [mvlc, ec] = make_and_connect_default_mvlc(parser);
+
+    if (!mvlc || ec)
+        return 1;
+
+    if (auto ec = mvlc.writeRegister(address, value))
+    {
+        std::cerr << fmt::format("Error from register write: {}\n", ec.message());
+        return 1;
+    }
+
+    std::cout << fmt::format("register_write 0x{:04x} -> 0x{:08x} ({} decimal) ok\n",
+        address, value, value);
+
+    return 0;
+}
+
+static const Command RegisterWriteCommand
+{
+    .name = "register_write",
+    .help = R"~(
+usage: mvlc-cli register_write <address> <value>
+
+    Write one of the internal MVLC registers.
+
+options:
+    <address>
+        16-bit register address to write to.
+
+    <value>
+        16/32-bit register value to write.
+)~",
+    .exec = register_write_command,
+};
+
 DEF_EXEC_FUNC(vme_read_command)
 {
     spdlog::trace("entered vme_read_command()");
@@ -800,6 +926,8 @@ MVLC connection URIs:
     ctx.commands.insert(MvlcStackInfoCommand);
     ctx.commands.insert(ScanbusCommand);
     ctx.commands.insert(MvlcSetIdCommand);
+    ctx.commands.insert(RegisterReadCommand);
+    ctx.commands.insert(RegisterWriteCommand);
     ctx.commands.insert(VmeReadCommand);
     ctx.commands.insert(VmeWriteCommand);
     ctx.parser = parser;
