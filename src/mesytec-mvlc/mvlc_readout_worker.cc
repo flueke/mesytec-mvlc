@@ -494,6 +494,7 @@ struct ReadoutWorker::Private
     std::vector<u32> stackTriggers;
     StackCommandBuilder mcstDaqStart;
     StackCommandBuilder mcstDaqStop;
+    unsigned mcstMaxTries = 3;
     Protected<Counters> counters;
     std::thread readoutThread;
     ReadoutBufferQueues listfileQueues;
@@ -685,6 +686,17 @@ void ReadoutWorker::setMcstDaqStartCommands(const StackCommandBuilder &commands)
 void ReadoutWorker::setMcstDaqStopCommands(const StackCommandBuilder &commands)
 {
     d->mcstDaqStop = commands;
+}
+
+void ReadoutWorker::setMcstMaxTries(unsigned maxTries)
+{
+    if (maxTries)
+        d->mcstMaxTries = maxTries;
+}
+
+unsigned ReadoutWorker::getMcstMaxTries() const
+{
+    return d->mcstMaxTries;
 }
 
 void ReadoutWorker::Private::loop(std::promise<std::error_code> promise)
@@ -984,12 +996,11 @@ std::error_code ReadoutWorker::Private::startReadout()
 
             logger->info("enable_daq_mode done");
 
-            const int McstMaxTries = 5;
             if (!mcstDaqStart.empty())
             {
-                for (int try_=0; try_<McstMaxTries; ++try_)
+                for (unsigned try_=0; try_<mcstMaxTries; ++try_)
                 {
-                    logger->info("Running MCST DAQ start commands (try {}/{})", try_+1, McstMaxTries);
+                    logger->info("Running MCST DAQ start commands (try {}/{})", try_+1, mcstMaxTries);
                     auto mcstResults = run_commands(mvlc, mcstDaqStart);
                     for (const auto &result: mcstResults)
                     {
@@ -1085,13 +1096,11 @@ std::error_code ReadoutWorker::Private::terminateReadout()
     {
         do
         {
-            const int MaxTries = 5;
-
             if (!mcstDaqStop.empty())
             {
-                for (int try_=0; try_<MaxTries; ++try_)
+                for (unsigned try_=0; try_<mcstMaxTries; ++try_)
                 {
-                    logger->info("Running MCST DAQ stop commands (try {}/{})", try_+1, MaxTries);
+                    logger->info("Running MCST DAQ stop commands (try {}/{})", try_+1, mcstMaxTries);
                     auto mcstResults = run_commands(mvlc, mcstDaqStop);
                     for (const auto &result: mcstResults)
                     {
@@ -1119,7 +1128,7 @@ std::error_code ReadoutWorker::Private::terminateReadout()
                 }
             }
 
-            for (int try_=0; try_<MaxTries; ++try_)
+            for (unsigned try_=0; try_<mcstMaxTries; ++try_)
             {
                 logger->info("Disabling DAQ mode");
                 ec = disable_daq_mode(mvlc);

@@ -204,7 +204,7 @@ class MESYTEC_MVLC_EXPORT ReadoutWorker
             const std::shared_ptr<listfile::WriteHandle> &lfh
             );
 
-        // Simple versions removing the need to pass in snoopQueues if snooping
+        // Simple version removing the need to pass in snoopQueues if snooping
         // is not needed.
         ReadoutWorker(
             MVLC mvlc,
@@ -229,6 +229,13 @@ class MESYTEC_MVLC_EXPORT ReadoutWorker
         // will be run right before disabling stack trigger processing and
         // leaving autonomous DAQ mode.
         void setMcstDaqStopCommands(const StackCommandBuilder &commands);
+
+        // Set/get maximum number of attempts to execute the Mcst DAQ Start/Stop
+        // command sequences. Multiple attempts may be needed when using USB2
+        // with high data rate readouts or having ETH packet loss.
+        // Default = 3.
+        void setMcstMaxTries(unsigned maxTries);
+        unsigned getMcstMaxTries() const;
 
         bool registerReadoutLoopPlugin(const std::shared_ptr<ReadoutLoopPlugin> &plugin);
         std::vector<std::shared_ptr<ReadoutLoopPlugin>> readoutLoopPlugins() const;
