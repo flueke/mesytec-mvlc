@@ -25,6 +25,9 @@ std::pair<MVLC, std::error_code> make_and_connect_default_mvlc(argh::parser &par
         return std::pair<MVLC, std::error_code>();
     }
 
+    if (parser["--mvlc-force-connect"])
+        mvlc.setDisableTriggersOnConnect(true);
+
     auto ec = mvlc.connect();
 
     if (ec)
@@ -715,9 +718,11 @@ options:
 int main(int argc, char *argv[])
 {
     std::string generalHelp = R"~(
-usage: mvlc-cli [-v | --version] [-h | --help [-a]] [--log-level=(off|error|warn|info|debug|trace)]
+usage: mvlc-cli [-v | --version] [-h | --help [-a]]
+                [--log-level=(off|error|warn|info|debug|trace)] [--trace] [--debug]
                 [--mvlc <url> | --mvlc-usb | --mvlc-usb-index <index> |
-                 --mvlc-usb-serial <serial> | --mvlc-eth <hostname>]
+                 --mvlc-usb-serial <serial> | --mvlc-eth <hostname>
+                 --mvlc-force-connect]
                 <command> [<args>]
 
 Core Commands:
@@ -752,6 +757,9 @@ MVLC connection URIs:
 
     If none of the above is given MVLC_ADDRESS from the environment is used as
     the MVLC URI.
+
+    Use --mvlc-force-connect to forcibly disable DAQ mode when connecting. Use
+    this when you get the "MVLC is in use" error on connect.
 )~";
 
 
