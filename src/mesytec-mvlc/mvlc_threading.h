@@ -67,7 +67,7 @@ class Locks
             // mutex type this code should not use std::lock() anymore. The
             // reason is that if one of the mutexes is locked most of the time,
             // e.g. by the readout loop, std::lock() with TicketMutexes will
-            // create high CPU load.
+            // create high CPU load (see ticketmutex.h for details).
             UniqueLock l1(cmdMutex());
             UniqueLock l2(dataMutex());
             return std::make_pair(std::move(l1), std::move(l2));

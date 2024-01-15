@@ -528,7 +528,7 @@ void cmd_pipe_reader(ReaderContext &context)
         if (bytesTransferred > 0)
         {
             logger->trace("received {} bytes, {} words", bytesTransferred, bytesTransferred / sizeof(u32));
-            //log_buffer(logger, spdlog::level::trace, buffer, "cmd_pipe_reader read buffer", LogBuffersMaxWords);
+            log_buffer(logger, spdlog::level::trace, buffer, "cmd_pipe_reader read buffer", LogBuffersMaxWords);
         }
 
         ++counters.reads;
