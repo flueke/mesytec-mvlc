@@ -378,7 +378,7 @@ namespace stacks
         return Stack0OffsetRegister + stackId * AddressIncrement;
     }
 
-    enum Triggers
+    enum TriggerSubtype
     {
         IRQ1   =  0,
         IRQ2   =  1,
