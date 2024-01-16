@@ -3,13 +3,7 @@
 
 namespace mesytec::mvlc::firmware_checks
 {
-    bool is_supported(u16 hardwareId, u16 firmwareRevision)
-    {
-        const u16 minRequired = minimum_required_firmware(hardwareId);
-        return firmwareRevision >= minRequired;
-    }
-
-    u16 minimum_required_firmware(u16 hardwareId)
+    u16 minimum_recommended_firmware(u16 hardwareId)
     {
         switch (hardwareId)
         {
@@ -24,4 +18,11 @@ namespace mesytec::mvlc::firmware_checks
 
         return 0u;
     }
+
+    bool is_recommended_firmware(u16 hardwareId, u16 firmwareRevision)
+    {
+        const u16 minRecommended = minimum_recommended_firmware(hardwareId);
+        return firmwareRevision >= minRecommended;
+    }
+
 }

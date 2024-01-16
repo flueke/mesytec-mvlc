@@ -1202,14 +1202,10 @@ std::error_code MVLC::connect()
         d->hardwareId_ = hwId;
         d->firmwareRevision_ = fwRev;
 
-        if (!firmware_checks::is_supported(hwId, fwRev))
+        if (!firmware_checks::is_recommended_firmware(hwId, fwRev))
         {
-            logger->error("The mesytec-mvlc library requires at least firmware FW{:04X}, found FW{:04X}",
-                firmware_checks::minimum_required_firmware(hwId), fwRev);
-            d->isConnected_ = false;
-            d->stopCmdReader();
-            d->impl_->disconnect();
-            return MVLCErrorCode::FirmwareTooOld;
+            logger->warn("Firmware FW{:04X} is recommended to be used with this module, found FW{:04X}",
+                firmware_checks::minimum_recommended_firmware(hwId), fwRev);
         }
 
         logger->info("Connected to MVLC ({}, firmware=FW{:04X})", connectionInfo(), firmwareRevision());
