@@ -188,9 +188,9 @@ std::error_code reset_stack_offsets(DIALOG_API &mvlc)
 // Builds, uploads and sets up the readout stack for each event in the vme
 // config. Stacks are written in order to MVLC stack memory with a 1 word gap
 // between stacks.
-template<typename DIALOG_API>
+template<typename MVLC_API>
 std::error_code setup_readout_stacks(
-    DIALOG_API &mvlc,
+    MVLC_API &mvlc,
     const std::vector<StackCommandBuilder> &readoutStacks)
 {
     // Stack0 is reserved for immediate exec
@@ -201,7 +201,7 @@ std::error_code setup_readout_stacks(
 
     for (const auto &stackBuilder: readoutStacks)
     {
-        if (stackId >= stacks::StackCount)
+        if (stackId >= mvlc.getStackCount())
             return make_error_code(MVLCErrorCode::StackCountExceeded);
 
         // need to convert to a buffer to determine the size

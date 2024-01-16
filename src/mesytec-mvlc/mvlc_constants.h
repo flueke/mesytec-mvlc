@@ -307,6 +307,7 @@ enum class AccuComparator: u8
 namespace stacks
 {
     // 16 stacks since FW0037, 8 stacks in earlier firmware versions.
+    static const u8 StackCountPreFW0037 = 8;
     static const u8 StackCount = 16;
 
     // First stack trigger register.
@@ -411,6 +412,22 @@ namespace stacks
         Timer3 = 23,
     };
 
+    /* Could also do this instead of the masks and shifts:
+    union Trigger
+    {
+        struct
+        {
+            u16 _: 7;
+            u16 immediate: 1;
+            TriggerType type: 3;
+            TriggerSubtype subtype: 5;
+        };
+        u16 value;
+    };
+
+    static_assert(sizeof(Trigger) == sizeof(u16));
+    */
+
     static const u16 SlaveTriggersCount = 4;
 
     // Since FW0037: StackTimer units that are not part of the Trigger I/O
@@ -425,7 +442,6 @@ namespace stacks
         // Does not use the default AddressIncrement of 4 for some reason!
         return StackTimer0OffsetRegister + timerId * 2;
     }
-
 } // end namespace stacks
 
 constexpr const u32 SelfVMEAddress = 0xFFFF0000u;

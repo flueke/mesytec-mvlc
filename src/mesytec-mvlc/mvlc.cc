@@ -1276,6 +1276,14 @@ u32 MVLC::firmwareRevision() const
     return d->firmwareRevision_;
 }
 
+unsigned MVLC::getStackCount() const
+{
+    if (firmwareRevision() < 0x0037u)
+        return stacks::StackCountPreFW0037;
+
+    return stacks::StackCount;
+}
+
 void MVLC::setDisableTriggersOnConnect(bool b)
 {
     auto guards = d->locks_.lockBoth();

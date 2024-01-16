@@ -91,6 +91,9 @@ class MESYTEC_MVLC_EXPORT MVLC
         // Contents of the firmware_revision register (0x600e)
         u32 firmwareRevision() const;
 
+        // Firmware revision dependent number of stacks.
+        unsigned getStackCount() const;
+
         // connection related
         std::error_code connect();
         std::error_code disconnect();
