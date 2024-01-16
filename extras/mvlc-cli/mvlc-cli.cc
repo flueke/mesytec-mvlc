@@ -165,6 +165,13 @@ DEF_EXEC_FUNC(mvlc_stack_info_command)
     static const unsigned AllStacks = std::numeric_limits<unsigned>::max();
     unsigned stackId = AllStacks;
 
+    auto [mvlc, ec] = make_and_connect_default_mvlc(ctx.parser);
+
+    if (!mvlc || ec)
+        return 1;
+
+    const auto StackCount = mvlc.getStackCount();
+
     if (!ctx.parser[2].empty())
     {
         if (!(ctx.parser(2) >> stackId))
@@ -173,33 +180,17 @@ DEF_EXEC_FUNC(mvlc_stack_info_command)
             return 1;
         }
 
-        if (stackId >= stacks::StackCount)
+        if (stackId >= mvlc.getStackCount())
         {
             std::cerr << fmt::format("Error: stackId={} is out of range\n", stackId);
             return 1;
         }
     }
 
-    const unsigned stackMin = stackId >= stacks::StackCount ? 0 : stackId;
-    const unsigned stackMax = stackId >= stacks::StackCount ? stacks::StackCount : stackId + 1;
+    const unsigned stackMin = stackId >= StackCount ? 0 : stackId;
+    const unsigned stackMax = stackId >= StackCount ? StackCount : stackId + 1;
 
-    const bool doRaw     = ctx.parser["--raw"];
-    const bool doYaml    = ctx.parser["--yaml"];
-    const bool doDecoded = !doYaml && !doRaw;
-
-    if (doRaw && doYaml)
-    {
-        std::cerr << "Error: --raw and --yaml are exlusive flags\n";
-        return 1;
-    }
-
-    spdlog::trace("stack_info: stackMin={}, stackMax={}, doRaw={}, doYaml={}",
-        stackMin, stackMax, doRaw, doYaml);
-
-    auto [mvlc, ec] = make_and_connect_default_mvlc(ctx.parser);
-
-    if (!mvlc || ec)
-        return 1;
+    spdlog::trace("stack_info: stackMin={}, stackMax={}", stackMin, stackMax);
 
     struct StackInfoEntry
     {
@@ -237,14 +228,14 @@ DEF_EXEC_FUNC(mvlc_stack_info_command)
 
         if (ec == make_error_code(MVLCErrorCode::InvalidStackHeader))
         {
-            std::cerr << fmt::format("- stack#{}: triggers=0x{:02x}, offset={}, startAddress=0x{:04x}"
+            std::cerr << fmt::format("- stack#{:2}: triggers=0x{:02x}, offset={}, startAddress=0x{:04x}"
                 ", empty stack (does not start with a StackStart (0xF3) header)\n",
                 stackId, stackInfo.triggers, stackInfo.offset, stackInfo.startAddress);
             continue;
         }
         else
         {
-            std::cout << fmt::format("- stack#{}: triggers=0x{:02x}, offset={}, startAddress=0x{:04x}, len={}:\n",
+            std::cout << fmt::format("- stack#{:2}: triggers=0x{:02x}, offset={}, startAddress=0x{:04x}, len={}:\n",
                 stackId, stackInfo.triggers, stackInfo.offset, stackInfo.startAddress,
                 stackInfo.contents.size());
 
@@ -257,6 +248,7 @@ DEF_EXEC_FUNC(mvlc_stack_info_command)
             {
                 std::cout << "  " << to_string(cmd) << "\n";
             }
+            std::cout << "\n";
         }
     }
 
@@ -270,13 +262,11 @@ static const Command MvlcStackInfoCommand =
 R"~(usage: mvlc-cli stack_info [--raw] [--yaml] [<stackId>]
 
     Read and print command stack info and contents. If no stackId is given all event readout
-    stacks (stack1..7) are read.
+    stacks (stack0..15) are read.
 
 options:
 
-    --raw           Print the raw stack buffer instead of decoded commands.
-    --yaml          Output the stack(s) in yaml format, suitable for loading with 'upload_stack'.
-    <stackId>       Optional numeric stack id. Range 0..7.
+    <stackId>       Optional numeric stack id. Range 0..15.
 )~"),
     .exec = mvlc_stack_info_command,
 };
