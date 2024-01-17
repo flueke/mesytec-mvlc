@@ -522,8 +522,10 @@ void cmd_pipe_reader(ReaderContext &context)
         if (ec && ec != ErrorType::Timeout)
             logger->trace("cmd_pipe_reader: error from read(): {}", ec.message());
 
+        /*
         if (ec == ErrorType::Timeout)
             logger->trace("cmd_pipe_reader: read() timed out");
+        */
 
         if (bytesTransferred > 0)
         {
