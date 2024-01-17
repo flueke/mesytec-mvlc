@@ -93,6 +93,7 @@ class MESYTEC_MVLC_EXPORT MVLC
 
         // Firmware revision dependent number of stacks.
         unsigned getStackCount() const;
+        unsigned getReadoutStackCount() const { return getStackCount() - 1; }
 
         // connection related
         std::error_code connect();
