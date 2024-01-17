@@ -541,6 +541,8 @@ namespace registers
 
     // Since FW0037: allows to generate master trigger signals without having to
     // use trigger io resources. 4 valid bits, one for each master trigger.
+    // These signal are available in the trigger i/o as slave triggers and via
+    // the SlaveN TriggerSubtype.
     static const u16 send_master_trigger    = 0x1306;
 
     // Send gap for USB in 0.415us. Defaults to 20000 == 8.3ms
