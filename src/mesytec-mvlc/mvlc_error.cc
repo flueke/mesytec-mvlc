@@ -146,7 +146,7 @@ class MVLCErrorCategory: public std::error_category
                  return "Timer count exceeded";
 
             case MVLCErrorCode::ReadoutSetupError:
-                 return "Generic Readout Setup Error";
+                 return "Readout Setup Error";
 
             case MVLCErrorCode::UnexpectedBufferHeader:
                  return "Unexpected buffer header";
