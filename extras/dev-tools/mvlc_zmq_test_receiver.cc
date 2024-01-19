@@ -1,3 +1,4 @@
+#include <argh.h>
 #include <mesytec-mvlc/mesytec-mvlc.h>
 #include <zmq.hpp>
 #include <iostream>
@@ -47,7 +48,21 @@ int main(int argc, char *argv[])
     sub.setsockopt(ZMQ_SUBSCRIBE, "", 0);
 #endif
 
-    std::string pubUrl = "tcp://localhost:5575";
+    std::string zmqHost = "localhost";
+    std::string zmqPort = "5575";
+
+    argh::parser parser({"--zmq_host", "--zmq_port"});
+    parser.parse(argv);
+
+    std::string str;
+
+    if (parser("--zmq_host") >> str)
+        zmqHost = str;
+
+    if (parser("--zmq_port") >> str)
+        zmqPort = str;
+
+    std::string pubUrl = "tcp://" + zmqHost + ":" + zmqPort;
 
     while (true)
     {
