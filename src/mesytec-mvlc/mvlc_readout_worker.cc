@@ -942,6 +942,10 @@ void ReadoutWorker::Private::loop(std::promise<std::error_code> promise)
     // Check that all buffers from the listfile writer queue have been returned.
     assert(listfileQueues.emptyBufferQueue().size() == ListfileWriterBufferCount);
 
+    // Clear the shared_ptr to the WriteHandle to possibly free up resources (as
+    // long as no one else references the ptr).
+    lfh = {};
+
     setState(State::Idle);
     logger->info("MVLC readout stopped");
 }
