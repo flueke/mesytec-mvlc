@@ -11,10 +11,6 @@ namespace mvlc
 namespace listfile
 {
 
-static const std::string ZmqPort = "5575";
-static const std::string ZmqUrl = "tcp://*:" + ZmqPort;
-//static const int ZmqIoThreads = 1;
-
 struct ZmqGanilWriteHandle::Private
 {
     std::shared_ptr<spdlog::logger> logger;
@@ -28,7 +24,7 @@ struct ZmqGanilWriteHandle::Private
     {}
 };
 
-ZmqGanilWriteHandle::ZmqGanilWriteHandle()
+ZmqGanilWriteHandle::ZmqGanilWriteHandle(const std::string &zmqBindUrl)
     : d(std::make_unique<Private>())
 {
     // linger equal to 0 for a fast socket shutdown
@@ -41,16 +37,16 @@ ZmqGanilWriteHandle::ZmqGanilWriteHandle()
 
     try
     {
-        d->pub.bind(ZmqUrl.c_str());
-        d->logger->info("zmq server listening on {}", ZmqUrl);
+        d->pub.bind(zmqBindUrl.c_str());
+        d->logger->info("zmq server listening on {}", zmqBindUrl);
         // Hack to give clients time to connect. TODO: implement a real solution
         std::this_thread::sleep_for(std::chrono::milliseconds(500));
     }
     catch (const zmq::error_t &e)
     {
-        d->logger->error("Error binding zmq socket to {}: {}", ZmqUrl, e.what());
+        d->logger->error("Error binding zmq socket to {}: {}", zmqBindUrl, e.what());
         throw std::runtime_error(
-            fmt::format("Error binding zmq socket to {}: {}", ZmqUrl, e.what()));
+            fmt::format("Error binding zmq socket to {}: {}", zmqBindUrl, e.what()));
     }
 }
 

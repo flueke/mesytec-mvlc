@@ -2,6 +2,7 @@
 #define __MESYTEC_MVLC_LISTFILE_ZMQ_H__
 
 #include <memory>
+#include <string>
 #include "mesytec-mvlc/mvlc_listfile.h"
 
 namespace mesytec
@@ -14,7 +15,7 @@ namespace listfile
 class MESYTEC_MVLC_EXPORT ZmqGanilWriteHandle: public WriteHandle
 {
     public:
-        ZmqGanilWriteHandle();
+        ZmqGanilWriteHandle(const std::string &zmqBindUrl = "tcp://*:5575");
         ~ZmqGanilWriteHandle() override;
         size_t write(const u8 *data, size_t size) override;
 
