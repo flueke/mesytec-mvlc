@@ -56,6 +56,14 @@ int main(int argc, char *argv[])
 
     std::string str;
 
+    if (parser[{"-h", "--help"}])
+    {
+        std::cout << R"~(
+            usage: mvlc-zmq-test-receiver [--zmq_host=localhost] [--zmq_port=5575]
+            )~" << std::endl;
+        return 0;
+    }
+
     if (parser("--zmq_host") >> str)
         zmqHost = str;
 
