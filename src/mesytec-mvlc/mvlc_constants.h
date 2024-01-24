@@ -513,10 +513,10 @@ namespace eth
 
     enum class PacketChannel: u8
     {
-        Command, // Command and mirror responses
-        Stack,   // Data produced by stack executions routed to the command
-                 // pipe (immediate stack executions and F7 error notifications).
-        Data,    // Readout data produced by stacks routed to the data pipe
+        Command = 0, // Command and mirror responses
+        Stack   = 1, // Data produced by stack executions routed to the command
+                     // pipe (immediate stack executions and F7 error notifications).
+        Data    = 2, // Readout data produced by stacks routed to the data pipe
     };
 
     static const u8 NumPacketChannels = 3;
