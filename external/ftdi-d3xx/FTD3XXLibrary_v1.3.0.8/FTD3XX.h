@@ -116,7 +116,7 @@ typedef PVOID FT_HANDLE, *PFT_HANDLE;
 //
 // FT Status Codes
 //
-typedef enum _FT_STATUS
+enum _FT_STATUS
 {
     FT_OK,
     FT_INVALID_HANDLE,
@@ -250,6 +250,17 @@ typedef struct _FT_STRING_DESCRIPTOR
     WCHAR   szString[256];
 
 } FT_STRING_DESCRIPTOR, *PFT_STRING_DESCRIPTOR;
+
+typedef struct _FT_ENDPOINT_DESCRIPTOR
+{
+    UCHAR   bLength;
+    UCHAR   bDescriptorType;
+    UCHAR   bEndpointAddress;
+    UCHAR   bmAttributes;
+    USHORT  wMaxPacketSize;
+    UCHAR   bInterval;
+
+} FT_ENDPOINT_DESCRIPTOR, * PFT_ENDPOINT_DESCRIPTOR;
 
 //
 // Pipe information

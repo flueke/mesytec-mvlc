@@ -2,16 +2,16 @@ if (WIN32)
     add_library(ftd3xx SHARED IMPORTED GLOBAL)
 
     set_target_properties(ftd3xx PROPERTIES
-        IMPORTED_LOCATION ${CMAKE_CURRENT_SOURCE_DIR}/FTD3XXLibrary_v1.3.0.2/x64/FTD3XX.dll
-        IMPORTED_IMPLIB ${CMAKE_CURRENT_SOURCE_DIR}/FTD3XXLibrary_v1.3.0.2/x64/FTD3XX.lib)
+        IMPORTED_LOCATION ${CMAKE_CURRENT_SOURCE_DIR}/FTD3XXLibrary_v1.3.0.8/x64/DLL/FTD3XX.dll
+        IMPORTED_IMPLIB ${CMAKE_CURRENT_SOURCE_DIR}/FTD3XXLibrary_v1.3.0.8/x64/DLL/FTD3XX.lib)
 
     target_include_directories(ftd3xx
-        INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/FTD3XXLibrary_v1.3.0.2)
+        INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/FTD3XXLibrary_v1.3.0.8)
 
-    install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/FTD3XXLibrary_v1.3.0.2/x64/FTD3XX.dll
+    install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/FTD3XXLibrary_v1.3.0.8/x64/DLL/FTD3XX.dll
         DESTINATION bin)
 
-    file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/FTD3XXLibrary_v1.3.0.2/x64/FTD3XX.dll
+    file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/FTD3XXLibrary_v1.3.0.8/x64/DLL/FTD3XX.dll
         DESTINATION ${CMAKE_BINARY_DIR})
 
     # Note: I cannot get this to link properly: ftdi_list_devices_main.cc:34: undefined reference to `__imp_FT_CreateDeviceInfoList'
