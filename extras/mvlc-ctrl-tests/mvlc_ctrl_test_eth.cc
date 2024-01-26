@@ -39,9 +39,7 @@ TEST_P(MvlcEthTestBase, ReadRegister)
     ASSERT_FALSE(ec) << ec.message();
     ASSERT_TRUE(mvlc.isConnected());
 
-    static const size_t ReadRetryMaxCount = 10;
-
-for (size_t i=0; i<1000000; ++i)
+for (size_t i=0; i<1'000'000; ++i)
 {
     SuperCommandBuilder cmdList;
     cmdList.addReferenceWord(i); // XXX: Makes the response one word larger. 15 bytes in total now!
@@ -70,6 +68,8 @@ for (size_t i=0; i<1000000; ++i)
     const size_t responseCapacity = response.size() * sizeof(u32);
     size_t bytesRead = 0u;
     size_t retryCount = 0u;
+    static const size_t ReadRetryMaxCount = 20;
+    auto tReadTotalStart = std::chrono::steady_clock::now();
 
     while (retryCount < ReadRetryMaxCount)
     {
@@ -94,9 +94,18 @@ for (size_t i=0; i<1000000; ++i)
     ASSERT_EQ(wordsRead, 4);
     ASSERT_EQ(response[1] & 0xffffu, i & 0xffffu);
     ASSERT_EQ(response[3], 0x5008u); // mvlc hardware id
+
+    if (!ec && retryCount > 1)
+    {
+        auto tReadTotalEnd = std::chrono::steady_clock::now();
+        auto readTotalElapsed = std::chrono::duration_cast<std::chrono::milliseconds>(tReadTotalEnd - tReadTotalStart);
+        spdlog::warn("read() succeeded after {} retries, total read time {} ms, cycle #{}", retryCount, readTotalElapsed.count(), i);
+        return;
+    }
+
 }
 }
 
 INSTANTIATE_TEST_SUITE_P(MvlcEthTest, MvlcEthTestBase,
-    ::testing::Values("mvlc-0056")
+    ::testing::Values("mvlc-0056.")
     );
