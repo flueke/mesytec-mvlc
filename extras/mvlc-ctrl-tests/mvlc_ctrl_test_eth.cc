@@ -1,45 +1,40 @@
 #include "gtest/gtest.h"
 #include <spdlog/spdlog.h>
-#include <ftd3xx.h>
 #include <mesytec-mvlc/mesytec-mvlc.h>
-#include <mesytec-mvlc/mvlc_impl_usb.h>
+#include <mesytec-mvlc/mvlc_impl_eth.h>
 
 using namespace mesytec::mvlc;
 
-TEST(MvlcUsb, ConnectToFirstDevice)
+class MvlcEthTestBase: public ::testing::TestWithParam<const char *>
 {
-    usb::Impl mvlc;
+    public:
+        MvlcEthTestBase()
+        {
+            std::string address = GetParam();
 
-    ASSERT_EQ(mvlc.connectionType(), ConnectionType::USB);
+            if (address.empty())
+            {
+                if (char *envAddress = getenv("MVLC_TEST_ETH_ADDR"))
+                    address = envAddress;
+            }
 
-    auto ec = mvlc.connect();
-    ASSERT_FALSE(ec) << ec.message();
-    ASSERT_TRUE(mvlc.isConnected());
+            if (address.empty())
+            {
+                spdlog::warn("No MVLC ETH address given. Set MVLC_TEST_ETH_ADDR in the environment.");
+            }
 
-    ec = mvlc.disconnect();
-    ASSERT_FALSE(ec) << ec.message();
-    ASSERT_FALSE(mvlc.isConnected());
-}
+            spdlog::info("MvlcEthTestBase using MVLC_ETH (address={})", address);
+            impl = std::make_unique<eth::Impl>(address);
+        }
 
-TEST(MvlcUsb, GetFtdiDriverVersions)
+    std::unique_ptr<eth::Impl> impl;
+};
+
+TEST_P(MvlcEthTestBase, ReadRegister)
 {
-    spdlog::set_level(spdlog::level::trace);
+    //spdlog::set_level(spdlog::level::trace);
     // TODO: move this into a setUp routine
-    usb::Impl mvlc;
-    auto ec = mvlc.connect();
-    ASSERT_FALSE(ec) << ec.message();
-    ASSERT_TRUE(mvlc.isConnected());
-
-
-
-
-}
-
-TEST(MvlcUsb, ReadRegister)
-{
-    spdlog::set_level(spdlog::level::trace);
-    // TODO: move this into a setUp routine
-    usb::Impl mvlc;
+    auto &mvlc = *impl;
     auto ec = mvlc.connect();
     ASSERT_FALSE(ec) << ec.message();
     ASSERT_TRUE(mvlc.isConnected());
@@ -101,3 +96,7 @@ for (size_t i=0; i<1000000; ++i)
     ASSERT_EQ(response[3], 0x5008u); // mvlc hardware id
 }
 }
+
+INSTANTIATE_TEST_SUITE_P(MvlcEthTest, MvlcEthTestBase,
+    ::testing::Values("mvlc-0056")
+    );

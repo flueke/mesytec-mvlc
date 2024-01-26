@@ -583,7 +583,8 @@ std::error_code Impl::connect()
         }
     }
 
-    logger->trace("set pipe timeouts done");
+    logger->trace("set pipe timeouts done (read={}ms, write={}ms)",
+        ReadTimeout_ms, WriteTimeout_ms);
 
 #ifdef __WIN32
     // clean up the pipes
@@ -601,7 +602,8 @@ std::error_code Impl::connect()
     logger->trace("win32 pipe cleanup done");
 #endif
 
-#ifdef __WIN32
+#if 0
+//#ifdef __WIN32
 #if USB_WIN_USE_STREAMPIPE
     logger->trace("enabling streaming mode for all read pipes, size={}", USBStreamPipeReadSize);
     // FT_SetStreamPipe(handle, allWritePipes, allReadPipes, pipeID, streamSize)
@@ -614,12 +616,14 @@ std::error_code Impl::connect()
         return ec;
     }
 
-    logger->trace("win32 streampipe mode enabled");
+    logger->trace("usb streampipe mode enabled");
 #endif // USB_WIN_USE_STREAMPIPE
-#endif // __WIN32
+//#endif // __WIN32
+#endif
 
     logger->info("opened USB device");
 
+    #if 0
     if (disableTriggersOnConnect())
     {
         for (int try_=0; try_<2; ++try_)
@@ -633,7 +637,9 @@ std::error_code Impl::connect()
                 break;
         }
     }
+    #endif
 
+#if 0
 #ifndef __WIN32
     // Linux only: after post_connect_cleanup() is done set the command pipes
     // read timeout to 0 which has the effect of only reading from the FTDI
@@ -645,6 +651,7 @@ std::error_code Impl::connect()
     }
 
     logger->trace("linux: CommandPipe read timeout set to 0");
+#endif
 #endif
 
     logger->trace("end {}", __PRETTY_FUNCTION__);
@@ -1001,7 +1008,7 @@ std::error_code Impl::read(Pipe pipe, u8 *buffer, size_t size,
 
     FT_STATUS st = {};
 
-//#if 0
+#if 0 // Old d3xx-0.5.21 API and possible workaround for USB2
     if (getDeviceInfo().flags & DeviceInfo::Flags::USB2)
     {
         // Possible fix for USB2 CommandTimeout issues with older USB chipsets:
@@ -1015,7 +1022,6 @@ std::error_code Impl::read(Pipe pipe, u8 *buffer, size_t size,
             1);
     }
     else
-//#else
     {
         st = FT_ReadPipe(
             m_handle,
@@ -1024,7 +1030,14 @@ std::error_code Impl::read(Pipe pipe, u8 *buffer, size_t size,
             &transferred,
             nullptr);
     }
-//#endif
+#else // 240124: Port to d3xx-1.0.14
+    st = FT_ReadPipeEx(
+            m_handle,
+            get_fifo_id(pipe),
+            buffer, size,
+            &transferred,
+            0); // timeout
+#endif
 
     bytesTransferred = transferred;
 
@@ -1120,11 +1133,12 @@ std::error_code Impl::read_unbuffered(Pipe pipe, u8 *buffer, size_t size,
         abortPipe(pipe, EndpointDirection::In);
 
 #else // linux
-    FT_STATUS st = FT_ReadPipe(
-        m_handle, get_endpoint(pipe, EndpointDirection::In),
+    FT_STATUS st = FT_ReadPipeEx(
+        m_handle,
+        get_fifo_id(pipe),
         buffer, size,
         &transferred,
-        nullptr);
+        0);
 #endif
 
     bytesTransferred = transferred;

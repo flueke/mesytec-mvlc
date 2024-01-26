@@ -159,6 +159,9 @@ class MESYTEC_MVLC_EXPORT Impl: public MVLCBasicInterface, public MVLC_USB_Inter
             return m_disableTriggersOnConnect;
         }
 
+        // Access to the FTDI driver handle.
+        void *getHandle() { return m_handle; }
+
     private:
         struct ConnectMode
         {
