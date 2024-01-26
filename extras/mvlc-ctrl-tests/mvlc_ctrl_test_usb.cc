@@ -21,9 +21,27 @@ TEST(MvlcUsb, ConnectToFirstDevice)
     ASSERT_FALSE(mvlc.isConnected());
 }
 
+struct FtdiVersion
+{
+    u8 major;
+    u8 minor;
+    u16 build;
+};
+
+FtdiVersion ftdi_version_from_dword(DWORD value)
+{
+    FtdiVersion result = {};
+
+    result.major = (value >> 24) & 0xffu;
+    result.minor = (value >> 16) & 0xffu;
+    result.build = value & 0xffffu;
+
+    return result;
+}
+
 TEST(MvlcUsb, GetFtdiDriverVersions)
 {
-    spdlog::set_level(spdlog::level::trace);
+    //spdlog::set_level(spdlog::level::trace);
     // TODO: move this into a setUp routine
     usb::Impl mvlc;
     auto ec = mvlc.connect();
@@ -33,34 +51,27 @@ TEST(MvlcUsb, GetFtdiDriverVersions)
     auto ftHandle = mvlc.getHandle();
     ASSERT_NE(ftHandle, nullptr);
 
-    union FtdiVersion
-    {
-        struct
-        {
-            u16 build;
-            u8 minor;
-            u8 major;
-        };
-        u32 value;
-    } __attribute((packed));
+    DWORD driverVersionValue = {};
 
-    FtdiVersion driverVersion = {};
-
-    if (auto ftSt = FT_GetDriverVersion(ftHandle, &driverVersion.value))
+    if (auto ftSt = FT_GetDriverVersion(ftHandle, &driverVersionValue))
     {
         spdlog::error("FT_GetDriverVersion() returned {}", ftSt);
         ASSERT_EQ(ftSt, FT_OK);
     }
 
+    auto driverVersion = ftdi_version_from_dword(driverVersionValue);
+
     spdlog::info("Ftdi Driver Version: {}.{}.{}", driverVersion.major, driverVersion.minor, driverVersion.build);
 
-    FtdiVersion libraryVersion = {};
+    DWORD libraryVersionValue;
 
-    if (auto ftSt = FT_GetLibraryVersion(&libraryVersion.value))
+    if (auto ftSt = FT_GetLibraryVersion(&libraryVersionValue))
     {
         spdlog::error("FT_GetLibraryVersion() returned {}", ftSt);
         ASSERT_EQ(ftSt, FT_OK);
     }
+
+    auto libraryVersion = ftdi_version_from_dword(libraryVersionValue);
 
     spdlog::info("Ftdi Library Version: {}.{}.{}", libraryVersion.major, libraryVersion.minor, libraryVersion.build);
 }
