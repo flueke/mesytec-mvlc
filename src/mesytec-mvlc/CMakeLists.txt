@@ -74,9 +74,9 @@ if(MVLC_ENABLE_ZMQ)
 endif(MVLC_ENABLE_ZMQ)
 
 if (UNIX AND NOT APPLE)
-    target_link_libraries(mesytec-mvlc PRIVATE ftd3xx-static)
+    target_link_libraries(mesytec-mvlc PUBLIC ftd3xx-static)
 else()
-    target_link_libraries(mesytec-mvlc PRIVATE ftd3xx)
+    target_link_libraries(mesytec-mvlc PUBLIC ftd3xx)
 endif()
 
 set(MVLC_SPDLOG_ACTIVE_LEVEL "SPDLOG_LEVEL_WARN" CACHE STRING "Compile time spdlog level for the library")

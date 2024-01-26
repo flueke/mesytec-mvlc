@@ -30,9 +30,39 @@ TEST(MvlcUsb, GetFtdiDriverVersions)
     ASSERT_FALSE(ec) << ec.message();
     ASSERT_TRUE(mvlc.isConnected());
 
+    auto ftHandle = mvlc.getHandle();
+    ASSERT_NE(ftHandle, nullptr);
 
+    union FtdiVersion
+    {
+        struct
+        {
+            u16 build;
+            u8 minor;
+            u8 major;
+        };
+        u32 value;
+    } __attribute((packed));
 
+    FtdiVersion driverVersion = {};
 
+    if (auto ftSt = FT_GetDriverVersion(ftHandle, &driverVersion.value))
+    {
+        spdlog::error("FT_GetDriverVersion() returned {}", ftSt);
+        ASSERT_EQ(ftSt, FT_OK);
+    }
+
+    spdlog::info("Ftdi Driver Version: {}.{}.{}", driverVersion.major, driverVersion.minor, driverVersion.build);
+
+    FtdiVersion libraryVersion = {};
+
+    if (auto ftSt = FT_GetLibraryVersion(&libraryVersion.value))
+    {
+        spdlog::error("FT_GetLibraryVersion() returned {}", ftSt);
+        ASSERT_EQ(ftSt, FT_OK);
+    }
+
+    spdlog::info("Ftdi Library Version: {}.{}.{}", libraryVersion.major, libraryVersion.minor, libraryVersion.build);
 }
 
 TEST(MvlcUsb, ReadRegister)
