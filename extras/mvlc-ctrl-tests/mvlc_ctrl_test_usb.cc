@@ -1,5 +1,6 @@
 #include "gtest/gtest.h"
 #include <spdlog/spdlog.h>
+#include <ftd3xx.h>
 #include <mesytec-mvlc/mesytec-mvlc.h>
 #include <mesytec-mvlc/mvlc_impl_usb.h>
 
@@ -14,22 +15,45 @@ TEST(MvlcUsb, ConnectToFirstDevice)
     auto ec = mvlc.connect();
     ASSERT_FALSE(ec) << ec.message();
     ASSERT_TRUE(mvlc.isConnected());
+
+    ec = mvlc.disconnect();
+    ASSERT_FALSE(ec) << ec.message();
+    ASSERT_FALSE(mvlc.isConnected());
 }
 
-TEST(MvlcUsb, ReadRegister)
+TEST(MvlcUsb, GetFtdiDriverVersions)
 {
+    spdlog::set_level(spdlog::level::trace);
     // TODO: move this into a setUp routine
     usb::Impl mvlc;
     auto ec = mvlc.connect();
     ASSERT_FALSE(ec) << ec.message();
     ASSERT_TRUE(mvlc.isConnected());
 
-    SuperCommandBuilder cmdList;
-    cmdList.addReadLocal(registers::hardware_id);
 
+
+
+}
+
+TEST(MvlcUsb, ReadRegister)
+{
+    spdlog::set_level(spdlog::level::trace);
+    // TODO: move this into a setUp routine
+    usb::Impl mvlc;
+    auto ec = mvlc.connect();
+    ASSERT_FALSE(ec) << ec.message();
+    ASSERT_TRUE(mvlc.isConnected());
+
+    static const size_t ReadRetryMaxCount = 10;
+
+for (size_t i=0; i<1000000; ++i)
+{
+    SuperCommandBuilder cmdList;
+    cmdList.addReferenceWord(i); // XXX: Makes the response one word larger. 15 bytes in total now!
+    cmdList.addReadLocal(registers::hardware_id);
     auto request = make_command_buffer(cmdList);
 
-    spdlog::info("request={:#08x}", fmt::join(request, ", "));
+    spdlog::info("request={:#010x}", fmt::join(request, ", "));
     size_t bytesWritten = 0u;
     const size_t bytesToWrite = request.size() * sizeof(u32);
     ec = mvlc.write(Pipe::Command, reinterpret_cast<const u8 *>(request.data()), bytesToWrite, bytesWritten);
@@ -46,17 +70,34 @@ TEST(MvlcUsb, ReadRegister)
     // The current APIv2 implementation doesn't run into problems because it
     // just reads in a loop.
 
-    std::vector<u32> response(1024 * 64);
+    static const size_t responseCapacityInBytes = 4 * sizeof(u32);
+    std::vector<u32> response(responseCapacityInBytes / sizeof(u32));
     const size_t responseCapacity = response.size() * sizeof(u32);
     size_t bytesRead = 0u;
+    size_t retryCount = 0u;
 
-    ec = mvlc.read(Pipe::Command, reinterpret_cast<u8 *>(response.data()), responseCapacity, bytesRead);
+    while (retryCount < ReadRetryMaxCount)
+    {
+        auto tReadStart = std::chrono::steady_clock::now();
+        ec = mvlc.read(Pipe::Command, reinterpret_cast<u8 *>(response.data()), responseCapacity, bytesRead);
+        auto tReadEnd = std::chrono::steady_clock::now();
+        auto readElapsed = std::chrono::duration_cast<std::chrono::microseconds>(tReadEnd - tReadStart);
+        spdlog::info("read(): ec={}, bytesRequested={}, bytesRead={}, read took {} µs", ec.message(), responseCapacity, bytesRead, readElapsed.count());
 
-    spdlog::warn("ec={}, bytesRead={}", ec.message(), bytesRead);
+        if (ec != ErrorType::Timeout)
+            break;
+
+        spdlog::warn("read() timed out, retrying!");
+        ++retryCount;
+    }
 
     ASSERT_FALSE(ec) << ec.message();
-
+    ASSERT_TRUE(bytesRead % sizeof(u32) == 0);
     const size_t wordsRead = bytesRead / sizeof(u32);
-
-    ASSERT_EQ(wordsRead, response.size());
+    response.resize(wordsRead);
+    spdlog::info("response={:#010x}", fmt::join(response, ", "));
+    ASSERT_EQ(wordsRead, 4);
+    ASSERT_EQ(response[1] & 0xffffu, i & 0xffffu);
+    ASSERT_EQ(response[3], 0x5008u); // mvlc hardware id
+}
 }
