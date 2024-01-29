@@ -17,4 +17,9 @@ if (MVLC_BUILD_CONTROLLER_TESTS)
     add_mvlc_test(mvlc_ctrl_test_eth mvlc_ctrl_test_eth.cc)
     add_mvlc_test(mvlc_ctrl_test_usb mvlc_ctrl_test_usb.cc)
     add_mvlc_test(mvlc_ctrl_test_basic mvlc_ctrl_test_basic.cc)
+    add_executable(mvlc_ctrl_test_usb_no_gtest mvlc_ctrl_test_usb_no_gtest.cc)
+    target_link_libraries(mvlc_ctrl_test_usb_no_gtest
+        PRIVATE mesytec-mvlc
+        PRIVATE spdlog::spdlog
+    )
 endif (MVLC_BUILD_CONTROLLER_TESTS)
