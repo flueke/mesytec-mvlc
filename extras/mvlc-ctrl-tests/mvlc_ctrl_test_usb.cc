@@ -110,6 +110,7 @@ for (size_t i=0; i<1'000'000; ++i)
     // The current APIv2 implementation doesn't run into problems because it
     // just reads in a loop.
 
+    //static const size_t responseCapacityInBytes = 1024 * 1024;
     static const size_t responseCapacityInBytes = 4 * sizeof(u32);
     std::vector<u32> response(responseCapacityInBytes / sizeof(u32));
     const size_t responseCapacity = response.size() * sizeof(u32);

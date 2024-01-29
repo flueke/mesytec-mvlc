@@ -634,6 +634,7 @@ std::error_code Impl::connect()
         }
     }
 
+#if 0
 #ifndef __WIN32
     // Linux only: after post_connect_cleanup() is done set the command pipes
     // read timeout to 0 which has the effect of only reading from the FTDI
@@ -645,6 +646,7 @@ std::error_code Impl::connect()
     }
 
     logger->trace("linux: CommandPipe read timeout set to 0");
+#endif
 #endif
 
     logger->trace("end {}", __PRETTY_FUNCTION__);
