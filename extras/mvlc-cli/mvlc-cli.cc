@@ -128,7 +128,7 @@ DEF_EXEC_FUNC(list_commands_command)
 static const Command ListCmdsCommand =
 {
     .name = "list-commands",
-    .help = R"~(Raw help for the 'list-commands' command
+    .help = R"~(Meta command to list all registered commands.
 )~",
     .exec = list_commands_command,
 };
