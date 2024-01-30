@@ -42,7 +42,6 @@ FtdiVersion ftdi_version_from_dword(DWORD value)
 TEST(MvlcUsb, GetFtdiDriverVersions)
 {
     spdlog::set_level(spdlog::level::trace);
-    spdlog::info("Hello, World!");
     // TODO: move this into a setUp routine
     usb::Impl mvlc;
     auto ec = mvlc.connect();
