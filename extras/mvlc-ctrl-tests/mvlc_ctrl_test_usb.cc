@@ -109,6 +109,11 @@ for (size_t i=0; i<1'000'000; ++i)
     // The current APIv2 implementation doesn't run into problems because it
     // just reads in a loop.
 
+#ifdef __linux__
+    auto ec = usb::set_endpoint_timeout(mvlc.getHandle(), usb::get_endpoint(Pipe::Command, usb::EndpointDirection::In), 1000);
+    ASSERT_FALSE(ec) << ec.message();
+#endif
+
     static const size_t responseCapacityInBytes = 4 * sizeof(u32);
     std::vector<u32> response(responseCapacityInBytes / sizeof(u32));
     const size_t responseCapacity = response.size() * sizeof(u32);
