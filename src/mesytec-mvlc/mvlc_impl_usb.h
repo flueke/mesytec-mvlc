@@ -183,7 +183,9 @@ class MESYTEC_MVLC_EXPORT Impl: public MVLCBasicInterface, public MVLC_USB_Inter
         std::error_code closeHandle();
 
 #ifdef __WIN32
-        std::array<ReadBuffer<USBStreamPipeReadSize>, PipeCount> m_readBuffers;
+        // Note: this used to be a std::array of ReadBuffers but that leads to a
+        // stack overflow when Impl is created on the stack.
+        std::vector<ReadBuffer<USBStreamPipeReadSize>> m_readBuffers;
 #endif
         DeviceInfo m_deviceInfo;
         bool m_disableTriggersOnConnect = true;

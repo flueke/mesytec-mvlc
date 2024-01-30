@@ -448,16 +448,25 @@ std::error_code check_chip_configuration(void *handle)
 Impl::Impl()
     : m_connectMode{ConnectMode::First, {}, {}}
 {
+#ifdef __WIN32
+    m_readBuffers.resize(PipeCount);
+#endif
 }
 
 Impl::Impl(unsigned index)
     : m_connectMode{ConnectMode::ByIndex, index, {}}
 {
+#ifdef __WIN32
+    m_readBuffers.resize(PipeCount);
+#endif
 }
 
 Impl::Impl(const std::string &serial)
     : m_connectMode{ConnectMode::BySerial, 0, serial}
 {
+#ifdef __WIN32
+    m_readBuffers.resize(PipeCount);
+#endif
 }
 
 Impl::~Impl()
