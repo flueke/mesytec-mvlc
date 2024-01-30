@@ -835,7 +835,7 @@ int main(int argc, char *argv[])
 {
     std::string generalHelp = R"~(
 usage: mvlc-cli [-v | --version] [-h | --help [-a]]
-                [--log-level=(off|error|warn|info|debug|trace)] [--trace] [--debug]
+                [--log-level=(off|error|warn|info|debug|trace)] [--trace] [--debug] [--info]
                 [--mvlc <url> | --mvlc-usb | --mvlc-usb-index <index> |
                  --mvlc-usb-serial <serial> | --mvlc-eth <hostname>
                  --mvlc-force-connect]
@@ -900,6 +900,8 @@ MVLC connection URIs:
             logLevelName = "trace";
         else if (parser["--debug"])
             logLevelName = "debug";
+        else if (parser["--info"])
+            logLevelName = "info";
 
         if (!logLevelName.empty())
             spdlog::set_level(spdlog::level::from_str(logLevelName));
