@@ -276,7 +276,7 @@ DEF_EXEC_FUNC(scanbus_command)
     spdlog::trace("entered mvlc_scanbus_command()");
 
     auto &parser = ctx.parser;
-    parser.add_params({"--scan-begin", "--scan-end", "--probe-register", "--probe-amod", "--probe-datawidth"});
+    parser.add_params({"--scan-begin", "--scan-end", "--probe-register", "--probe-amod", "--probe-datawidth", "--stack-max-words"});
     parser.parse(argv);
     trace_log_parser_info(parser, "mvlc_scanbus_command");
 
@@ -285,6 +285,8 @@ DEF_EXEC_FUNC(scanbus_command)
     u16 probeRegister = 0;
     u8  probeAmod = 0x09;
     VMEDataWidth probeDataWidth = VMEDataWidth::D16;
+    // Maximum number of words to use for scanbus command stacks.
+    u16 stackMaxWords = stacks::ImmediateStackReservedWords;
     std::string str;
 
     if (parser("--scan-begin") >> str)
@@ -340,6 +342,19 @@ DEF_EXEC_FUNC(scanbus_command)
         }
     }
 
+    if (parser("--stack-max-words") >> str)
+    {
+        if (auto val = parse_unsigned<u16>(str))
+        {
+            stackMaxWords = *val;
+            if (stackMaxWords < 16 || stackMaxWords >= stacks::StackMemoryWords)
+            {
+                std::cerr << fmt::format("Error: --stack-max-words value is out of range\n");
+                return 1;
+            }
+        }
+    }
+
     if (scanEnd < scanBegin)
         std::swap(scanEnd, scanBegin);
 
@@ -349,14 +364,15 @@ DEF_EXEC_FUNC(scanbus_command)
         return 1;
 
     std::cout << fmt::format("scanbus scan range: [{:#06x}, {:#06x}), {} addresses, probeRegister={:#06x}"
-        ", probeAmod={:#04x}, probeDataWidth={}\n",
+        ", probeAmod={:#04x}, probeDataWidth={}, stackMaxWords={}\n",
         scanBegin, scanEnd, scanEnd - scanBegin, probeRegister,
-        probeAmod, probeDataWidth == VMEDataWidth::D16 ? "d16" : "d32");
+        probeAmod, probeDataWidth == VMEDataWidth::D16 ? "d16" : "d32",
+        stackMaxWords);
 
     using namespace scanbus;
 
     auto candidates = scan_vme_bus_for_candidates(mvlc, scanBegin, scanEnd,
-        probeRegister, probeAmod, probeDataWidth);
+        probeRegister, probeAmod, probeDataWidth, stackMaxWords);
 
     size_t moduleCount = 0;
 
@@ -404,6 +420,7 @@ static const Command ScanbusCommand
     .help = unindent(R"~(
 usage: mvlc-cli scanbus [--scan-begin=<addr>] [--scan-end=<addr>] [--probe-register=<addr>]
                         [--probe-amod=<amod>] [--probe-datawidth=<datawidth>]
+                        [--stack-max-words=<numWords>]
 
     Scans the upper 16 bits of the VME address space for the presence of (mesytec) VME modules.
     Displays the hardware and firmware revisions of found modules and additionally the loaded
@@ -424,6 +441,10 @@ options:
 
     --probe-datawidth=(d16|16|d32|32) (default=d16)
         VME datawidth to use when reading the probe register.
+
+    --stack-max-words=<numWords> (default=255)
+        Limit the size of the command stacks to execute to <numWords> words.
+        Max is 2047 to use all of the stack memory.
 )~"),
     .exec = scanbus_command,
 };
