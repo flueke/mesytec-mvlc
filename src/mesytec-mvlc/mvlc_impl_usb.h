@@ -34,11 +34,7 @@
 #endif
 #include "mesytec-mvlc/mvlc_usb_interface.h"
 
-namespace mesytec
-{
-namespace mvlc
-{
-namespace usb
+namespace mesytec::mvlc::usb
 {
 
 // Structure of how the MVLC is represented when using the FTDI D3XX driver:
@@ -142,8 +138,6 @@ class MESYTEC_MVLC_EXPORT Impl: public MVLCBasicInterface, public MVLC_USB_Inter
             Pipe pipe, u8 *buffer, size_t size,
             size_t &bytesTransferred) override;
 
-        std::error_code abortPipe(Pipe pipe, EndpointDirection dir);
-
         ConnectionType connectionType() const override { return ConnectionType::USB; }
         std::string connectionInfo() const override;
 
@@ -191,15 +185,41 @@ class MESYTEC_MVLC_EXPORT Impl: public MVLCBasicInterface, public MVLC_USB_Inter
         bool m_disableTriggersOnConnect = true;
 };
 
-} // end namespace usb
-} // end namespace mvlc
-} // end namespace mesytec
+std::error_code set_endpoint_timeout(void *handle, u8 endpoint, unsigned ms);
 
-#if 0
-namespace std
+constexpr u8 get_fifo_id(mesytec::mvlc::Pipe pipe)
 {
-    template<> struct is_error_code_enum<_FT_STATUS>: true_type {};
-} // end namespace std
-#endif
+    switch (pipe)
+    {
+        case mesytec::mvlc::Pipe::Command:
+            return 0;
+        case mesytec::mvlc::Pipe::Data:
+            return 1;
+    }
+    return 0;
+}
+
+constexpr u8 get_endpoint(mesytec::mvlc::Pipe pipe, mesytec::mvlc::usb::EndpointDirection dir)
+{
+    u8 result = 0;
+
+    switch (pipe)
+    {
+        case mesytec::mvlc::Pipe::Command:
+            result = 0x2;
+            break;
+
+        case mesytec::mvlc::Pipe::Data:
+            result = 0x3;
+            break;
+    }
+
+    if (dir == mesytec::mvlc::usb::EndpointDirection::In)
+        result |= 0x80;
+
+    return result;
+}
+
+}
 
 #endif /* __MESYTEC_MVLC_MVLC_USB_IMPL_H__ */

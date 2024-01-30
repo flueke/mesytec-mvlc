@@ -51,7 +51,7 @@ namespace
 using namespace mesytec::mvlc;
 
 static const unsigned WriteTimeout_ms = 2000;
-// FIXME: Do not raise the read timeout above 1000ms, otherwise mvme rate monitoring will break!
+// XXX: Do not raise the read timeout above 1000ms, otherwise mvme rate monitoring will break!
 static const unsigned ReadTimeout_ms  = 1000;
 
 class FTErrorCategory: public std::error_category
@@ -163,7 +163,7 @@ const FTErrorCategory theFTErrorCategory {};
 
 }
 
-namespace mesytec { namespace mvlc { namespace usb
+namespace mesytec::mvlc::usb
 {
 
 std::error_code make_error_code(FT_STATUS st)
@@ -171,43 +171,10 @@ std::error_code make_error_code(FT_STATUS st)
     return { static_cast<int>(st), theFTErrorCategory };
 }
 
-}}}
+}
 
 namespace
 {
-
-constexpr u8 get_fifo_id(mesytec::mvlc::Pipe pipe)
-{
-    switch (pipe)
-    {
-        case mesytec::mvlc::Pipe::Command:
-            return 0;
-        case mesytec::mvlc::Pipe::Data:
-            return 1;
-    }
-    return 0;
-}
-
-constexpr u8 get_endpoint(mesytec::mvlc::Pipe pipe, mesytec::mvlc::usb::EndpointDirection dir)
-{
-    u8 result = 0;
-
-    switch (pipe)
-    {
-        case mesytec::mvlc::Pipe::Command:
-            result = 0x2;
-            break;
-
-        case mesytec::mvlc::Pipe::Data:
-            result = 0x3;
-            break;
-    }
-
-    if (dir == mesytec::mvlc::usb::EndpointDirection::In)
-        result |= 0x80;
-
-    return result;
-}
 
 // Returns an unfiltered list of all connected FT60X devices. */
 mesytec::mvlc::usb::DeviceInfoList make_device_info_list()
@@ -377,19 +344,9 @@ std::error_code post_connect_cleanup(mesytec::mvlc::usb::Impl &impl)
     return ec;
 }
 
-std::error_code set_endpoint_timeout(void *handle, u8 ep, unsigned ms)
-{
-    FT_STATUS st = FT_SetPipeTimeout(handle, ep, ms);
-    return mesytec::mvlc::usb::make_error_code(st);
-}
-
 } // end anon namespace
 
-namespace mesytec
-{
-namespace mvlc
-{
-namespace usb
+namespace mesytec::mvlc::usb
 {
 
 DeviceInfoList get_device_info_list(const ListOptions opts)
@@ -659,7 +616,6 @@ std::error_code Impl::connect()
     logger->trace("end {}", __PRETTY_FUNCTION__);
 
     return {};
-
 }
 
 std::error_code Impl::disconnect()
@@ -1145,6 +1101,7 @@ std::error_code Impl::read_unbuffered(Pipe pipe, u8 *buffer, size_t size,
     return ec;
 }
 
+#if 0
 std::error_code Impl::abortPipe(Pipe pipe, EndpointDirection dir)
 {
 #ifdef __WIN32
@@ -1172,6 +1129,7 @@ std::error_code Impl::abortPipe(Pipe pipe, EndpointDirection dir)
 #endif // !__WIN32
     return {};
 }
+#endif
 
 std::string Impl::connectionInfo() const
 {
@@ -1193,6 +1151,11 @@ std::string Impl::connectionInfo() const
     return result;
 }
 
-} // end namespace usb
-} // end namespace mvlc
-} // end namespace mesytec
+std::error_code set_endpoint_timeout(void *handle, u8 ep, unsigned ms)
+{
+    FT_STATUS st = FT_SetPipeTimeout(handle, ep, ms);
+    return mesytec::mvlc::usb::make_error_code(st);
+}
+
+
+}
