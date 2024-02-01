@@ -258,6 +258,33 @@ std::pair<std::error_code, size_t> read_pipe_until_empty(
     return std::make_pair(ec, totalBytesTransferred);
 };
 
+std::error_code abort_pipe(void *ftdiHandle, Pipe pipe, mesytec::mvlc::usb::EndpointDirection dir)
+{
+#ifdef __WIN32
+    auto logger = get_logger("mvlc_usb");
+
+    logger->trace(
+        "FT_AbortPipe on pipe={}, dir={}",
+        static_cast<unsigned>(pipe),
+        static_cast<unsigned>(dir));
+
+    auto st = FT_AbortPipe(ftdiHandle, get_endpoint(pipe, dir));
+
+    if (auto ec = mesytec::mvlc::usb::make_error_code(st))
+    {
+        logger->warn(
+            "FT_AbortPipe on pipe={}, dir={} returned an error: {}",
+            static_cast<unsigned>(pipe),
+            static_cast<unsigned>(dir),
+            ec.message().c_str());
+        return ec;
+    }
+#else // !__WIN32
+    (void) pipe;
+    (void) dir;
+#endif // !__WIN32
+    return {};
+}
 
 // USB specific post connect routine which tries to disable a potentially
 // running DAQ. This is done to make sure the command communication is working
@@ -557,7 +584,7 @@ std::error_code Impl::connect()
     {
         for (auto dir: { EndpointDirection::In, EndpointDirection::Out })
         {
-            if (auto ec = abortPipe(pipe, dir))
+            if (auto ec = abort_pipe(m_handle, pipe, dir))
             {
                 closeHandle();
                 return ec;
@@ -671,7 +698,7 @@ std::error_code Impl::write(Pipe pipe, const u8 *buffer, size_t size,
 
         if (st != FT_OK && st != FT_IO_PENDING)
         {
-            if (auto ec = abortPipe(pipe, EndpointDirection::Out))
+            if (auto ec = abort_pipe(m_handle, pipe, EndpointDirection::Out))
                 return ec;
         }
 
@@ -726,7 +753,7 @@ std::error_code Impl::write(Pipe pipe, const u8 *buffer, size_t size,
 #endif // USB_WIN_USE_ASYNC
 
     if (st != FT_OK && st != FT_IO_PENDING)
-        abortPipe(pipe, EndpointDirection::Out);
+        abort_pipe(m_handle, pipe, EndpointDirection::Out);
 
     bytesTransferred = transferred;
 
@@ -912,7 +939,7 @@ std::error_code Impl::read(Pipe pipe, u8 *buffer, size_t size,
 #endif // USB_WIN_USE_ASYNC
 
     if (st != FT_OK && st != FT_IO_PENDING)
-        abortPipe(pipe, EndpointDirection::In);
+        abort_pipe(m_handle, pipe, EndpointDirection::In);
 
     auto ec = make_error_code(st);
 
@@ -1082,7 +1109,7 @@ std::error_code Impl::read_unbuffered(Pipe pipe, u8 *buffer, size_t size,
               static_cast<unsigned>(pipe), size, make_error_code(st).message().c_str());
 
     if (st != FT_OK && st != FT_IO_PENDING)
-        abortPipe(pipe, EndpointDirection::In);
+        abort_pipe(m_handle, pipe, EndpointDirection::In);
 
 #else // linux
     FT_STATUS st = FT_ReadPipe(
@@ -1100,36 +1127,6 @@ std::error_code Impl::read_unbuffered(Pipe pipe, u8 *buffer, size_t size,
 
     return ec;
 }
-
-#if 0
-std::error_code Impl::abortPipe(Pipe pipe, EndpointDirection dir)
-{
-#ifdef __WIN32
-    auto logger = get_logger("mvlc_usb");
-
-    logger->trace(
-        "FT_AbortPipe on pipe={}, dir={}",
-        static_cast<unsigned>(pipe),
-        static_cast<unsigned>(dir));
-
-    auto st = FT_AbortPipe(m_handle, get_endpoint(pipe, dir));
-
-    if (auto ec = make_error_code(st))
-    {
-        logger->warn(
-            "FT_AbortPipe on pipe={}, dir={} returned an error: {}",
-            static_cast<unsigned>(pipe),
-            static_cast<unsigned>(dir),
-            ec.message().c_str());
-        return ec;
-    }
-#else // !__WIN32
-    (void) pipe;
-    (void) dir;
-#endif // !__WIN32
-    return {};
-}
-#endif
 
 std::string Impl::connectionInfo() const
 {
