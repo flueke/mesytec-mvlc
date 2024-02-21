@@ -258,9 +258,9 @@ std::pair<std::error_code, size_t> read_pipe_until_empty(
     return std::make_pair(ec, totalBytesTransferred);
 };
 
+#ifdef __WIN32
 std::error_code abort_pipe(void *ftdiHandle, Pipe pipe, mesytec::mvlc::usb::EndpointDirection dir)
 {
-#ifdef __WIN32
     auto logger = get_logger("mvlc_usb");
 
     logger->trace(
@@ -279,12 +279,9 @@ std::error_code abort_pipe(void *ftdiHandle, Pipe pipe, mesytec::mvlc::usb::Endp
             ec.message().c_str());
         return ec;
     }
-#else // !__WIN32
-    (void) pipe;
-    (void) dir;
-#endif // !__WIN32
     return {};
 }
+#endif // __WIN32
 
 // USB specific post connect routine which tries to disable a potentially
 // running DAQ. This is done to make sure the command communication is working
