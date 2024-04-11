@@ -49,6 +49,7 @@ class Protected
 {
     public:
         explicit Protected()
+            : m_obj(T{})
         { }
 
         explicit Protected(T &&obj)
