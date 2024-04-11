@@ -95,8 +95,9 @@ bool process_listfile(const std::string &listfile)
             std::cout << "  Found CrateConfig containing the following readout stacks:\n";
             for (size_t i=0; i<crateConfig.value().stacks.size(); ++i)
             {
-                const auto trigval = i < crateConfig.value().triggers.size() ? crateConfig.value().triggers[i] : 0;
-                std::cout << fmt::format("    stack[{}], trigger={}:\n", i+1, mvlc::trigger_value_to_string(trigval));
+                mvlc::stacks::Trigger trigger{};
+                trigger.value = i < crateConfig.value().triggers.size() ? crateConfig.value().triggers[i] : 0;
+                std::cout << fmt::format("    stack[{}], trigger=({}):\n", i+1, mvlc::trigger_to_string(trigger));
                 const auto &stack = crateConfig.value().stacks[i];
                 for (const auto &group: stack.getGroups())
                 {

@@ -26,6 +26,7 @@
 
 #include "mesytec-mvlc/mesytec-mvlc_export.h"
 #include "mesytec-mvlc/mvlc_constants.h"
+#include "mesytec-mvlc/util/fmt.h"
 
 namespace mesytec
 {
@@ -91,62 +92,11 @@ MESYTEC_MVLC_EXPORT const char *get_frame_flag_shift_name(u8 flag);
 // Returns "unknown/custom" for user defined flags.
 std::string MESYTEC_MVLC_EXPORT system_event_type_to_string(u8 eventType);
 
-inline u32 trigger_value(stacks::TriggerType triggerType, u8 irqLevel = 0)
-{
-    u32 triggerVal = triggerType << stacks::TriggerTypeShift;
+std::string MESYTEC_MVLC_EXPORT trigger_type_to_string(const stacks::TriggerType &tt);
 
-    if ((triggerType == stacks::TriggerType::IRQNoIACK
-         || triggerType == stacks::TriggerType::IRQWithIACK)
-        && irqLevel > 0)
-    {
-        triggerVal |= (irqLevel - 1) & stacks::TriggerBitsMask;
-    }
+std::string MESYTEC_MVLC_EXPORT trigger_subtype_to_string(const stacks::TriggerSubtype &st);
 
-    return triggerVal;
-}
-
-// Returns a pair consisting of (TriggerType, irqLevel).
-inline std::pair<stacks::TriggerType, u8> decode_trigger_value(const u32 triggerVal)
-{
-    stacks::TriggerType triggerType = static_cast<stacks::TriggerType>(
-        (triggerVal >> stacks::TriggerTypeShift) & stacks::TriggerTypeMask);
-
-    u8 irqLevel = 0;
-
-    if (triggerType == stacks::TriggerType::IRQNoIACK
-        || triggerType == stacks::TriggerType::IRQWithIACK)
-    {
-        irqLevel = 1 + (triggerVal & stacks::TriggerBitsMask);
-    }
-
-    return std::make_pair(triggerType, irqLevel);
-}
-
-inline std::string trigger_type_to_string(const stacks::TriggerType &tt)
-{
-    switch (tt)
-    {
-        case stacks::NoTrigger:     return "NoTrigger";
-        case stacks::IRQWithIACK:   return "IrqWithIack";
-        case stacks::IRQNoIACK:     return "IrqNoIack";
-        case stacks::External:      return "TriggerIO";
-    }
-
-    return {};
-}
-
-inline std::string trigger_to_string(const std::pair<stacks::TriggerType, u8> &trig)
-{
-    auto result = trigger_type_to_string(trig.first);
-    if (trig.first == stacks::IRQWithIACK || trig.first == stacks::IRQNoIACK)
-        result += ", IRQ=" + std::to_string(static_cast<unsigned>(trig.second));
-    return result;
-}
-
-inline std::string trigger_value_to_string(u32 trigval)
-{
-    return trigger_to_string(decode_trigger_value(trigval));
-}
+std::string MESYTEC_MVLC_EXPORT trigger_to_string(const stacks::Trigger &trigger);
 
 size_t MESYTEC_MVLC_EXPORT fixup_buffer_mvlc_usb(const u8 *buf, size_t bufUsed, std::vector<u8> &tmpBuf);
 size_t MESYTEC_MVLC_EXPORT fixup_buffer_mvlc_eth(const u8 *buf, size_t bufUsed, std::vector<u8> &tmpBuf);

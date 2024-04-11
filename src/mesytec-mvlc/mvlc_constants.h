@@ -339,7 +339,6 @@ namespace stacks
     static const u16 ImmediateStackStartOffsetBytes = ImmediateStackStartOffsetWords * 4;
 
     // Readout stacks must start after this point.
-    // TODO (longterm): use stack#15 for immediate exec.
     static const u16 ImmediateStackReservedWords = 256 - ImmediateStackStartOffsetWords;
     static const u16 ImmediateStackReservedBytes = ImmediateStackReservedWords * 4;
 
@@ -379,7 +378,7 @@ namespace stacks
         return Stack0OffsetRegister + stackId * AddressIncrement;
     }
 
-    enum TriggerSubtype
+    enum TriggerSubtype: u8
     {
         IRQ1   =  0,
         IRQ2   =  1,
@@ -412,21 +411,19 @@ namespace stacks
         Timer3 = 23,
     };
 
-    /* Could also do this instead of the masks and shifts:
     union Trigger
     {
         struct
         {
-            u16 _: 7;
-            u16 immediate: 1;
-            TriggerType type: 3;
             TriggerSubtype subtype: 5;
+            TriggerType type: 3;
+            u16 immediate: 1;
+            u16 _: 7;
         };
         u16 value;
     };
 
     static_assert(sizeof(Trigger) == sizeof(u16));
-    */
 
     static const u16 SlaveTriggersCount = 4;
 

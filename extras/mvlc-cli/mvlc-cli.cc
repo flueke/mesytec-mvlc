@@ -225,18 +225,23 @@ DEF_EXEC_FUNC(mvlc_stack_info_command)
         const auto &stackId = entry.stackId;
         const auto &ec = entry.ec;
         const auto &stackInfo = entry.stackInfo;
+        stacks::Trigger trigger{};
+        trigger.value = stackInfo.triggerValue;
 
         if (ec == make_error_code(MVLCErrorCode::InvalidStackHeader))
         {
-            std::cerr << fmt::format("- stack#{:2}: triggers=0x{:02x}, offset={}, startAddress=0x{:04x}"
+
+            std::cerr << fmt::format("- stack#{:2}: triggers=0x{:02x} ({}), offset={}, startAddress=0x{:04x}"
                 ", empty stack (does not start with a StackStart (0xF3) header)\n",
-                stackId, stackInfo.triggers, stackInfo.offset, stackInfo.startAddress);
+                stackId, trigger.value, trigger_to_string(trigger),
+                stackInfo.offset, stackInfo.startAddress);
             continue;
         }
         else
         {
-            std::cout << fmt::format("- stack#{:2}: triggers=0x{:02x}, offset={}, startAddress=0x{:04x}, len={}:\n",
-                stackId, stackInfo.triggers, stackInfo.offset, stackInfo.startAddress,
+            std::cout << fmt::format("- stack#{:2}: triggers=0x{:02x} ({}), offset={}, startAddress=0x{:04x}, len={}:\n",
+                stackId, trigger.value, trigger_to_string(trigger),
+                stackInfo.offset, stackInfo.startAddress,
                 stackInfo.contents.size());
 
             for (auto &word: stackInfo.contents)

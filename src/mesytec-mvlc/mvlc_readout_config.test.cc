@@ -56,11 +56,10 @@ TEST(mvlc_readout_config, CrateConfigYaml)
         }
 
         {
-            u8 irqLevel = 1;
-            u32 triggerVal = stacks::TriggerType::IRQNoIACK << stacks::TriggerTypeShift;
-            triggerVal |= (irqLevel - 1) & stacks::TriggerBitsMask;
-
-            cc.triggers.push_back(triggerVal);
+            stacks::Trigger trigger{};
+            trigger.type = stacks::TriggerType::IRQNoIACK;
+            trigger.subtype = stacks::TriggerSubtype::IRQ1;
+            cc.triggers.push_back(trigger.value);
         }
 
         ASSERT_EQ(cc.stacks.size(), 1u);

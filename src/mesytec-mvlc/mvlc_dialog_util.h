@@ -39,16 +39,10 @@ namespace mvlc
 
 struct StackInfo
 {
-    u32 triggers;
+    u32 triggerValue;
     u32 offset;
     u16 startAddress;
     std::vector<u32> contents;
-};
-
-struct StackTrigger
-{
-    stacks::TriggerType triggerType;
-    u8 irqLevel = 0;
 };
 
 template<typename DIALOG_API>
@@ -99,7 +93,7 @@ read_stack_info(DIALOG_API &mvlc, u8 id)
     if (id >= stacks::StackCount)
         return { result, make_error_code(MVLCErrorCode::StackCountExceeded) };
 
-    if (auto ec = mvlc.readRegister(stacks::get_trigger_register(id), result.triggers))
+    if (auto ec = mvlc.readRegister(stacks::get_trigger_register(id), result.triggerValue))
         return { result, ec };
 
     if (auto ec = mvlc.readRegister(stacks::get_offset_register(id), result.offset))
@@ -282,49 +276,21 @@ std::error_code setup_readout_stack(
     return write_stack_trigger_value(mvlc, stackId, stackTriggerValue);
 }
 
-inline u32 trigger_value(const StackTrigger &st)
-{
-    return trigger_value(st.triggerType, st.irqLevel); // in mvlc_util.h
-}
-
 template<typename DIALOG_API>
 std::error_code setup_readout_stack(
     DIALOG_API &mvlc,
     const StackCommandBuilder &stackBuilder,
     u8 stackId,
-    const stacks::TriggerType &triggerType,
-    u8 irqLevel = 0)
+    const stacks::Trigger &trigger)
 {
     return setup_readout_stack(
         mvlc,
         stackBuilder,
         stackId,
-        trigger_value({triggerType, irqLevel}));
+        trigger.value);
 }
 
-template<typename DIALOG_API>
-std::error_code setup_readout_stack(
-    DIALOG_API &mvlc,
-    const StackCommandBuilder &stackBuilder,
-    u8 stackId,
-    const StackTrigger &trigger)
-{
-    return setup_readout_stack(
-        mvlc,
-        stackBuilder,
-        stackId,
-        trigger_value(trigger));
-}
-
-template<typename DIALOG_API>
-std::error_code setup_stack_trigger(
-    DIALOG_API &mvlc, u8 stackId, const StackTrigger &st)
-{
-    u32 triggerVal = trigger_value(st);
-    return write_stack_trigger_value(mvlc, stackId, triggerVal);
-}
-
-// Writes the stack trigger values using a single stack transaction.
+// Writes the raw stack trigger values using a single stack transaction.
 template<typename DIALOG_API>
 std::error_code setup_readout_triggers(
     DIALOG_API &mvlc,
@@ -368,13 +334,13 @@ std::error_code setup_readout_triggers(
 template<typename DIALOG_API>
 std::error_code setup_readout_triggers(
     DIALOG_API &mvlc,
-    const std::array<StackTrigger, stacks::ReadoutStackCount> &triggers)
+    const std::array<stacks::Trigger, stacks::ReadoutStackCount> &triggers)
 {
     std::array<u32, stacks::ReadoutStackCount> triggerValues;
 
     std::transform(std::begin(triggers), std::end(triggers), std::begin(triggerValues),
-                   [] (const StackTrigger &st) {
-                       return trigger_value(st);
+                   [] (const stacks::Trigger &st) {
+                        return st.value;
                    });
 
     return setup_readout_triggers(mvlc, triggerValues);

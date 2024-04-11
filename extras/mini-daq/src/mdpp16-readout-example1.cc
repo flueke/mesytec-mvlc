@@ -200,7 +200,14 @@ int main()
 {
     spdlog::set_level(spdlog::level::debug);
 
-    const u32 modBase = 0x09000000;
+    const u32 modBase = 0x02100000;
+
+    // trigger setup for IRQ1
+    stacks::Trigger trigger{};
+    trigger.type = stacks::TriggerType::IRQNoIACK;
+    trigger.subtype = stacks::TriggerSubtype::IRQ1;
+
+    // mdpp-16 init values
     const u8 irqLevel = 1;
     const u16 pulserValue = 1;
     std::error_code ec;
@@ -228,7 +235,8 @@ int main()
 
     // Upload and setup the stack
     const u8 stackId = 1;
-    ec = setup_readout_stack(mvlc, readoutCommands, stackId, stacks::TriggerType::IRQNoIACK, irqLevel);
+
+    ec = setup_readout_stack(mvlc, readoutCommands, stackId, trigger);
     assert(!ec);
 
     // Create a readout_parser

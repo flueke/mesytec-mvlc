@@ -198,6 +198,67 @@ std::string system_event_type_to_string(u8 eventType)
     return fmt::format("custom (0x{:02x})", eventType);
 }
 
+std::string trigger_type_to_string(const stacks::TriggerType &tt)
+{
+    switch (tt)
+    {
+        case stacks::NoTrigger:     return "NoTrigger";
+        case stacks::IRQWithIACK:   return "IrqWithIack";
+        case stacks::IRQNoIACK:     return "IrqNoIack";
+        case stacks::External:      return "TriggerIO";
+    }
+
+    return {};
+}
+
+std::string trigger_subtype_to_string(const stacks::TriggerSubtype &st)
+{
+    using T = stacks::TriggerSubtype;
+
+    switch (st)
+    {
+        case T::IRQ1      : return "IRQ1";
+        case T::IRQ2      : return "IRQ2";
+        case T::IRQ3      : return "IRQ3";
+        case T::IRQ4      : return "IRQ4";
+        case T::IRQ5      : return "IRQ5";
+        case T::IRQ6      : return "IRQ6";
+        case T::IRQ7      : return "IRQ7";
+        case T::IRQ8      : return "IRQ8";
+        case T::IRQ9      : return "IRQ9";
+        case T::IRQ10     : return "IRQ10";
+        case T::IRQ11     : return "IRQ11";
+        case T::IRQ12     : return "IRQ12";
+        case T::IRQ13     : return "IRQ13";
+        case T::IRQ14     : return "IRQ14";
+        case T::IRQ15     : return "IRQ15";
+        case T::IRQ16     : return "IRQ16";
+        case T::Slave0    : return "Slave0";
+        case T::Slave1    : return "Slave1";
+        case T::Slave2    : return "Slave2";
+        case T::Slave3    : return "Slave3";
+        case T::Timer0    : return "Timer0";
+        case T::Timer1    : return "Timer1";
+        case T::Timer2    : return "Timer2";
+        case T::Timer3    : return "Timer3";
+    }
+
+    return {};
+}
+
+std::string trigger_to_string(const stacks::Trigger &trigger)
+{
+    auto result = fmt::format("type={}, subtype={}",
+        trigger_type_to_string(trigger.type), trigger_subtype_to_string(trigger.subtype));
+
+    if (trigger.immediate)
+    {
+        result += ", immediate=true";
+    }
+
+    return result;
+}
+
 // Follows the framing structure inside the buffer until an incomplete frame
 // which doesn't fit into the buffer is detected. The incomplete data is moved
 // over to the tempBuffer so that the readBuffer ends with a complete frame.
