@@ -300,11 +300,15 @@ std::error_code setup_readout_triggers(
     sb.addReferenceWord(std::rand() % 0xffff);
     u8 stackId = stacks::FirstReadoutStackID;
 
-    for (u32 triggerVal: triggerValues)
+    for (unsigned triggerIdx = 0; triggerIdx < mvlc.getReadoutStackCount(); ++triggerIdx)
     {
-        //std::cerr << "stackId=" << static_cast<unsigned>(stackId)
-        //    << ", triggerVal=0x" << std::hex << triggerVal << std::dec
-        //    << std::endl;
+        u32 triggerVal = triggerValues.at(triggerIdx);
+
+        #if 1
+        std::cerr << "setup_readout_triggers: stackId=" << static_cast<unsigned>(stackId)
+            << ", triggerVal=0x" << std::hex << triggerVal << std::dec
+            << std::endl;
+        #endif
 
         u16 triggerReg = stacks::get_trigger_register(stackId);
         sb.addWriteLocal(triggerReg, triggerVal);
