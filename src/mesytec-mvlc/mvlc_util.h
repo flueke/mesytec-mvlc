@@ -92,9 +92,9 @@ MESYTEC_MVLC_EXPORT const char *get_frame_flag_shift_name(u8 flag);
 // Returns "unknown/custom" for user defined flags.
 std::string MESYTEC_MVLC_EXPORT system_event_type_to_string(u8 eventType);
 
-std::string MESYTEC_MVLC_EXPORT trigger_type_to_string(const stacks::TriggerType &tt);
+std::string MESYTEC_MVLC_EXPORT trigger_type_to_string(const u8 &tt);
 
-std::string MESYTEC_MVLC_EXPORT trigger_subtype_to_string(const stacks::TriggerSubtype &st);
+std::string MESYTEC_MVLC_EXPORT trigger_subtype_to_string(const u8 &st);
 
 std::string MESYTEC_MVLC_EXPORT trigger_to_string(const stacks::Trigger &trigger);
 

@@ -198,7 +198,7 @@ std::string system_event_type_to_string(u8 eventType)
     return fmt::format("custom (0x{:02x})", eventType);
 }
 
-std::string trigger_type_to_string(const stacks::TriggerType &tt)
+std::string trigger_type_to_string(const u8 &tt)
 {
     switch (tt)
     {
@@ -211,7 +211,7 @@ std::string trigger_type_to_string(const stacks::TriggerType &tt)
     return {};
 }
 
-std::string trigger_subtype_to_string(const stacks::TriggerSubtype &st)
+std::string trigger_subtype_to_string(const u8 &st)
 {
     using T = stacks::TriggerSubtype;
 

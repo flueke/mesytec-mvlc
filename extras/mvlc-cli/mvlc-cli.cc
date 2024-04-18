@@ -233,14 +233,18 @@ DEF_EXEC_FUNC(mvlc_stack_info_command)
 
             std::cerr << fmt::format("- stack#{:2}: triggers=0x{:02x} ({}), offset={}, startAddress=0x{:04x}"
                 ", empty stack (does not start with a StackStart (0xF3) header)\n",
-                stackId, trigger.value, trigger_to_string(trigger),
+                stackId,
+                 (u16)trigger.value,
+                 trigger_to_string(trigger),
                 stackInfo.offset, stackInfo.startAddress);
             continue;
         }
         else
         {
             std::cout << fmt::format("- stack#{:2}: triggers=0x{:02x} ({}), offset={}, startAddress=0x{:04x}, len={}:\n",
-                stackId, trigger.value, trigger_to_string(trigger),
+                stackId,
+                (u16) trigger.value,
+                trigger_to_string(trigger),
                 stackInfo.offset, stackInfo.startAddress,
                 stackInfo.contents.size());
 

@@ -415,13 +415,13 @@ namespace stacks
     {
         struct
         {
-            TriggerSubtype subtype: 5;
-            TriggerType type: 3;
+            u16 subtype: 5;
+            u16 type: 3;
             u16 immediate: 1;
             u16 _: 7;
         };
         u16 value;
-    };
+    } __attribute__((packed, aligned(1)));
 
     static_assert(sizeof(Trigger) == sizeof(u16));
 
