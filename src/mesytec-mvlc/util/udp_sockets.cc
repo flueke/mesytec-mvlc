@@ -315,7 +315,7 @@ std::error_code close_socket(int sock)
 // atomically transmitted.
 #ifdef __WIN32
 std::error_code write_to_socket(
-    int socket, const u8 *buffer, size_t size, size_t &bytesTransferred, int timeout_ms)
+    int socket, const u8 *buffer, size_t size, size_t &bytesTransferred)//, int timeout_ms)
 {
     assert(size <= MaxPayloadSize);
 
@@ -330,11 +330,11 @@ std::error_code write_to_socket(
         int err = WSAGetLastError();
 
         if (err == WSAETIMEDOUT || err == WSAEWOULDBLOCK)
-            return SocketErrorCode::SocketWriteTimeout;
+            return std::error_code(EAGAIN, std::system_category());
 
         // Maybe TODO: use WSAGetLastError here with a WSA specific error
         // category like this: https://gist.github.com/bbolli/710010adb309d5063111889530237d6d
-        return SocketErrorCode::GenericSocketError;
+        return std::make_error_code(std::errc::io_error);
     }
 
     bytesTransferred = res;
@@ -378,10 +378,10 @@ std::error_code receive_one_packet(int sockfd, u8 *dest, size_t size,
     int sres = ::select(0, &fds, nullptr, nullptr, &tv);
 
     if (sres == 0)
-        return SocketErrorCode::SocketReadTimeout;
+        return std::error_code(EAGAIN, std::system_category());
 
     if (sres == SOCKET_ERROR)
-        return SocketErrorCode::GenericSocketError;
+        return std::make_error_code(std::errc::io_error);
 
     // Not sure why but windows returns EFAULT (10014) when passing the the
     // src_addr pointer directly to recvfrom(). Using a local sockaddr_in
@@ -400,9 +400,9 @@ std::error_code receive_one_packet(int sockfd, u8 *dest, size_t size,
         int err = WSAGetLastError();
 
         if (err == WSAETIMEDOUT || err == WSAEWOULDBLOCK)
-            return SocketErrorCode::SocketReadTimeout;
+            return std::error_code(EAGAIN, std::system_category());
 
-        return SocketErrorCode::GenericSocketError;
+        return std::make_error_code(std::errc::io_error);
     }
 
     bytesTransferred = res;
