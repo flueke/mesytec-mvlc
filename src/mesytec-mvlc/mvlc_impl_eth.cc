@@ -717,50 +717,32 @@ std::error_code Impl::connect()
 
     for (auto pipe: { Pipe::Command, Pipe::Data })
     {
-#ifndef __WIN32
-        int res = setsockopt(getSocket(pipe), SOL_SOCKET, SO_RCVBUF,
-                             &DesiredSocketReceiveBufferSize,
-                             sizeof(DesiredSocketReceiveBufferSize));
-#else
-        int res = setsockopt(getSocket(pipe), SOL_SOCKET, SO_RCVBUF,
-                             reinterpret_cast<const char *>(&DesiredSocketReceiveBufferSize),
-                             sizeof(DesiredSocketReceiveBufferSize));
-#endif
-        if (res != 0)
+        int actualReceiveBufferSize = 0;
+        auto ec = set_socket_receive_buffer_size(getSocket(pipe),
+            DesiredSocketReceiveBufferSize, &actualReceiveBufferSize);
+
+
+        if (ec)
         {
-            auto ec = std::error_code(errno, std::system_category());
-            logger->error("setting socket buffer size failed: {}", ec.message().c_str());
+            logger->error("setting socket receive buffer size failed: {}", ec.message().c_str());
+            return ec;
         }
-
+        else
         {
-            int actualBufferSize = 0;
-            socklen_t szLen = sizeof(actualBufferSize);
+            logger->debug("pipe={}, SO_RCVBUF={}", static_cast<unsigned>(pipe), actualReceiveBufferSize);
 
-#ifndef __WIN32
-            res = getsockopt(getSocket(pipe), SOL_SOCKET, SO_RCVBUF,
-                             &actualBufferSize,
-                             &szLen);
-#else
-            res = getsockopt(getSocket(pipe), SOL_SOCKET, SO_RCVBUF,
-                             reinterpret_cast<char *>(&actualBufferSize),
-                             &szLen);
-#endif
-            if (res != 0)
-                return std::error_code(errno, std::system_category());
-
-            logger->debug("pipe={}, SO_RCVBUF={}", static_cast<unsigned>(pipe), actualBufferSize);
-
-            if (actualBufferSize < DesiredSocketReceiveBufferSize)
+            if (actualReceiveBufferSize < DesiredSocketReceiveBufferSize)
             {
                 auto desiredMB = static_cast<double>(DesiredSocketReceiveBufferSize) / util::Megabytes(1);
-                auto actualMB = static_cast<double>(actualBufferSize) / util::Megabytes(1);
+                auto actualMB = static_cast<double>(actualReceiveBufferSize) / util::Megabytes(1);
                 logger->info("pipe={}, requested SO_RCVBUF of {} bytes ({} MB), got {} bytes ({} MB)",
                              static_cast<unsigned>(pipe),
                              DesiredSocketReceiveBufferSize, desiredMB,
-                             actualBufferSize, actualMB);
+                             actualReceiveBufferSize, actualMB);
             }
 
 #ifdef __WIN32
+            // This is for the eth throttling code
             if (pipe == Pipe::Data)
                 dataSocketReceiveBufferSize = actualBufferSize;
 #endif
