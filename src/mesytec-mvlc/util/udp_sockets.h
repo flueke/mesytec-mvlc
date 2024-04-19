@@ -22,9 +22,12 @@ namespace mesytec::mvlc::eth
 // error occurs it will be stored in *ecp.
 int connect_udp_socket(const std::string &remoteHost, u16 remotePort, std::error_code *ecp = nullptr);
 
+// Binds the given socket to the specified local port.
+std::error_code bind_udp_socket(int sockfd, u16 localPort = 0);
+
 // Returns an unconnected UDP socket bound to the specified local port or -1 on
 // error. If ecp is non-null and an error occurs it will be stored in *ecp.
-int bind_udp_socket(u16 localPort, std::error_code *ecp = nullptr);
+int create_bound_udp_socket(u16 localPort, std::error_code *ecp = nullptr);
 
 // Returns the local port the socket is bound to or 0 on error. If ecp is
 // non-null and an error occurs it will be stored in *ecp.

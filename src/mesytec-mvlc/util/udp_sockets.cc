@@ -75,6 +75,24 @@ void init_socket_system()
 namespace mesytec::mvlc::eth
 {
 
+// Binds the given socket to the specified local port.
+std::error_code bind_udp_socket(int sockfd, u16 localPort)
+{
+    struct sockaddr_in localAddr = {};
+    localAddr.sin_family = AF_INET;
+    localAddr.sin_addr.s_addr = INADDR_ANY;
+    localAddr.sin_port = htons(localPort);
+
+    if (::bind(sockfd, reinterpret_cast<struct sockaddr *>(&localAddr),
+                sizeof(localAddr)))
+    {
+        auto ec = std::error_code(errno, std::system_category());
+        return ec;
+    }
+
+    return {};
+}
+
 int connect_udp_socket(const std::string &host, u16 port, std::error_code *ecp)
 {
     init_socket_system();
@@ -95,19 +113,10 @@ int connect_udp_socket(const std::string &host, u16 port, std::error_code *ecp)
         return -1;
     }
 
-    // bind the socket
+    if (ec = bind_udp_socket(sock))
     {
-        struct sockaddr_in localAddr = {};
-        localAddr.sin_family = AF_INET;
-        localAddr.sin_addr.s_addr = INADDR_ANY;
-
-        if (::bind(sock, reinterpret_cast<struct sockaddr *>(&localAddr),
-                   sizeof(localAddr)))
-        {
-            ec = std::error_code(errno, std::system_category());
-            close_socket(sock);
-            return -1;
-        }
+        close_socket(sock);
+        return -1;
     }
 
     // connect
@@ -135,7 +144,7 @@ int connect_udp_socket(const std::string &host, u16 port, std::error_code *ecp)
     return sock;
 }
 
-int bind_udp_socket(u16 localPort, std::error_code *ecp)
+int create_bound_udp_socket(u16 localPort, std::error_code *ecp)
 {
     init_socket_system();
 
@@ -150,30 +159,7 @@ int bind_udp_socket(u16 localPort, std::error_code *ecp)
         return -1;
     }
 
-    // bind the socket
-    {
-        struct sockaddr_in localAddr = {};
-        localAddr.sin_family = AF_INET;
-        localAddr.sin_addr.s_addr = INADDR_ANY;
-        localAddr.sin_port = htons(localPort);
-
-        if (::bind(sock, reinterpret_cast<struct sockaddr *>(&localAddr),
-                   sizeof(localAddr)))
-        {
-            ec = std::error_code(errno, std::system_category());
-            close_socket(sock);
-            return -1;
-        }
-    }
-
-    // set the socket timeouts
-    if ((ec = set_socket_read_timeout(sock, DefaultReadTimeout_ms)))
-    {
-        close_socket(sock);
-        return -1;
-    }
-
-    if ((ec = set_socket_write_timeout(sock, DefaultWriteTimeout_ms)))
+    if (ec = bind_udp_socket(sock, localPort))
     {
         close_socket(sock);
         return -1;
