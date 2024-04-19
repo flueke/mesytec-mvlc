@@ -167,20 +167,6 @@ class MESYTEC_MVLC_EXPORT Impl: public MVLCBasicInterface, public MVLC_ETH_Inter
         std::thread m_throttleThread;
 };
 
-// Does IPv4 host lookup for a UDP socket. On success the resulting struct
-// sockaddr_in is copied to dest.
-// TODO: move to socket abstraction
-std::error_code MESYTEC_MVLC_EXPORT lookup(const std::string &host, u16 port, sockaddr_in &dest);
-
-// TODO: move to socket abstraction
-std::error_code MESYTEC_MVLC_EXPORT write_to_socket(
-    int socket, const u8 *buffer, size_t size, size_t &bytesTransferred);
-
-// TODO: move to socket abstraction
-// Note: timeout_ms is only used under windows.
-std::error_code MESYTEC_MVLC_EXPORT receive_one_packet(
-    int sockfd, u8 *dest, size_t size, u16 &bytesTransferred, int timeout_ms);
-
 // Given the previous and current packet numbers returns the number of lost
 // packets in-between, taking overflow into account.
 s32 calc_packet_loss(u16 lastPacketNumber, u16 packetNumber);

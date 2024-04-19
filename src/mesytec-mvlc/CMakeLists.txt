@@ -44,6 +44,7 @@ add_library(mesytec-mvlc SHARED
     util/string_util.cc
     util/threadsafequeue.cc
     util/ticketmutex.cc
+    util/udp_sockets.cc
     )
 
 target_include_directories(mesytec-mvlc
