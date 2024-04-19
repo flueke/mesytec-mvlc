@@ -744,7 +744,7 @@ std::error_code Impl::connect()
 #ifdef __WIN32
             // This is for the eth throttling code
             if (pipe == Pipe::Data)
-                dataSocketReceiveBufferSize = actualBufferSize;
+                dataSocketReceiveBufferSize = actualReceiveBufferSize;
 #endif
         }
     }
