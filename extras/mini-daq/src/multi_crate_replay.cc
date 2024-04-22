@@ -141,7 +141,7 @@ int main(int argc, char *argv[])
             eventBuilder.recordSystemEvent(crateIndex, data, size);
             ++recordedSystemEvents.access().ref()[crateIndex];
         };
-        auto replay = make_mvlc_replay(listfilePath, parserCallbacks, crateIndex);
+        auto replay = make_mvlc_replay(listfilePath, parserCallbacks);
         replays.emplace_back(std::move(replay));
         ++crateIndex;
 	}
