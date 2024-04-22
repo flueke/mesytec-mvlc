@@ -54,6 +54,7 @@ enum class OverwriteMode
 // ZipCreator
 //
 
+// Everything throws on error.
 class MESYTEC_MVLC_EXPORT ZipCreator
 {
     public:
