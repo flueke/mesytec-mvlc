@@ -315,168 +315,133 @@ std::error_code make_error_code(ReadoutWorkerError error)
     return { static_cast<int>(error), theReadoutErrorCateogry };
 }
 
-// Core plugins
-namespace
+void ReadoutDurationPlugin::setTimeToRun(const std::chrono::seconds &timeToRun)
 {
+    timeToRun_ = timeToRun;
+}
 
-// Requests termination of the DAQ run after a certain run duration has been
-// reached.
-class ReadoutDurationPlugin: public ReadoutLoopPlugin
+void ReadoutDurationPlugin::readoutStart(Arguments &)
 {
-    public:
-        void setTimeToRun(const std::chrono::seconds &timeToRun)
-        {
-            timeToRun_ = timeToRun;
-        }
+    tReadoutStart_ = std::chrono::steady_clock::now();
+}
 
-        void readoutStart(Arguments &) override
-        {
-            tReadoutStart_ = std::chrono::steady_clock::now();
-        }
-
-        void readoutStop(Arguments &) override {};
-
-        Result operator()(Arguments &) override
-        {
-            if (timeToRun_.count() != 0)
-            {
-                auto elapsed = std::chrono::steady_clock::now() - tReadoutStart_;
-
-                if (elapsed >= timeToRun_)
-                {
-                    get_logger("readout_worker")->debug(
-                        "ReadoutDurationPlugin: timeToRun reached, requesting readout to stop");
-                    return Result::StopReadout;
-                }
-            }
-
-            return Result::ContinueReadout;
-        }
-
-        std::string pluginName() const override { return "ReadoutDurationPlugin"; }
-
-    private:
-        std::chrono::time_point<std::chrono::steady_clock> tReadoutStart_ = {};
-        std::chrono::seconds timeToRun_ = {};
-};
-
-// Periodically writes a system_event::UnixTimetick section to the listfile.
-class TimetickPlugin: public ReadoutLoopPlugin
+ReadoutDurationPlugin::Result ReadoutDurationPlugin::operator()(Arguments &)
 {
-    public:
-        const std::chrono::seconds TimetickInterval = std::chrono::seconds(1);
+    if (timeToRun_.count() != 0)
+    {
+        auto elapsed = std::chrono::steady_clock::now() - tReadoutStart_;
 
-        void readoutStart(Arguments &args) override
+        if (elapsed >= timeToRun_)
         {
             get_logger("readout_worker")->debug(
-                "TimetickPlugin: writing initial BeginRun timetick");
-            // Write the initial timestamp in a BeginRun section
-            listfile_write_timestamp_section(
-                args.listfileHandle, args.crateId, system_event::subtype::BeginRun);
-
-            tLastTick_ = std::chrono::steady_clock::now();
+                "ReadoutDurationPlugin: timeToRun reached, requesting readout to stop");
+            return Result::StopReadout;
         }
+    }
 
-        void readoutStop(Arguments &args) override
-        {
-            get_logger("readout_worker")->debug(
-                "TimetickPlugin: writing final EndRun timetick");
-            // Write the final timestamp in an EndRun section.
-            listfile_write_timestamp_section(
-                args.listfileHandle, args.crateId, system_event::subtype::EndRun);
-        }
+    return Result::ContinueReadout;
+}
 
-        Result operator()(Arguments &args) override
-        {
-            auto now = std::chrono::steady_clock::now();
-            auto elapsed = now - tLastTick_;
-
-            if (elapsed >= TimetickInterval)
-            {
-                get_logger("readout_worker")->debug(
-                    "TimetickPlugin: writing periodic timetick");
-                listfile_write_timestamp_section(
-                    args.listfileHandle, args.crateId, system_event::subtype::UnixTimetick);
-                tLastTick_ = now;
-            }
-
-            return {};
-        }
-
-        std::string pluginName() const override { return "TimetickPlugin"; }
-
-    private:
-        std::chrono::time_point<std::chrono::steady_clock> tLastTick_ = {};
-};
-
-// Periodically writes a system_event::StackErrors section to the listfile.
-// These sections store information about the stack error notifications
-// received on the MVLC command pipe.
-class StackErrorsPlugin: public ReadoutLoopPlugin
+void TimetickPlugin::readoutStart(Arguments &args)
 {
-    public:
-        const std::chrono::seconds MinRecordingInterval = std::chrono::seconds(1);
+    if (!args.listfileHandle)
+        return;
 
-        void readoutStart(Arguments &args) override
+    get_logger("readout_worker")->debug(
+        "TimetickPlugin: writing initial BeginRun timetick");
+    // Write the initial timestamp in a BeginRun section
+    listfile_write_timestamp_section(
+        *args.listfileHandle, args.crateId, system_event::subtype::BeginRun);
+
+    tLastTick_ = std::chrono::steady_clock::now();
+}
+
+void TimetickPlugin::readoutStop(Arguments &args)
+{
+    if (!args.listfileHandle)
+        return;
+
+    get_logger("readout_worker")->debug(
+        "TimetickPlugin: writing final EndRun timetick");
+    // Write the final timestamp in an EndRun section.
+    listfile_write_timestamp_section(
+        *args.listfileHandle, args.crateId, system_event::subtype::EndRun);
+}
+
+ReadoutLoopPlugin::Result TimetickPlugin::operator()(Arguments &args)
+{
+    if (!args.listfileHandle)
+        return {};
+
+    auto now = std::chrono::steady_clock::now();
+    auto elapsed = now - tLastTick_;
+
+    if (elapsed >= TimetickInterval)
+    {
+        get_logger("readout_worker")->debug(
+            "TimetickPlugin: writing periodic timetick");
+        listfile_write_timestamp_section(
+            *args.listfileHandle, args.crateId, system_event::subtype::UnixTimetick);
+        tLastTick_ = now;
+    }
+
+    return {};
+}
+
+void StackErrorsPlugin::readoutStart(Arguments &args)
+{
+    if (!args.readoutWorker)
+        return;
+
+    // record the initial state of the stack error counters
+    get_logger("readout_worker")->debug(
+        "StackErrorsPlugin: recording initial error counters");
+    prevCounters_ = args.readoutWorker->mvlc().getStackErrorCounters();
+    tLastCheck_ = std::chrono::steady_clock::now();
+}
+
+ReadoutLoopPlugin::Result StackErrorsPlugin::operator()(Arguments &args)
+{
+    if (!args.readoutWorker || !args.listfileHandle)
+        return {};
+
+    auto now = std::chrono::steady_clock::now();
+    auto elapsed = now - tLastCheck_;
+
+    if (elapsed >= MinRecordingInterval)
+    {
+        auto counters = args.readoutWorker->mvlc().getStackErrorCounters();
+        auto logger = get_logger("readout_worker");
+
+        if (counters.stackErrors != prevCounters_.stackErrors)
         {
-            // record the initial state of the stack error counters
-            get_logger("readout_worker")->debug(
-                "StackErrorsPlugin: recording initial error counters");
-            prevCounters_ = args.readoutWorker.mvlc().getStackErrorCounters();
-            tLastCheck_ = std::chrono::steady_clock::now();
+            logger->debug("StackErrorsPlugin: error counters changed, "
+                            "writing system_event::StackErrors listfile section");
+            writeStackErrorsEvent(*args.listfileHandle, args.crateId, counters);
+            prevCounters_ = counters;
+        }
+        else
+        {
+            logger->debug("StackErrorsPlugin: error counters unchanged since last check");
         }
 
-        void readoutStop(Arguments &) override {}
+        tLastCheck_ = now;
+    }
 
-        Result operator()(Arguments &args) override
-        {
-            auto now = std::chrono::steady_clock::now();
-            auto elapsed = now - tLastCheck_;
+    return {};
+}
 
-            if (elapsed >= MinRecordingInterval)
-            {
-                auto counters = args.readoutWorker.mvlc().getStackErrorCounters();
-                auto logger = get_logger("readout_worker");
+void StackErrorsPlugin::writeStackErrorsEvent(listfile::WriteHandle &lfh, u8 crateId, const StackErrorCounters &counters)
+{
+    auto buffer = stack_errors_to_sysevent_data(counters.stackErrors);
 
-                if (counters.stackErrors != prevCounters_.stackErrors)
-                {
-                    logger->debug("StackErrorsPlugin: error counters changed, "
-                                  "writing system_event::StackErrors listfile section");
-                    writeStackErrorsEvent(args.listfileHandle, args.crateId, counters);
-                    prevCounters_ = counters;
-                }
-                else
-                {
-                    logger->debug("StackErrorsPlugin: error counters unchanged since last check");
-                }
-
-                tLastCheck_ = now;
-            }
-
-            return {};
-        }
-
-        std::string pluginName() const override { return "StackErrorsPlugin"; }
-
-    private:
-        void writeStackErrorsEvent(listfile::WriteHandle &lfh, u8 crateId, const StackErrorCounters &counters)
-        {
-            auto buffer = stack_errors_to_sysevent_data(counters.stackErrors);
-
-            if (!buffer.empty())
-            {
-                listfile_write_system_event(
-                    lfh, crateId, system_event::subtype::StackErrors,
-                    buffer.data(), buffer.size());
-            }
-        }
-
-        std::chrono::time_point<std::chrono::steady_clock> tLastCheck_ = {};
-        StackErrorCounters prevCounters_ = {};
-};
-
-} // end namspace readout_worker_plugins
-
+    if (!buffer.empty())
+    {
+        listfile_write_system_event(
+            lfh, crateId, system_event::subtype::StackErrors,
+            buffer.data(), buffer.size());
+    }
+}
 
 struct ReadoutWorker::Private
 {
@@ -757,7 +722,7 @@ void ReadoutWorker::Private::loop(std::promise<std::error_code> promise)
         listfile::ReadoutBufferWriteHandle wh(*getOutputBuffer());
 
         // Prepare plugin args for the readoutStart() call.
-        ReadoutLoopPlugin::Arguments pluginArgs { *q, wh, crateId };
+        ReadoutLoopPlugin::Arguments pluginArgs { q, &wh, crateId };
 
         for (auto &plugin: plugins_)
             plugin->readoutStart(pluginArgs);
@@ -785,7 +750,7 @@ void ReadoutWorker::Private::loop(std::promise<std::error_code> promise)
                 // Invoke plugins
                 {
                     listfile::ReadoutBufferWriteHandle wh(*getOutputBuffer());
-                    ReadoutLoopPlugin::Arguments pluginArgs { *q, wh, crateId };
+                    ReadoutLoopPlugin::Arguments pluginArgs { q, &wh, crateId };
                     bool stopReadout = false;
 
                     for (auto &plugin: plugins_)
@@ -904,7 +869,7 @@ void ReadoutWorker::Private::loop(std::promise<std::error_code> promise)
     // Invoke readoutStop() on the plugins
     {
         listfile::ReadoutBufferWriteHandle wh(*getOutputBuffer());
-        ReadoutLoopPlugin::Arguments pluginArgs { *q, wh, crateId };
+        ReadoutLoopPlugin::Arguments pluginArgs { q, &wh, crateId };
 
         for (auto &plugin: plugins_)
             plugin->readoutStop(pluginArgs);

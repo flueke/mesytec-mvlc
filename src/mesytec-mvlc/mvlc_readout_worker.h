@@ -94,9 +94,9 @@ class ReadoutLoopPlugin
 
         struct Arguments
         {
-            ReadoutWorker &readoutWorker;
-            listfile::WriteHandle &listfileHandle;
-            u8 crateId;
+            ReadoutWorker *readoutWorker = nullptr;
+            listfile::WriteHandle *listfileHandle = nullptr;;
+            u8 crateId = 0;
         };
 
         virtual ~ReadoutLoopPlugin() {};
@@ -267,6 +267,57 @@ using StackHits = std::array<size_t, stacks::StackCount>;
 MESYTEC_MVLC_EXPORT bool count_stack_hits(const eth::PacketReadResult &prr, StackHits &stackHits);
 
 MESYTEC_MVLC_EXPORT const char *readout_worker_state_to_string(const ReadoutWorker::State &state);
+
+// Requests termination of the DAQ run after a certain run duration has been
+// reached.
+class ReadoutDurationPlugin: public ReadoutLoopPlugin
+{
+    public:
+        void setTimeToRun(const std::chrono::seconds &timeToRun);
+        void readoutStart(Arguments &) override;
+        void readoutStop(Arguments &) override {};
+        Result operator()(Arguments &) override;
+        std::string pluginName() const override { return "ReadoutDurationPlugin"; }
+
+    private:
+        std::chrono::time_point<std::chrono::steady_clock> tReadoutStart_ = {};
+        std::chrono::seconds timeToRun_ = {};
+};
+
+// Periodically writes a system_event::UnixTimetick section to the listfile.
+class TimetickPlugin: public ReadoutLoopPlugin
+{
+    public:
+        const std::chrono::seconds TimetickInterval = std::chrono::seconds(1);
+
+        void readoutStart(Arguments &args) override;
+        void readoutStop(Arguments &args) override;
+        Result operator()(Arguments &args) override;
+        std::string pluginName() const override { return "TimetickPlugin"; }
+
+    private:
+        std::chrono::time_point<std::chrono::steady_clock> tLastTick_ = {};
+};
+
+// Periodically writes a system_event::StackErrors section to the listfile.
+// These sections store information about the stack error notifications
+// received on the MVLC command pipe.
+class StackErrorsPlugin: public ReadoutLoopPlugin
+{
+    public:
+        const std::chrono::seconds MinRecordingInterval = std::chrono::seconds(1);
+
+        void readoutStart(Arguments &args) override;
+        void readoutStop(Arguments &) override {}
+        Result operator()(Arguments &args) override;
+        std::string pluginName() const override { return "StackErrorsPlugin"; }
+
+    private:
+        void writeStackErrorsEvent(listfile::WriteHandle &lfh, u8 crateId, const StackErrorCounters &counters);
+
+        std::chrono::time_point<std::chrono::steady_clock> tLastCheck_ = {};
+        StackErrorCounters prevCounters_ = {};
+};
 
 } // end namespace mvlc
 } // end namespace mesytec
