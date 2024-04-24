@@ -802,15 +802,6 @@ std::error_code Impl::connect()
             logger->trace("DAQ mode is enabled but detected firmware FW{:04x} <= FW0034: "
                 "leaving DAQ mode unchanged", fwRev);
         }
-        else if (daqMode)
-        {
-            if (auto ec = disable_daq_mode(dlg))
-            {
-                logger->error("MVLC is in use and DAQ mode could not be disabled: {}", ec.message());
-                close_sockets();
-                return ec;
-            }
-        }
     }
 
     logger->trace("ETH connect sequence finished");
