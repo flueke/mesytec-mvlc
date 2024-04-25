@@ -159,11 +159,11 @@ bool process_listfile(const std::string &listfile)
             std::cout << fmt::format("    SystemEvent: header={:#010x}, {}\n", *header, mvlc::decode_frame_header(*header));
         };
 
-        parserCallbacks.eventData = [] (void *, int, int ei,
+        parserCallbacks.eventData = [] (void *, int ci, int ei,
             const mvlc::readout_parser::ModuleData *moduleDataList, unsigned moduleCount)
         {
             assert(moduleDataList);
-            std::cout << fmt::format("    ReadoutEvent: eventIndex={}, moduleCount={}\n", ei, moduleCount);
+            std::cout << fmt::format("    ReadoutEvent: crateIndex={}, eventIndex={}, moduleCount={}\n", ci, ei, moduleCount);
         };
     }
 
