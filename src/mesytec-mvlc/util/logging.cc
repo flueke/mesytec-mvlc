@@ -2,6 +2,8 @@
 
 #include <spdlog/sinks/stdout_color_sinks.h>
 
+std::mutex g_mutex;
+
 namespace mesytec
 {
 namespace mvlc
@@ -10,6 +12,7 @@ namespace mvlc
 std::shared_ptr<spdlog::logger>
     create_logger(const std::string &name, const std::vector<spdlog::sink_ptr> &sinks)
 {
+    std::unique_lock<std::mutex> lock(g_mutex);
     auto logger = spdlog::get(name);
 
     if (!logger)
@@ -31,7 +34,9 @@ std::shared_ptr<spdlog::logger>
 std::shared_ptr<spdlog::logger>
     get_logger(const std::string &name)
 {
+    std::unique_lock<std::mutex> lock(g_mutex);
     auto logger = spdlog::get(name);
+    lock.unlock();
 
     if (!logger)
         logger = create_logger(name);
