@@ -270,7 +270,7 @@ MESYTEC_MVLC_EXPORT const char *readout_worker_state_to_string(const ReadoutWork
 
 // Requests termination of the DAQ run after a certain run duration has been
 // reached.
-class ReadoutDurationPlugin: public ReadoutLoopPlugin
+class MESYTEC_MVLC_EXPORT ReadoutDurationPlugin: public ReadoutLoopPlugin
 {
     public:
         void setTimeToRun(const std::chrono::seconds &timeToRun);
@@ -285,7 +285,7 @@ class ReadoutDurationPlugin: public ReadoutLoopPlugin
 };
 
 // Periodically writes a system_event::UnixTimetick section to the listfile.
-class TimetickPlugin: public ReadoutLoopPlugin
+class MESYTEC_MVLC_EXPORT TimetickPlugin: public ReadoutLoopPlugin
 {
     public:
         const std::chrono::seconds TimetickInterval = std::chrono::seconds(1);
@@ -302,7 +302,7 @@ class TimetickPlugin: public ReadoutLoopPlugin
 // Periodically writes a system_event::StackErrors section to the listfile.
 // These sections store information about the stack error notifications
 // received on the MVLC command pipe.
-class StackErrorsPlugin: public ReadoutLoopPlugin
+class MESYTEC_MVLC_EXPORT StackErrorsPlugin: public ReadoutLoopPlugin
 {
     public:
         const std::chrono::seconds MinRecordingInterval = std::chrono::seconds(1);
