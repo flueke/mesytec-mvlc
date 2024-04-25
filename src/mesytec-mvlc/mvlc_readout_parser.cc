@@ -968,8 +968,9 @@ ParseResult parse_eth_packet(
 
     eth::PayloadHeaderInfo ethHdrs{ input[0], input[1] };
 
-    logger->trace("begin parsing packet {}, dataWords={}, packetLen={} bytes",
-              ethHdrs.packetNumber(), ethHdrs.dataWordCount(), input.size() * sizeof(u32));
+    logger->trace("begin parsing packet {}, dataWords={}, packetLen={} bytes, crateId={}",
+              ethHdrs.packetNumber(), ethHdrs.dataWordCount(), input.size() * sizeof(u32),
+              ethHdrs.controllerId());
 
     // Skip to the first payload contents word, right after the two ETH
     // headers. This can be trailing data words from an already open stack
