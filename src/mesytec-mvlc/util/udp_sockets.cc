@@ -330,7 +330,7 @@ std::error_code write_to_socket(
         int err = WSAGetLastError();
 
         if (err == WSAETIMEDOUT || err == WSAEWOULDBLOCK)
-            return std::error_code(EAGAIN, std::system_category());
+            return std::make_error_code(std::errc::resource_unavailable_try_again);
 
         // Maybe TODO: use WSAGetLastError here with a WSA specific error
         // category like this: https://gist.github.com/bbolli/710010adb309d5063111889530237d6d
@@ -378,7 +378,7 @@ std::error_code receive_one_packet(int sockfd, u8 *dest, size_t size,
     int sres = ::select(0, &fds, nullptr, nullptr, &tv);
 
     if (sres == 0)
-        return std::error_code(EAGAIN, std::system_category());
+        return std::make_error_code(std::errc::resource_unavailable_try_again);
 
     if (sres == SOCKET_ERROR)
         return std::make_error_code(std::errc::io_error);
@@ -400,7 +400,7 @@ std::error_code receive_one_packet(int sockfd, u8 *dest, size_t size,
         int err = WSAGetLastError();
 
         if (err == WSAETIMEDOUT || err == WSAEWOULDBLOCK)
-            return std::error_code(EAGAIN, std::system_category());
+            return std::make_error_code(std::errc::resource_unavailable_try_again);
 
         return std::make_error_code(std::errc::io_error);
     }
