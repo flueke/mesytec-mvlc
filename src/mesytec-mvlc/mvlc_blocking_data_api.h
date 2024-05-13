@@ -38,6 +38,7 @@ struct MESYTEC_MVLC_EXPORT EventContainer
     Type type;
     Readout readout;
     System system;
+    u8 crateId = 0;
 
     inline operator bool() const
     {
