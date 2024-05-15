@@ -873,5 +873,35 @@ size_t EventBuilder::getLinearModuleIndex(int crateIndex, int eventIndex, unsign
     return d->getLinearModuleIndex(crateIndex, eventIndex, moduleIndex);
 }
 
+std::string to_string(const EventBuilder::EventBuilderCounters &counters)
+{
+    std::string ret;
+
+    for (size_t ei=0; ei<counters.eventCounters.size(); ++ei)
+    {
+        const auto &eventCounters = counters.eventCounters.at(ei);
+
+        assert(eventCounters.discardedEvents.size() == eventCounters.emptyEvents.size());
+        assert(eventCounters.discardedEvents.size() == eventCounters.invScoreSums.size());
+        assert(eventCounters.discardedEvents.size() == eventCounters.totalHits.size());
+
+        for (size_t mi=0; mi<eventCounters.discardedEvents.size(); ++mi)
+        {
+            ret += fmt::format(
+                "event{}, module{}, discarded events: {}, empty events: {}, invscore sum: {}, total hits: {}\n",
+                ei, mi,
+                eventCounters.discardedEvents.at(mi),
+                eventCounters.emptyEvents.at(mi),
+                eventCounters.invScoreSums.at(mi),
+                eventCounters.totalHits.at(mi));
+        }
+    }
+
+    ret += fmt::format("max memory usage: {:.2f} MB\n",
+        static_cast<double>(counters.maxMemoryUsage) / util::Megabytes(1));
+
+    return ret;
+}
+
 }
 }

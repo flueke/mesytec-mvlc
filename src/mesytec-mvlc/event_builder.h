@@ -73,6 +73,7 @@ struct MESYTEC_MVLC_EXPORT InvalidTimestampExtractor
     }
 };
 
+// Output event setup consisting of modules coming from different crates.
 struct MESYTEC_MVLC_EXPORT EventSetup
 {
     struct CrateSetup
@@ -90,7 +91,8 @@ struct MESYTEC_MVLC_EXPORT EventSetup
     // Crate setups in crate index order.
     std::vector<CrateSetup> crateSetups;
 
-    // crate and crate-relative indexes of the main module which provides the reference timestamp
+    // crate and crate-relative indexes of the main module which provides the
+    // reference timestamp for the assembled event.
     // mainModule.first  := crateIndex
     // mainModule.second := moduleIndex
     std::pair<int, int> mainModule;
@@ -125,16 +127,23 @@ class MESYTEC_MVLC_EXPORT EventBuilder
         // Attempt to build the next full events. If successful invoke the
         // callbacks to further process the assembled events. May be called
         // from a different thread than the push*() methods.
-
+        //
         // Note: right now doesn't do any age checking or similar. This means
         // it tries to yield one assembled output event for each input event
         // from the main module.
+        //
+        // Assembled output events are always mapped to crate 0! Events for
+        // which event building is not enabled keep their crate index.
+        //
+        // For assembled events use getLinearModuleIndex() to map from modules
+        // in individual crates to linear module indexes in the assembled events.
         size_t buildEvents(Callbacks callbacks, bool flush = false);
 
         bool waitForData(const std::chrono::milliseconds &maxWait);
 
         struct EventCounters
         {
+            // Module counters
             std::vector<size_t> discardedEvents;
             std::vector<size_t> emptyEvents;
             std::vector<size_t> invScoreSums;
@@ -177,7 +186,8 @@ struct MESYTEC_MVLC_EXPORT WindowMatchResult
     u32 invscore;
 };
 
-MESYTEC_MVLC_EXPORT WindowMatchResult timestamp_match(u32 tsMain, u32 tsModule, const std::pair<s32, s32> &matchWindow);
+WindowMatchResult MESYTEC_MVLC_EXPORT timestamp_match(u32 tsMain, u32 tsModule, const std::pair<s32, s32> &matchWindow);
+std::string MESYTEC_MVLC_EXPORT to_string(const EventBuilder::EventBuilderCounters &counters);
 
 }
 }
