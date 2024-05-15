@@ -10,7 +10,8 @@
 FROM debian:bullseye
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    ca-certificates build-essential git cmake ninja-build zlib1g-dev
+    ca-certificates build-essential git cmake ninja-build zlib1g-dev \
+    libzmq3-dev
 
 COPY . /sources
 WORKDIR /build
