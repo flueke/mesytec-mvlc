@@ -91,10 +91,12 @@ inline u32 get_extract_mask(const DataFilter &filter, char marker)
     return make_cache_entry(filter, marker).extractMask;
 }
 
+#ifndef A2_DATA_FILTER_ALWAYS_GATHER
 inline u8 get_extract_shift(const DataFilter &filter, char marker)
 {
     return make_cache_entry(filter, marker).extractShift;
 }
+#endif
 
 MESYTEC_MVLC_EXPORT std::string to_string(const DataFilter &filter);
 
