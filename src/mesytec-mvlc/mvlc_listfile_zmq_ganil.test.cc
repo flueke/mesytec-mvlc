@@ -17,7 +17,7 @@ TEST(mvlc_listfile_zmq_ganil, TestListfileZmqGanil)
     zmq::socket_t sub(ctx, ZMQ_SUB);
 
     int timeout=500; //milliseconds
-#if CPPZMQ_VERSION >= ZMQ_MAKE_VERSION(4, 7, 0)
+#if CPPZMQ_VERSION > ZMQ_MAKE_VERSION(4, 7, 0)
     sub.set(zmq::sockopt::rcvtimeo, timeout);
     EXPECT_NO_THROW(sub.set(zmq::sockopt::subscribe, ""));
 #else
