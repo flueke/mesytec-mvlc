@@ -840,6 +840,7 @@ EventBuilder::EventBuilderCounters EventBuilder::getCounters() const
     EventBuilderCounters result;
     result.eventCounters = std::move(eventCounters);
     result.maxMemoryUsage = d->maxUsedMemory_;
+    result.curMemoryUsage = d->getMemoryUsage();
     return result;
 }
 
@@ -896,6 +897,9 @@ std::string to_string(const EventBuilder::EventBuilderCounters &counters)
                 eventCounters.totalHits.at(mi));
         }
     }
+
+    ret += fmt::format("current memory usage: {:.2f} MB\n",
+        static_cast<double>(counters.curMemoryUsage) / util::Megabytes(1));
 
     ret += fmt::format("max memory usage: {:.2f} MB\n",
         static_cast<double>(counters.maxMemoryUsage) / util::Megabytes(1));

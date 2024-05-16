@@ -154,6 +154,7 @@ class MESYTEC_MVLC_EXPORT EventBuilder
         {
             std::vector<EventCounters> eventCounters;
             size_t maxMemoryUsage;
+            size_t curMemoryUsage;
         };
 
         EventCounters getCounters(int eventIndex) const;
