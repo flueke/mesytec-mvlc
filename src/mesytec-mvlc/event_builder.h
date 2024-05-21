@@ -147,7 +147,10 @@ class MESYTEC_MVLC_EXPORT EventBuilder
             std::vector<size_t> discardedEvents;
             std::vector<size_t> emptyEvents;
             std::vector<size_t> invScoreSums;
-            std::vector<size_t> totalHits;
+            std::vector<size_t> inputHits;
+            std::vector<size_t> outputHits;
+            std::vector<size_t> matchTooNew;
+            std::vector<size_t> matchTooOld;
         };
 
         struct EventBuilderCounters

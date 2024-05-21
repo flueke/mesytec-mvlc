@@ -168,7 +168,10 @@ struct EventBuilder::Private
     // indexes: event, linear module
     std::vector<std::vector<size_t>> moduleInvScoreSums_;
     // indexes: event, linear module
-    std::vector<std::vector<size_t>> moduleTotalHits_;
+    std::vector<std::vector<size_t>> moduleInputHits_;
+    std::vector<std::vector<size_t>> moduleOutputHits_;
+    std::vector<std::vector<size_t>> moduleMatchTooOld_;
+    std::vector<std::vector<size_t>> moduleMatchTooNew_;
 
     std::vector<ModuleData> eventAssembly_;
 
@@ -188,7 +191,10 @@ struct EventBuilder::Private
         ret.discardedEvents = moduleDiscardedEvents_.at(eventIndex);
         ret.emptyEvents = moduleEmptyEvents_.at(eventIndex);
         ret.invScoreSums = moduleInvScoreSums_.at(eventIndex);
-        ret.totalHits = moduleTotalHits_.at(eventIndex);
+        ret.inputHits = moduleInputHits_.at(eventIndex);
+        ret.outputHits = moduleOutputHits_.at(eventIndex);
+        ret.matchTooOld = moduleMatchTooOld_.at(eventIndex);
+        ret.matchTooNew = moduleMatchTooNew_.at(eventIndex);
         return ret;
     }
 
@@ -239,7 +245,10 @@ struct EventBuilder::Private
         fill0(moduleDiscardedEvents_);
         fill0(moduleEmptyEvents_);
         fill0(moduleInvScoreSums_);
-        fill0(moduleTotalHits_);
+        fill0(moduleInputHits_);
+        fill0(moduleOutputHits_);
+        fill0(moduleMatchTooNew_);
+        fill0(moduleMatchTooOld_);
     }
 };
 
@@ -261,7 +270,10 @@ EventBuilder::EventBuilder(const EventBuilderConfig &cfg, void *userContext)
     d->moduleDiscardedEvents_.resize(eventCount);
     d->moduleEmptyEvents_.resize(eventCount);
     d->moduleInvScoreSums_.resize(eventCount);
-    d->moduleTotalHits_.resize(eventCount);
+    d->moduleInputHits_.resize(eventCount);
+    d->moduleOutputHits_.resize(eventCount);
+    d->moduleMatchTooNew_.resize(eventCount);
+    d->moduleMatchTooOld_.resize(eventCount);
 
     for (size_t eventIndex = 0; eventIndex < eventCount; ++eventIndex)
     {
@@ -278,7 +290,10 @@ EventBuilder::EventBuilder(const EventBuilderConfig &cfg, void *userContext)
         auto &discardedEvents = d->moduleDiscardedEvents_.at(eventIndex);
         auto &emptyEvents = d->moduleEmptyEvents_.at(eventIndex);
         auto &invScores = d->moduleInvScoreSums_.at(eventIndex);
-        auto &hits = d->moduleTotalHits_.at(eventIndex);
+        auto &inputHits = d->moduleInputHits_.at(eventIndex);
+        auto &outputHits = d->moduleOutputHits_.at(eventIndex);
+        auto &hitsTooNew = d->moduleMatchTooNew_.at(eventIndex);
+        auto &hitsTooOld = d->moduleMatchTooOld_.at(eventIndex);
         unsigned linearModuleIndex = 0;
 
         for (size_t crateIndex = 0; crateIndex < eventSetup.crateSetups.size(); ++crateIndex)
@@ -304,7 +319,10 @@ EventBuilder::EventBuilder(const EventBuilderConfig &cfg, void *userContext)
             discardedEvents.resize(discardedEvents.size() + moduleCount);
             emptyEvents.resize(emptyEvents.size() + moduleCount);
             invScores.resize(invScores.size() + moduleCount);
-            hits.resize(hits.size() + moduleCount);
+            inputHits.resize(inputHits.size() + moduleCount);
+            outputHits.resize(outputHits.size() + moduleCount);
+            hitsTooNew.resize(hitsTooNew.size() + moduleCount);
+            hitsTooOld.resize(hitsTooOld.size() + moduleCount);
         }
 
         size_t mainModuleLinearIndex = d->getLinearModuleIndex(
@@ -389,7 +407,7 @@ void EventBuilder::recordEventData(int crateIndex, int eventIndex,
         auto &moduleMemCounters = d->moduleMemCounters_.at(eventIndex);
         auto &timestampExtractors = d->moduleTimestampExtractors_.at(eventIndex);
         auto &emptyEvents = d->moduleEmptyEvents_.at(eventIndex);
-        auto &moduleHits = d->moduleTotalHits_.at(eventIndex);
+        auto &moduleHits = d->moduleInputHits_.at(eventIndex);
 
         for (unsigned moduleIndex = 0; moduleIndex < moduleCount; ++moduleIndex)
         {
@@ -679,6 +697,8 @@ size_t EventBuilder::Private::buildEvents(int eventIndex, Callbacks &callbacks, 
     auto &discardedEvents = moduleDiscardedEvents_.at(eventIndex);
     auto &invScores = moduleInvScoreSums_.at(eventIndex);
     auto &memCounters = moduleMemCounters_.at(eventIndex);
+    auto &matchTooOld = moduleMatchTooOld_.at(eventIndex);
+    auto &matchTooNew = moduleMatchTooNew_.at(eventIndex);
 
     // Have to always resize as module counts vary for different eventIndexes.
     eventAssembly_.resize(moduleCount);
@@ -730,6 +750,7 @@ size_t EventBuilder::Private::buildEvents(int eventIndex, Callbacks &callbacks, 
                             memCounters.at(moduleIndex) -= usedMem;
                             eventBuffer.pop_front();
                             ++discardedEvents.at(moduleIndex);
+                            ++matchTooOld.at(moduleIndex);
                         }
                         break;
 
@@ -748,6 +769,7 @@ size_t EventBuilder::Private::buildEvents(int eventIndex, Callbacks &callbacks, 
                         // The module event is too young to be matched with the
                         // current main module event.
                         moduleDone = true;
+                        ++matchTooNew.at(moduleIndex);
                         break;
                 }
             }
@@ -780,9 +802,11 @@ size_t EventBuilder::Private::buildEvents(int eventIndex, Callbacks &callbacks, 
 
         {
             // Assembled events are always mapped to crate 0.
-            const int crateIndex = 0;
+            const int crateIndex = 0; // XXX: crateId
             callbacks.eventData(userContext_, crateIndex, eventIndex, eventAssembly_.data(), moduleCount);
             ++result;
+
+            auto &outputHits = moduleOutputHits_.at(eventIndex);
 
             // After the callback we can pop the consumed module events off the deques.
             for (size_t moduleIndex = 0; moduleIndex < moduleCount; ++moduleIndex)
@@ -797,6 +821,7 @@ size_t EventBuilder::Private::buildEvents(int eventIndex, Callbacks &callbacks, 
                     assert(memCounters.at(moduleIndex) >= usedMem);
                     memCounters.at(moduleIndex) -= usedMem;
                     eventBuffers.at(moduleIndex).pop_front();
+                    ++outputHits.at(moduleIndex);
                 }
             }
         }
@@ -884,17 +909,22 @@ std::string to_string(const EventBuilder::EventBuilderCounters &counters)
 
         assert(eventCounters.discardedEvents.size() == eventCounters.emptyEvents.size());
         assert(eventCounters.discardedEvents.size() == eventCounters.invScoreSums.size());
-        assert(eventCounters.discardedEvents.size() == eventCounters.totalHits.size());
+        assert(eventCounters.discardedEvents.size() == eventCounters.inputHits.size());
+        assert(eventCounters.discardedEvents.size() == eventCounters.outputHits.size());
 
         for (size_t mi=0; mi<eventCounters.discardedEvents.size(); ++mi)
         {
             ret += fmt::format(
-                "event{}, module{}, discarded events: {}, empty events: {}, invscore sum: {}, total hits: {}\n",
+                "event{}, module{}, discarded events: {}, empty events: {}, invscore sum: {}, too_old={}, too_new={}, total hits: input={}, output={}\n",
                 ei, mi,
                 eventCounters.discardedEvents.at(mi),
                 eventCounters.emptyEvents.at(mi),
                 eventCounters.invScoreSums.at(mi),
-                eventCounters.totalHits.at(mi));
+                eventCounters.matchTooOld.at(mi),
+                eventCounters.matchTooNew.at(mi),
+                eventCounters.inputHits.at(mi),
+                eventCounters.outputHits.at(mi)
+                );
         }
     }
 
