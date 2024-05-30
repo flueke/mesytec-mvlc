@@ -421,7 +421,7 @@ inline bool try_handle_system_event(
             // callback.
             callbacks.systemEvent(
                 state.userContext,
-                state.crateIndex,
+                frameInfo.ctrl,
                 input.data(), frameInfo.len + 1);
 
             input.remove_prefix(frameInfo.len + 1);
@@ -917,9 +917,15 @@ ParseResult parse_readout_contents(
                     }
                 }
 
+                auto frameInfo = extract_frame_info(state.curStackFrame.header);
+                auto crateId = frameInfo.ctrl;
+
+                //spdlog::warn("crateId={}, state.crateIndex={}", crateId, state.crateIndex);
+                //assert(crateId == state.crateIndex);
+
                 callbacks.eventData(
                     state.userContext,
-                    state.crateIndex, state.eventIndex,
+                    crateId, state.eventIndex,
                     state.moduleDataBuffer.data(), moduleCount);
 
                 ++counters.eventHits[state.eventIndex];
