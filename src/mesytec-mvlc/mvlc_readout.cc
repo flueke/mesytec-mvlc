@@ -197,7 +197,9 @@ void init_common(MVLCReadout &r)
         r.d->mvlc,
         r.d->crateConfig.triggers,
         r.d->snoopQueues,
-        r.d->lfh);
+        r.d->lfh,
+        r.d->crateConfig.crateId
+        );
 
     r.d->readoutWorker->setMcstDaqStartCommands(r.d->crateConfig.mcstDaqStart);
     r.d->readoutWorker->setMcstDaqStopCommands(r.d->crateConfig.mcstDaqStop);

@@ -108,6 +108,25 @@ ReadoutInitResults MESYTEC_MVLC_EXPORT init_readout(
         return ret;
     }
 
+    // Init registers
+    for (auto [addr, value]: crateConfig.initRegisters)
+    {
+        if (auto ec = mvlc.writeRegister(addr, value))
+        {
+            ret.ec = ec;
+            logger->error("init_readout(crateId={}): Error writing register 0x{:04x}=0x{:08x}: {}",
+                          crateConfig.crateId, addr, value, ec.message());
+        }
+    }
+
+    // Set crate id
+    if (auto ec = mvlc.writeRegister(registers::controller_id, crateConfig.crateId))
+    {
+        ret.ec = ec;
+        logger->error("init_readout(crateId={}): Error setting crate: {}", crateConfig.crateId, ec.message());
+        return ret;
+    }
+
     // 1) MVLC Trigger/IO,
     {
         ret.triggerIo = run_commands(
@@ -453,6 +472,7 @@ struct ReadoutWorker::Private
     WaitableProtected<ReadoutWorker::State> state;
     std::atomic<ReadoutWorker::State> desiredState;
     MVLC mvlc;
+    u8 crateId = 0;
     eth::MVLC_ETH_Interface *mvlcETH = nullptr;
     usb::MVLC_USB_Interface *mvlcUSB = nullptr;
     ReadoutBufferQueues *snoopQueues = nullptr;
@@ -473,10 +493,11 @@ struct ReadoutWorker::Private
     std::vector<std::shared_ptr<ReadoutLoopPlugin>> plugins_;
     std::shared_ptr<ReadoutDurationPlugin> runDurationPlugin_;
 
-    Private(ReadoutWorker *q_, MVLC &mvlc_, ReadoutBufferQueues *snoopQueues_)
+    Private(ReadoutWorker *q_, MVLC &mvlc_, u8 crateId_, ReadoutBufferQueues *snoopQueues_)
         : q(q_)
         , state({})
         , mvlc(mvlc_)
+        , crateId(crateId_)
         , snoopQueues(snoopQueues_)
         , counters()
         , listfileQueues(ListfileWriterBufferSize, ListfileWriterBufferCount)
@@ -580,9 +601,10 @@ ReadoutWorker::ReadoutWorker(
     MVLC mvlc,
     const std::array<u32, stacks::ReadoutStackCount> &stackTriggers,
     ReadoutBufferQueues &snoopQueues,
-    const std::shared_ptr<listfile::WriteHandle> &lfh
+    const std::shared_ptr<listfile::WriteHandle> &lfh,
+    u8 crateId
     )
-    : d(std::make_unique<Private>(this, mvlc, &snoopQueues))
+    : d(std::make_unique<Private>(this, mvlc, crateId, &snoopQueues))
 {
     d->state.access().ref() = State::Idle;
     d->desiredState = State::Idle;
@@ -597,9 +619,10 @@ ReadoutWorker::ReadoutWorker(
     MVLC mvlc,
     const std::vector<u32> &stackTriggers,
     ReadoutBufferQueues &snoopQueues,
-    const std::shared_ptr<listfile::WriteHandle> &lfh
+    const std::shared_ptr<listfile::WriteHandle> &lfh,
+    u8 crateId
     )
-    : d(std::make_unique<Private>(this, mvlc, &snoopQueues))
+    : d(std::make_unique<Private>(this, mvlc, crateId, &snoopQueues))
 {
     d->state.access().ref() = State::Idle;
     d->desiredState = State::Idle;
@@ -610,9 +633,10 @@ ReadoutWorker::ReadoutWorker(
 ReadoutWorker::ReadoutWorker(
     MVLC mvlc,
     ReadoutBufferQueues &snoopQueues,
-    const std::shared_ptr<listfile::WriteHandle> &lfh
+    const std::shared_ptr<listfile::WriteHandle> &lfh,
+    u8 crateId
     )
-    : d(std::make_unique<Private>(this, mvlc, &snoopQueues))
+    : d(std::make_unique<Private>(this, mvlc, crateId, &snoopQueues))
 {
     d->state.access().ref() = State::Idle;
     d->desiredState = State::Idle;
@@ -621,9 +645,10 @@ ReadoutWorker::ReadoutWorker(
 
 ReadoutWorker::ReadoutWorker(
     MVLC mvlc,
-    const std::shared_ptr<listfile::WriteHandle> &lfh
+    const std::shared_ptr<listfile::WriteHandle> &lfh,
+    u8 crateId
     )
-    : d(std::make_unique<Private>(this, mvlc, nullptr))
+    : d(std::make_unique<Private>(this, mvlc, crateId, nullptr))
 {
     d->state.access().ref() = State::Idle;
     d->desiredState = State::Idle;
@@ -633,9 +658,10 @@ ReadoutWorker::ReadoutWorker(
 ReadoutWorker::ReadoutWorker(
     MVLC mvlc,
     const std::vector<u32> &stackTriggers,
-    const std::shared_ptr<listfile::WriteHandle> &lfh
+    const std::shared_ptr<listfile::WriteHandle> &lfh,
+    u8 crateId
     )
-    : d(std::make_unique<Private>(this, mvlc, nullptr))
+    : d(std::make_unique<Private>(this, mvlc, crateId, nullptr))
 {
     d->state.access().ref() = State::Idle;
     d->desiredState = State::Idle;
@@ -677,7 +703,6 @@ void ReadoutWorker::Private::loop(std::promise<std::error_code> promise)
     // ConnectionType specifics
     this->mvlcETH = nullptr;
     this->mvlcUSB = nullptr;
-    static const u8 crateId = 0; // FIXME: single crate only for now
 
     switch (mvlc.connectionType())
     {
