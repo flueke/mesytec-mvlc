@@ -371,7 +371,7 @@ int main(int argc, char *argv[])
         readout_parser::ReadoutParserCallbacks parserCallbacks;
 
         parserCallbacks.eventData = [opt_printReadoutData] (
-            void *, int /*crateIndex*/, int eventIndex, const readout_parser::ModuleData *moduleDataList, unsigned moduleCount)
+            void *, int crateId, int eventIndex, const readout_parser::ModuleData *moduleDataList, unsigned moduleCount)
         {
             if (opt_printReadoutData)
             {
@@ -382,13 +382,13 @@ int main(int argc, char *argv[])
                     if (moduleData.data.size)
                         util::log_buffer(
                             std::cout, basic_string_view<u32>(moduleData.data.data, moduleData.data.size),
-                            fmt::format("module data: eventIndex={}, moduleIndex={}", eventIndex, moduleIndex));
+                            fmt::format("module data: crateId={} eventIndex={}, moduleIndex={}", crateId, eventIndex, moduleIndex));
                 }
             }
         };
 
         parserCallbacks.systemEvent = [opt_printReadoutData] (
-            void *, int /*crateIndex*/, const u32 *header, u32 size)
+            void *, int crateId, const u32 *header, u32 size)
         {
             if (opt_printReadoutData)
             {
@@ -397,6 +397,7 @@ int main(int argc, char *argv[])
                         system_event::extract_subtype(*header))
                     << ", size=" << size << ", bytes=" << (size * sizeof(u32))
                     << endl;
+                fmt::format("system event: crateId={}, header={:08x}", crateId, *header);
             }
         };
 
