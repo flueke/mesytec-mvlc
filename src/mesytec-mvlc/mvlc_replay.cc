@@ -79,7 +79,7 @@ void init_common(MVLCReplay &r, int crateIndex, void *userContext)
 
     r.d->crateConfig = crate_config_from_yaml(configSection->contentsToString());
     r.d->readoutParser = readout_parser::make_readout_parser(
-        r.d->crateConfig.stacks, crateIndex, userContext);
+        r.d->crateConfig.stacks, userContext);
 
     r.d->parserThread = std::thread(
         readout_parser::run_readout_parser,

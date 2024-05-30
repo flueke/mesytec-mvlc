@@ -308,7 +308,6 @@ static const size_t InitialWorkerBufferSize = util::Megabytes(1) / sizeof(u32);
 
 ReadoutParserState make_readout_parser(
     const std::vector<StackCommandBuilder> &readoutStacks,
-    int crateIndex,
     void *userContext)
 {
     ReadoutParserState result = {};
@@ -327,7 +326,6 @@ ReadoutParserState make_readout_parser(
     ensure_free_space(result.workBuffer, InitialWorkerBufferSize);
 
     result.userContext = userContext;
-    result.crateIndex = crateIndex;
 
     return result;
 }

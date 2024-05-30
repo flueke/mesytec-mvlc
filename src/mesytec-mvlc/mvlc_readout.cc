@@ -220,7 +220,7 @@ MVLCReadout make_mvlc_readout(
     r.d->lfh = setup_listfile(r.d->lfZip, lfParams);
     r.d->parserCallbacks = parserCallbacks;
     r.d->readoutParser = readout_parser::make_readout_parser(
-        crateConfig.stacks, crateIndex, userContext);
+        crateConfig.stacks, userContext);
     init_common(r);
     return r;
 }
@@ -241,7 +241,7 @@ MVLCReadout make_mvlc_readout(
     r.d->lfh = setup_listfile(r.d->lfZip, lfParams);
     r.d->parserCallbacks = parserCallbacks;
     r.d->readoutParser = readout_parser::make_readout_parser(
-        crateConfig.stacks, crateIndex, userContext);
+        crateConfig.stacks, userContext);
     init_common(r);
     return r;
 }
@@ -261,7 +261,7 @@ MVLCReadout make_mvlc_readout(
     r.d->lfh = listfileWriteHandle;
     r.d->parserCallbacks = parserCallbacks;
     r.d->readoutParser = readout_parser::make_readout_parser(
-        crateConfig.stacks, crateIndex, userContext);
+        crateConfig.stacks, userContext);
     init_common(r);
     return r;
 }
@@ -282,7 +282,7 @@ MVLCReadout make_mvlc_readout(
     r.d->lfh = listfileWriteHandle;
     r.d->parserCallbacks = parserCallbacks;
     r.d->readoutParser = readout_parser::make_readout_parser(
-        crateConfig.stacks, crateIndex, userContext);
+        crateConfig.stacks, userContext);
     init_common(r);
     return r;
 }
