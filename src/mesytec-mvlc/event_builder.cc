@@ -180,6 +180,10 @@ struct EventBuilder::Private
         assert(0 <= eventIndex && static_cast<size_t>(eventIndex) < linearModuleIndexTable_.size());
         const auto &eventTable = linearModuleIndexTable_.at(eventIndex);
         const auto key = std::make_pair(crateIndex, moduleIndex);
+        if (eventTable.find(key) == eventTable.end())
+        {
+            spdlog::warn("getLinearModuleIndex(): no linear module index found for crateIndex={}, moduleIndex={}", crateIndex, moduleIndex);
+        }
         assert(eventTable.find(key) != eventTable.end());
         return eventTable.at(key);
     }
