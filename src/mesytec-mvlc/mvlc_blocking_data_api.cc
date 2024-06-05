@@ -383,7 +383,6 @@ BlockingReplay make_mvlc_replay_blocking(
     auto rdo = std::make_unique<MVLCReplay>(make_mvlc_replay(
         listfileArchiveName,
         parserCallbacks,
-        0, // crateIndex
         ctx.get()));
 
     BlockingReplay result;
@@ -408,7 +407,6 @@ BlockingReplay make_mvlc_replay_blocking(
         listfileArchiveName,
         listfileArchiveMemberName,
         parserCallbacks,
-        0, // crateIndex
         ctx.get()));
 
     BlockingReplay result;
@@ -431,7 +429,6 @@ BlockingReplay make_mvlc_replay_blocking(
     auto rdo = std::make_unique<MVLCReplay>(make_mvlc_replay(
         lfh,
         parserCallbacks,
-        0, // crateIndex
         ctx.get()));
 
     BlockingReplay result;

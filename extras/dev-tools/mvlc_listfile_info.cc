@@ -153,17 +153,17 @@ bool process_listfile(const std::string &listfile)
         }
         std::cout << "\n";
 
-        parserCallbacks.systemEvent = [] (void *, int, const u32 *header, u32 size)
+        parserCallbacks.systemEvent = [] (void *, int crateId, const u32 *header, u32 size)
         {
             assert(header);
-            std::cout << fmt::format("    SystemEvent: header={:#010x}, {}\n", *header, mvlc::decode_frame_header(*header));
+            std::cout << fmt::format("    SystemEvent: crateId={}, header={:#010x}, {}\n", crateId, *header, mvlc::decode_frame_header(*header));
         };
 
-        parserCallbacks.eventData = [] (void *, int ci, int ei,
+        parserCallbacks.eventData = [] (void *, int crateId, int eventIndex,
             const mvlc::readout_parser::ModuleData *moduleDataList, unsigned moduleCount)
         {
             assert(moduleDataList);
-            std::cout << fmt::format("    ReadoutEvent: crateIndex={}, eventIndex={}, moduleCount={}\n", ci, ei, moduleCount);
+            std::cout << fmt::format("    ReadoutEvent: crateId={}, eventIndex={}, moduleCount={}\n", crateId, eventIndex, moduleCount);
         };
     }
 

@@ -49,6 +49,8 @@ static const u32 ReadLocalBlockMaxWords = 768;
 static const size_t MirrorTransactionMaxWords = 2048; // FIXME: get rid of this. uploadStack() now decides based on whether ETH or USB is used
 static const size_t MirrorTransactionMaxContentsWords = MirrorTransactionMaxWords - 2;
 
+static const u8 MaxVMECrates = 8; // crate ids 0-7 transmitted in ETH headers and F3/F9 frames
+
 // Super commands are commands that are directly interpreted and executed
 // by the MVLC.
 // The values in the SuperCommands enum contain the 2 high bytes of the

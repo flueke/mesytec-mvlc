@@ -64,7 +64,8 @@ MVLCReplay &MVLCReplay::operator=(MVLCReplay &&other)
     return *this;
 }
 
-void init_common(MVLCReplay &r, int crateIndex, void *userContext)
+// TODO: update for multicrate streams. this version uses the first crateconfig for all input data.
+void init_common(MVLCReplay &r, void *userContext)
 {
     auto preamble = listfile::read_preamble(*r.d->lfh);
 
@@ -79,7 +80,7 @@ void init_common(MVLCReplay &r, int crateIndex, void *userContext)
 
     r.d->crateConfig = crate_config_from_yaml(configSection->contentsToString());
     r.d->readoutParser = readout_parser::make_readout_parser(
-        r.d->crateConfig.stacks, crateIndex, userContext);
+        r.d->crateConfig.stacks, userContext);
 
     r.d->parserThread = std::thread(
         readout_parser::run_readout_parser,
@@ -98,7 +99,6 @@ void init_common(MVLCReplay &r, int crateIndex, void *userContext)
 MVLCReplay make_mvlc_replay(
     const std::string &listfileFilename,
     readout_parser::ReadoutParserCallbacks parserCallbacks,
-    int crateIndex,
     void *userContext)
 {
     MVLCReplay r;
@@ -116,7 +116,7 @@ MVLCReplay make_mvlc_replay(
 
     r.d->lfh = zr.openEntry(entryName);
 
-    init_common(r, crateIndex, userContext);
+    init_common(r, userContext);
 
     return r;
 }
@@ -125,7 +125,6 @@ MVLCReplay make_mvlc_replay(
     const std::string &listfileArchiveName,
     const std::string &listfileArchiveMemberName,
     readout_parser::ReadoutParserCallbacks parserCallbacks,
-    int crateIndex,
     void *userContext)
 {
     if (listfileArchiveMemberName.empty())
@@ -138,7 +137,7 @@ MVLCReplay make_mvlc_replay(
     zr.openArchive(listfileArchiveName);
     r.d->lfh = zr.openEntry(listfileArchiveMemberName);
 
-    init_common(r, crateIndex, userContext);
+    init_common(r, userContext);
 
     return r;
 }
@@ -146,14 +145,13 @@ MVLCReplay make_mvlc_replay(
 MVLCReplay make_mvlc_replay(
     listfile::ReadHandle *lfh,
     readout_parser::ReadoutParserCallbacks parserCallbacks,
-    int crateIndex,
     void *userContext)
 {
     MVLCReplay r;
     r.d->lfh = lfh;
     r.d->parserCallbacks = parserCallbacks;
 
-    init_common(r, crateIndex, userContext);
+    init_common(r, userContext);
 
     return r;
 }

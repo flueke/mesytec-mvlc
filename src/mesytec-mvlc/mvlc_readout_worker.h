@@ -186,14 +186,16 @@ class MESYTEC_MVLC_EXPORT ReadoutWorker
             MVLC mvlc,
             const std::array<u32, stacks::ReadoutStackCount> &stackTriggers,
             ReadoutBufferQueues &snoopQueues,
-            const std::shared_ptr<listfile::WriteHandle> &lfh
+            const std::shared_ptr<listfile::WriteHandle> &lfh,
+            u8 crateId = 0
             );
 
         ReadoutWorker(
             MVLC mvlc,
             const std::vector<u32> &stackTriggers,
             ReadoutBufferQueues &snoopQueues,
-            const std::shared_ptr<listfile::WriteHandle> &lfh
+            const std::shared_ptr<listfile::WriteHandle> &lfh,
+            u8 crateId = 0
             );
 
         // Simple version without stack triggers. Assumes that stack triggers
@@ -201,20 +203,23 @@ class MESYTEC_MVLC_EXPORT ReadoutWorker
         ReadoutWorker(
             MVLC mvlc,
             ReadoutBufferQueues &snoopQueues,
-            const std::shared_ptr<listfile::WriteHandle> &lfh
+            const std::shared_ptr<listfile::WriteHandle> &lfh,
+            u8 crateId = 0
             );
 
         // Simple version removing the need to pass in snoopQueues if snooping
         // is not needed.
         ReadoutWorker(
             MVLC mvlc,
-            const std::shared_ptr<listfile::WriteHandle> &lfh
+            const std::shared_ptr<listfile::WriteHandle> &lfh,
+            u8 crateId = 0
             );
 
         ReadoutWorker(
             MVLC mvlc,
             const std::vector<u32> &stackTriggers,
-            const std::shared_ptr<listfile::WriteHandle> &lfh
+            const std::shared_ptr<listfile::WriteHandle> &lfh,
+            u8 crateId = 0
             );
 
         ~ReadoutWorker();
