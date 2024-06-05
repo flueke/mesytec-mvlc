@@ -112,7 +112,7 @@ TEST(listfile_gen, GenModuleDataAndParse1)
 
         ASSERT_EQ(buffer.viewU32(), BufferView(expected.data(), expected.size()));
 
-        auto parserState = readout_parser::make_readout_parser(readoutStacks, crateIndex);
+        auto parserState = readout_parser::make_readout_parser(readoutStacks);
         readout_parser::ReadoutParserCounters parserCounters = {};
         readout_parser::ReadoutParserCallbacks parserCallbacks;
 
@@ -178,7 +178,7 @@ TEST(listfile_gen, GenModuleDataAndParse1)
 
         ASSERT_EQ(buffer.viewU32(), BufferView(expected.data(), expected.size()));
 
-        auto parserState = readout_parser::make_readout_parser(readoutStacks, crateIndex);
+        auto parserState = readout_parser::make_readout_parser(readoutStacks);
         readout_parser::ReadoutParserCounters parserCounters = {};
         readout_parser::ReadoutParserCallbacks parserCallbacks;
 
@@ -331,7 +331,7 @@ TEST(listfile_gen, GenModuleDataAndParse2)
 
         ASSERT_EQ(buffer.viewU32(), BufferView(expected.data(), expected.size()));
 
-        auto parserState = readout_parser::make_readout_parser(readoutStacks, crateIndex);
+        auto parserState = readout_parser::make_readout_parser(readoutStacks);
         readout_parser::ReadoutParserCounters parserCounters = {};
         readout_parser::ReadoutParserCallbacks parserCallbacks;
 
