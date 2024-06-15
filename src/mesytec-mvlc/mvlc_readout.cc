@@ -212,8 +212,6 @@ MVLCReadout make_mvlc_readout(
     readout_parser::ReadoutParserCallbacks parserCallbacks,
     void *userContext)
 {
-    const int crateIndex = 0;
-
     MVLCReadout r;
     r.d->mvlc = make_mvlc(crateConfig);
     r.d->crateConfig = crateConfig;
@@ -233,8 +231,6 @@ MVLCReadout make_mvlc_readout(
     readout_parser::ReadoutParserCallbacks parserCallbacks,
     void *userContext)
 {
-    const int crateIndex = 0;
-
     MVLCReadout r;
     r.d->mvlc = mvlc;
     r.d->crateConfig = crateConfig;
@@ -253,8 +249,6 @@ MVLCReadout make_mvlc_readout(
     readout_parser::ReadoutParserCallbacks parserCallbacks,
     void *userContext)
 {
-    const int crateIndex = 0;
-
     MVLCReadout r;
     r.d->mvlc = make_mvlc(crateConfig);
     r.d->crateConfig = crateConfig;
@@ -274,8 +268,6 @@ MVLCReadout make_mvlc_readout(
     readout_parser::ReadoutParserCallbacks parserCallbacks,
     void *userContext)
 {
-    const int crateIndex = 0;
-
     MVLCReadout r;
     r.d->mvlc = mvlc;
     r.d->crateConfig = crateConfig;
