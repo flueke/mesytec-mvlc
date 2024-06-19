@@ -26,6 +26,8 @@
 
 #include "mvlc_constants.h"
 #include "util/fmt.h"
+#include "util/io_util.h"
+#include "util/logging.h"
 #include "util/string_util.h"
 #include "util/string_view.hpp"
 #include "mvlc_eth_interface.h"
@@ -286,12 +288,16 @@ size_t fixup_buffer(
         {
             u32 wordsToSkip = skip_count(view);
 
-            //cout << "wordsToSkip=" << wordsToSkip << ", view.size()=" << view.size() << ", in words:" << view.size() / sizeof(u32));
+            std::cout << "   wordsToSkip=" << wordsToSkip << ", view.size()=" << view.size() << ", in words:" << view.size() / sizeof(u32) << "\n";
 
             if (wordsToSkip == 0 || wordsToSkip > view.size() / sizeof(u32))
             {
                 tmpBuf.reserve(tmpBuf.size() + view.size());
                 std::copy(std::begin(view), std::end(view), std::back_inserter(tmpBuf));
+                #ifndef NDEBUG
+                auto viewU32 = basic_string_view<const u32>(reinterpret_cast<const u32 *>(view.data()), view.size() / sizeof(u32));
+                mvlc::util::log_buffer(std::cout, viewU32, "fixup_buffer: partial data left in view and moved to tmpBuf:");
+                #endif
                 return view.size();
             }
 
@@ -312,7 +318,9 @@ size_t fixup_buffer_mvlc_usb(const u8 *buf, size_t bufUsed, std::vector<u8> &tmp
             return 0u;
 
         u32 header = *reinterpret_cast<const u32 *>(view.data());
-        return 1u + extract_frame_info(header).len;
+        spdlog::debug("fixup_buffer_mvlc_usb: header=0x{:08x}", header);
+        u32 result = 1u + extract_frame_info(header).len;
+        return result;
     };
 
     return fixup_buffer(buf, bufUsed, tmpBuf, skip_func);
