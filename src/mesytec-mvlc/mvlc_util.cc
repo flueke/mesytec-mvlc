@@ -288,7 +288,7 @@ size_t fixup_buffer(
         {
             u32 wordsToSkip = skip_count(view);
 
-            std::cout << "   wordsToSkip=" << wordsToSkip << ", view.size()=" << view.size() << ", in words:" << view.size() / sizeof(u32) << "\n";
+            //std::cout << "   wordsToSkip=" << wordsToSkip << ", view.size()=" << view.size() << ", in words:" << view.size() / sizeof(u32) << "\n";
 
             if (wordsToSkip == 0 || wordsToSkip > view.size() / sizeof(u32))
             {
