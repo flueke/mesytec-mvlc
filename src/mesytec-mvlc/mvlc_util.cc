@@ -294,7 +294,7 @@ size_t fixup_buffer(
             {
                 tmpBuf.reserve(tmpBuf.size() + view.size());
                 std::copy(std::begin(view), std::end(view), std::back_inserter(tmpBuf));
-                #ifndef NDEBUG
+                #if not defined(NDEBUG) and 0
                 auto viewU32 = basic_string_view<const u32>(reinterpret_cast<const u32 *>(view.data()), view.size() / sizeof(u32));
                 mvlc::util::log_buffer(std::cout, viewU32, "fixup_buffer: partial data left in view and moved to tmpBuf:");
                 #endif
