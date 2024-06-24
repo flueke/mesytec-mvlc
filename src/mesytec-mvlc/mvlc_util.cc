@@ -318,7 +318,7 @@ size_t fixup_buffer_mvlc_usb(const u8 *buf, size_t bufUsed, std::vector<u8> &tmp
             return 0u;
 
         u32 header = *reinterpret_cast<const u32 *>(view.data());
-        spdlog::debug("fixup_buffer_mvlc_usb: header=0x{:08x}", header);
+        //spdlog::warn("fixup_buffer_mvlc_usb: header=0x{:08x}", header);
         u32 result = 1u + extract_frame_info(header).len;
         return result;
     };
@@ -344,6 +344,8 @@ size_t fixup_buffer_mvlc_eth(const u8 *buf, size_t bufUsed, std::vector<u8> &tmp
         {
             u32 header1 = *reinterpret_cast<const u32 *>(view.data() + sizeof(u32));
             eth::PayloadHeaderInfo ethHdrs{ header, header1 };
+            spdlog::debug("fixup_buffer_mvlc_eth: ethHdrs: packetChannel={}, packetNumber={}, crateId={}, dataWordCount={}, nextHeaderPointer=0x{:04x}",
+                ethHdrs.packetChannel(), ethHdrs.packetNumber(), ethHdrs.controllerId(), ethHdrs.dataWordCount(), ethHdrs.nextHeaderPointer());
             return eth::HeaderWords + ethHdrs.dataWordCount();
         }
 
