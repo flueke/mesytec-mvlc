@@ -108,6 +108,12 @@ std::optional<T> parse_unsigned(const std::string &str_)
     return {};
 }
 
+inline bool startswith(const std::string &str, const std::string &prefix)
+{
+    // Source: https://stackoverflow.com/a/40441240
+    return str.rfind(prefix, 0) == 0;
+}
+
 } // end namespace util
 } // end namespace mvlc
 } // end namespace mesytec
