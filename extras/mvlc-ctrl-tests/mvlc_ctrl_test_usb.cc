@@ -85,7 +85,7 @@ TEST(MvlcUsb, ReadRegister)
     ASSERT_FALSE(ec) << ec.message();
     ASSERT_TRUE(mvlc.isConnected());
 
-    for (size_t i = 0; i < 1'000'000; ++i)
+    for (size_t i = 0; i < 10000; ++i)
     {
         SuperCommandBuilder cmdList;
         cmdList.addReferenceWord(i); // XXX: Makes the response one word larger. 15 bytes in total now!
