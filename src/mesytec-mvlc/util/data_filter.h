@@ -42,10 +42,8 @@ struct MESYTEC_MVLC_EXPORT CacheEntry
 {
     u32 extractMask = 0;
     u8 extractBits  = 0;
-#ifndef A2_DATA_FILTER_ALWAYS_GATHER
     bool needGather = false;
     u8 extractShift = 0;
-#endif
 };
 
 MESYTEC_MVLC_EXPORT DataFilter make_filter(const std::string &filter, s32 wordIndex = -1);
