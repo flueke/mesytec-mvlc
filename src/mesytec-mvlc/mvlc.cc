@@ -508,9 +508,25 @@ void cmd_pipe_reader(ReaderContext &context)
             ec = packet.ec;
             bytesTransferred += packet.bytesTransferred; // This includes all eth overhead.
 
+            size_t headerOffsetWords = 0;
+
+            // If a header pointer is present use it as the start of the payload
+            // data. Otherwise use the full payload contained in the packet.
+            if (packet.hasNextHeaderPointer())
+                headerOffsetWords = packet.nextHeaderPointer();
+
+            if (headerOffsetWords > 0)
+            {
+                logger->warn("skipped {} words of packet data to start payload data from the given nextHeaderPointer ({})",
+                                headerOffsetWords, packet.nextHeaderPointer());
+            }
+
+            const u32 *payloadBegin = packet.payloadBegin() + headerOffsetWords;
+            const u32 *payloadEnd = packet.payloadEnd();
+
             // Actual payload goes to the buffer.
-            std::copy(packet.payloadBegin(), packet.payloadEnd(), buffer.writeBegin());
-            buffer.used += packet.payloadEnd() - packet.payloadBegin();
+            std::copy(payloadBegin, payloadEnd, buffer.writeBegin());
+            buffer.used += payloadEnd - payloadBegin;
 
 #if CMD_PIPE_RECORD_DATA
             recordOut.write(reinterpret_cast<const char *>(packet.buffer), packet.bytesTransferred);
