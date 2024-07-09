@@ -397,7 +397,7 @@ int main(int argc, char *argv[])
                         system_event::extract_subtype(*header))
                     << ", size=" << size << ", bytes=" << (size * sizeof(u32))
                     << endl;
-                fmt::format("system event: crateId={}, header={:08x}", crateId, *header);
+                fmt::print("system event: crateId={}, header={:08x}", crateId, *header);
             }
         };
 
