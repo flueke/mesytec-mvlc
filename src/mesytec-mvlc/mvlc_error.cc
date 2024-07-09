@@ -181,6 +181,8 @@ class MVLCErrorCategory: public std::error_category
             case MVLCErrorCode::FirmwareTooOld:
                  return "FirmwareTooOld (MVLC firmware update required)";
 
+            case MVLCErrorCode::ErrorCodeMax:
+                 return "<internal ErrorCodeMax value>";
         }
 
         return "unrecognized MVLC error";
@@ -194,6 +196,7 @@ class MVLCErrorCategory: public std::error_category
         switch (static_cast<MVLCErrorCode>(ev))
         {
             case MVLCErrorCode::NoError:
+            case MVLCErrorCode::ErrorCodeMax:
                 return ErrorType::Success;
 
             case MVLCErrorCode::IsConnected:
