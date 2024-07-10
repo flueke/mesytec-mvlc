@@ -938,6 +938,15 @@ void ReadoutWorker::Private::loop(std::promise<std::error_code> promise)
 
     setState(State::Idle);
     logger->info("MVLC readout stopped");
+
+    if (this->mvlcETH)
+    {
+        logger->info("MVLC ETH: forcing renew of MVLC DHCP lease");
+        if (auto ec = mvlc.writeRegister(registers::own_ip_lo, 0))
+            logger->warn("MVLC ETH: failed to force renew DHCP lease: {}", ec.message());
+        else if (auto ec = mvlc.writeRegister(registers::own_ip_hi, 0))
+            logger->warn("MVLC ETH: failed to force renew DHCP lease: {}", ec.message());
+    }
 }
 
 // Start readout or resume after pause.
