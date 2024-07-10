@@ -942,10 +942,16 @@ void ReadoutWorker::Private::loop(std::promise<std::error_code> promise)
     if (this->mvlcETH)
     {
         logger->info("MVLC ETH: forcing renew of MVLC DHCP lease");
-        if (auto ec = mvlc.writeRegister(registers::own_ip_lo, 0))
-            logger->warn("MVLC ETH: failed to force renew DHCP lease: {}", ec.message());
-        else if (auto ec = mvlc.writeRegister(registers::own_ip_hi, 0))
-            logger->warn("MVLC ETH: failed to force renew DHCP lease: {}", ec.message());
+        SuperCommandBuilder commands;
+        commands.addReferenceWord(0xdcba);
+        commands.addWriteLocal(registers::own_ip_lo, 0);
+        commands.addWriteLocal(registers::own_ip_hi, 0);
+        std::vector<u32> response;
+        // fire and forget: if it succeeds we won't get a response because the
+        // MVLC immediately renews it's own IP and thus sends out a response
+        // packet with an invalid source ip.
+        // If it does not succeed there is nothing we can do about it.
+        (void) mvlc.superTransaction(commands, response);
     }
 }
 
