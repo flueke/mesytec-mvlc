@@ -80,6 +80,13 @@ struct MESYTEC_MVLC_EXPORT PayloadHeaderInfo
     {
         return nextHeaderPointer() != header1::NoHeaderPointerPresent;
     }
+
+    inline bool isNextHeaderPointerValid() const
+    {
+        if (isNextHeaderPointerPresent())
+            return nextHeaderPointer() < dataWordCount();
+        return false;
+    }
 };
 
 struct MESYTEC_MVLC_EXPORT PacketReadResult

@@ -513,7 +513,13 @@ void cmd_pipe_reader(ReaderContext &context)
             // If a header pointer is present use it as the start of the payload
             // data. Otherwise use the full payload contained in the packet.
             if (packet.hasNextHeaderPointer())
-                headerOffsetWords = packet.nextHeaderPointer();
+            {
+                if (packet.isNextHeaderPointerValid())
+                    headerOffsetWords = packet.nextHeaderPointer();
+                else
+                    logger->warn("cmd_pipe_reader: invalid nextHeaderPointer ({}) in packet containing {} data words",
+                        packet.nextHeaderPointer(), packet.dataWordCount());
+            }
 
             if (headerOffsetWords > 0)
             {
