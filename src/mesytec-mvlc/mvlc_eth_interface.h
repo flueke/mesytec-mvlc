@@ -163,10 +163,11 @@ struct MESYTEC_MVLC_EXPORT PacketReadResult
 
     inline bool isNextHeaderPointerValid() const
     {
-        const u16 nhp = nextHeaderPointer();
-
         if (hasNextHeaderPointer())
+        {
+            const u16 nhp = nextHeaderPointer();
             return payloadBegin() + nhp < payloadEnd();
+        }
 
         return false;
     }

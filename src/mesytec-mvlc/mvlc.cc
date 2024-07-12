@@ -515,10 +515,14 @@ void cmd_pipe_reader(ReaderContext &context)
             if (packet.hasNextHeaderPointer())
             {
                 if (packet.isNextHeaderPointerValid())
+                {
                     headerOffsetWords = packet.nextHeaderPointer();
-                else
-                    logger->warn("cmd_pipe_reader: invalid nextHeaderPointer ({}) in packet containing {} data words",
-                        packet.nextHeaderPointer(), packet.dataWordCount());
+                }
+                else if (!ec)
+                {
+                    logger->warn("cmd_pipe_reader: invalid nextHeaderPointer ({}) in packet containing {} data words ({} payload words, ec={})",
+                        packet.nextHeaderPointer(), packet.dataWordCount(), packet.availablePayloadWords(), ec.message());
+                }
             }
 
             if (headerOffsetWords > 0)
