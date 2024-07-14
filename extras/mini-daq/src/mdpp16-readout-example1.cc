@@ -251,6 +251,10 @@ int main()
     // ConnectionType independent readout helper instance.
     ReadoutHelper rdoHelper(mvlc);
 
+    // If using ETH redirect the data stream to us.
+    ec = redirect_eth_data_stream(mvlc);
+    assert(!ec);
+
     // Enter DAQ mode. This will enable trigger processing.
     ec = enable_daq_mode(mvlc);
     assert(!ec);
