@@ -799,6 +799,7 @@ StackCommandBuilder &StackCommandBuilder::beginGroup(const std::string &name,
     Group group =
     {
         .name = name,
+        .commands = {},
         .meta = meta,
     };
 
