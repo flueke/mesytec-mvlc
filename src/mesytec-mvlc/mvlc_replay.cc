@@ -169,7 +169,7 @@ MVLCReplay make_mvlc_replay(
     const std::string &listfileArchiveMemberName,
     void *userContext)
 {
-    return make_mvlc_replay(listfileArchiveMemberName, listfileArchiveMemberName,
+    return make_mvlc_replay(listfileArchiveName, listfileArchiveMemberName,
         readout_parser::ReadoutParserCallbacks{}, userContext);
 }
 
