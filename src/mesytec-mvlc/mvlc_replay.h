@@ -24,6 +24,12 @@ class MESYTEC_MVLC_EXPORT MVLCReplay
 
         ~MVLCReplay();
 
+        // Sets the callbacks for the readout_parser. Use this if the callbacks
+        // are not supplied at construction time. May only be called if the
+        // replay is idle.
+        void setParserCallbacks(readout_parser::ReadoutParserCallbacks parserCallbacks);
+        void setParserCallbacks(readout_parser::ReadoutParserCallbacks parserCallbacks, void *userContext);
+
         std::error_code start();
         std::error_code stop();
         std::error_code pause();
@@ -83,6 +89,21 @@ MVLCReplay MESYTEC_MVLC_EXPORT make_mvlc_replay(
 MVLCReplay MESYTEC_MVLC_EXPORT make_mvlc_replay(
     listfile::ReadHandle *lfh,
     readout_parser::ReadoutParserCallbacks parserCallbacks,
+    void *userContext = nullptr);
+
+// These variants do not require the ReadoutParserCallbacks to be passed in.
+// They must be set later before starting the replay.
+MVLCReplay MESYTEC_MVLC_EXPORT make_mvlc_replay(
+    const std::string &listfileArchiveName,
+    void *userContext = nullptr);
+
+MVLCReplay MESYTEC_MVLC_EXPORT make_mvlc_replay(
+    const std::string &listfileArchiveName,
+    const std::string &listfileArchiveMemberName,
+    void *userContext = nullptr);
+
+MVLCReplay MESYTEC_MVLC_EXPORT make_mvlc_replay(
+    listfile::ReadHandle *lfh,
     void *userContext = nullptr);
 
 } // end namespace mvlc
