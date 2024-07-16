@@ -200,7 +200,7 @@ int main()
 {
     spdlog::set_level(spdlog::level::debug);
 
-    const u32 modBase = 0x02100000;
+    const u32 modBase = 0x03000000;
 
     // trigger setup for IRQ1
     stacks::Trigger trigger{};
@@ -212,8 +212,10 @@ int main()
     const u16 pulserValue = 1;
     std::error_code ec;
 
-    auto mvlc = make_mvlc_usb();
+    //auto mvlc = make_mvlc_usb();
+    auto mvlc = make_mvlc_eth("mvlc-0066");
 
+    mvlc.setDisableTriggersOnConnect(true);
     ec = mvlc.connect();
     assert(!ec);
 
@@ -251,6 +253,10 @@ int main()
     // ConnectionType independent readout helper instance.
     ReadoutHelper rdoHelper(mvlc);
 
+    // If using ETH redirect the data stream to us.
+    ec = redirect_eth_data_stream(mvlc);
+    assert(!ec);
+
     // Enter DAQ mode. This will enable trigger processing.
     ec = enable_daq_mode(mvlc);
     assert(!ec);
@@ -267,7 +273,7 @@ int main()
 
         ec = rdoHelper.readout();
         if (ec)
-            spdlog::warn("errro_code from readout(): {}", ec.message());
+            spdlog::warn("error_code from readout(): {}", ec.message());
 
         const auto &outputBuffer = rdoHelper.outputBuffer();
 
