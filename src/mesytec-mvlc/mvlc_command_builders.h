@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <map>
 #include <optional>
 #include <string>
 #include <vector>
@@ -198,10 +199,21 @@ inline bool is_read_command(const StackCommand &cmd)
 class MESYTEC_MVLC_EXPORT StackCommandBuilder
 {
     public:
+        // The commands are organized into groups to hold the readout commands
+        // for a single VME module. This is required for e.g. the readout parser
+        // to work as it needs information about the readout commands for each
+        // specific module read out by the stack.
         struct Group
         {
+            // Name of the group. mvme fills it with the VME module name.
             std::string name;
+
+            // Readout commands for the module.
             std::vector<StackCommand> commands;
+
+            // Optional meta info. mvme stores the VME module type name (the one
+            // defined by the mvme templates) under 'vme_module_type'.
+            std::map<std::string, std::string> meta;
 
             bool operator==(const Group &o) const
             {
@@ -231,7 +243,7 @@ class MESYTEC_MVLC_EXPORT StackCommandBuilder
         // like the block reads below. The reason is that the MVLC stack
         // accumulator can turn the VME read into a block transfer, which means
         // there must be a way to control if the read address should be
-        // increment or not.
+        // incremented or not.
         StackCommandBuilder &addVMERead(
             u32 address, u8 amod, VMEDataWidth dataWidth,
             bool lateRead = false, bool fifo = true);
