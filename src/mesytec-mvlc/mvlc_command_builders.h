@@ -276,7 +276,9 @@ class MESYTEC_MVLC_EXPORT StackCommandBuilder
         StackCommandBuilder &addCommand(const StackCommand &cmd);
 
         // Begins a new group using the supplied name.
-        StackCommandBuilder &beginGroup(const std::string &name = {});
+        StackCommandBuilder &beginGroup(
+            const std::string &name = {},
+            const std::map<std::string, std::string> & meta = {});
 
         // Returns true if at least one group exists in this StackCommandBuilder.
         bool hasOpenGroup() const { return !m_groups.empty(); }
@@ -295,7 +297,11 @@ class MESYTEC_MVLC_EXPORT StackCommandBuilder
         // group if the index is out of range.
         Group getGroup(const std::string &groupName) const;
 
-        StackCommandBuilder &addGroup(const std::string &name, const std::vector<StackCommand> &commands);
+        StackCommandBuilder &addGroup(
+            const std::string &name,
+            const std::vector<StackCommand> &commands,
+            const std::map<std::string, std::string> & meta = {});
+
         StackCommandBuilder &addGroup(const Group &group);
 
         // Returns a flattened list of the commands of all groups.

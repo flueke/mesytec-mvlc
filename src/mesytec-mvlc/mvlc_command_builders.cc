@@ -793,9 +793,16 @@ StackCommandBuilder &StackCommandBuilder::addCommand(const StackCommand &cmd)
     return *this;
 }
 
-StackCommandBuilder &StackCommandBuilder::beginGroup(const std::string &name)
+StackCommandBuilder &StackCommandBuilder::beginGroup(const std::string &name,
+    const std::map<std::string, std::string> & meta)
 {
-    m_groups.emplace_back(Group{name, {}});
+    Group group =
+    {
+        .name = name,
+        .meta = meta,
+    };
+
+    m_groups.emplace_back(group);
     return *this;
 }
 
@@ -853,9 +860,11 @@ StackCommandBuilder::Group StackCommandBuilder::getGroup(const std::string &grou
 }
 
 StackCommandBuilder &StackCommandBuilder::addGroup(
-    const std::string &name, const std::vector<StackCommand> &commands)
+    const std::string &name,
+    const std::vector<StackCommand> &commands,
+    const std::map<std::string, std::string> & meta)
 {
-    beginGroup(name);
+    beginGroup(name, meta);
 
     for (const auto &cmd: commands)
         addCommand(cmd);
