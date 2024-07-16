@@ -156,6 +156,42 @@ MVLCReplay make_mvlc_replay(
     return r;
 }
 
+MVLCReplay make_mvlc_replay(
+    const std::string &listfileArchiveName,
+    void *userContext)
+{
+    return make_mvlc_replay(listfileArchiveName,
+        readout_parser::ReadoutParserCallbacks{}, userContext);
+}
+
+MVLCReplay make_mvlc_replay(
+    const std::string &listfileArchiveName,
+    const std::string &listfileArchiveMemberName,
+    void *userContext)
+{
+    return make_mvlc_replay(listfileArchiveMemberName, listfileArchiveMemberName,
+        readout_parser::ReadoutParserCallbacks{}, userContext);
+}
+
+MVLCReplay make_mvlc_replay(
+    listfile::ReadHandle *lfh,
+    void *userContext)
+{
+    return make_mvlc_replay(lfh,
+        readout_parser::ReadoutParserCallbacks{}, userContext);
+}
+
+void MVLCReplay::setParserCallbacks(readout_parser::ReadoutParserCallbacks parserCallbacks)
+{
+    d->parserCallbacks = parserCallbacks;
+}
+
+void MVLCReplay::setParserCallbacks(readout_parser::ReadoutParserCallbacks parserCallbacks, void *userContext)
+{
+    d->parserCallbacks = parserCallbacks;
+    d->readoutParser.userContext = userContext;
+}
+
 std::error_code MVLCReplay::start()
 {
     return d->replayWorker->start().get();
