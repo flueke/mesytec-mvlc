@@ -1,0 +1,29 @@
+# syntax=docker/dockerfile:1.5
+# vim:ft=dockerfile
+
+# Dockerfile building the mesytec-mvlc library in debug mode and running the
+# libraries unit tests.
+
+# Example docker build invocation from the root of the source tree:
+#   DOCKER_BUILDKIT=1 docker build  -f ./tools/dockerfiles/Dockerfile.debian-stable_ctest .
+
+FROM ubuntu:20.04
+
+ENV DEBIAN_FRONTEND="noninteractive"
+ENV TZ="Etc/UTC"
+
+# Add the kitware apt repository to get a modern version of cmake https://apt.kitware.com/
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates gpg wget sudo \
+    && wget -O - https://apt.kitware.com/keys/kitware-archive-latest.asc 2>/dev/null | gpg --dearmor - | sudo tee /usr/share/keyrings/kitware-archive-keyring.gpg >/dev/null \
+    && echo 'deb [signed-by=/usr/share/keyrings/kitware-archive-keyring.gpg] https://apt.kitware.com/ubuntu/ focal main' | sudo tee /etc/apt/sources.list.d/kitware.list >/dev/null
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates build-essential git cmake ninja-build zlib1g-dev \
+    libzmq3-dev 
+
+COPY . /sources
+WORKDIR /build
+
+# Run cmake then compile and install the server binary.
+RUN cmake -GNinja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_INSTALL_PREFIX=/install /sources \
+    && ninja && ninja install && ctest .
