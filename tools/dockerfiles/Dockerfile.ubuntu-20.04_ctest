@@ -7,6 +7,8 @@
 # Example docker build invocation from the root of the source tree:
 #   DOCKER_BUILDKIT=1 docker build  -f ./tools/dockerfiles/Dockerfile.debian-stable_ctest .
 
+# Note: no zmq support under ubuntu-20.04 for now. The shipped zmq version is too old.
+
 FROM ubuntu:20.04
 
 ENV DEBIAN_FRONTEND="noninteractive"
@@ -18,9 +20,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates
     && echo 'deb [signed-by=/usr/share/keyrings/kitware-archive-keyring.gpg] https://apt.kitware.com/ubuntu/ focal main' | sudo tee /etc/apt/sources.list.d/kitware.list >/dev/null
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    ca-certificates build-essential git cmake ninja-build zlib1g-dev \
-    libzmq3-dev 
-
+    ca-certificates build-essential git cmake ninja-build zlib1g-dev
 COPY . /sources
 WORKDIR /build
 
