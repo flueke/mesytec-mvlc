@@ -210,6 +210,7 @@ VMEDataWidth vme_data_width_from_string(const std::string &str)
     throw std::runtime_error("invalid VMEDataWidth");
 }
 
+#ifdef __cpp_lib_optional
 std::optional<VMEDataWidth> parse_vme_datawidth(const std::string &str)
 {
     try
@@ -220,6 +221,7 @@ std::optional<VMEDataWidth> parse_vme_datawidth(const std::string &str)
 
     return {};
 }
+#endif
 
 std::string to_string(const StackCommand &cmd)
 {

@@ -7,6 +7,7 @@
 #include <optional>
 #include <string>
 #include <vector>
+#include <version>
 
 #include "mesytec-mvlc/mesytec-mvlc_export.h"
 #include "mvlc_constants.h"
@@ -171,8 +172,10 @@ std::string MESYTEC_MVLC_EXPORT to_string(const VMEDataWidth &dw);
 // throws std::runtime_error if str cannot be converted
 VMEDataWidth MESYTEC_MVLC_EXPORT vme_data_width_from_string(const std::string &str);
 
+#ifdef __cpp_lib_optional
 // version of the above that does not throw
 std::optional<VMEDataWidth> MESYTEC_MVLC_EXPORT parse_vme_datawidth(const std::string &str);
+#endif
 
 std::string MESYTEC_MVLC_EXPORT to_string(const StackCommand &cmd);
 StackCommand MESYTEC_MVLC_EXPORT stack_command_from_string(const std::string &str);
