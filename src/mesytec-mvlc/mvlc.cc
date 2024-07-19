@@ -205,6 +205,11 @@ void cmd_pipe_reader(ReaderContext &context)
         {
             return mem[index + start];
         };
+
+        nonstd::basic_string_view<const u32> viewU32() const
+        {
+            return nonstd::basic_string_view<const u32>(begin(), size());
+        }
     };
 
     auto logger = get_logger("cmd_pipe_reader");
@@ -375,6 +380,7 @@ void cmd_pipe_reader(ReaderContext &context)
                             {
                                 logger->warn("cmd_pipe_reader: super ref mismatch, wanted=0x{:04x}, got=0x{:04x}",
                                              pendingResponse->reference, superRef);
+                                logger->warn("cmd_pipe_reader: input buffer before super ref mismatch: {#:08x}", fmt::join(buffer.viewU32(), ", "));
                                 ec = make_error_code(MVLCErrorCode::SuperReferenceMismatch);
                                 ++counters.superRefMismatches;
                             }
@@ -424,6 +430,7 @@ void cmd_pipe_reader(ReaderContext &context)
                         {
                             logger->warn("cmd_pipe_reader: stack ref mismatch, wanted=0x{:08x}, got=0x{:08x}",
                                          pendingResponse->reference, stackRef);
+                            logger->warn("cmd_pipe_reader: input buffer before stack ref mismatch: {#:08x}", fmt::join(buffer.viewU32(), ", "));
                             ec = make_error_code(MVLCErrorCode::StackReferenceMismatch);
                             ++counters.stackRefMismatches;
                         }
