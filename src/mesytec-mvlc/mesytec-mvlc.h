@@ -59,6 +59,7 @@
 #include "util/int_types.h"
 #include "util/io_util.h"
 #include "util/logging.h"
+#include "util/stopwatch.h"
 #include "util/string_util.h"
 #include "vme_constants.h"
 
