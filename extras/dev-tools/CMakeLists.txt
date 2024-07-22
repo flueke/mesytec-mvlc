@@ -44,6 +44,13 @@ if (MVLC_BUILD_DEV_TOOLS)
         PRIVATE BFG::Lyra
         PRIVATE spdlog::spdlog)
     install(TARGETS gsi-listfile-info RUNTIME DESTINATION bin)
+
+    add_executable(mvlc-register-rw-loop mvlc_register_rw_loop.cc)
+    target_link_libraries(mvlc-register-rw-loop
+        PRIVATE mesytec-mvlc
+        PRIVATE BFG::Lyra
+        PRIVATE spdlog::spdlog)
+    install(TARGETS gsi-listfile-info RUNTIME DESTINATION bin)
 endif(MVLC_BUILD_DEV_TOOLS)
 
 if (MVLC_BUILD_TOOLS)
