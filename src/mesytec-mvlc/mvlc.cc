@@ -631,6 +631,12 @@ class CmdApi
         std::error_code stackTransaction(
             u32 stackRef, const StackCommandBuilder &stackBuilder, std::vector<u32> &stackResponse);
 
+        std::error_code superTransactionImpl(
+            u16 ref, std::vector<u32> superBuffer, std::vector<u32> &responseBuffer, unsigned attempt);
+
+        std::error_code stackTransactionImpl(
+            u32 stackRef, const StackCommandBuilder &stackBuilder, std::vector<u32> &stackResponse, unsigned attempt);
+
     private:
         static constexpr std::chrono::milliseconds ResultWaitTimeout = std::chrono::milliseconds(2000);
 
@@ -638,11 +644,30 @@ class CmdApi
 };
 
 constexpr std::chrono::milliseconds CmdApi::ResultWaitTimeout;
+static const unsigned TransactionMaxAttempts = 3;
 
 std::error_code CmdApi::superTransaction(
     u16 ref,
     std::vector<u32> cmdBuffer,
     std::vector<u32> &responseBuffer)
+{
+    unsigned attempt = 0;
+    std::error_code ec;
+
+    do
+    {
+        if ((ec = superTransactionImpl(ref, cmdBuffer, responseBuffer, attempt++)))
+            spdlog::warn("superTransaction failed on attempt {} with error: {}", attempt, ec.message());
+    } while (ec && attempt < TransactionMaxAttempts);
+
+    return ec;
+}
+
+std::error_code CmdApi::superTransactionImpl(
+    u16 ref,
+    std::vector<u32> cmdBuffer,
+    std::vector<u32> &responseBuffer,
+    unsigned attempt)
 {
     if (cmdBuffer.size() > MirrorTransactionMaxWords)
         return make_error_code(MVLCErrorCode::MirrorTransactionMaxWordsExceeded);
@@ -666,9 +691,10 @@ std::error_code CmdApi::superTransaction(
         auto elapsed = std::chrono::steady_clock::now() - tSet;
         get_logger("mvlc_apiv2")->warn(
             "superTransaction super future not ready -> SuperCommandTimeout"
-            " (ref=0x{:04x}, timed_out after {}ms)",
+            " (ref=0x{:04x}, timed_out after {}ms (attempt {}/{})",
             readerContext_.pendingSuper.access()->reference,
-            std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count()
+            std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count(),
+            attempt, TransactionMaxAttempts
             );
         return fullfill_pending_response(readerContext_.pendingSuper, make_error_code(MVLCErrorCode::SuperCommandTimeout));
     }
@@ -679,6 +705,23 @@ std::error_code CmdApi::superTransaction(
 std::error_code CmdApi::stackTransaction(
     u32 stackRef, const StackCommandBuilder &stackBuilder,
     std::vector<u32> &stackResponse)
+{
+    unsigned attempt = 0;
+    std::error_code ec;
+
+    do
+    {
+        if ((ec = stackTransactionImpl(stackRef, stackBuilder, stackResponse, attempt++)))
+            spdlog::warn("stackTransaction failed on attempt {} with error: {}", attempt, ec.message());
+    } while (ec && attempt < TransactionMaxAttempts);
+
+    return ec;
+}
+
+std::error_code CmdApi::stackTransactionImpl(
+    u32 stackRef, const StackCommandBuilder &stackBuilder,
+    std::vector<u32> &stackResponse,
+    unsigned attempt)
 {
     if (auto ec = uploadStack(CommandPipe, stacks::ImmediateStackStartOffsetBytes, make_stack_buffer(stackBuilder)))
         return ec;
@@ -717,8 +760,9 @@ std::error_code CmdApi::stackTransaction(
 
     if (superFuture.wait_for(ResultWaitTimeout) != std::future_status::ready)
     {
-        get_logger("mvlc_apiv2")->warn("stackTransaction super future still not ready -> SuperCommandTimeout (ref=0x{:04X})",
-            readerContext_.pendingSuper.access()->reference);
+        get_logger("mvlc_apiv2")->warn("stackTransaction super future still not ready -> SuperCommandTimeout (ref=0x{:04X}, attempt={}/{})",
+            readerContext_.pendingSuper.access()->reference,
+            attempt, TransactionMaxAttempts);
         ec = make_error_code(MVLCErrorCode::SuperCommandTimeout);
         fullfill_pending_response(readerContext_.pendingSuper, ec);
         return fullfill_pending_response(readerContext_.pendingStack, ec);
@@ -731,7 +775,8 @@ std::error_code CmdApi::stackTransaction(
     if (stackFuture.wait_for(ResultWaitTimeout) != std::future_status::ready)
     {
         get_logger("mvlc_apiv2")->warn("stackTransaction stack future still not ready -> StackCommandTimeout (ref=0x{:08X})",
-            readerContext_.pendingStack.access()->reference);
+            readerContext_.pendingStack.access()->reference,
+            attempt, TransactionMaxAttempts);
         ec = make_error_code(MVLCErrorCode::StackCommandTimeout);
         return fullfill_pending_response(readerContext_.pendingStack, ec);
     }
