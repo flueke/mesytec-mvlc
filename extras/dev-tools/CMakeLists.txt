@@ -45,12 +45,14 @@ if (MVLC_BUILD_DEV_TOOLS)
         PRIVATE spdlog::spdlog)
     install(TARGETS gsi-listfile-info RUNTIME DESTINATION bin)
 
+if (NOT WIN32)
     add_executable(mvlc-register-rw-loop mvlc_register_rw_loop.cc)
     target_link_libraries(mvlc-register-rw-loop
         PRIVATE mesytec-mvlc
         PRIVATE BFG::Lyra
         PRIVATE spdlog::spdlog)
-    install(TARGETS gsi-listfile-info RUNTIME DESTINATION bin)
+    install(TARGETS mvlc-register-rw-loop RUNTIME DESTINATION bin)
+endif()
 endif(MVLC_BUILD_DEV_TOOLS)
 
 if (MVLC_BUILD_TOOLS)
