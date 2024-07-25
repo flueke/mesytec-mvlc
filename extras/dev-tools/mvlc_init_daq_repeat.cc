@@ -45,7 +45,7 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    argh::parser parser({ "--test-type", "--register-address", "--register-value", "--log-level"});
+    argh::parser parser({ "--mvlc", "--log-level"});
     parser.parse(argv);
 
     {
@@ -99,6 +99,31 @@ int main(int argc, char *argv[])
                     cycleNumber, initResults.ec.message());
                 break;
             }
+
+            auto mcstStartResults = run_commands(mvlc, crateConfig.mcstDaqStart);
+
+            if (auto ec = get_first_error(mcstStartResults))
+            {
+                std::cerr << fmt::format("Cycle #{}: Error from MCST DAQ start: {}\n",
+                    cycleNumber, ec.message());
+                break;
+            }
+
+            for (const auto &result: mcstStartResults)
+                spdlog::debug("  {}: {}", to_string(result.cmd), result.ec.message());
+
+
+            auto mcstStopResults = run_commands(mvlc, crateConfig.mcstDaqStop);
+
+            if (auto ec = get_first_error(mcstStopResults))
+            {
+                std::cerr << fmt::format("Cycle #{}: Error from MCST DAQ stop: {}\n",
+                    cycleNumber, ec.message());
+                break;
+            }
+
+            for (const auto &result: mcstStopResults)
+                spdlog::debug("  {}: {}", to_string(result.cmd), result.ec.message());
 
             if (auto elapsed = swReport.get_interval(); elapsed >= std::chrono::seconds(1))
             {
