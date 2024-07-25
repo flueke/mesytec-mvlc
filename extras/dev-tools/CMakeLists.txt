@@ -52,6 +52,13 @@ if (NOT WIN32)
         PRIVATE BFG::Lyra
         PRIVATE spdlog::spdlog)
     install(TARGETS mvlc-register-rw-loop RUNTIME DESTINATION bin)
+
+    add_executable(mvlc-init-daq-repeat mvlc_init_daq_repeat.cc)
+    target_link_libraries(mvlc-init-daq-repeat
+        PRIVATE mesytec-mvlc
+        PRIVATE BFG::Lyra
+        PRIVATE spdlog::spdlog)
+    install(TARGETS mvlc-init-daq-repeat RUNTIME DESTINATION bin)
 endif()
 endif(MVLC_BUILD_DEV_TOOLS)
 
