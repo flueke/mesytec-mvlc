@@ -304,7 +304,7 @@ std::error_code setup_readout_triggers(
     {
         u32 triggerVal = triggerValues.at(triggerIdx);
 
-        #if 1
+        #if 0
         std::cerr << "setup_readout_triggers: stackId=" << static_cast<unsigned>(stackId)
             << ", triggerVal=0x" << std::hex << triggerVal << std::dec
             << std::endl;
