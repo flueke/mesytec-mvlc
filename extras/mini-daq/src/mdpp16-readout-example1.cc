@@ -225,7 +225,7 @@ int main()
     std::this_thread::sleep_for(std::chrono::milliseconds(500)); // wait for the reset to complete
     ec = mvlc.vmeWrite(modBase + 0x6010, irqLevel, 0x09, VMEDataWidth::D16); // module signals IRQ1
     assert(!ec);
-    ec = mvlc.vmeWrite(modBase + 0x6038, 0, 0x09, VMEDataWidth::D16); // single event, no module buffering
+    ec = mvlc.vmeWrite(modBase + 0x6036, 0, 0x09, VMEDataWidth::D16); // single event, no module buffering
     assert(!ec);
     ec = mvlc.vmeWrite(modBase + 0x6070, pulserValue, 0x09, VMEDataWidth::D16); // enable the test pulser
     assert(!ec);

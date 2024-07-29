@@ -163,6 +163,10 @@ namespace
                 // SignalAccu also resets the accu
                 accumulatorActive = false;
             }
+            else if (cmd.type == StackCT::VMEWrite)
+            {
+                // VMEWrite produces no output
+            }
             else
             {
                 auto logger = get_logger("readout_parser");
