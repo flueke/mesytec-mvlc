@@ -141,14 +141,14 @@ int main(int argc, char *argv[])
 
         return 0;
     }
-    catch(const std::exception& e)
-    {
-        std::cerr << "Exception:" << e.what() << '\n';
-        return 1;
-    }
     catch (const std::system_error &e)
     {
         std::cerr << "System error: " << e.what() << '\n';
+        return 1;
+    }
+    catch(const std::exception& e)
+    {
+        std::cerr << "Exception:" << e.what() << '\n';
         return 1;
     }
 
