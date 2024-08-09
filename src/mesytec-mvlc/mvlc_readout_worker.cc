@@ -938,21 +938,6 @@ void ReadoutWorker::Private::loop(std::promise<std::error_code> promise)
 
     setState(State::Idle);
     logger->info("MVLC readout stopped");
-
-    if (this->mvlcETH)
-    {
-        logger->info("MVLC ETH: forcing renew of MVLC DHCP lease");
-        SuperCommandBuilder commands;
-        commands.addReferenceWord(0xdcba);
-        commands.addWriteLocal(registers::own_ip_lo, 0);
-        commands.addWriteLocal(registers::own_ip_hi, 0);
-        std::vector<u32> response;
-        // fire and forget: if it succeeds we won't get a response because the
-        // MVLC immediately renews it's own IP and thus sends out a response
-        // packet with an invalid source ip.
-        // If it does not succeed there is nothing we can do about it.
-        (void) mvlc.superTransaction(commands, response);
-    }
 }
 
 // Start readout or resume after pause.
