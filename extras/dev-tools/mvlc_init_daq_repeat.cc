@@ -33,7 +33,10 @@ int main(int argc, char *argv[])
             logLevelName = "info";
 
         if (!logLevelName.empty())
+        {
             spdlog::set_level(spdlog::level::from_str(logLevelName));
+            mesytec::mvlc::set_global_log_level(spdlog::level::info);
+        }
     }
 
     if (parser.pos_args().size() < 2)

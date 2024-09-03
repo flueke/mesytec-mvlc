@@ -6,35 +6,9 @@
 
 using namespace mesytec::mvlc;
 
-static volatile bool g_signal_received = false;
-
-#ifndef _WIN32
-void signal_handler(int signum)
-{
-    g_signal_received = true;
-}
-#endif
-
-void setup_signal_handlers()
-{
-#ifndef _WIN32
-    /* Set up the structure to specify the new action. */
-    struct sigaction new_action;
-    new_action.sa_handler = signal_handler;
-    sigemptyset (&new_action.sa_mask);
-    new_action.sa_flags = 0;
-
-    for (auto signum: { SIGINT, SIGHUP, SIGTERM })
-    {
-        if (sigaction(signum, &new_action, NULL) != 0)
-            throw std::system_error(errno, std::generic_category(), "setup_signal_handlers");
-    }
-#endif
-}
-
 int main(int argc, char *argv[])
 {
-    setup_signal_handlers();
+    util::setup_signal_handlers();
 
     zmq::context_t ctx;
     zmq::socket_t sub(ctx, ZMQ_SUB);
@@ -97,7 +71,7 @@ int main(int argc, char *argv[])
     {
         try
         {
-            if (g_signal_received)
+            if (util::signal_received())
             {
                 spdlog::info("Interrupted, leaving read loop");
                 break;
