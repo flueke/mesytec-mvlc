@@ -1,4 +1,5 @@
 #include "udp_sockets.h"
+#include "logging.h"
 
 #ifndef __WIN32
     #include <netdb.h>
@@ -26,8 +27,6 @@
 #include <cassert>
 #include <cstring>
 #include <sstream>
-
-#include <spdlog/spdlog.h>
 
 namespace
 {
@@ -447,6 +446,19 @@ std::string format_ipv4(u32 a)
 std::error_code MESYTEC_MVLC_EXPORT set_socket_receive_buffer_size(
     int sockfd, int desiredBufferSize, int *actualBufferSize)
 {
+    // Get and log the initial unmodified buffer size first.
+    {
+        int currentBufferSize = 0;
+        socklen_t szLen = sizeof(currentBufferSize);
+        int res = getsockopt(sockfd, SOL_SOCKET, SO_RCVBUF,
+                            &currentBufferSize,
+                            &szLen);
+        if (res != 0)
+            return std::error_code(errno, std::system_category());
+
+        mvlc::get_logger("mvlc_eth")->warn("initial SO_RCVBUF={}", currentBufferSize);
+    }
+
     #ifndef __WIN32
             int res = setsockopt(sockfd, SOL_SOCKET, SO_RCVBUF,
                                 &desiredBufferSize,
@@ -467,7 +479,7 @@ std::error_code MESYTEC_MVLC_EXPORT set_socket_receive_buffer_size(
 
 #ifndef __WIN32
         res = getsockopt(sockfd, SOL_SOCKET, SO_RCVBUF,
-                            &actualBufferSize,
+                            actualBufferSize,
                             &szLen);
 #else
         res = getsockopt(sockfd, SOL_SOCKET, SO_RCVBUF,
@@ -476,21 +488,6 @@ std::error_code MESYTEC_MVLC_EXPORT set_socket_receive_buffer_size(
 #endif
         if (res != 0)
             return std::error_code(errno, std::system_category());
-
-        // TODO: move this out of here
-        #if 0
-        logger->debug("pipe={}, SO_RCVBUF={}", static_cast<unsigned>(pipe), actualBufferSize);
-
-        if (actualBufferSize < DesiredSocketReceiveBufferSize)
-        {
-            auto desiredMB = static_cast<double>(DesiredSocketReceiveBufferSize) / util::Megabytes(1);
-            auto actualMB = static_cast<double>(actualBufferSize) / util::Megabytes(1);
-            logger->info("pipe={}, requested SO_RCVBUF of {} bytes ({} MB), got {} bytes ({} MB)",
-                            static_cast<unsigned>(pipe),
-                            DesiredSocketReceiveBufferSize, desiredMB,
-                            actualBufferSize, actualMB);
-        }
-        #endif
     }
 
     return {};

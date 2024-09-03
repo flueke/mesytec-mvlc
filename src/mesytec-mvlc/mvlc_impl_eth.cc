@@ -718,8 +718,7 @@ std::error_code Impl::connect()
     for (auto pipe: { Pipe::Command, Pipe::Data })
     {
         int actualReceiveBufferSize = 0;
-        auto ec = set_socket_receive_buffer_size(getSocket(pipe),
-            DesiredSocketReceiveBufferSize, &actualReceiveBufferSize);
+        auto ec = set_socket_receive_buffer_size(getSocket(pipe), DesiredSocketReceiveBufferSize, &actualReceiveBufferSize);
 
 
         if (ec)
@@ -994,7 +993,7 @@ PacketReadResult Impl::read_packet(Pipe pipe_, u8 *buffer, size_t size)
 
             if (loss > 0)
             {
-                logger->debug("read_packet: pipe={}, packetChannel={}, lastPacketNumber={},"
+                logger->warn("read_packet: pipe={}, packetChannel={}, lastPacketNumber={},"
                           " packetNumber={}, loss={}",
                           pipe, res.packetChannel(), lastPacketNumber, res.packetNumber(), loss);
             }
