@@ -263,34 +263,6 @@ receive_responses(int fd, DiagCallback callback)
     }
 }
 
-static volatile bool signal_received = false;
-
-void signal_handler(int signum)
-{
-#ifndef _WIN32
-    cout << "signal " << signum << endl;
-    cout.flush();
-    signal_received = true;
-#endif
-}
-
-void setup_signal_handlers()
-{
-#ifndef _WIN32
-    /* Set up the structure to specify the new action. */
-    struct sigaction new_action;
-    new_action.sa_handler = signal_handler;
-    sigemptyset (&new_action.sa_mask);
-    new_action.sa_flags = 0;
-
-    for (auto signum: { SIGINT, SIGHUP, SIGTERM })
-    {
-        if (sigaction(signum, &new_action, NULL) != 0)
-            throw std::system_error(errno, std::generic_category(), "setup_signal_handlers");
-    }
-#endif
-}
-
 static ssize_t send_delay(int delaySock, u16 delay)
 {
     const u32 cmd = (0x0207u << 16) | delay;
@@ -499,11 +471,11 @@ main(void)
         return rmem_monitor(diag, len, delayContext);
     };
 
-    setup_signal_handlers();
+    util::setup_signal_handlers();
 
     int ret = 0;
 
-    while (!signal_received)
+    while (!util::signal_received())
     {
         if ((ret = send_query(netlinkSock, srcPort, dstPort)) != 0)
             break;

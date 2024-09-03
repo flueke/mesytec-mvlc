@@ -41,6 +41,7 @@ add_library(mesytec-mvlc SHARED
     util/filesystem.cc
     util/logging.cc
     util/protected.cc
+    util/signal_handling.cc
     util/string_util.cc
     util/threadsafequeue.cc
     util/ticketmutex.cc
