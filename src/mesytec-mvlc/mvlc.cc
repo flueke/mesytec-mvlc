@@ -430,7 +430,7 @@ void cmd_pipe_reader(ReaderContext &context)
                         {
                             logger->warn("cmd_pipe_reader: stack ref mismatch, wanted=0x{:08x}, got=0x{:08x}",
                                          pendingResponse->reference, stackRef);
-                            logger->warn("cmd_pipe_reader: input buffer before stack ref mismatch: {#:08x}", fmt::join(buffer.viewU32(), ", "));
+                            logger->warn("cmd_pipe_reader: input buffer before stack ref mismatch: 0x{:08x}", fmt::join(buffer.viewU32(), ", "));
                             ec = make_error_code(MVLCErrorCode::StackReferenceMismatch);
                             ++counters.stackRefMismatches;
                         }
