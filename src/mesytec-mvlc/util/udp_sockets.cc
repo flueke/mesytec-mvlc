@@ -443,22 +443,27 @@ std::string format_ipv4(u32 a)
     return ss.str();
 }
 
-std::error_code MESYTEC_MVLC_EXPORT set_socket_receive_buffer_size(
+std::error_code get_socket_receive_buffer_size(
+    int sockfd, int &dest)
+{
+    socklen_t szLen = sizeof(dest);
+
+#ifndef __WIN32
+    int res = getsockopt(sockfd, SOL_SOCKET, SO_RCVBUF, &dest, &szLen);
+#else
+    int res = getsockopt(sockfd, SOL_SOCKET, SO_RCVBUF,
+                        reinterpret_cast<char *>(&dest),
+                        &szLen);
+#endif
+    if (res != 0)
+        return std::error_code(errno, std::system_category());
+
+    return {};
+}
+
+std::error_code set_socket_receive_buffer_size(
     int sockfd, int desiredBufferSize, int *actualBufferSize)
 {
-    // Get and log the initial unmodified buffer size first.
-    {
-        int currentBufferSize = 0;
-        socklen_t szLen = sizeof(currentBufferSize);
-        int res = getsockopt(sockfd, SOL_SOCKET, SO_RCVBUF,
-                            &currentBufferSize,
-                            &szLen);
-        if (res != 0)
-            return std::error_code(errno, std::system_category());
-
-        mvlc::get_logger("mvlc_eth")->warn("initial SO_RCVBUF={}", currentBufferSize);
-    }
-
     #ifndef __WIN32
             int res = setsockopt(sockfd, SOL_SOCKET, SO_RCVBUF,
                                 &desiredBufferSize,
@@ -474,20 +479,7 @@ std::error_code MESYTEC_MVLC_EXPORT set_socket_receive_buffer_size(
 
     if (actualBufferSize)
     {
-        *actualBufferSize = 0;
-        socklen_t szLen = sizeof(actualBufferSize);
-
-#ifndef __WIN32
-        res = getsockopt(sockfd, SOL_SOCKET, SO_RCVBUF,
-                            actualBufferSize,
-                            &szLen);
-#else
-        res = getsockopt(sockfd, SOL_SOCKET, SO_RCVBUF,
-                            reinterpret_cast<char *>(&actualBufferSize),
-                            &szLen);
-#endif
-        if (res != 0)
-            return std::error_code(errno, std::system_category());
+        get_socket_receive_buffer_size(sockfd, *actualBufferSize);
     }
 
     return {};

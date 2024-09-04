@@ -49,6 +49,9 @@ std::error_code MESYTEC_MVLC_EXPORT write_to_socket(
 
 std::string format_ipv4(u32 a);
 
+std::error_code MESYTEC_MVLC_EXPORT get_socket_receive_buffer_size(
+    int sockfd, int &dest);
+
 std::error_code MESYTEC_MVLC_EXPORT set_socket_receive_buffer_size(
     int sockfd, int desiredBufferSize, int *actualBufferSize = 0);
 
