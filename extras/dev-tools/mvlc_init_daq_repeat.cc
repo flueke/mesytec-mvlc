@@ -58,6 +58,9 @@ int main(int argc, char *argv[])
         else
             mvlc = make_mvlc(crateConfig);
 
+        if (parser["--mvlc-force-connect"])
+            mvlc.setDisableTriggersOnConnect(true);
+
         if (auto ec = mvlc.connect())
             throw std::system_error(ec, "mvlc.connect()");
 
