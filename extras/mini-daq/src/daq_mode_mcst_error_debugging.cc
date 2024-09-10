@@ -98,13 +98,13 @@ int main(int argc, char *argv[])
         }
 #else
         {
-            if (auto ec = disable_all_triggers_and_daq_mode(mvlc))
+            if (auto ec = disable_daq_mode_and_triggers(mvlc))
             {
-                spdlog::error("Error from disable_all_triggers_and_daq_mode: {}", ec.message());
+                spdlog::error("Error from disable_daq_mode_and_triggers: {}", ec.message());
                 return 1;
             }
             else
-                spdlog::info("disable_all_triggers_and_daq_mode() done");
+                spdlog::info("disable_daq_mode_and_triggers() done");
         }
         {
             if (auto ec = get_first_error(run_commands(mvlc, crateConfig.initTriggerIO)))
@@ -219,9 +219,9 @@ int main(int argc, char *argv[])
 
         for (int try_ = 0; try_ < 5; try_++)
         {
-            if (auto ec = disable_all_triggers_and_daq_mode(mvlc))
+            if (auto ec = disable_daq_mode_and_triggers(mvlc))
             {
-                spdlog::warn("error from disable_all_triggers_and_daq_mode: {}", ec.message());
+                spdlog::warn("error from disable_daq_mode_and_triggers: {}", ec.message());
             }
             else break;
         }

@@ -101,7 +101,8 @@ ReadoutInitResults MESYTEC_MVLC_EXPORT init_readout(
     ReadoutInitResults ret;
 
     // 0) Reset to a clean state
-    if (auto ec = disable_all_triggers_and_daq_mode(mvlc))
+    logger->info("begin disable_daq_mode_and_triggers");
+    if (auto ec = disable_daq_mode_and_triggers(mvlc))
     {
         ret.ec = ec;
         logger->error("init_readout(): Error disabling stack triggers and DAQ mode: {}", ec.message());
@@ -109,6 +110,7 @@ ReadoutInitResults MESYTEC_MVLC_EXPORT init_readout(
     }
 
     // Init registers
+    logger->info("begin init_registers");
     for (auto [addr, value]: crateConfig.initRegisters)
     {
         if (auto ec = mvlc.writeRegister(addr, value))
@@ -120,6 +122,7 @@ ReadoutInitResults MESYTEC_MVLC_EXPORT init_readout(
     }
 
     // Set crate id
+    logger->info("begin set_crate_id");
     if (auto ec = mvlc.writeRegister(registers::controller_id, crateConfig.crateId))
     {
         ret.ec = ec;
