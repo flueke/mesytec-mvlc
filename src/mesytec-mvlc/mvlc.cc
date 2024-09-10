@@ -323,6 +323,9 @@ void cmd_pipe_reader(ReaderContext &context)
 
             if (contains_complete_frame(buffer.begin(), buffer.end()))
             {
+                logger->info("cmd_pipe_reader: received complete frame: {:#010x}", fmt::join(buffer.viewU32(), ", "));
+
+
                 logNextIncomplete = true;
 
                 if (is_stackerror_notification(buffer[0]))
@@ -380,7 +383,7 @@ void cmd_pipe_reader(ReaderContext &context)
                             {
                                 logger->warn("cmd_pipe_reader: super ref mismatch, wanted=0x{:04x}, got=0x{:04x}",
                                              pendingResponse->reference, superRef);
-                                logger->warn("cmd_pipe_reader: input buffer before super ref mismatch: {#:08x}", fmt::join(buffer.viewU32(), ", "));
+                                logger->warn("cmd_pipe_reader: input buffer before super ref mismatch: {#:010x}", fmt::join(buffer.viewU32(), ", "));
                                 ec = make_error_code(MVLCErrorCode::SuperReferenceMismatch);
                                 ++counters.superRefMismatches;
                             }
@@ -412,6 +415,12 @@ void cmd_pipe_reader(ReaderContext &context)
                     ++counters.stackBuffers;
 
                     auto pendingResponse = context.pendingStack.access();
+
+                    if (!pendingResponse->pending)
+                    {
+                        logger->error("cmd_pipe_reader: received stack buffer without an active stack transaction! {:#010x}", fmt::join(buffer.viewU32(), ", "));
+                    }
+
                     size_t toConsume = 0;
                     std::error_code ec;
 
@@ -935,7 +944,10 @@ std::error_code CmdApi::readRegister(u16 address, u32 &value)
 
 std::error_code CmdApi::writeRegister(u16 address, u32 value)
 {
+    auto logger = get_logger("mvlc");
+
     u16 ref = readerContext_.nextSuperReference++;
+    logger->info("writeRegister(a=0x{:04X}, v={}): nextSuperRef=0x{:04X}", address, value, ref);
     SuperCommandBuilder scb;
     scb.addReferenceWord(ref);
     scb.addWriteLocal(address, value);
@@ -944,6 +956,8 @@ std::error_code CmdApi::writeRegister(u16 address, u32 value)
 
     if (auto ec = superTransaction(ref, cmdBuffer, responseBuffer))
         return ec;
+
+    logger->info("writeRegister(a=0x{:04X}, v={}, superRef=0x{:04X}): response buffer: {:#010x} ", address, value, ref, fmt::join(responseBuffer, ", "));
 
     if (responseBuffer.size() != 4)
         return make_error_code(MVLCErrorCode::UnexpectedResponseSize);
