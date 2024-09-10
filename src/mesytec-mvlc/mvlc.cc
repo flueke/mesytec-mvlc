@@ -405,8 +405,8 @@ void cmd_pipe_reader(ReaderContext &context)
                             pendingResponse.ref(), ec);
                     else
                         fullfill_pending_response(
-
                             pendingResponse.ref(), ec, &buffer[0], toConsume);
+
                     buffer.consume(toConsume);
                 }
                 // stack buffers
@@ -718,11 +718,32 @@ std::error_code CmdApi::stackTransaction(
     unsigned attempt = 0;
     std::error_code ec;
 
+    #if 1 // old impl pre FW0039 doing retries without checking 0x1400/0x1404
+
     do
     {
         if ((ec = stackTransactionImpl(stackRef, stackBuilder, stackResponse, attempt++)))
             spdlog::warn("stackTransaction failed on attempt {} with error: {}", attempt, ec.message());
     } while (ec && attempt < TransactionMaxAttempts);
+
+    #else
+
+    do
+    {
+        // XXX: leftoff here 20240910
+        ec = stackTransactionImpl(stackRef, stackBuilder, stackResponse, attempt++);
+
+        if (ec == MVLCErrorCode::StackCommandTimeout && attempt < TransactionMaxAttempts)
+        {
+            u16 superRef = readerContext_.nextSuperReference++;
+            SuperCommandBuilder sb;
+            sb.addReferenceWord(superRef);
+            sb.addReadLocal(registers::stack_exec_status0);
+            sb.addReadLocal(registers::stack_exec_status1);
+        }
+    } while (ec == MVLCErrorCode::StackCommandTimeout && attempt < TransactionMaxAttempts);
+
+    #endif
 
     return ec;
 }
@@ -739,6 +760,11 @@ std::error_code CmdApi::stackTransactionImpl(
 
     SuperCommandBuilder superBuilder;
     superBuilder.addReferenceWord(superRef);
+    // New in FW0039: clear stack status registers before executing the stack
+    superBuilder.addWriteLocal(registers::stack_exec_status0, 0);
+    superBuilder.addWriteLocal(registers::stack_exec_status1, 0);
+    // Write the stack offset and trigger registers. The latter triggers the
+    // immediate execution of the stack.
     superBuilder.addWriteLocal(stacks::Stack0OffsetRegister, stacks::ImmediateStackStartOffsetBytes);
     superBuilder.addWriteLocal(stacks::Stack0TriggerRegister, 1u << stacks::ImmediateShift);
     auto cmdBuffer = make_command_buffer(superBuilder);
@@ -769,7 +795,7 @@ std::error_code CmdApi::stackTransactionImpl(
 
     if (superFuture.wait_for(ResultWaitTimeout) != std::future_status::ready)
     {
-        get_logger("mvlc_apiv2")->warn("stackTransaction super future still not ready -> SuperCommandTimeout (ref=0x{:04X}, attempt={}/{})",
+        get_logger("mvlc_apiv2")->warn("stackTransaction: super future still not ready -> SuperCommandTimeout (ref=0x{:04X}, attempt={}/{})",
             readerContext_.pendingSuper.access()->reference,
             attempt, TransactionMaxAttempts);
         ec = make_error_code(MVLCErrorCode::SuperCommandTimeout);
@@ -783,7 +809,7 @@ std::error_code CmdApi::stackTransactionImpl(
     // stack response
     if (stackFuture.wait_for(ResultWaitTimeout) != std::future_status::ready)
     {
-        get_logger("mvlc_apiv2")->warn("stackTransaction stack future still not ready -> StackCommandTimeout (ref=0x{:08X})",
+        get_logger("mvlc_apiv2")->warn("stackTransaction: stack future still not ready -> StackCommandTimeout (ref=0x{:08X})",
             readerContext_.pendingStack.access()->reference,
             attempt, TransactionMaxAttempts);
         ec = make_error_code(MVLCErrorCode::StackCommandTimeout);
