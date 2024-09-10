@@ -39,8 +39,10 @@ namespace mvlc
 
 struct StackInfo
 {
-    u32 triggerValue;
+    u32 triggerValue; // value of the trigger register
+    u32 triggerAddress; // address of the trigger register
     u32 offset;
+    u32 offsetAddress; // address of the offset register
     u16 startAddress;
     std::vector<u32> contents;
 };
@@ -93,10 +95,13 @@ read_stack_info(DIALOG_API &mvlc, u8 id)
     if (id >= stacks::StackCount)
         return { result, make_error_code(MVLCErrorCode::StackCountExceeded) };
 
-    if (auto ec = mvlc.readRegister(stacks::get_trigger_register(id), result.triggerValue))
+    result.triggerAddress = stacks::get_trigger_register(id);
+    result.offsetAddress = stacks::get_offset_register(id);
+
+    if (auto ec = mvlc.readRegister(result.triggerAddress, result.triggerValue))
         return { result, ec };
 
-    if (auto ec = mvlc.readRegister(stacks::get_offset_register(id), result.offset))
+    if (auto ec = mvlc.readRegister(result.offsetAddress, result.offset))
         return { result, ec };
 
     result.startAddress = stacks::StackMemoryBegin + result.offset;
@@ -144,13 +149,13 @@ inline SuperCommandBuilder get_disable_all_triggers_and_daq_mode_commands()
 // Disables MVLC DAQ mode and all stack triggers, all in a single stack
 // transaction. Used to end a DAQ run.
 template<typename DIALOG_API>
-std::error_code disable_all_triggers_and_daq_mode(DIALOG_API &mvlc)
+std::error_code disable_daq_mode_and_triggers(DIALOG_API &mvlc)
 {
     auto sb = get_disable_all_triggers_and_daq_mode_commands();
     std::vector<u32> responseBuffer;
     auto ec = mvlc.superTransaction(sb, responseBuffer);
     log_buffer(get_logger("dialog_util"), spdlog::level::trace,
-               responseBuffer, "response from disable_all_triggers_and_daq_mode()");
+               responseBuffer, "response from disable_daq_mode_and_triggers()");
     return ec;
 }
 
