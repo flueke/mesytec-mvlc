@@ -178,6 +178,12 @@ class MVLCErrorCategory: public std::error_category
             case MVLCErrorCode::StackReferenceMismatch:
                  return "StackReferenceMismatch";
 
+            case MVLCErrorCode::StackExecRequestLost:
+                return "StackExecRequestLost";
+
+            case MVLCErrorCode::StackExecResponseLost:
+                return "StackExecResponseLost";
+
             case MVLCErrorCode::FirmwareTooOld:
                  return "FirmwareTooOld (MVLC firmware update required)";
 
@@ -209,6 +215,8 @@ class MVLCErrorCategory: public std::error_category
             case MVLCErrorCode::USBChipConfigError:
             case MVLCErrorCode::MirrorMaxTriesExceeded:
             case MVLCErrorCode::FirmwareTooOld:
+            case MVLCErrorCode::StackExecRequestLost:
+            case MVLCErrorCode::StackExecResponseLost:
                 return ErrorType::ConnectionError;
 
             case MVLCErrorCode::ShortWrite:

@@ -74,6 +74,8 @@ enum class MVLCErrorCode
     StackFormatError,
     SuperReferenceMismatch,
     StackReferenceMismatch,
+    StackExecRequestLost,
+    StackExecResponseLost,
 
     // Added with FW0037 to indicate that the library requires a newer firmware release.
     FirmwareTooOld,

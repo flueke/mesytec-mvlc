@@ -137,10 +137,14 @@ ReadoutInitResults MESYTEC_MVLC_EXPORT init_readout(
             crateConfig.initTriggerIO,
             stackExecOptions);
 
-        if (auto ec = get_first_error(ret.triggerIo))
+        auto result = get_first_error_result(ret.triggerIo);
+
+        if (result.ec)
         {
-            ret.ec = ec;
-            logger->error("init_readout(): Error running MVLC Trigger/IO init commands: {}", ec.message());
+            ret.ec = result.ec;
+            logger->error("init_readout(): Error running MVLC Trigger/IO init commands: cmd='{}', error={}",
+                to_string(result.cmd), result.ec.message());
+
             return ret;
         }
     }

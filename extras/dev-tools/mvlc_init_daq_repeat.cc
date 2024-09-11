@@ -31,11 +31,13 @@ int main(int argc, char *argv[])
             logLevelName = "debug";
         else if (parser["--info"])
             logLevelName = "info";
+        else if (parser["--warn"])
+            logLevelName = "warn";
 
         if (!logLevelName.empty())
         {
             spdlog::set_level(spdlog::level::from_str(logLevelName));
-            mesytec::mvlc::set_global_log_level(spdlog::level::info);
+            mesytec::mvlc::set_global_log_level(spdlog::level::from_str(logLevelName));
         }
     }
 
@@ -74,7 +76,7 @@ int main(int argc, char *argv[])
 
             if (initResults.ec)
             {
-                std::cerr << fmt::format("Cycle #{}: Error from DAQ init sequence: {}\n",
+                std::cerr << fmt::format("Init Cycle #{}: Error from DAQ init sequence: {}\n",
                     cycleNumber, initResults.ec.message());
                 break;
             }
@@ -83,7 +85,7 @@ int main(int argc, char *argv[])
 
             if (auto ec = get_first_error(mcstStartResults))
             {
-                std::cerr << fmt::format("Cycle #{}: Error from MCST DAQ start: {}\n",
+                std::cerr << fmt::format("Init Cycle #{}: Error from MCST DAQ start: {}\n",
                     cycleNumber, ec.message());
                 break;
             }
@@ -96,7 +98,7 @@ int main(int argc, char *argv[])
 
             if (auto ec = get_first_error(mcstStopResults))
             {
-                std::cerr << fmt::format("Cycle #{}: Error from MCST DAQ stop: {}\n",
+                std::cerr << fmt::format("Init Cycle #{}: Error from MCST DAQ stop: {}\n",
                     cycleNumber, ec.message());
                 break;
             }
@@ -110,7 +112,7 @@ int main(int argc, char *argv[])
                 auto cycles = cycleNumber - lastCycleNumber;
                 lastCycleNumber = cycleNumber;
                 auto cyclesPerSecond = cycles / std::chrono::duration_cast<std::chrono::duration<double>>(elapsed).count();
-                spdlog::info("Elapsed: {} s, Cycle Number: {}; {:.2} cycles/s", totalElapsed.count(), cycleNumber, cyclesPerSecond);
+                fmt::print("Elapsed: {} s, Init Cycle #{}, {:.2} cycles/s\n", totalElapsed.count(), cycleNumber, cyclesPerSecond);
                 swReport.interval();
             }
 

@@ -546,8 +546,8 @@ namespace registers
 
     // Since FW0039: when a direct stack command transaction finishes the MVLC
     // now writes a status word to 0x1400 and copies the second word of stack
-    // output data to 0x1404. By convention the second stack data word always
-    // is the transaction reference number written by a 'marker' command.
+    // output data to 0x1404. By convention the second stack data word is the
+    // transaction reference number written by a 'marker' command.
     // Having both the status word and the reference word allows to detect if
     // the last stack transaction was properly executed or if the command packet
     // was lost on the way to the MVLC. Retry code in mvlc.cc can now ensure
@@ -555,8 +555,8 @@ namespace registers
     // This works as long as unique reference numbers are used.
     // Important: the contents of 0x1400 might look like valid 0xF3/0xF7 frames
     // but they are not!
-    static const u16 stack_exec_status0 = 0x1400;
-    static const u16 stack_exec_status1 = 0x1404;
+    static const u16 stack_exec_status0     = 0x1400;
+    static const u16 stack_exec_status1     = 0x1404;
 
     // Send gap for USB in 0.415us. Defaults to 20000 == 8.3ms
     static const u16 usb_send_gap           = 0x0400;

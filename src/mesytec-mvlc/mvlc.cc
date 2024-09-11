@@ -254,7 +254,7 @@ void cmd_pipe_reader(ReaderContext &context)
 
             if (!is_good_header(header))
             {
-                logger->warn("contains_complete_frame: landed on bad header word: 0x{:08X}, avail={}", header, avail);
+                logger->warn("contains_complete_frame: landed on bad header word: 0x{:08x}, avail={}", header, avail);
                 assert(!"bad header word");
                 return false;
             }
@@ -323,7 +323,7 @@ void cmd_pipe_reader(ReaderContext &context)
 
             if (contains_complete_frame(buffer.begin(), buffer.end()))
             {
-                logger->info("cmd_pipe_reader: received complete frame: {:#010x}", fmt::join(buffer.viewU32(), ", "));
+                logger->debug("cmd_pipe_reader: received complete frame: {:#010x}", fmt::join(buffer.viewU32(), ", "));
 
 
                 logNextIncomplete = true;
@@ -476,7 +476,7 @@ void cmd_pipe_reader(ReaderContext &context)
                     auto pendingSuper = context.pendingSuper.access();
                     auto pendingStack = context.pendingStack.access();
                     logger->trace("cmd_pipe_reader: incomplete frame in buffer, trying to read more data "
-                        "(pendingSuper: pending={}, ref=0x{:04X}, pendingStack: pending={}, ref=0x{:08X})",
+                        "(pendingSuper: pending={}, ref=0x{:04x}, pendingStack: pending={}, ref=0x{:08x})",
                         pendingSuper->pending, pendingSuper->reference,
                         pendingStack->pending, pendingStack->reference);
                     logNextIncomplete = false;
@@ -653,7 +653,7 @@ class CmdApi
 };
 
 constexpr std::chrono::milliseconds CmdApi::ResultWaitTimeout;
-static const unsigned TransactionMaxAttempts = 3;
+static const unsigned TransactionMaxAttempts = 10;
 
 std::error_code CmdApi::superTransaction(
     u16 ref,
@@ -711,43 +711,99 @@ std::error_code CmdApi::superTransactionImpl(
     return rf.get();
 }
 
+// TODO: split this up. It's too big with the stack_exec_status checks
 std::error_code CmdApi::stackTransaction(
     u32 stackRef, const StackCommandBuilder &stackBuilder,
     std::vector<u32> &stackResponse)
 {
+    auto logger = get_logger("mvlc_apiv2");
     unsigned attempt = 0;
     std::error_code ec;
 
-    #if 1 // old impl pre FW0039 doing retries without checking 0x1400/0x1404
-
     do
     {
-        if ((ec = stackTransactionImpl(stackRef, stackBuilder, stackResponse, attempt++)))
-            spdlog::warn("stackTransaction failed on attempt {} with error: {}", attempt, ec.message());
-    } while (ec && attempt < TransactionMaxAttempts);
+        if (attempt > 0)
+            logger->info("stackTransaction: begin transaction, stackRef={:#010x}, attempt={}", stackRef, attempt);
 
-    #else
+        ec = stackTransactionImpl(stackRef, stackBuilder, stackResponse, attempt);
 
-    do
-    {
-        // XXX: leftoff here 20240910
-        ec = stackTransactionImpl(stackRef, stackBuilder, stackResponse, attempt++);
-
-        if (ec == MVLCErrorCode::StackCommandTimeout && attempt < TransactionMaxAttempts)
+        if ((ec == MVLCErrorCode::SuperCommandTimeout || ec == MVLCErrorCode::StackCommandTimeout)
+            && attempt < TransactionMaxAttempts)
         {
+            // We did not get a response matching our request. Now read the
+            // stack_exec_status registers to figure out if our transaction was
+            // executed by the MVLC.
+            logger->warn("stackTransaction: stackRef={:#010x}, attempt={} -> {}, checking stack_exec_status registers", stackRef, attempt, ec.message());
             u16 superRef = readerContext_.nextSuperReference++;
             SuperCommandBuilder sb;
             sb.addReferenceWord(superRef);
             sb.addReadLocal(registers::stack_exec_status0);
             sb.addReadLocal(registers::stack_exec_status1);
-        }
-    } while (ec == MVLCErrorCode::StackCommandTimeout && attempt < TransactionMaxAttempts);
 
-    #endif
+            std::vector<u32> response;
+
+            if ((ec = superTransaction(superRef, make_command_buffer(sb), response)))
+            {
+                logger->warn("stackTransaction: stackRef={:#010x}, attempt={}: response from stack_exec_status read: {:#010x}",
+                    stackRef, attempt, fmt::join(response, ", "));
+                break;
+            }
+
+            logger->warn("stackTransaction: stackRef={:#010x}, attempt={}: stack_exec_status check response: {:#010x}",
+                stackRef, attempt, fmt::join(response, ", "));
+
+            assert(response.size() == 6);
+
+            if (response.size() != 6)
+                return MVLCErrorCode::ShortSuperFrame; // cannot really happen, would be a firmware bug
+
+            // Response structure:
+            //   super header, superRef,   read_status0, stack_exec_status0, read_status1, stack_exec_status1
+            //   0xf1000005,   0x010135f0, 0x01021400,   0xf3001ac8,         0x01021404,   0x00001ac8
+            u32 status0 = response[3];
+            u32 status1 = response[5];
+
+            if (status1 == stackRef)
+            {
+                // status1 contains our stack reference number which means the
+                // MVLC has executed the transaction but the response never
+                // arrived. Extract the status flags from the status0 and
+                // return an appropriate response code.
+                auto frameFlags = extract_frame_flags(status0);
+
+                if (frameFlags & frame_flags::Timeout)
+                    ec = MVLCErrorCode::NoVMEResponse;
+                else if (frameFlags & frame_flags::BusError)
+                    ec = MVLCErrorCode::VMEBusError;
+                else if (frameFlags & frame_flags::SyntaxError)
+                    ec = MVLCErrorCode::StackSyntaxError;
+                else
+                    ec = MVLCErrorCode::StackExecResponseLost;
+
+                logger->warn("stackTransaction: stackRef={:#010x}, attempt={}: stack_exec_status1 matches stackRef, frame flags from stack_exec_status0: {}, returning {}",
+                    stackRef, attempt, format_frame_flags(frameFlags), ec.message());
+            }
+            else
+            {
+                // status1 does not contain our stack reference number => the
+                // MVLC did receive the request or somehow did not execute the
+                // stack => retry
+                ec = MVLCErrorCode::StackExecRequestLost;
+                logger->warn("stackTransaction: stackRef={:#010x}, attempt={}: stack_exec_status1 ({:#010x}) does NOT match stackRef, retrying",
+                    stackRef, attempt, status1);
+            }
+        }
+    } while (ec && ++attempt < TransactionMaxAttempts);
+
+    logger->log(ec ? spdlog::level::warn : spdlog::level::info, "stackTransaction: stackRef={:#010x}, attempt={}: returning '{}'",
+        stackRef, attempt, ec.message());
 
     return ec;
 }
 
+// Perform a stack transaction.
+//
+// stackRef is the reference word that is produced as part of the
 std::error_code CmdApi::stackTransactionImpl(
     u32 stackRef, const StackCommandBuilder &stackBuilder,
     std::vector<u32> &stackResponse,
@@ -770,7 +826,7 @@ std::error_code CmdApi::stackTransactionImpl(
     auto cmdBuffer = make_command_buffer(superBuilder);
 
     log_buffer(get_logger("mvlc_apiv2"), spdlog::level::trace,
-        cmdBuffer, "stackTransaction: 'exec immediate stack' command buffer", LogBuffersMaxWords);
+        cmdBuffer, "stackTransactionImpl: 'exec immediate stack' command buffer", LogBuffersMaxWords);
 
     std::vector<u32> superResponse;
 
@@ -795,7 +851,7 @@ std::error_code CmdApi::stackTransactionImpl(
 
     if (superFuture.wait_for(ResultWaitTimeout) != std::future_status::ready)
     {
-        get_logger("mvlc_apiv2")->warn("stackTransaction: super future still not ready -> SuperCommandTimeout (ref=0x{:04X}, attempt={}/{})",
+        get_logger("mvlc_apiv2")->warn("stackTransactionImpl: super future still not ready -> SuperCommandTimeout (ref=0x{:04x}, attempt={}/{})",
             readerContext_.pendingSuper.access()->reference,
             attempt, TransactionMaxAttempts);
         ec = make_error_code(MVLCErrorCode::SuperCommandTimeout);
@@ -809,7 +865,7 @@ std::error_code CmdApi::stackTransactionImpl(
     // stack response
     if (stackFuture.wait_for(ResultWaitTimeout) != std::future_status::ready)
     {
-        get_logger("mvlc_apiv2")->warn("stackTransaction: stack future still not ready -> StackCommandTimeout (ref=0x{:08X})",
+        get_logger("mvlc_apiv2")->warn("stackTransactionImpl: stack future still not ready -> StackCommandTimeout (ref=0x{:08x})",
             readerContext_.pendingStack.access()->reference,
             attempt, TransactionMaxAttempts);
         ec = make_error_code(MVLCErrorCode::StackCommandTimeout);
@@ -874,7 +930,7 @@ std::error_code CmdApi::uploadStack(
         //log_buffer(logger, spdlog::level::trace, partView, "stack part to upload");
 
         //for (auto tmp=partIter; tmp!=partEnd; ++tmp)
-        //    logger->trace("part: 0x{:08X}", *tmp);
+        //    logger->trace("part: 0x{:08x}", *tmp);
 
         u16 superRef = readerContext_.nextSuperReference++;
         SuperCommandBuilder super;
@@ -949,7 +1005,10 @@ std::error_code CmdApi::uploadStack(
 
 std::error_code CmdApi::readRegister(u16 address, u32 &value)
 {
+    auto logger = get_logger("mvlc");
+
     u16 ref = readerContext_.nextSuperReference++;
+    logger->info("readRegister(addr=0x{:04x}): superRef=0x{:04x}", address, value, ref);
 
     SuperCommandBuilder scb;
     scb.addReferenceWord(ref);
@@ -973,7 +1032,8 @@ std::error_code CmdApi::writeRegister(u16 address, u32 value)
     auto logger = get_logger("mvlc");
 
     u16 ref = readerContext_.nextSuperReference++;
-    logger->info("writeRegister(a=0x{:04X}, v={}): nextSuperRef=0x{:04X}", address, value, ref);
+    logger->info("writeRegister(addr=0x{:04x}, value={}): superRef=0x{:04x}", address, value, ref);
+
     SuperCommandBuilder scb;
     scb.addReferenceWord(ref);
     scb.addWriteLocal(address, value);
@@ -983,7 +1043,7 @@ std::error_code CmdApi::writeRegister(u16 address, u32 value)
     if (auto ec = superTransaction(ref, cmdBuffer, responseBuffer))
         return ec;
 
-    logger->info("writeRegister(a=0x{:04X}, v={}, superRef=0x{:04X}): response buffer: {:#010x} ", address, value, ref, fmt::join(responseBuffer, ", "));
+    logger->info("writeRegister(a=0x{:04x}, value={}, superRef=0x{:04x}): response buffer: {:#010x} ", address, value, ref, fmt::join(responseBuffer, ", "));
 
     if (responseBuffer.size() != 4)
         return make_error_code(MVLCErrorCode::UnexpectedResponseSize);
@@ -994,7 +1054,11 @@ std::error_code CmdApi::writeRegister(u16 address, u32 value)
 std::error_code CmdApi::vmeRead(
     u32 address, u32 &value, u8 amod, VMEDataWidth dataWidth)
 {
+    auto logger = get_logger("mvlc");
+
     u32 stackRef = readerContext_.nextStackReference++;
+
+    logger->info("vmeRead(addr=0x{:04x}, amod=0x{:02x}): stackRef=0x{:08x}", address, std::byte(amod), stackRef);
 
     StackCommandBuilder stackBuilder;
     stackBuilder.addWriteMarker(stackRef);
@@ -1003,7 +1067,10 @@ std::error_code CmdApi::vmeRead(
     std::vector<u32> stackResponse;
 
     if (auto ec = stackTransaction(stackRef, stackBuilder, stackResponse))
+    {
+        value = 0;
         return ec;
+    }
 
     log_buffer(get_logger("mvlc"), spdlog::level::trace, stackResponse, "vmeRead(): stackResponse", LogBuffersMaxWords);
 
@@ -1031,7 +1098,11 @@ std::error_code CmdApi::vmeRead(
 std::error_code CmdApi::vmeWrite(
     u32 address, u32 value, u8 amod, VMEDataWidth dataWidth)
 {
+    auto logger = get_logger("mvlc");
+
     u32 stackRef = readerContext_.nextStackReference++;
+
+    logger->info("vmeWrite(addr=0x{:04x}, value=0x{:08x}, amod=0x{:02x}): stackRef=0x{:08x}", address, value, std::byte(amod), stackRef);
 
     StackCommandBuilder stackBuilder;
     stackBuilder.addWriteMarker(stackRef);
@@ -1324,11 +1395,11 @@ std::error_code MVLC::connect()
 
         if (!firmware_checks::is_recommended_firmware(hwId, fwRev))
         {
-            logger->warn("Firmware FW{:04X} is recommended to be used with this module, found FW{:04X}",
+            logger->warn("Firmware FW{:04x} is recommended to be used with this module, found FW{:04x}",
                 firmware_checks::minimum_recommended_firmware(hwId), fwRev);
         }
 
-        logger->info("Connected to MVLC ({}, firmware=FW{:04X})", connectionInfo(), firmwareRevision());
+        logger->info("Connected to MVLC ({}, firmware=FW{:04x})", connectionInfo(), firmwareRevision());
     }
     else
     {
@@ -1540,7 +1611,10 @@ std::error_code MVLC::stackTransaction(const StackCommandBuilder &stackBuilder, 
 
     u32 stackRef = stackBuilder[0].value;
 
+
     auto guard = d->locks_.lockCmd();
+    auto logger = get_logger("mvlc");
+    logger->info("stackTransaction(name={}): stackRef=0x{:08x}", stackBuilder.getName(), stackRef);
     return d->resultCheck(d->cmdApi_.stackTransaction(stackRef, stackBuilder, dest));
 }
 
