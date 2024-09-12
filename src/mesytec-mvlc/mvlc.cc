@@ -634,6 +634,8 @@ class CmdApi
             readerContext_.stackErrors.access().ref() = {};
         }
 
+        std::error_code readStackExecStatusRegisters(u32 &status0, u32 &status1);
+
         std::error_code superTransaction(
             u16 ref, std::vector<u32> superBuffer, std::vector<u32> &responseBuffer);
 
@@ -711,6 +713,40 @@ std::error_code CmdApi::superTransactionImpl(
     return rf.get();
 }
 
+std::error_code CmdApi::readStackExecStatusRegisters(u32 &status0, u32 &status1)
+{
+    auto logger = get_logger("mvlc_apiv2");
+
+    u16 superRef = readerContext_.nextSuperReference++;
+    SuperCommandBuilder sb;
+    sb.addReferenceWord(superRef);
+    sb.addReadLocal(registers::stack_exec_status0);
+    sb.addReadLocal(registers::stack_exec_status1);
+
+    std::vector<u32> response;
+
+    if (auto ec = superTransaction(superRef, make_command_buffer(sb), response))
+    {
+        logger->warn("readStackExecStatusRegisters: superRef={:#06x}, response={:#010x}", superRef, fmt::join(response, ", "));
+        return ec;
+    }
+
+    logger->info("readStackExecStatusRegisters: superRef={:#06x}, response={:#010x}", superRef, fmt::join(response, ", "));
+
+    assert(response.size() == 6);
+
+    if (response.size() != 6)
+        return MVLCErrorCode::ShortSuperFrame; // cannot really happen, would be a firmware bug
+
+    // Response structure:
+    //   super header, superRef,   read_status0, stack_exec_status0, read_status1, stack_exec_status1
+    //   0xf1000005,   0x010135f0, 0x01021400,   0xf3001ac8,         0x01021404,   0x00001ac8
+    status0 = response[3];
+    status1 = response[5];
+
+    return {};
+}
+
 // TODO: split this up. It's too big with the stack_exec_status checks
 std::error_code CmdApi::stackTransaction(
     u32 stackRef, const StackCommandBuilder &stackBuilder,
@@ -734,34 +770,14 @@ std::error_code CmdApi::stackTransaction(
             // stack_exec_status registers to figure out if our transaction was
             // executed by the MVLC.
             logger->warn("stackTransaction: stackRef={:#010x}, attempt={} -> {}, checking stack_exec_status registers", stackRef, attempt, ec.message());
-            u16 superRef = readerContext_.nextSuperReference++;
-            SuperCommandBuilder sb;
-            sb.addReferenceWord(superRef);
-            sb.addReadLocal(registers::stack_exec_status0);
-            sb.addReadLocal(registers::stack_exec_status1);
 
-            std::vector<u32> response;
+            u32 status0 = 0, status1 = 0;
 
-            if ((ec = superTransaction(superRef, make_command_buffer(sb), response)))
+            if ((ec = readStackExecStatusRegisters(status0, status1)))
             {
-                logger->warn("stackTransaction: stackRef={:#010x}, attempt={}: response from stack_exec_status read: {:#010x}",
-                    stackRef, attempt, fmt::join(response, ", "));
+                logger->warn("stackTransaction: stackRef={:#010x}, attempt={} -> {}, failed reading stack_exec_status registers", stackRef, attempt, ec.message());
                 break;
             }
-
-            logger->warn("stackTransaction: stackRef={:#010x}, attempt={}: stack_exec_status check response: {:#010x}",
-                stackRef, attempt, fmt::join(response, ", "));
-
-            assert(response.size() == 6);
-
-            if (response.size() != 6)
-                return MVLCErrorCode::ShortSuperFrame; // cannot really happen, would be a firmware bug
-
-            // Response structure:
-            //   super header, superRef,   read_status0, stack_exec_status0, read_status1, stack_exec_status1
-            //   0xf1000005,   0x010135f0, 0x01021400,   0xf3001ac8,         0x01021404,   0x00001ac8
-            u32 status0 = response[3];
-            u32 status1 = response[5];
 
             if (status1 == stackRef)
             {
