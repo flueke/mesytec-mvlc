@@ -1,0 +1,58 @@
+State
+=====
+
+MVLC (no interface, no virtuals, no nothing)
+    uses CmdApi (mvlc_apiv2) internally
+
+    connect()
+    disconnect()
+    readRegister()
+    writeRegister()
+    vmeRead()
+    vmeWrite()
+    vmeBlockRead()
+    vmeBlockReadSwapped()
+    uploadStack()
+    superTransaction()
+    stackTransaction()
+
+redirect_eth_data_stream(MVLC &theMvlc);
+
+Lots of other functions, methods and subsystems use this interface. MVLC objects
+are thread-safe and can be copied and moved. The MVLC class and the CmdApi use
+MVLCBasicInterface to implement their functionality. Downcasting to
+MVLC_USB_Interface/MVLC_ETH_Interface is done in cmd_pipe_reader() (read() vs
+read_packet()) and in uploadStack() (to determine the max transaction size).
+
+MVLCBasicInterface (pure virtuals)
+    connect()
+    disconnect()
+    ConnectionType connectionType()
+    write(Pipe pipe, const u8 *buffer, size_t size, size_t &bytesTransferred) = 0;
+    read(Pipe pipe, u8 *buffer, size_t size, size_t &bytesTransferred) = 0;
+
+MVLC_ETH_Interface (pure virtuals)
+        PacketReadResult read_packet(Pipe pipe, u8 *buffer, size_t size) = 0;
+        std::array<eth::PipeStats, PipeCount> getPipeStats() const = 0;
+        std::array<PacketChannelStats, NumPacketChannels> getPacketChannelStats() const = 0;
+        resetPipeAndChannelStats() = 0;
+        EthThrottleCounters getThrottleCounters() const = 0;
+
+MVLC_USB_Interface (pure virtuals)
+        virtual std::error_code read_unbuffered(
+            Pipe pipe, u8 *buffer, size_t size,
+            size_t &bytesTransferred) = 0;
+
+eth::Impl: MVLCBasicInterface, MVLC_ETH_Interface
+usb::Impl: MVLCBasicInterface, MVLC_USB_Interface
+
+Goal
+====
+
+CmdApi is complex and was primarily created to allow low-latency interactive use
+of the MVLC in mvme. Multithreading is used to keep the latency as low as
+possible but this adds complexity and makes following the request/response flow
+harder than it has to be.
+
+CmdApi encapsulates request/response transactions, both for the low-level
+("super cmd") and the high-level ("stack/vme cmd") protocols.
