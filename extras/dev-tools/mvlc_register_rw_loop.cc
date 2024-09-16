@@ -132,6 +132,8 @@ int main(int argc, char *argv[])
             logLevelName = "debug";
         else if (parser["--info"])
             logLevelName = "info";
+        else if (parser["--warn"])
+            logLevelName = "warn";
 
         if (!logLevelName.empty())
             spdlog::set_level(spdlog::level::from_str(logLevelName));
@@ -208,7 +210,7 @@ int main(int argc, char *argv[])
             auto cycles = cycleNumber - lastCycleNumber;
             lastCycleNumber = cycleNumber;
             auto cyclesPerSecond = cycles / std::chrono::duration_cast<std::chrono::duration<double>>(elapsed).count();
-            spdlog::info("Elapsed: {} s, Cycle Number: {}; {:.2} cycles/s", totalElapsed.count(), cycleNumber, cyclesPerSecond);
+            fmt::print("Elapsed: {} s, Cycle Number: {}; {:.2} cycles/s\n", totalElapsed.count(), cycleNumber, cyclesPerSecond);
             swReport.interval();
         }
 
