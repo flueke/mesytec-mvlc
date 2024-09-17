@@ -12,6 +12,7 @@
 #include "mz_os.h"
 #include "mz_strm_os.h"
 
+#include <stdio.h>
 #include <windows.h>
 #include <winioctl.h>
 

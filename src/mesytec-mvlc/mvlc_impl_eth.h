@@ -47,11 +47,7 @@
 #include "mesytec-mvlc/util/protected.h"
 #include "mesytec-mvlc/util/ticketmutex.h"
 
-namespace mesytec
-{
-namespace mvlc
-{
-namespace eth
+namespace mesytec::mvlc::eth
 {
 
 struct EthThrottleContext
@@ -169,10 +165,8 @@ class MESYTEC_MVLC_EXPORT Impl: public MVLCBasicInterface, public MVLC_ETH_Inter
 
 // Given the previous and current packet numbers returns the number of lost
 // packets in-between, taking overflow into account.
-s32 calc_packet_loss(u16 lastPacketNumber, u16 packetNumber);
+s32 MESYTEC_MVLC_EXPORT calc_packet_loss(u16 lastPacketNumber, u16 packetNumber);
 
-} // end namespace eth
-} // end namespace mvlc
-} // end namespace mesytec
+}
 
 #endif /* __MESYTEC_MVLC_MVLC_IMPL_UDP_H__ */
