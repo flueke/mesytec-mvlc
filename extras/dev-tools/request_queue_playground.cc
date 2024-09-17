@@ -144,7 +144,7 @@ int main(int argc, char *argv[])
     if (logTrace)
         spdlog::set_level(spdlog::level::trace);
 
-    std::unique_ptr<MVLCBasicInterface> impl;
+    std::unique_ptr<MvlcBasicInterface> impl;
 
     if (host.empty())
     {

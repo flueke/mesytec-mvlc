@@ -32,6 +32,9 @@ add_library(mesytec-mvlc SHARED
     mvlc_replay_worker.cc
     mvlc_stack_errors.cc
     mvlc_stack_executor.cc
+    mvlc_transaction_interface.cc
+    mvlc_transaction_basic_impl.cc
+    mvlc_transaction_low_latency_impl.cc
     mvlc_usb_interface.cc
     mvlc_util.cc
     readout_buffer.cc

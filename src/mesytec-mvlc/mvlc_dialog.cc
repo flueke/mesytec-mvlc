@@ -93,7 +93,7 @@ std::error_code check_mirror(const std::vector<u32> &request, const std::vector<
 
 constexpr std::chrono::milliseconds MVLCDialog_internal::ReadResponseMaxWait;
 
-MVLCDialog_internal::MVLCDialog_internal(MVLCBasicInterface *mvlc)
+MVLCDialog_internal::MVLCDialog_internal(MvlcBasicInterface *mvlc)
     : m_mvlc(mvlc)
     , m_stackErrorCounters()
     , m_logger(get_logger("MVLCDialog"))

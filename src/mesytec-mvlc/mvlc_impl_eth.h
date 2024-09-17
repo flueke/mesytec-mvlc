@@ -75,7 +75,7 @@ struct EthThrottleContext
     std::ofstream debugOut; // Will receive throttling debug output if open.
 };
 
-class MESYTEC_MVLC_EXPORT Impl: public MVLCBasicInterface, public MVLC_ETH_Interface
+class MESYTEC_MVLC_EXPORT Impl: public MvlcBasicInterface, public MVLC_ETH_Interface
 {
     public:
         explicit Impl(const std::string &host);

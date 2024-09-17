@@ -25,46 +25,32 @@
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-#ifndef __MESYTEC_MVLC_MVLC_BASIC_INTERFACE_H__
-#define __MESYTEC_MVLC_MVLC_BASIC_INTERFACE_H__
+#ifndef A6BAF15A_17CD_4AA9_BA7E_6C27081B22A9
+#define A6BAF15A_17CD_4AA9_BA7E_6C27081B22A9
 
 #include <system_error>
+#include <vector>
+#include "mvlc_basic_interface.h"
 
-#include "mvlc_constants.h"
-#include "mvlc_threading.h"
-
-namespace mesytec
-{
-namespace mvlc
+namespace mesytec::mvlc
 {
 
-// Low level interface supporting the core write and read operations (SuperCommands).
-class MvlcBasicInterface
+class SuperCommandBuilder;
+class StackCommandBuilder;
+
+class MvlcTransactionInterface
 {
     public:
-        virtual ~MvlcBasicInterface() {}
+        MvlcTransactionInterface() = default;
+        virtual ~MvlcTransactionInterface() = default;
+        MvlcTransactionInterface(const MvlcTransactionInterface &) = delete;
+        MvlcTransactionInterface &operator=(const MvlcTransactionInterface &) = delete;
 
-        virtual std::error_code connect() = 0;
-        virtual std::error_code disconnect() = 0;
-        virtual bool isConnected() const = 0;
-
-        virtual ConnectionType connectionType() const = 0; // Note: must be thread-safe
-        virtual std::string connectionInfo() const = 0; // Note: must be thread-safe
-
-        virtual std::error_code write(Pipe pipe, const u8 *buffer, size_t size,
-                                      size_t &bytesTransferred) = 0;
-
-        virtual std::error_code read(Pipe pipe, u8 *buffer, size_t size,
-                                     size_t &bytesTransferred) = 0;
-
-        // If enabled the implementation must try to disable all trigger
-        // processing while (in the case of USB) reading and discarding all
-        // buffered readout data.
-        virtual void setDisableTriggersOnConnect(bool b) = 0;
-        virtual bool disableTriggersOnConnect() const = 0;
+        virtual MvlcBasicInterface *getImpl() = 0;
+        virtual std::error_code superTransaction(const SuperCommandBuilder &superBuilder, std::vector<u32> &dest) = 0;
+        virtual std::error_code stackTransaction(const StackCommandBuilder &stackBuilder, std::vector<u32> &dest) = 0;
 };
 
 }
-}
 
-#endif /* __MESYTEC_MVLC_MVLC_BASIC_INTERFACE_H__ */
+#endif /* A6BAF15A_17CD_4AA9_BA7E_6C27081B22A9 */

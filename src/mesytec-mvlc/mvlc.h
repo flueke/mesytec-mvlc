@@ -72,7 +72,7 @@ class MESYTEC_MVLC_EXPORT MVLC
         // into it.
         explicit MVLC();
 
-        MVLC(std::unique_ptr<MVLCBasicInterface> &&impl);
+        MVLC(std::unique_ptr<MvlcBasicInterface> &&impl);
         ~MVLC();
 
         MVLC(const MVLC &) = default;
@@ -146,7 +146,7 @@ class MESYTEC_MVLC_EXPORT MVLC
         void resetStackErrorCounters();
 
         // Low level implementation and per-pipe lock access.
-        MVLCBasicInterface *getImpl();
+        MvlcBasicInterface *getImpl();
         Locks &getLocks();
 
         // Lower level super and stack transactions. Note: both the super and

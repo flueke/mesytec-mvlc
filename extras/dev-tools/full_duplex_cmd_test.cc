@@ -9,7 +9,7 @@ using namespace mesytec::mvlc;
 
 struct BaseContext
 {
-    MVLCBasicInterface *mvlc;
+    MvlcBasicInterface *mvlc;
     std::atomic<bool> quit;
     std::atomic<size_t> transferCount;
     std::atomic<size_t> bytesTransferred;
@@ -115,7 +115,7 @@ int main(int argc, char *argv[])
         return 0;
     }
 
-    std::unique_ptr<MVLCBasicInterface> mvlc;
+    std::unique_ptr<MvlcBasicInterface> mvlc;
 
     if (host.empty())
         mvlc = std::make_unique<usb::Impl>();

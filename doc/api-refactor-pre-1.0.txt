@@ -50,9 +50,14 @@ Goal
 ====
 
 CmdApi is complex and was primarily created to allow low-latency interactive use
-of the MVLC in mvme. Multithreading is used to keep the latency as low as
-possible but this adds complexity and makes following the request/response flow
-harder than it has to be.
+of the MVLC in mvme. Multithreading is used to keep the latency low but this
+adds complexity and makes following the request/response flow harder than it has
+to be.
 
 CmdApi encapsulates request/response transactions, both for the low-level
 ("super cmd") and the high-level ("stack/vme cmd") protocols.
+
+The goal is to factor out the methods needed to implement super and stack
+transactions. Use this information to create a MvlcTransactionInterface with two
+implementations: one based on the current CmdAPI and another, simpler one doing
+direct I/O using the MVLCBasicInterface::read/write methods.

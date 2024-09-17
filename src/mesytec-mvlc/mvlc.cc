@@ -62,7 +62,7 @@ struct PendingResponse
 
 struct ReaderContext
 {
-    MVLCBasicInterface *mvlc;
+    MvlcBasicInterface *mvlc;
     std::atomic<bool> quit;
     std::atomic<u16> nextSuperReference;
     std::atomic<u32> nextStackReference;
@@ -72,7 +72,7 @@ struct ReaderContext
     Protected<StackErrorCounters> stackErrors;
     Protected<CmdPipeCounters> counters;
 
-    explicit ReaderContext(MVLCBasicInterface *mvlc_)
+    explicit ReaderContext(MvlcBasicInterface *mvlc_)
         : mvlc(mvlc_)
         , quit(false)
         , nextSuperReference(1)
@@ -1282,7 +1282,7 @@ std::error_code CmdApi::vmeBlockReadSwapped(
 // ============================================
 struct MVLC::Private
 {
-    explicit Private(std::unique_ptr<MVLCBasicInterface> &&impl)
+    explicit Private(std::unique_ptr<MvlcBasicInterface> &&impl)
         : impl_(std::move(impl))
         , readerContext_(impl_.get())
         , cmdApi_(readerContext_)
@@ -1332,7 +1332,7 @@ struct MVLC::Private
     }
 
     mutable Locks locks_;
-    std::unique_ptr<MVLCBasicInterface> impl_;
+    std::unique_ptr<MvlcBasicInterface> impl_;
     ReaderContext readerContext_;
     CmdApi cmdApi_;
     std::thread readerThread_;
@@ -1348,7 +1348,7 @@ MVLC::MVLC()
 {
 }
 
-MVLC::MVLC(std::unique_ptr<MVLCBasicInterface> &&impl)
+MVLC::MVLC(std::unique_ptr<MvlcBasicInterface> &&impl)
     : d(std::make_shared<Private>(std::move(impl)))
 {
 }
@@ -1587,7 +1587,7 @@ void MVLC::resetStackErrorCounters()
     d->cmdApi_.resetStackErrorCounters();
 }
 
-MVLCBasicInterface *MVLC::getImpl()
+MvlcBasicInterface *MVLC::getImpl()
 {
     return d->impl_.get();
 }

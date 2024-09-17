@@ -104,7 +104,7 @@ enum class EndpointDirection: u8
     Out
 };
 
-class MESYTEC_MVLC_EXPORT Impl: public MVLCBasicInterface, public MVLC_USB_Interface
+class MESYTEC_MVLC_EXPORT Impl: public MvlcBasicInterface, public MVLC_USB_Interface
 {
     public:
         // The constructors do not call connect(). They just setup the

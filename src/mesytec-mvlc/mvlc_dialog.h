@@ -35,7 +35,7 @@
 #include "mesytec-mvlc/util/protected.h"
 
 // Higher level MVLC dialog (request/response) layer. Builds on top of the
-// MVLCBasicInterface abstraction.
+// MvlcBasicInterface abstraction.
 
 namespace mesytec
 {
@@ -57,7 +57,7 @@ class MESYTEC_MVLC_EXPORT MVLCDialog_internal
         // transaction is retried a maximum of MirrorMaxRetries times.
         constexpr static unsigned MirrorMaxRetries = 3;
 
-        explicit MVLCDialog_internal(MVLCBasicInterface *mvlc);
+        explicit MVLCDialog_internal(MvlcBasicInterface *mvlc);
 
         // MVLC register access
         std::error_code readRegister(u16 address, u32 &value);
@@ -180,7 +180,7 @@ class MESYTEC_MVLC_EXPORT MVLCDialog_internal
 
         void logBuffer(const std::vector<u32> &buffer, const std::string &info);
 
-        MVLCBasicInterface *m_mvlc = nullptr;
+        MvlcBasicInterface *m_mvlc = nullptr;
         u16 m_referenceWord = 1;
         std::vector<u32> m_responseBuffer;
         mutable Protected<StackErrorCounters> m_stackErrorCounters;
