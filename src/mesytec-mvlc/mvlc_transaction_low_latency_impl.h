@@ -6,8 +6,24 @@
 namespace mesytec::mvlc
 {
 
-class MvlcTransactionLowLatencyImpl: public MvlcTransactionInterface
+class MvlcTransactionLowLatencyImpl final: public MvlcTransactionInterface
 {
+    public:
+        explicit MvlcTransactionLowLatencyImpl(std::unique_ptr<MvlcBasicInterface> &&mvlcImpl);
+        ~MvlcTransactionLowLatencyImpl() override;
+
+        MvlcBasicInterface *getImpl() override;
+        std::error_code superTransaction(const SuperCommandBuilder &superBuilder, std::vector<u32> &dest) override;
+        std::error_code stackTransaction(const StackCommandBuilder &stackBuilder, std::vector<u32> &dest) override;
+        u16 nextSuperReference() override;
+        u32 nextStackReference() override;
+        CmdPipeCounters getCmdPipeCounters() const override;
+        StackErrorCounters getStackErrorCounters() const override;
+        void resetStackErrorCounters() override;
+
+    private:
+        struct Private;
+        std::unique_ptr<Private> d;
 };
 
 }

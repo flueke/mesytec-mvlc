@@ -187,6 +187,9 @@ class MVLCErrorCategory: public std::error_category
             case MVLCErrorCode::FirmwareTooOld:
                  return "FirmwareTooOld (MVLC firmware update required)";
 
+            case MVLCErrorCode::NotImplemented:
+                return "NotImplemented (lazy dev!)";
+
             case MVLCErrorCode::ErrorCodeMax:
                  return "<internal ErrorCodeMax value>";
         }
@@ -251,6 +254,7 @@ class MVLCErrorCategory: public std::error_category
             case MVLCErrorCode::StackFormatError:
             case MVLCErrorCode::SuperReferenceMismatch:
             case MVLCErrorCode::StackReferenceMismatch:
+            case MVLCErrorCode::NotImplemented:
                 return ErrorType::ProtocolError;
 
             case MVLCErrorCode::NoVMEResponse:

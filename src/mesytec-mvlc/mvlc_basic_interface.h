@@ -60,8 +60,8 @@ class MvlcBasicInterface
         // If enabled the implementation must try to disable all trigger
         // processing while (in the case of USB) reading and discarding all
         // buffered readout data.
-        virtual void setDisableTriggersOnConnect(bool b) = 0;
-        virtual bool disableTriggersOnConnect() const = 0;
+        virtual void setDisableTriggersOnConnect(bool b) = 0; // TODO: remove this
+        virtual bool disableTriggersOnConnect() const = 0; // TODO: remove this
 };
 
 }

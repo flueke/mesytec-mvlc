@@ -28,28 +28,41 @@
 #include "mvlc_factory.h"
 #include "mvlc_impl_eth.h"
 #include "mvlc_impl_usb.h"
+#include "mvlc_transaction_low_latency_impl.h"
 
 namespace mesytec::mvlc
 {
 
+// TODO: make MvlcTransactionInterface instances injectable
+
+inline MVLC make_low_latency_mvlc(std::unique_ptr<MvlcBasicInterface> && impl)
+{
+    std::unique_ptr<MvlcTransactionInterface> trxImpl(std::make_unique<MvlcTransactionLowLatencyImpl>(std::move(impl)));
+    return MVLC(std::move(trxImpl));
+}
+
 MVLC make_mvlc_usb()
 {
-    return MVLC(std::make_unique<usb::Impl>());
+    auto basicImpl = std::make_unique<usb::Impl>();
+    return make_low_latency_mvlc(std::move(basicImpl));
 }
 
 MVLC make_mvlc_usb(unsigned index)
 {
-    return MVLC(std::make_unique<usb::Impl>(index));
+    auto basicImpl = std::make_unique<usb::Impl>(index);
+    return make_low_latency_mvlc(std::move(basicImpl));
 }
 
 MVLC make_mvlc_usb(const std::string &serial)
 {
-    return MVLC(std::make_unique<usb::Impl>(serial));
+    auto basicImpl = std::make_unique<usb::Impl>(serial);
+    return make_low_latency_mvlc(std::move(basicImpl));
 }
 
 MVLC make_mvlc_eth(const std::string &host)
 {
-    return MVLC(std::make_unique<eth::Impl>(host));
+    auto basicImpl = std::make_unique<eth::Impl>(host);
+    return make_low_latency_mvlc(std::move(basicImpl));
 }
 
 MVLC make_mvlc(const CrateConfig &crateConfig)
