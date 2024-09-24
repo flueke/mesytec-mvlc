@@ -344,7 +344,7 @@ size_t fixup_buffer_mvlc_eth(const u8 *buf, size_t bufUsed, std::vector<u8> &tmp
         {
             u32 header1 = *reinterpret_cast<const u32 *>(view.data() + sizeof(u32));
             eth::PayloadHeaderInfo ethHdrs{ header, header1 };
-            spdlog::debug("fixup_buffer_mvlc_eth: ethHdrs: packetChannel={}, packetNumber={}, crateId={}, dataWordCount={}, nextHeaderPointer=0x{:04x}",
+            spdlog::trace("fixup_buffer_mvlc_eth: ethHdrs: packetChannel={}, packetNumber={}, crateId={}, dataWordCount={}, nextHeaderPointer=0x{:04x}",
                 ethHdrs.packetChannel(), ethHdrs.packetNumber(), ethHdrs.controllerId(), ethHdrs.dataWordCount(), ethHdrs.nextHeaderPointer());
             return eth::HeaderWords + ethHdrs.dataWordCount();
         }
