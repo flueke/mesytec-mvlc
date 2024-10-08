@@ -8,7 +8,7 @@ namespace mesytec::mvlc::firmware_checks
         switch (hardwareId)
         {
             case vme_modules::HardwareIds::MVLC:
-                return 0x0037u;
+                return 0x0039u;
 
             // Cases for MCPD and MDLL can be added here in the future.
 
