@@ -23,7 +23,7 @@ static const u32 ProbeRegister = 0x0000u;
 // successful or resulted in BERR).
 // Note: by default the max stack size used when scanning is limited to the size
 // reserved for the immediate exec stack. This can be set to
-// stacks::StackMemoryWords to make use of all stack memory which should speed
+// stacks::StackMemoryWords to make use of all stack memory which can speed
 // up the scan considerably.
 MESYTEC_MVLC_EXPORT std::vector<u32> scan_vme_bus_for_candidates(
     MVLC &mvlc,

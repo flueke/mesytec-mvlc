@@ -22,10 +22,13 @@ std::vector<u32> scan_vme_bus_for_candidates(
     size_t nStacks = 0u;
     auto tStart = std::chrono::steady_clock::now();
 
+    // "5CA" -> "SCA" -> "SCAN". Just need some reference number to make each stack transaction unique.
+    u32 stackReference = 0x5CA00000u;
+
     do
     {
         StackCommandBuilder sb;
-        sb.addWriteMarker(0x13370001u);
+        sb.addWriteMarker(stackReference++);
         u32 baseStart = base; // first address scanned by this stack execution
 
         while (get_encoded_stack_size(sb) < maxStackSize - 2 && base <= baseMax)
