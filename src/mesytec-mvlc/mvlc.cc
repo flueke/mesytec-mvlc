@@ -747,7 +747,6 @@ std::error_code CmdApi::readStackExecStatusRegisters(u32 &status0, u32 &status1)
     return {};
 }
 
-// TODO: split this up. It's too big with the stack_exec_status checks
 std::error_code CmdApi::stackTransaction(
     u32 stackRef, const StackCommandBuilder &stackBuilder,
     std::vector<u32> &stackResponse)
@@ -1024,7 +1023,7 @@ std::error_code CmdApi::readRegister(u16 address, u32 &value)
     auto logger = get_logger("mvlc");
 
     u16 ref = readerContext_.nextSuperReference++;
-    logger->info("readRegister(addr=0x{:04x}): superRef=0x{:04x}", address, value, ref);
+    logger->debug("readRegister(addr=0x{:04x}): superRef=0x{:04x}", address, value, ref);
 
     SuperCommandBuilder scb;
     scb.addReferenceWord(ref);
@@ -1048,7 +1047,7 @@ std::error_code CmdApi::writeRegister(u16 address, u32 value)
     auto logger = get_logger("mvlc");
 
     u16 ref = readerContext_.nextSuperReference++;
-    logger->info("writeRegister(addr=0x{:04x}, value={}): superRef=0x{:04x}", address, value, ref);
+    logger->debug("writeRegister(addr=0x{:04x}, value={}): superRef=0x{:04x}", address, value, ref);
 
     SuperCommandBuilder scb;
     scb.addReferenceWord(ref);
@@ -1074,7 +1073,7 @@ std::error_code CmdApi::vmeRead(
 
     u32 stackRef = readerContext_.nextStackReference++;
 
-    logger->info("vmeRead(addr=0x{:04x}, amod=0x{:02x}): stackRef=0x{:08x}", address, std::byte(amod), stackRef);
+    logger->debug("vmeRead(addr=0x{:04x}, amod=0x{:02x}): stackRef=0x{:08x}", address, std::byte(amod), stackRef);
 
     StackCommandBuilder stackBuilder;
     stackBuilder.addWriteMarker(stackRef);
@@ -1118,7 +1117,7 @@ std::error_code CmdApi::vmeWrite(
 
     u32 stackRef = readerContext_.nextStackReference++;
 
-    logger->info("vmeWrite(addr=0x{:04x}, value=0x{:08x}, amod=0x{:02x}): stackRef=0x{:08x}", address, value, std::byte(amod), stackRef);
+    logger->debug("vmeWrite(addr=0x{:04x}, value=0x{:08x}, amod=0x{:02x}): stackRef=0x{:08x}", address, value, std::byte(amod), stackRef);
 
     StackCommandBuilder stackBuilder;
     stackBuilder.addWriteMarker(stackRef);
