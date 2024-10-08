@@ -759,7 +759,7 @@ std::error_code CmdApi::stackTransaction(
     do
     {
         if (attempt > 0)
-            logger->info("stackTransaction: begin transaction, stackRef={:#010x}, attempt={}", stackRef, attempt);
+            logger->debug("stackTransaction: begin transaction, stackRef={:#010x}, attempt={}", stackRef, attempt);
 
         ec = stackTransactionImpl(stackRef, stackBuilder, stackResponse, attempt);
 
@@ -811,7 +811,7 @@ std::error_code CmdApi::stackTransaction(
         }
     } while (ec && ++attempt < TransactionMaxAttempts);
 
-    logger->log(ec ? spdlog::level::warn : spdlog::level::info, "stackTransaction: stackRef={:#010x}, attempt={}: returning '{}'",
+    logger->log(ec ? spdlog::level::warn : spdlog::level::debug, "stackTransaction: stackRef={:#010x}, attempt={}: returning '{}'",
         stackRef, attempt, ec.message());
 
     return ec;
