@@ -1410,8 +1410,9 @@ std::error_code MVLC::connect()
 
         if (!firmware_checks::is_recommended_firmware(hwId, fwRev))
         {
-            logger->warn("Firmware FW{:04x} is recommended to be used with this module, found FW{:04x}",
-                firmware_checks::minimum_recommended_firmware(hwId), fwRev);
+            logger->warn("WARNING: Firmware FW{:04x} is recommended for this module (hardwareId={:04x}), but found FW{:04x}!",
+                firmware_checks::minimum_recommended_firmware(hwId), hwId, fwRev);
+            logger->warn("WARNING: Please update the firmware to the recommended version. See https://mesytec.com/ for details.");
         }
 
         logger->info("Connected to MVLC ({}, firmware=FW{:04x})", connectionInfo(), firmwareRevision());
@@ -1629,7 +1630,7 @@ std::error_code MVLC::stackTransaction(const StackCommandBuilder &stackBuilder, 
 
     auto guard = d->locks_.lockCmd();
     auto logger = get_logger("mvlc");
-    logger->info("stackTransaction(name={}): stackRef=0x{:08x}", stackBuilder.getName(), stackRef);
+    logger->debug("stackTransaction(name={}): stackRef=0x{:08x}", stackBuilder.getName(), stackRef);
     return d->resultCheck(d->cmdApi_.stackTransaction(stackRef, stackBuilder, dest));
 }
 
