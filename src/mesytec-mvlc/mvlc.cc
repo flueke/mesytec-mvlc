@@ -669,6 +669,8 @@ std::error_code CmdApi::superTransaction(
     {
         if ((ec = superTransactionImpl(ref, cmdBuffer, responseBuffer, attempt++)))
             spdlog::warn("superTransaction failed on attempt {} with error: {}", attempt, ec.message());
+        else if (attempt > 1)
+            spdlog::debug("superTransaction succeeded on attempt {}", attempt);
     } while (ec && attempt < TransactionMaxAttempts);
 
     return ec;
@@ -758,12 +760,12 @@ std::error_code CmdApi::stackTransaction(
     do
     {
         if (attempt > 0)
-            logger->debug("stackTransaction: begin transaction, stackRef={:#010x}, attempt={}", stackRef, attempt);
+            logger->warn("stackTransaction: begin transaction, stackRef={:#010x}, attempt={} (zero-based)", stackRef, attempt);
 
         ec = stackTransactionImpl(stackRef, stackBuilder, stackResponse, attempt);
 
-        if ((ec == MVLCErrorCode::SuperCommandTimeout || ec == MVLCErrorCode::StackCommandTimeout)
-            && attempt < TransactionMaxAttempts)
+        //if ((ec == MVLCErrorCode::SuperCommandTimeout || ec == MVLCErrorCode::StackCommandTimeout)
+        if (ec && ec != ErrorType::VMEError && attempt < TransactionMaxAttempts)
         {
             // We did not get a response matching our request. Now read the
             // stack_exec_status registers to figure out if our transaction was
@@ -804,8 +806,8 @@ std::error_code CmdApi::stackTransaction(
                 // MVLC did receive the request or somehow did not execute the
                 // stack => retry
                 ec = MVLCErrorCode::StackExecRequestLost;
-                logger->warn("stackTransaction: stackRef={:#010x}, attempt={}: stack_exec_status1 ({:#010x}) does NOT match stackRef, retrying",
-                    stackRef, attempt, status1);
+                logger->warn("stackTransaction: stackRef={:#010x}, attempt={}: stack_exec_status1 ({:#010x}) does NOT match stackRef => {}, retrying",
+                    stackRef, attempt, status1, ec.message());
             }
         }
     } while (ec && ++attempt < TransactionMaxAttempts);
@@ -1629,8 +1631,6 @@ std::error_code MVLC::stackTransaction(const StackCommandBuilder &stackBuilder, 
 
 
     auto guard = d->locks_.lockCmd();
-    auto logger = get_logger("mvlc");
-    logger->debug("stackTransaction(name={}): stackRef=0x{:08x}", stackBuilder.getName(), stackRef);
     return d->resultCheck(d->cmdApi_.stackTransaction(stackRef, stackBuilder, dest));
 }
 
