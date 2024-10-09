@@ -514,7 +514,7 @@ void cmd_pipe_reader(ReaderContext &context)
             if (buffer.free() < eth::JumboFrameMaxSize / sizeof(u32))
                 buffer.ensureFreeSpace(eth::JumboFrameMaxSize / sizeof(u32));
 
-            static std::array<u8, eth::JumboFrameMaxSize> packetBuffer;
+            std::array<u8, eth::JumboFrameMaxSize> packetBuffer;
 
             auto packet = mvlcEth->read_packet(
                 Pipe::Command,
