@@ -2,8 +2,11 @@
 // https://a4z.gitlab.io/blog/2019/04/30/Git-like-sub-commands-with-argh.html
 
 #include <argh.h>
-#include <mesytec-mvlc/mesytec-mvlc.h>
 #include <string>
+
+#include <mesytec-mvlc/mesytec-mvlc.h>
+#include <yaml-cpp/yaml.h>
+#include <yaml-cpp/emittermanip.h>
 
 using namespace mesytec::mvlc;
 
@@ -268,7 +271,8 @@ static const Command MvlcStackInfoCommand =
 {
     .name = "stack_info",
     .help = unindent(
-R"~(usage: mvlc-cli stack_info [--raw] [--yaml] [<stackId>]
+//R"~(usage: mvlc-cli stack_info [--raw] [--yaml] [<stackId>]
+R"~(usage: mvlc-cli stack_info [<stackId>]
 
     Read and print command stack info and contents. If no stackId is given all event readout
     stacks (stack0..15) are read.
@@ -861,6 +865,211 @@ options:
     .exec = vme_write_command,
 };
 
+namespace
+{
+    struct RegisterMeta
+    {
+        std::string name;
+        std::string group;
+        u16 address;
+    };
+
+    struct RegisterReadResult
+    {
+        RegisterMeta meta;
+        u32 value;
+        std::string info;
+    };
+
+    using InfoDecoder = std::function<std::string (const std::vector<RegisterReadResult> &data)>;
+
+    std::string decode_ipv4(const std::vector<RegisterReadResult> &data)
+    {
+        if (data.size() != 2)
+            return "invalid data";
+
+        u32 addr = (data[1].value << 16) | data[0].value;
+
+        return fmt::format("{}.{}.{}.{}", (addr >> 24) & 0xff, (addr >> 16) & 0xff,
+            (addr >> 8) & 0xff, addr & 0xff);
+    }
+
+    std::string decode_mac(const std::vector<RegisterReadResult> &data)
+    {
+        if (data.size() != 3)
+            return "invalid data";
+
+        return fmt::format("{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}",
+            (data[2].value >> 8) & 0xff, data[2].value & 0xff,
+            (data[1].value >> 8) & 0xff, data[1].value & 0xff,
+            (data[0].value >> 8) & 0xff, data[0].value & 0xff);
+    }
+
+    std::string decode_stack_exec_status(const std::vector<RegisterReadResult> &data)
+    {
+        if (data.size() != 2)
+            return "invalid data";
+
+        auto frameFlags = extract_frame_flags(data[0].value);
+
+        return fmt::format("FrameFlags={}, StackReference={:#010x}",
+            format_frame_flags(frameFlags), data[1].value);
+    }
+
+    static const std::vector<RegisterMeta> RegistersData =
+    {
+        {"daq_mode", {}, 0x1300},
+        {"controller_id", {}, 0x1304},
+        {"stack_exec_status0", "stack_exec_status", 0x1400},
+        {"stack_exec_status1", "stack_exec_status", 0x1404},
+        {"own_ip_lo", "own_ip", 0x4400},
+        {"own_ip_hi", "own_ip", 0x4402},
+        {"dhcp_ip_lo", "dhcp_ip", 0x4408},
+        {"dhcp_ip_hi", "dhcp_ip", 0x440a},
+        {"data_ip_lo", "data_dest_ip", 0x4410},
+        {"data_ip_hi", "data_dest_ip", 0x4412},
+        {"cmd_mac_0", "cmd_dest_mac", 0x4414},
+        {"cmd_mac_1", "cmd_dest_mac", 0x4416},
+        {"cmd_mac_2", "cmd_dest_mac", 0x4418},
+        {"cmd_dest_port", {}, 0x441a},
+        {"data_dest_port", {}, 0x441c},
+        {"data_mac_0", "data_dest_mac", 0x441e},
+        {"data_mac_1", "data_dest_mac", 0x4420},
+        {"data_mac_2", "data_dest_mac", 0x4422},
+        {"jumbo_frame_enable", {}, 0x4430},
+        {"eth_delay_read", {}, 0x4432},
+        {"hardware_id", {}, 0x6008},
+        {"firmware_revision", {}, 0x600e},
+        {"mcst_enable", {}, 0x6020},
+        {"mcst_address", {}, 0x6024},
+    };
+
+    static const std::map<std::string, InfoDecoder> Decoders =
+    {
+        { "own_ip", decode_ipv4 },
+        { "dhcp_ip", decode_ipv4 },
+        { "data_dest_ip", decode_ipv4 },
+        { "cmd_dest_mac", decode_mac },
+        { "data_dest_mac", decode_mac },
+        { "stack_exec_status", decode_stack_exec_status },
+    };
+}
+
+DEF_EXEC_FUNC(dump_registers_command)
+{
+    spdlog::trace("entered dump_registers_command()");
+
+    auto &parser = ctx.parser;
+    parser.add_params({"--yaml"});
+    parser.parse(argv);
+    trace_log_parser_info(parser, "dump_registers_command");
+
+    auto [mvlc, ec] = make_and_connect_default_mvlc(parser);
+
+    if (!mvlc || ec)
+        return 1;
+
+    std::vector<RegisterReadResult> registerValues;
+
+    for (const auto &regMeta: RegistersData)
+    {
+        RegisterReadResult result{};
+        result.meta = regMeta;
+
+        if (result.meta.group.empty())
+            result.meta.group = result.meta.name;
+
+        if (auto ec = mvlc.readRegister(regMeta.address, result.value))
+        {
+            fmt::print("Error reading register '{}' ({:#06x}): {}\n",
+                regMeta.name, regMeta.address, ec.message());
+            return 1;
+        }
+
+        registerValues.emplace_back(result);
+    }
+
+    std::map<std::string, std::vector<RegisterReadResult>> groupedValues;
+
+    for (const auto &rv: registerValues)
+    {
+        groupedValues[rv.meta.group].emplace_back(rv);
+    }
+
+    // Populate RegisterReadResult.info with the return value from the decoder
+    // function for each group.
+    for (auto &[group, values]: groupedValues)
+    {
+        if (auto it = Decoders.find(group); it != Decoders.end())
+        {
+            auto decodedInfo = it->second(values);
+
+            for (auto &rrr: values)
+            {
+                rrr.info = decodedInfo;
+            }
+        }
+    }
+
+    // Recreate the original flat table from the augmented grouped values.
+    registerValues.clear();
+
+    for (const auto &[_, values]: groupedValues)
+    {
+        for (const auto &rv: values)
+        {
+            registerValues.emplace_back(rv);
+        }
+    }
+
+    if (!parser["--yaml"])
+    {
+        fmt::print("{:20s} {:20s} {:7s} {:10s}\n", "name", "group", "address", "value", "info");
+
+        for (const auto &rv: registerValues)
+        {
+            fmt::print("{:20s} {:20s} {:#06x}  {:#010x} {}\n",
+                    rv.meta.name, rv.meta.group, rv.meta.address, rv.value, rv.info);
+        }
+    }
+    else
+    {
+        YAML::Emitter out;
+        out << YAML::Hex;
+
+        out << YAML::BeginSeq;
+
+        for (const auto &rv: registerValues)
+        {
+            out << YAML::BeginMap;
+            out << YAML::Key << "name" << YAML::Value << rv.meta.name;
+            out << YAML::Key << "address" << YAML::Value << rv.meta.address;
+            out << YAML::Key << "group" << YAML::Value << rv.meta.group;
+            out << YAML::Key << "value" << YAML::Value << rv.value;
+            out << YAML::Key << "info" << YAML::Value << rv.info;
+            out << YAML::EndMap;
+        }
+
+        out << YAML::EndSeq;
+
+        std::cout << out.c_str() << "\n";
+    }
+
+    return 0;
+}
+
+static const Command DumpRegistersCommand
+{
+    .name = "dump_registers",
+    .help = R"~(
+usage: mvlc-cli dump_registers [--yaml]
+
+    Read and print interal MVLC registers. Use --yaml to get YAML formatted data
+    instead of a human-readable table.
+)~",
+    .exec = dump_registers_command,
+};
+
 int main(int argc, char *argv[])
 {
     std::string generalHelp = R"~(
@@ -952,6 +1161,7 @@ MVLC connection URIs:
     ctx.commands.insert(RegisterWriteCommand);
     ctx.commands.insert(VmeReadCommand);
     ctx.commands.insert(VmeWriteCommand);
+    ctx.commands.insert(DumpRegistersCommand);
     ctx.parser = parser;
 
     // mvlc-cli                 // show generalHelp
@@ -1015,8 +1225,7 @@ MVLC connection URIs:
 
     if (parser[{"-v", "--version"}])
     {
-        std::cout << "mvlc-cli - version 0.1\n";
-        std::cout << fmt::format("mesytec-mvlc - version {}\n", mesytec::mvlc::library_version());
+        std::cout << fmt::format("mvlc-cli - version {}\n", mesytec::mvlc::library_version());
         return 0;
     }
 
