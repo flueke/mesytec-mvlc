@@ -116,6 +116,9 @@ class MESYTEC_MVLC_EXPORT MVLC
         std::error_code vmeBlockRead(u32 address, u8 amod, u16 maxTransfers,
                                      std::vector<u32> &dest, bool fifo = true);
 
+        std::error_code vmeBlockRead(u32 address, u8 amod, u16 maxTransfers,
+                                     util::span<u32> &dest, bool fifo = true);
+
         // 2eSST
         std::error_code vmeBlockRead(u32 address, const Blk2eSSTRate &rate, u16 maxTransfers,
                                      std::vector<u32> &dest, bool fifo = true);

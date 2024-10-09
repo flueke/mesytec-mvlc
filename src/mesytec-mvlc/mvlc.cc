@@ -55,7 +55,7 @@ static const size_t LogBuffersMaxWords = 0; // set to 0 to output the full buffe
 struct PendingResponse
 {
     std::promise<std::error_code> promise;
-    std::vector<u32> *dest = nullptr;
+    std::function<void (const u32 *, size_t)> consume;
     u32 reference = 0;
     bool pending = false;
 };
@@ -90,10 +90,7 @@ std::error_code fullfill_pending_response(
     if (pr.pending)
     {
         pr.pending = false;
-
-        if (pr.dest && contents && len)
-            std::copy(contents, contents+len, std::back_inserter(*pr.dest));
-
+        pr.consume(contents, len);
         pr.promise.set_value(ec);
     }
 
@@ -110,7 +107,7 @@ std::error_code fullfill_pending_response(
 
 std::future<std::error_code> set_pending_response(
     WaitableProtected<PendingResponse> &pending,
-    std::vector<u32> &dest,
+    std::function<void (const u32 *, size_t)> consume,
     u32 reference)
 {
     auto pendingResponse = pending.wait(
@@ -121,9 +118,35 @@ std::future<std::error_code> set_pending_response(
     std::promise<std::error_code> promise;
     auto result = promise.get_future();
 
-    pendingResponse.ref() = { std::move(promise), &dest, reference, true };
+    pendingResponse.ref() = { std::move(promise), consume, reference, true };
 
     return result;
+}
+
+std::future<std::error_code> set_pending_response(
+    WaitableProtected<PendingResponse> &pending,
+    std::vector<u32> &dest,
+    u32 reference)
+{
+    auto consume = [d=&dest] (const u32 *data, size_t len)
+    {
+        std::copy(data, data+len, std::back_inserter(*d));
+    };
+
+    return set_pending_response(pending, consume, reference);
+}
+
+std::future<std::error_code> set_pending_response(
+    WaitableProtected<PendingResponse> &pending,
+    util::span<u32> &dest,
+    u32 reference)
+{
+    auto consume = [dest] (const u32 *data, size_t len)
+    {
+        std::copy(data, data+std::min(len, dest.size()), dest.begin());
+    };
+
+    return set_pending_response(pending, consume, reference);
 }
 
 void cmd_pipe_reader(ReaderContext &context)
@@ -613,6 +636,7 @@ class CmdApi
         std::error_code vmeWrite(u32 address, u32 value, u8 amod, VMEDataWidth dataWidth);
 
         std::error_code vmeBlockRead(u32 address, u8 amod, u16 maxTransfers, std::vector<u32> &dest, bool fifo = true);
+        std::error_code vmeBlockRead(u32 address, u8 amod, u16 maxTransfers, util::span<u32> &dest, bool fifo = true);
         std::error_code vmeBlockRead(u32 address, const Blk2eSSTRate &rate, u16 maxTransfers, std::vector<u32> &dest, bool fifo = true);
 
         std::error_code vmeBlockReadSwapped(u32 address, u8 amod, u16 maxTransfers, std::vector<u32> &dest, bool fifo = true);
@@ -639,14 +663,16 @@ class CmdApi
         std::error_code superTransaction(
             u16 ref, std::vector<u32> superBuffer, std::vector<u32> &responseBuffer);
 
-        std::error_code stackTransaction(
-            u32 stackRef, const StackCommandBuilder &stackBuilder, std::vector<u32> &stackResponse);
-
         std::error_code superTransactionImpl(
             u16 ref, std::vector<u32> superBuffer, std::vector<u32> &responseBuffer, unsigned attempt);
 
+        template<typename Dest>
+        std::error_code stackTransaction(
+            u32 stackRef, const StackCommandBuilder &stackBuilder, Dest &stackResponse);
+
+        template<typename Dest>
         std::error_code stackTransactionImpl(
-            u32 stackRef, const StackCommandBuilder &stackBuilder, std::vector<u32> &stackResponse, unsigned attempt);
+            u32 stackRef, const StackCommandBuilder &stackBuilder, Dest &stackResponse, unsigned attempt);
 
     private:
         static constexpr std::chrono::milliseconds ResultWaitTimeout = std::chrono::milliseconds(2000);
@@ -749,9 +775,10 @@ std::error_code CmdApi::readStackExecStatusRegisters(u32 &status0, u32 &status1)
     return {};
 }
 
+template<typename Dest>
 std::error_code CmdApi::stackTransaction(
     u32 stackRef, const StackCommandBuilder &stackBuilder,
-    std::vector<u32> &stackResponse)
+    Dest &stackResponse)
 {
     auto logger = get_logger("mvlc_apiv2");
     unsigned attempt = 0;
@@ -821,9 +848,10 @@ std::error_code CmdApi::stackTransaction(
 // Perform a stack transaction.
 //
 // stackRef is the reference word that is produced as part of the
+template<typename Dest>
 std::error_code CmdApi::stackTransactionImpl(
     u32 stackRef, const StackCommandBuilder &stackBuilder,
-    std::vector<u32> &stackResponse,
+    Dest &stackResponse,
     unsigned attempt)
 {
     if (auto ec = uploadStack(CommandPipe, stacks::ImmediateStackStartOffsetBytes, make_stack_buffer(stackBuilder)))
@@ -1151,6 +1179,43 @@ std::error_code CmdApi::vmeWrite(
 
 std::error_code CmdApi::vmeBlockRead(
     u32 address, u8 amod, u16 maxTransfers, std::vector<u32> &dest, bool fifo)
+{
+    if (!vme_amods::is_block_mode(amod))
+        return make_error_code(MVLCErrorCode::NonBlockAddressMode);
+
+    u32 stackRef = readerContext_.nextStackReference++;
+
+    get_logger("mvlc")->debug("vmeBlockRead(): address=0x{:08X}, amod=0x{:02X}, maxTransfers={}, fifo={}, stackRef=0x{:08X}",
+        address, amod, maxTransfers, fifo, stackRef);
+
+    StackCommandBuilder stackBuilder;
+    stackBuilder.addWriteMarker(stackRef);
+    stackBuilder.addVMEBlockRead(address, amod, maxTransfers, fifo);
+
+    if (auto ec = stackTransaction(stackRef, stackBuilder, dest))
+        return ec;
+
+    log_buffer(get_logger("mvlc"), spdlog::level::trace, dest, "vmeBlockRead(): stackResponse", LogBuffersMaxWords);
+
+    if (!dest.empty())
+    {
+        auto frameFlags = extract_frame_flags(dest[0]);
+
+        if (frameFlags & frame_flags::Timeout)
+            return MVLCErrorCode::NoVMEResponse;
+
+        if (frameFlags & frame_flags::BusError)
+            return MVLCErrorCode::VMEBusError;
+
+        if (frameFlags & frame_flags::SyntaxError)
+            return MVLCErrorCode::StackSyntaxError;
+    }
+
+    return {};
+}
+
+std::error_code CmdApi::vmeBlockRead(
+    u32 address, u8 amod, u16 maxTransfers, util::span<u32> &dest, bool fifo)
 {
     if (!vme_amods::is_block_mode(amod))
         return make_error_code(MVLCErrorCode::NonBlockAddressMode);
@@ -1545,6 +1610,12 @@ std::error_code MVLC::vmeWrite(u32 address, u32 value, u8 amod, VMEDataWidth dat
 
 
 std::error_code MVLC::vmeBlockRead(u32 address, u8 amod, u16 maxTransfers, std::vector<u32> &dest, bool fifo)
+{
+    auto guard = d->locks_.lockCmd();
+    return d->resultCheck(d->cmdApi_.vmeBlockRead(address, amod, maxTransfers, dest, fifo));
+}
+
+std::error_code MVLC::vmeBlockRead(u32 address, u8 amod, u16 maxTransfers, util::span<u32> &dest, bool fifo)
 {
     auto guard = d->locks_.lockCmd();
     return d->resultCheck(d->cmdApi_.vmeBlockRead(address, amod, maxTransfers, dest, fifo));
