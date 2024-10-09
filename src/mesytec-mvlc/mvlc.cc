@@ -670,7 +670,7 @@ std::error_code CmdApi::superTransaction(
         if ((ec = superTransactionImpl(ref, cmdBuffer, responseBuffer, attempt++)))
             spdlog::warn("superTransaction failed on attempt {} with error: {}", attempt, ec.message());
         else if (attempt > 1)
-            spdlog::debug("superTransaction succeeded on attempt {}", attempt);
+            spdlog::warn("superTransaction succeeded on attempt {}", attempt);
     } while (ec && attempt < TransactionMaxAttempts);
 
     return ec;
@@ -1060,7 +1060,7 @@ std::error_code CmdApi::writeRegister(u16 address, u32 value)
     if (auto ec = superTransaction(ref, cmdBuffer, responseBuffer))
         return ec;
 
-    logger->info("writeRegister(a=0x{:04x}, value={}, superRef=0x{:04x}): response buffer: {:#010x} ", address, value, ref, fmt::join(responseBuffer, ", "));
+    logger->debug("writeRegister(a=0x{:04x}, value={}, superRef=0x{:04x}): response buffer: {:#010x} ", address, value, ref, fmt::join(responseBuffer, ", "));
 
     if (responseBuffer.size() != 4)
         return make_error_code(MVLCErrorCode::UnexpectedResponseSize);
