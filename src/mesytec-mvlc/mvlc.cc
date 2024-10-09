@@ -702,7 +702,7 @@ std::error_code CmdApi::superTransactionImpl(
     if (rf.wait_for(ResultWaitTimeout) != std::future_status::ready)
     {
         auto elapsed = std::chrono::steady_clock::now() - tSet;
-        get_logger("mvlc_apiv2")->warn(
+        get_logger("mvlc")->warn(
             "superTransaction super future not ready -> SuperCommandTimeout"
             " (ref=0x{:04x}, timed_out after {}ms (attempt {}/{})",
             readerContext_.pendingSuper.access()->reference,
@@ -1157,6 +1157,9 @@ std::error_code CmdApi::vmeBlockRead(
 
     u32 stackRef = readerContext_.nextStackReference++;
 
+    get_logger("mvlc")->debug("vmeBlockRead(): address=0x{:08X}, amod=0x{:02X}, maxTransfers={}, fifo={}, stackRef=0x{:08X}",
+        address, amod, maxTransfers, fifo, stackRef);
+
     StackCommandBuilder stackBuilder;
     stackBuilder.addWriteMarker(stackRef);
     stackBuilder.addVMEBlockRead(address, amod, maxTransfers, fifo);
@@ -1187,6 +1190,9 @@ std::error_code CmdApi::vmeBlockRead(
     u32 address, const Blk2eSSTRate &rate, u16 maxTransfers, std::vector<u32> &dest, bool fifo)
 {
     u32 stackRef = readerContext_.nextStackReference++;
+
+    get_logger("mvlc")->debug("vmeBlockRead(): address=0x{:08X}, amod=2eSST, maxTransfers={}, fifo={}, stackRef=0x{:08X}",
+        address, maxTransfers, fifo, stackRef);
 
     StackCommandBuilder stackBuilder;
     stackBuilder.addWriteMarker(stackRef);
@@ -1219,6 +1225,9 @@ std::error_code CmdApi::vmeBlockReadSwapped(
 {
     u32 stackRef = readerContext_.nextStackReference++;
 
+    get_logger("mvlc")->debug("vmeBlockReadSwapped(): address=0x{:08X}, amod=0x{:02X}, maxTransfers={}, fifo={}, stackRef=0x{:08X}",
+        address, maxTransfers, amod, fifo, stackRef);
+
     StackCommandBuilder stackBuilder;
     stackBuilder.addWriteMarker(stackRef);
     stackBuilder.addVMEBlockReadSwapped(address, amod, maxTransfers, fifo);
@@ -1249,6 +1258,9 @@ std::error_code CmdApi::vmeBlockReadSwapped(
     u32 address, const Blk2eSSTRate &rate, u16 maxTransfers, std::vector<u32> &dest, bool fifo)
 {
     u32 stackRef = readerContext_.nextStackReference++;
+
+    get_logger("mvlc")->debug("vmeBlockReadSwapped(): address=0x{:08X}, amod=2eSST, maxTransfers={}, fifo={}, stackRef=0x{:08X}",
+        address, maxTransfers, fifo, stackRef);
 
     StackCommandBuilder stackBuilder;
     stackBuilder.addWriteMarker(stackRef);
