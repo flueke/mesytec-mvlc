@@ -28,6 +28,7 @@
 #ifndef __MESYTEC_MVLC_H__
 #define __MESYTEC_MVLC_H__
 
+#include "cpp_compat.h"
 #include "event_builder.h"
 #include "git_version.h"
 #include "mvlc_blocking_data_api.h"

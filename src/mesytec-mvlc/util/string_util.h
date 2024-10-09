@@ -8,11 +8,7 @@
 #include <type_traits>
 #include <vector>
 
-namespace mesytec
-{
-namespace mvlc
-{
-namespace util
+namespace mesytec::mvlc::util
 {
 
 inline std::string join(const std::vector<std::string> &parts, const std::string &sep = ", ")
@@ -114,8 +110,6 @@ inline bool startswith(const std::string &str, const std::string &prefix)
     return str.rfind(prefix, 0) == 0;
 }
 
-} // end namespace util
-} // end namespace mvlc
-} // end namespace mesytec
+}
 
 #endif /* __MESYTEC_MVLC_STRING_UTIL_H__ */
