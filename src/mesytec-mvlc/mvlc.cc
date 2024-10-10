@@ -1670,6 +1670,12 @@ std::error_code MVLC::vmeBlockReadSwapped(u32 address, u8 amod, u16 maxTransfers
     return d->resultCheck(d->cmdApi_.vmeBlockReadSwapped(address, amod, maxTransfers, dest, fifo));
 }
 
+std::error_code MVLC::vmeBlockReadSwapped(u32 address, u8 amod, u16 maxTransfers, util::span<u32> &dest, bool fifo)
+{
+    auto guard = d->locks_.lockCmd();
+    return d->resultCheck(d->cmdApi_.vmeBlockReadSwapped(address, amod, maxTransfers, dest, fifo));
+}
+
 std::error_code MVLC::vmeBlockReadSwapped(u32 address, const Blk2eSSTRate &rate, u16 maxTransfers, std::vector<u32> &dest, bool fifo)
 {
     auto guard = d->locks_.lockCmd();
