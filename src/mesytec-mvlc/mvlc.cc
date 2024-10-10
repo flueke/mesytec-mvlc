@@ -640,6 +640,7 @@ class CmdApi
         std::error_code vmeBlockRead(u32 address, const Blk2eSSTRate &rate, u16 maxTransfers, std::vector<u32> &dest, bool fifo = true);
 
         std::error_code vmeBlockReadSwapped(u32 address, u8 amod, u16 maxTransfers, std::vector<u32> &dest, bool fifo = true);
+        std::error_code vmeBlockReadSwapped(u32 address, u8 amod, u16 maxTransfers, util::span<u32> &dest, bool fifo = true);
         std::error_code vmeBlockReadSwapped(u32 address, const Blk2eSSTRate &rate, u16 maxTransfers, std::vector<u32> &dest, bool fifo = true);
 
         std::error_code uploadStack(u8 stackOutputPipe, u16 stackMemoryOffset,
@@ -1320,6 +1321,40 @@ std::error_code CmdApi::vmeBlockReadSwapped(
 }
 
 std::error_code CmdApi::vmeBlockReadSwapped(
+    u32 address, u8 amod, u16 maxTransfers, util::span<u32> &dest, bool fifo)
+{
+    u32 stackRef = readerContext_.nextStackReference++;
+
+    get_logger("mvlc")->debug("vmeBlockReadSwapped(): address=0x{:08X}, amod=0x{:02X}, maxTransfers={}, fifo={}, stackRef=0x{:08X}",
+        address, maxTransfers, amod, fifo, stackRef);
+
+    StackCommandBuilder stackBuilder;
+    stackBuilder.addWriteMarker(stackRef);
+    stackBuilder.addVMEBlockReadSwapped(address, amod, maxTransfers, fifo);
+
+    if (auto ec = stackTransaction(stackRef, stackBuilder, dest))
+        return ec;
+
+    log_buffer(get_logger("mvlc"), spdlog::level::trace, dest, "vmeBlockReadSwapped(): stackResponse", LogBuffersMaxWords);
+
+    if (!dest.empty())
+    {
+        auto frameFlags = extract_frame_flags(dest[0]);
+
+        if (frameFlags & frame_flags::Timeout)
+            return MVLCErrorCode::NoVMEResponse;
+
+        if (frameFlags & frame_flags::BusError)
+            return MVLCErrorCode::VMEBusError;
+
+        if (frameFlags & frame_flags::SyntaxError)
+            return MVLCErrorCode::StackSyntaxError;
+    }
+
+    return {};
+}
+
+std::error_code CmdApi::vmeBlockReadSwapped(
     u32 address, const Blk2eSSTRate &rate, u16 maxTransfers, std::vector<u32> &dest, bool fifo)
 {
     u32 stackRef = readerContext_.nextStackReference++;
@@ -1429,10 +1464,12 @@ MVLC::MVLC()
 MVLC::MVLC(std::unique_ptr<MVLCBasicInterface> &&impl)
     : d(std::make_shared<Private>(std::move(impl)))
 {
+    get_logger("mvlc")->debug(__PRETTY_FUNCTION__);
 }
 
 MVLC::~MVLC()
 {
+    get_logger("mvlc")->debug(__PRETTY_FUNCTION__);
 }
 
 std::error_code MVLC::connect()
