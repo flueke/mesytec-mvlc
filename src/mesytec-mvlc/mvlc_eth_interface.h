@@ -34,11 +34,7 @@
 #include "mvlc_constants.h"
 #include "mvlc_counters.h"
 
-namespace mesytec
-{
-namespace mvlc
-{
-namespace eth
+namespace mesytec::mvlc::eth
 {
 
 struct MESYTEC_MVLC_EXPORT PayloadHeaderInfo
@@ -88,6 +84,9 @@ struct MESYTEC_MVLC_EXPORT PayloadHeaderInfo
         return false;
     }
 };
+
+std::string eth_header0_to_string(u32 header0);
+std::string eth_header1_to_string(u32 header1);
 
 struct MESYTEC_MVLC_EXPORT PacketReadResult
 {
@@ -195,8 +194,6 @@ class MVLC_ETH_Interface
         virtual EthThrottleCounters getThrottleCounters() const = 0;
 };
 
-} // end namespace eth
-} // end namespace mvlc
-} // end namespace mesytec
+}
 
 #endif /* __MESYTEC_MVLC_MVLC_ETH_INTERFACE_H__ */
