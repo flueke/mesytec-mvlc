@@ -278,6 +278,8 @@ void cmd_pipe_reader(ReaderContext &context)
             if (!is_good_header(header))
             {
                 logger->warn("contains_complete_frame: landed on bad header word: 0x{:08x}, avail={}", header, avail);
+                auto buffer = basic_string_view<u32>(begin, std::distance(begin, end));
+                log_buffer(logger, spdlog::level::warn, buffer, "cmd_pipe_reader read buffer", LogBuffersMaxWords);
                 assert(!"bad header word");
                 return false;
             }
@@ -503,7 +505,7 @@ void cmd_pipe_reader(ReaderContext &context)
                         pendingSuper->pending, pendingSuper->reference,
                         pendingStack->pending, pendingStack->reference);
                     logNextIncomplete = false;
-                    //log_buffer(logger, spdlog::level::trace, buffer, "cmd_pipe_reader incomplete frame", LogBuffersMaxWords);
+                    log_buffer(logger, spdlog::level::trace, buffer, "cmd_pipe_reader incomplete frame", LogBuffersMaxWords);
                 }
                 break; // break out of the loop to read more data below
             }
@@ -568,6 +570,15 @@ void cmd_pipe_reader(ReaderContext &context)
             {
                 logger->warn("skipped {} words of packet data to start payload data from the given nextHeaderPointer ({})",
                                 headerOffsetWords, packet.nextHeaderPointer());
+                logger->warn(eth::eth_header0_to_string(packet.header0()));
+                logger->warn(eth::eth_header1_to_string(packet.header1()));
+                basic_string_view<u32> packetView(reinterpret_cast<const u32*>(packet.buffer), packet.bytesTransferred / sizeof(u32));
+                log_buffer(logger, spdlog::level::warn, packetView, "cmd_pipe_reader packet buffer", LogBuffersMaxWords);
+                if (packet.isNextHeaderPointerValid())
+                {
+                    u32 firstFrameHeader = *(packetView.data() + 2 + packet.nextHeaderPointer());
+                    logger->warn("*nextHeaderPointer=0x{:08x}", firstFrameHeader);
+                }
             }
 
             const u32 *payloadBegin = packet.payloadBegin() + headerOffsetWords;
@@ -1464,12 +1475,12 @@ MVLC::MVLC()
 MVLC::MVLC(std::unique_ptr<MVLCBasicInterface> &&impl)
     : d(std::make_shared<Private>(std::move(impl)))
 {
-    get_logger("mvlc")->debug(__PRETTY_FUNCTION__);
+    get_logger("mvlc")->trace(__PRETTY_FUNCTION__);
 }
 
 MVLC::~MVLC()
 {
-    get_logger("mvlc")->debug(__PRETTY_FUNCTION__);
+    get_logger("mvlc")->trace(__PRETTY_FUNCTION__);
 }
 
 std::error_code MVLC::connect()
