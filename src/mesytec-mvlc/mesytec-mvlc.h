@@ -55,6 +55,7 @@
 #include "mvlc_usb_interface.h"
 #include "mvlc_util.h"
 #include "scanbus_support.h"
+#include "util/algo.h"
 #include "util/filesystem.h"
 #include "util/fmt.h"
 #include "util/int_types.h"
