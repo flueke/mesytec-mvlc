@@ -551,39 +551,14 @@ void cmd_pipe_reader(ReaderContext &context)
             ec = packet.ec;
             bytesTransferred += packet.bytesTransferred; // This includes all eth overhead.
 
-            size_t headerOffsetWords = 0;
-
-            // If a header pointer is present use it as the start of the payload
-            // data. Otherwise use the full payload contained in the packet.
-            if (packet.hasNextHeaderPointer())
+            if (packet.bytesTransferred > 0 && packet.hasNextHeaderPointer() && !packet.isNextHeaderPointerValid())
             {
-                if (packet.isNextHeaderPointerValid())
-                {
-                    headerOffsetWords = packet.nextHeaderPointer();
-                }
-                else if (!ec)
-                {
-                    logger->warn("cmd_pipe_reader: invalid nextHeaderPointer ({}) in packet containing {} data words ({} payload words, ec={})",
-                        packet.nextHeaderPointer(), packet.dataWordCount(), packet.availablePayloadWords(), ec.message());
-                }
+                logger->warn("cmd_pipe_reader: invalid nextHeaderPointer ({}) in packet containing {} data words ({} payload words, ec={}, packetTotalBytes={})",
+                    packet.nextHeaderPointer(), packet.dataWordCount(), packet.availablePayloadWords(), ec.message(),
+                    packet.bytesTransferred);
             }
 
-            if (headerOffsetWords > 0)
-            {
-                logger->warn("skipped {} words of packet data to start payload data from the given nextHeaderPointer ({})",
-                                headerOffsetWords, packet.nextHeaderPointer());
-                logger->warn(eth::eth_header0_to_string(packet.header0()));
-                logger->warn(eth::eth_header1_to_string(packet.header1()));
-                basic_string_view<u32> packetView(reinterpret_cast<const u32*>(packet.buffer), packet.bytesTransferred / sizeof(u32));
-                log_buffer(logger, spdlog::level::warn, packetView, "cmd_pipe_reader packet buffer", LogBuffersMaxWords);
-                if (packet.isNextHeaderPointerValid())
-                {
-                    u32 firstFrameHeader = *(packetView.data() + 2 + packet.nextHeaderPointer());
-                    logger->warn("*nextHeaderPointer=0x{:08x}", firstFrameHeader);
-                }
-            }
-
-            const u32 *payloadBegin = packet.payloadBegin() + headerOffsetWords;
+            const u32 *payloadBegin = packet.payloadBegin();
             const u32 *payloadEnd = packet.payloadEnd();
 
             // Actual payload goes to the buffer.
