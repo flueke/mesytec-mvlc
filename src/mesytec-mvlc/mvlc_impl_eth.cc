@@ -909,7 +909,8 @@ PacketReadResult Impl::read_packet(Pipe pipe_, u8 *buffer, size_t size)
             reinterpret_cast<const u32 *>(res.buffer),
             res.bytesTransferred / sizeof(u32));
 
-        log_buffer(logger, spdlog::level::trace, view, "read_packet(): 32 bit words in packet");
+        //log_buffer(logger, spdlog::level::trace, view, "read_packet(): 32 bit words in packet");
+        logger->trace("read_packet(): packet contents: {:#010x}", fmt::join(view, " "));
     }
 
     {

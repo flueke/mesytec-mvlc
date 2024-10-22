@@ -277,9 +277,10 @@ void cmd_pipe_reader(ReaderContext &context)
 
             if (!is_good_header(header))
             {
-                logger->warn("contains_complete_frame: landed on bad header word: 0x{:08x}, avail={}", header, avail);
+                logger->warn("cmd_pipe_reader: contains_complete_frame: landed on bad header word: 0x{:08x}, avail={}", header, avail);
                 auto buffer = basic_string_view<u32>(begin, std::distance(begin, end));
-                log_buffer(logger, spdlog::level::warn, buffer, "cmd_pipe_reader read buffer", LogBuffersMaxWords);
+                //log_buffer(logger, spdlog::level::warn, buffer, "cmd_pipe_reader read buffer", LogBuffersMaxWords);
+                logger->trace("cmd_pipe_reader read buffer: {:#010x}", fmt::join(buffer, ", "));
                 assert(!"bad header word");
                 return false;
             }
@@ -348,7 +349,7 @@ void cmd_pipe_reader(ReaderContext &context)
 
             if (contains_complete_frame(buffer.begin(), buffer.end()))
             {
-                logger->debug("cmd_pipe_reader: received complete frame: {:#010x}", fmt::join(buffer.viewU32(), ", "));
+                logger->trace("cmd_pipe_reader: received complete frame: {:#010x}", fmt::join(buffer.viewU32(), ", "));
 
 
                 logNextIncomplete = true;
@@ -505,7 +506,8 @@ void cmd_pipe_reader(ReaderContext &context)
                         pendingSuper->pending, pendingSuper->reference,
                         pendingStack->pending, pendingStack->reference);
                     logNextIncomplete = false;
-                    log_buffer(logger, spdlog::level::trace, buffer, "cmd_pipe_reader incomplete frame", LogBuffersMaxWords);
+                    //log_buffer(logger, spdlog::level::trace, buffer, "cmd_pipe_reader incomplete frame", LogBuffersMaxWords);
+                    logger->trace("cmd_pipe_reader: incomplete frame: {:#010x}", fmt::join(buffer.viewU32(), ", "));
                 }
                 break; // break out of the loop to read more data below
             }
@@ -605,8 +607,9 @@ void cmd_pipe_reader(ReaderContext &context)
 
         if (bytesTransferred > 0)
         {
-            logger->trace("received {} bytes, {} words", bytesTransferred, bytesTransferred / sizeof(u32));
-            log_buffer(logger, spdlog::level::trace, buffer, "cmd_pipe_reader read buffer", LogBuffersMaxWords);
+            logger->trace("cmd_pipe_reader: received {} bytes, {} words", bytesTransferred, bytesTransferred / sizeof(u32));
+            //log_buffer(logger, spdlog::level::trace, buffer, "cmd_pipe_reader read buffer", LogBuffersMaxWords);
+            logger->trace("cmd_pipe_reader: read buffer: {:#010x}", fmt::join(buffer, ", "));
         }
 
         ++counters.reads;
@@ -885,8 +888,9 @@ std::error_code CmdApi::stackTransactionImpl(
     log_buffer(get_logger("mvlc_apiv2"), spdlog::level::trace,
         cmdBuffer, "stackTransactionImpl: 'exec immediate stack' command buffer", LogBuffersMaxWords);
 
-    std::vector<u32> superResponse;
+    get_logger("mvlc_apiv2")->trace("stackTransactionImpl 'exec immediate stack' command buffer : {:#010x}", fmt::join(cmdBuffer, " "));
 
+    std::vector<u32> superResponse;
     auto superFuture = set_pending_response(readerContext_.pendingSuper, superResponse, superRef);
     auto stackFuture = set_pending_response(readerContext_.pendingStack, stackResponse, stackRef);
 
