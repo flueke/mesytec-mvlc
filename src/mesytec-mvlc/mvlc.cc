@@ -671,7 +671,7 @@ class CmdApi
 };
 
 constexpr std::chrono::milliseconds CmdApi::ResultWaitTimeout;
-static const unsigned TransactionMaxAttempts = 10;
+static const unsigned TransactionMaxAttempts = 3;
 
 std::error_code CmdApi::superTransaction(
     u16 ref,
