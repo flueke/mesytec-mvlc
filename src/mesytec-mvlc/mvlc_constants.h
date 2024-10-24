@@ -563,7 +563,8 @@ namespace registers
 
     static const u16 own_ip_lo              = 0x4400;
     static const u16 own_ip_hi              = 0x4402;
-    static const u16 StoreIPInFlash         = 0x4404;
+    // Writing 0 values to own_ip_lo and own_ip_lo resets the IP and forces the
+    // DHCP sequence to run again.
 
     static const u16 dhcp_active            = 0x4406; // 0 = fixed IP, 1 = DHCP
     static const u16 dhcp_ip_lo             = 0x4408;
