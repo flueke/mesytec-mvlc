@@ -282,7 +282,7 @@ void cmd_pipe_reader(ReaderContext &context)
                 //log_buffer(logger, spdlog::level::warn, buffer, "cmd_pipe_reader read buffer", LogBuffersMaxWords);
                 logger->trace("cmd_pipe_reader read buffer: {:#010x}", fmt::join(buffer, ", "));
                 assert(!"bad header word");
-                return false;
+                return false; // FIXME: have to empty the internal buffer as we otherwise will remain in this state and continously hit the bad header word
             }
 
             frameInfo = extract_frame_info(header);
