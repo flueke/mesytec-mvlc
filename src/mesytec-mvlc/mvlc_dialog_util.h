@@ -131,7 +131,7 @@ std::error_code read_daq_mode(DIALOG_API &mvlc, u32 &daqMode)
     return mvlc.readRegister(registers::daq_mode, daqMode);
 }
 
-inline SuperCommandBuilder get_disable_all_triggers_and_daq_mode_commands()
+inline SuperCommandBuilder get_disable_daq_mode_and_triggers_commands()
 {
     SuperCommandBuilder sb;
     sb.addReferenceWord(std::rand() % 0xffff);
@@ -146,6 +146,12 @@ inline SuperCommandBuilder get_disable_all_triggers_and_daq_mode_commands()
     return sb;
 }
 
+// Compatibility alias
+inline SuperCommandBuilder get_disable_all_triggers_and_daq_mode_commands()
+{
+    return get_disable_daq_mode_and_triggers_commands();
+}
+
 // Disables MVLC DAQ mode and all stack triggers, all in a single stack
 // transaction. Used to end a DAQ run.
 template<typename DIALOG_API>
@@ -157,6 +163,13 @@ std::error_code disable_daq_mode_and_triggers(DIALOG_API &mvlc)
     log_buffer(get_logger("dialog_util"), spdlog::level::trace,
                responseBuffer, "response from disable_daq_mode_and_triggers()");
     return ec;
+}
+
+// Compatibility alias
+template<typename DIALOG_API>
+std::error_code disable_all_triggers_and_daq_mode(DIALOG_API &mvlc)
+{
+    return disable_daq_mode_and_triggers(mvlc);
 }
 
 inline SuperCommandBuilder get_reset_stack_offsets_commands()
