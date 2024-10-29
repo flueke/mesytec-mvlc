@@ -1103,12 +1103,12 @@ DEF_EXEC_FUNC(crateconfig_from_mvlc)
         }
     }
 
-    // TODO: enter mvlc connection info into crateconfig
     CrateConfig crateConfig;
     crateConfig.connectionType = mvlc.connectionType();
 
     // FIXME: add getHost() and other info to the interfaces. It's weird to
-    // downcast to Impl here.
+    // downcast to Impl here. Or put a getConnectionInfo() into MVLC and make it
+    // compatible with CrateConfig.
     if (auto eth = dynamic_cast<eth::Impl *>(mvlc.getImpl()))
     {
         crateConfig.ethHost = eth->getHost();
