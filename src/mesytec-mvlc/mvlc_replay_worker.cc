@@ -32,7 +32,7 @@ class ReplayErrorCategory: public std::error_category
         switch (static_cast<ReplayWorkerError>(ev))
         {
         case ReplayWorkerError::NoError:
-            return "No Error";
+            return "Ok";
         case ReplayWorkerError::ReplayNotIdle:
             return "Replay not idle";
         case ReplayWorkerError::ReplayNotRunning:

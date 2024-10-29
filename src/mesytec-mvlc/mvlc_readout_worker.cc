@@ -313,7 +313,7 @@ class ReadoutErrorCategory: public std::error_category
         switch (static_cast<ReadoutWorkerError>(ev))
         {
             case ReadoutWorkerError::NoError:
-                return "No Error";
+                return "Ok";
             case ReadoutWorkerError::ReadoutNotIdle:
                 return "Readout not idle";
             case ReadoutWorkerError::ReadoutNotRunning:
