@@ -87,6 +87,15 @@ TEST_P(MVLCTestBase, TestRegisterReadWrite)
     ec = mvlc.readRegister(stacks::StackMemoryBegin, value);
     ASSERT_TRUE(!ec) << ec.message();
     ASSERT_EQ(value, 0x87654321);
+
+    auto counters = mvlc.getCmdPipeCounters();
+    ASSERT_GE(counters.reads, 1);
+    ASSERT_GE(counters.superTransactionCount, 4);
+    ASSERT_EQ(counters.superTransactionRetries, 0);
+    ASSERT_EQ(counters.stackTransactionCount, 0);
+    ASSERT_EQ(counters.stackTransactionRetries, 0);
+    ASSERT_EQ(counters.stackExecRequestsLost, 0);
+    ASSERT_EQ(counters.stackExecResponsesLost, 0);
 }
 
 TEST_P(MVLCTestBase, TestRegisterReadWriteMultiThreaded)
@@ -154,6 +163,8 @@ TEST_P(MVLCTestBase, TestInternalVMEAccess)
 
     auto counters = mvlc.getCmdPipeCounters();
     ASSERT_GE(counters.reads, 1);
+    ASSERT_GE(counters.superTransactionCount, 1);
+    ASSERT_EQ(counters.superTransactionRetries, 0);
     ASSERT_EQ(counters.stackTransactionCount, 2);
     ASSERT_EQ(counters.stackTransactionRetries, 0);
     ASSERT_EQ(counters.stackExecRequestsLost, 0);
