@@ -321,11 +321,11 @@ void cmd_pipe_reader(ReaderContext &context)
 
     while (!context.quit.load(std::memory_order_relaxed))
     {
-        auto countersAccess = context.counters.access();
-        auto &counters = countersAccess.ref();
-
         while (buffer.used && !context.quit.load(std::memory_order_relaxed))
         {
+            auto countersAccess = context.counters.access();
+            auto &counters = countersAccess.ref();
+
             size_t skippedWords = 0u;
 
             while (!buffer.empty() && !is_good_header(buffer[0]))
@@ -587,11 +587,15 @@ void cmd_pipe_reader(ReaderContext &context)
             logger->trace("cmd_pipe_reader: read buffer: {:#010x}", fmt::join(buffer, ", "));
         }
 
-        ++counters.reads;
-        counters.bytesRead += bytesTransferred;
-        if (ec == ErrorType::Timeout)
-            ++counters.timeouts;
+        {
+            auto countersAccess = context.counters.access();
+            auto &counters = countersAccess.ref();
 
+            ++counters.reads;
+            counters.bytesRead += bytesTransferred;
+            if (ec == ErrorType::Timeout)
+                ++counters.timeouts;
+        }
 
         if (ec == ErrorType::ConnectionError)
             context.quit = true;
@@ -681,12 +685,17 @@ std::error_code CmdApi::superTransaction(
     unsigned attempt = 0;
     std::error_code ec;
 
+    ++readerContext_.counters.access()->superTransactionCount;
+
     do
     {
         if ((ec = superTransactionImpl(ref, cmdBuffer, responseBuffer, attempt++)))
             spdlog::warn("superTransaction failed on attempt {} with error: {}", attempt, ec.message());
         else if (attempt > 1)
+        {
             spdlog::warn("superTransaction succeeded on attempt {}", attempt);
+            ++readerContext_.counters.access()->superTransactionRetries;
+        }
     } while (ec && attempt < TransactionMaxAttempts);
 
     return ec;
@@ -774,14 +783,18 @@ std::error_code CmdApi::stackTransaction(
     unsigned attempt = 0;
     std::error_code ec;
 
+    ++readerContext_.counters.access()->stackTransactionCount;
+
     do
     {
         if (attempt > 0)
+        {
             logger->warn("stackTransaction: begin transaction, stackRef={:#010x}, attempt={} (zero-based)", stackRef, attempt);
+            ++readerContext_.counters.access()->stackTransactionRetries;
+        }
 
         ec = stackTransactionImpl(stackRef, stackBuilder, stackResponse, attempt);
 
-        //if ((ec == MVLCErrorCode::SuperCommandTimeout || ec == MVLCErrorCode::StackCommandTimeout)
         if (ec && ec != ErrorType::VMEError && attempt < TransactionMaxAttempts)
         {
             // We did not get a response matching our request. Now read the
@@ -814,17 +827,23 @@ std::error_code CmdApi::stackTransaction(
                 else
                     ec = MVLCErrorCode::StackExecResponseLost;
 
+                // Count all of the above as StackExecResponseLost, despite the
+                // flags providing more detail for the error code.
+                ++readerContext_.counters.access()->stackExecResponsesLost;
+
                 logger->warn("stackTransaction: stackRef={:#010x}, attempt={}: stack_exec_status1 matches stackRef, frame flags from stack_exec_status0: {}, returning {}",
                     stackRef, attempt, format_frame_flags(frameFlags), ec.message());
+
             }
             else
             {
                 // status1 does not contain our stack reference number => the
-                // MVLC did receive the request or somehow did not execute the
-                // stack => retry
+                // MVLC did not receive the request or somehow did not execute
+                // the stack => retry
                 ec = MVLCErrorCode::StackExecRequestLost;
                 logger->warn("stackTransaction: stackRef={:#010x}, attempt={}: stack_exec_status1 ({:#010x}) does NOT match stackRef => {}, retrying",
                     stackRef, attempt, status1, ec.message());
+                ++readerContext_.counters.access()->stackExecRequestsLost;
             }
         }
     } while (ec && ++attempt < TransactionMaxAttempts);

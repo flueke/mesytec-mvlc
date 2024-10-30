@@ -724,6 +724,13 @@ DEF_EXEC_FUNC(vme_read_command)
     std::cout << fmt::format("vme_read 0x{:02x} {} 0x{:08x} -> 0x{:08x} ({} decimal)\n",
         amod, dataWidth == VMEDataWidth::D16 ? "d16" : "d32", address, value, value);
 
+    #if 0 // TODO: make a generic option to print these on exit
+    auto counters = mvlc.getCmdPipeCounters();
+    std::cout << fmt::format("cmd pipe counters 0: reads={}, bytes read={}, timeouts={}\n",
+        counters.reads, counters.bytesRead, counters.timeouts);
+    std::cout << fmt::format("cmd pipe counters 1: stackTxCount={}, stackExecRequestsLost={}, stackExecResponsesLost={}, stackTxRetries={}\n",
+        counters.stackTransactionCount, counters.stackExecRequestsLost, counters.stackExecResponsesLost, counters.stackTransactionRetries);
+    #endif
     return 0;
 }
 
@@ -1091,20 +1098,28 @@ DEF_EXEC_FUNC(crateconfig_from_mvlc)
     // First is stack1, stack0 is reserved for direct command execution.
     std::vector<StackInfo> stackInfos;
 
-    for (unsigned stackId=0; stackId < StackCount; ++stackId)
+    for (unsigned stackId=1; stackId < StackCount; ++stackId)
     {
         auto [stackInfo, ec] = read_stack_info(mvlc, stackId);
         stackInfos.emplace_back(std::move(stackInfo));
 
-        if (ec)
+        if (ec && ec != make_error_code(MVLCErrorCode::InvalidStackHeader))
         {
             std::cout << fmt::format("Error reading stack info for stack#{}: {}\n", stackId, ec.message());
             return 1;
         }
     }
 
+    u32 crateId = 0;
+    if (auto ec = mvlc.readRegister(registers::controller_id, crateId))
+    {
+        std::cerr << fmt::format("Error reading controller id: {}\n", ec.message());
+        return 1;
+    }
+
     CrateConfig crateConfig;
     crateConfig.connectionType = mvlc.connectionType();
+    crateConfig.crateId = crateId;
 
     // FIXME: add getHost() and other info to the interfaces. It's weird to
     // downcast to Impl here. Or put a getConnectionInfo() into MVLC and make it
@@ -1132,6 +1147,8 @@ DEF_EXEC_FUNC(crateconfig_from_mvlc)
         crateConfig.triggers.push_back(stackInfo.triggerValue);
         crateConfig.stacks.emplace_back(stack_builder_from_buffer(stackInfo.contents));
     }
+
+    std::cout << to_yaml(crateConfig);
 
     return 0;
 }

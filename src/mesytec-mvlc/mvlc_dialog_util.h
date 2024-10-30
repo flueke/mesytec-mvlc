@@ -59,6 +59,12 @@ read_stack_contents(DIALOG_API &mvlc, u16 startAddress)
         return std::make_pair(std::vector<u32>{}, ec);
 
     std::vector<u32> contents;
+
+    if (stackHeader == 0)
+    {
+        return { contents, {} };
+    }
+
     contents.reserve(64);
     contents.push_back(stackHeader);
 
