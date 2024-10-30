@@ -685,12 +685,17 @@ std::error_code CmdApi::superTransaction(
     unsigned attempt = 0;
     std::error_code ec;
 
+    ++readerContext_.counters.access()->superTransactionCount;
+
     do
     {
         if ((ec = superTransactionImpl(ref, cmdBuffer, responseBuffer, attempt++)))
             spdlog::warn("superTransaction failed on attempt {} with error: {}", attempt, ec.message());
         else if (attempt > 1)
+        {
             spdlog::warn("superTransaction succeeded on attempt {}", attempt);
+            ++readerContext_.counters.access()->superTransactionRetries;
+        }
     } while (ec && attempt < TransactionMaxAttempts);
 
     return ec;
