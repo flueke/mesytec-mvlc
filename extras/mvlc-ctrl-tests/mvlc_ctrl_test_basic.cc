@@ -138,6 +138,27 @@ TEST_P(MVLCTestBase, TestRegisterReadWriteMultiThreaded)
         f.get();
 }
 
+TEST_P(MVLCTestBase, TestInternalVMEAccess)
+{
+    auto ec = mvlc.connect();
+    ASSERT_TRUE(!ec) << ec.message();
+    ASSERT_TRUE(mvlc.isConnected());
+
+    ec = mvlc.vmeWrite(0xffff0000u + registers::controller_id, 7, vme_amods::A32, VMEDataWidth::D16);
+    ASSERT_TRUE(!ec) << ec.message();
+
+    u32 value = 0;
+    ec = mvlc.vmeRead(0xffff0000u + registers::controller_id, value, vme_amods::A32, VMEDataWidth::D16);
+    ASSERT_TRUE(!ec) << ec.message();
+    ASSERT_EQ(value, 7);
+
+    auto counters = mvlc.getCmdPipeCounters();
+    ASSERT_GE(counters.reads, 1);
+    ASSERT_EQ(counters.stackTransactionCount, 2);
+    ASSERT_EQ(counters.stackTransactionRetries, 0);
+    ASSERT_EQ(counters.stackExecRequestsLost, 0);
+    ASSERT_EQ(counters.stackExecResponsesLost, 0);
+}
 
 namespace
 {

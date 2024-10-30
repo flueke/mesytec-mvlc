@@ -724,6 +724,13 @@ DEF_EXEC_FUNC(vme_read_command)
     std::cout << fmt::format("vme_read 0x{:02x} {} 0x{:08x} -> 0x{:08x} ({} decimal)\n",
         amod, dataWidth == VMEDataWidth::D16 ? "d16" : "d32", address, value, value);
 
+    #if 0 // TODO: make a generic option to print these on exit
+    auto counters = mvlc.getCmdPipeCounters();
+    std::cout << fmt::format("cmd pipe counters 0: reads={}, bytes read={}, timeouts={}\n",
+        counters.reads, counters.bytesRead, counters.timeouts);
+    std::cout << fmt::format("cmd pipe counters 1: stackTxCount={}, stackExecRequestsLost={}, stackExecResponsesLost={}, stackTxRetries={}\n",
+        counters.stackTransactionCount, counters.stackExecRequestsLost, counters.stackExecResponsesLost, counters.stackTransactionRetries);
+    #endif
     return 0;
 }
 
