@@ -65,6 +65,7 @@ struct MESYTEC_MVLC_EXPORT CmdPipeCounters
     size_t stackExecRequestsLost;
     size_t stackExecResponsesLost;
     size_t stackTransactionRetries;
+    size_t stackTransactionCount;
 };
 
 class MESYTEC_MVLC_EXPORT MVLC

@@ -778,6 +778,8 @@ std::error_code CmdApi::stackTransaction(
     unsigned attempt = 0;
     std::error_code ec;
 
+    ++readerContext_.counters.access()->stackTransactionCount;
+
     do
     {
         if (attempt > 0)
