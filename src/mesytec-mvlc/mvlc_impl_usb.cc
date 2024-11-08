@@ -1006,12 +1006,21 @@ std::error_code Impl::read(Pipe pipe, u8 *buffer, size_t size,
     else
 //#else
     {
+        #ifdef __x86_64__
         st = FT_ReadPipe(
             m_handle,
             get_endpoint(pipe, EndpointDirection::In),
             buffer, size,
             &transferred,
             nullptr);
+        #else
+        st = FT_ReadPipe(
+            m_handle,
+            get_endpoint(pipe, EndpointDirection::In),
+            buffer, size,
+            &transferred,
+            1);
+        #endif
     }
 //#endif
 
@@ -1109,11 +1118,19 @@ std::error_code Impl::read_unbuffered(Pipe pipe, u8 *buffer, size_t size,
         abort_pipe(m_handle, pipe, EndpointDirection::In);
 
 #else // linux
+    #ifdef __x86_64__
     FT_STATUS st = FT_ReadPipe(
         m_handle, get_endpoint(pipe, EndpointDirection::In),
         buffer, size,
         &transferred,
         nullptr);
+    #else
+    FT_STATUS st = FT_ReadPipe(
+        m_handle, get_endpoint(pipe, EndpointDirection::In),
+        buffer, size,
+        &transferred,
+        1);
+    #endif
 #endif
 
     bytesTransferred = transferred;
