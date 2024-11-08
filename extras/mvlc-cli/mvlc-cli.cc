@@ -1169,6 +1169,48 @@ usage: mvlc-cli crateconfig_from_mvlc
     .exec = crateconfig_from_mvlc,
 };
 
+DEF_EXEC_FUNC(show_usb_devices)
+{
+    spdlog::trace("entered show_usb_devices()");
+    trace_log_parser_info(ctx.parser, "show_usb_devices");
+
+    auto listOptions = usb::ListOptions::MVLCDevices;
+
+    if (ctx.parser["--all-devices"])
+        listOptions = usb::ListOptions::AllDevices;
+
+    const auto allDevices = usb::get_device_info_list(listOptions);
+
+    for (const auto &devInfo: allDevices)
+    {
+        std::cout << fmt::format("index={}, serial='{}', description='{}'",
+            devInfo.index, devInfo.serial, devInfo.description);
+
+        if (util::contains(devInfo.description, "MVLC"))
+        {
+            std::cout << fmt::format(", url='usb://{}'", devInfo.serial);
+        }
+
+        std::cout << "\n";
+    }
+
+    return 0;
+}
+
+static const Command ShowUsbDevicesCommand
+{
+    .name = "show_usb_devices",
+    .help = R"~(
+usage: mvlc-cli show_usb_devices [--all-devices]
+
+    Print information about MVLC_USB devices connected to the system.
+
+    If --all-devices is specified all devices found by the FTD3xx driver are
+    listed.
+)~",
+    .exec = show_usb_devices,
+};
+
 int main(int argc, char *argv[])
 {
     std::string generalHelp = R"~(
@@ -1262,6 +1304,7 @@ MVLC connection URIs:
     ctx.commands.insert(VmeWriteCommand);
     ctx.commands.insert(DumpRegistersCommand);
     ctx.commands.insert(CrateConfigFromMvlcCommand);
+    ctx.commands.insert(ShowUsbDevicesCommand);
     ctx.parser = parser;
 
     // mvlc-cli                 // show generalHelp
