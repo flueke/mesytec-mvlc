@@ -110,6 +110,11 @@ inline bool startswith(const std::string &str, const std::string &prefix)
     return str.rfind(prefix, 0) == 0;
 }
 
+inline bool contains(const std::string &str, const std::string &needle)
+{
+    return str.find(needle) != std::string::npos;
+}
+
 }
 
 #endif /* __MESYTEC_MVLC_STRING_UTIL_H__ */
