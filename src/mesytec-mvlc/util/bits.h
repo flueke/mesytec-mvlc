@@ -2,10 +2,11 @@
 #define __MESYTEC_MVLC_BITS_H__
 
 #include <cassert>
+#ifdef __x86_64__
 #include <x86intrin.h>
+#endif
 
 #include "int_types.h"
-//#include "mesytec-mvlc/util/int_types.h"
 
 namespace mesytec::mvlc::util
 {
