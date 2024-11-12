@@ -40,11 +40,23 @@ elseif(UNIX AND NOT APPLE)
 
     add_library(ftd3xx-static STATIC IMPORTED GLOBAL)
 
-    set_target_properties(ftd3xx-static PROPERTIES
-        IMPORTED_LOCATION ${CMAKE_CURRENT_SOURCE_DIR}/ftdi-d3xx-linux-x86_64/libftd3xx-static.a)
+    if (CMAKE_HOST_SYSTEM_PROCESSOR STREQUAL "x86_64")
 
-    target_include_directories(ftd3xx-static
-        INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/ftdi-d3xx-linux-x86_64/)
+        set_target_properties(ftd3xx-static PROPERTIES
+            IMPORTED_LOCATION ${CMAKE_CURRENT_SOURCE_DIR}/ftdi-d3xx-linux-x86_64/libftd3xx-static.a)
+
+        target_include_directories(ftd3xx-static
+            INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/ftdi-d3xx-linux-x86_64/)
+
+    elseif (CMAKE_HOST_SYSTEM_PROCESSOR STREQUAL "aarch64")
+
+        set_target_properties(ftd3xx-static PROPERTIES
+            IMPORTED_LOCATION ${CMAKE_CURRENT_SOURCE_DIR}/linux-arm-v8/libftd3xx-static.a)
+
+        target_include_directories(ftd3xx-static
+            INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/linux-arm-v8/)
+
+    endif()
 
     find_package(Threads)
 

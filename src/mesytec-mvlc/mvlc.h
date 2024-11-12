@@ -60,6 +60,15 @@ struct MESYTEC_MVLC_EXPORT CmdPipeCounters
     size_t superFormatErrors;
     size_t superRefMismatches;
     size_t stackRefMismatches;
+
+    // New for FW0039: counters for the safe retry mechanism
+    size_t superTransactionCount;
+    size_t superTransactionRetries;
+    size_t stackTransactionCount;
+    size_t stackTransactionRetries;
+    size_t stackExecRequestsLost;
+    size_t stackExecResponsesLost;
+
 };
 
 class MESYTEC_MVLC_EXPORT MVLC

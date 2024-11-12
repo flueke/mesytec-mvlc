@@ -109,6 +109,15 @@ ReadoutInitResults MESYTEC_MVLC_EXPORT init_readout(
         return ret;
     }
 
+    // Set crate id
+    logger->info("begin set_crate_id");
+    if (auto ec = mvlc.writeRegister(registers::controller_id, crateConfig.crateId))
+    {
+        ret.ec = ec;
+        logger->error("init_readout(crateId={}): Error setting crate: {}", crateConfig.crateId, ec.message());
+        return ret;
+    }
+
     // Init registers
     logger->info("begin init_registers");
     for (auto [addr, value]: crateConfig.initRegisters)
@@ -119,15 +128,6 @@ ReadoutInitResults MESYTEC_MVLC_EXPORT init_readout(
             logger->error("init_readout(crateId={}): Error writing register 0x{:04x}=0x{:08x}: {}",
                           crateConfig.crateId, addr, value, ec.message());
         }
-    }
-
-    // Set crate id
-    logger->info("begin set_crate_id");
-    if (auto ec = mvlc.writeRegister(registers::controller_id, crateConfig.crateId))
-    {
-        ret.ec = ec;
-        logger->error("init_readout(crateId={}): Error setting crate: {}", crateConfig.crateId, ec.message());
-        return ret;
     }
 
     // 1) MVLC Trigger/IO,
@@ -313,7 +313,7 @@ class ReadoutErrorCategory: public std::error_category
         switch (static_cast<ReadoutWorkerError>(ev))
         {
             case ReadoutWorkerError::NoError:
-                return "No Error";
+                return "Ok";
             case ReadoutWorkerError::ReadoutNotIdle:
                 return "Readout not idle";
             case ReadoutWorkerError::ReadoutNotRunning:

@@ -544,7 +544,7 @@ namespace registers
     // the SlaveN TriggerSubtype.
     static const u16 send_master_trigger    = 0x1306;
 
-    // Since FW0039: when a direct stack command transaction finishes the MVLC
+    // Since FW0039: when a direct stack command transaction finishes, the MVLC
     // now writes a status word to 0x1400 and copies the second word of stack
     // output data to 0x1404. By convention the second stack data word is the
     // transaction reference number written by a 'marker' command.

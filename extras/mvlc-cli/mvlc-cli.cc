@@ -5,6 +5,8 @@
 #include <string>
 
 #include <mesytec-mvlc/mesytec-mvlc.h>
+#include <mesytec-mvlc/mvlc_impl_eth.h>
+#include <mesytec-mvlc/mvlc_impl_usb.h>
 #include <yaml-cpp/yaml.h>
 #include <yaml-cpp/emittermanip.h>
 
@@ -242,7 +244,7 @@ DEF_EXEC_FUNC(mvlc_stack_info_command)
                 stackInfo.offset, stackInfo.startAddress);
             continue;
         }
-        else
+        else if (!ec)
         {
             std::cout << fmt::format("- stack#{:2} (trig@0x{:04x}, off@0x{:04x}): triggers=0x{:02x} ({}), offset={}, startAddress=0x{:04x}, len={}:\n",
                 stackId, stackInfo.triggerAddress, stackInfo.offsetAddress,
@@ -261,6 +263,11 @@ DEF_EXEC_FUNC(mvlc_stack_info_command)
                 std::cout << "  " << to_string(cmd) << "\n";
             }
             std::cout << "\n";
+        }
+        else
+        {
+            std::cout << fmt::format("Error reading stack info for stack#{}: {}\n", stackId, ec.message());
+            return 1;
         }
     }
 
@@ -717,6 +724,13 @@ DEF_EXEC_FUNC(vme_read_command)
     std::cout << fmt::format("vme_read 0x{:02x} {} 0x{:08x} -> 0x{:08x} ({} decimal)\n",
         amod, dataWidth == VMEDataWidth::D16 ? "d16" : "d32", address, value, value);
 
+    #if 0 // TODO: make a generic option to print these on exit
+    auto counters = mvlc.getCmdPipeCounters();
+    std::cout << fmt::format("cmd pipe counters 0: reads={}, bytes read={}, timeouts={}\n",
+        counters.reads, counters.bytesRead, counters.timeouts);
+    std::cout << fmt::format("cmd pipe counters 1: stackTxCount={}, stackExecRequestsLost={}, stackExecResponsesLost={}, stackTxRetries={}\n",
+        counters.stackTransactionCount, counters.stackExecRequestsLost, counters.stackExecResponsesLost, counters.stackTransactionRetries);
+    #endif
     return 0;
 }
 
@@ -1070,6 +1084,133 @@ usage: mvlc-cli dump_registers [--yaml]
     .exec = dump_registers_command,
 };
 
+DEF_EXEC_FUNC(crateconfig_from_mvlc)
+{
+    spdlog::trace("entered crateconfig_from_mvlc()");
+    trace_log_parser_info(ctx.parser, "crateconfig_from_mvlc");
+
+    auto [mvlc, ec] = make_and_connect_default_mvlc(ctx.parser);
+
+    if (!mvlc || ec)
+        return 1;
+
+    const auto StackCount = mvlc.getStackCount();
+    // First is stack1, stack0 is reserved for direct command execution.
+    std::vector<StackInfo> stackInfos;
+
+    for (unsigned stackId=1; stackId < StackCount; ++stackId)
+    {
+        auto [stackInfo, ec] = read_stack_info(mvlc, stackId);
+        stackInfos.emplace_back(std::move(stackInfo));
+
+        if (ec && ec != make_error_code(MVLCErrorCode::InvalidStackHeader))
+        {
+            std::cout << fmt::format("Error reading stack info for stack#{}: {}\n", stackId, ec.message());
+            return 1;
+        }
+    }
+
+    u32 crateId = 0;
+    if (auto ec = mvlc.readRegister(registers::controller_id, crateId))
+    {
+        std::cerr << fmt::format("Error reading controller id: {}\n", ec.message());
+        return 1;
+    }
+
+    CrateConfig crateConfig;
+    crateConfig.connectionType = mvlc.connectionType();
+    crateConfig.crateId = crateId;
+
+    // FIXME: add getHost() and other info to the interfaces. It's weird to
+    // downcast to Impl here. Or put a getConnectionInfo() into MVLC and make it
+    // compatible with CrateConfig.
+    if (auto eth = dynamic_cast<eth::Impl *>(mvlc.getImpl()))
+    {
+        crateConfig.ethHost = eth->getHost();
+        u32 jumbosEnabled = 0;
+        if (auto ec = mvlc.readRegister(registers::jumbo_frame_enable, jumbosEnabled))
+        {
+            std::cerr << fmt::format("Error reading jumbo frame enable register: {}\n", ec.message());
+            return 1;
+        }
+        crateConfig.ethJumboEnable = jumbosEnabled;
+    }
+    else if (auto usb = dynamic_cast<usb::Impl *>(mvlc.getImpl()))
+    {
+        auto devInfo = usb->getDeviceInfo();
+        crateConfig.usbIndex = devInfo.index;
+        crateConfig.usbSerial = devInfo.serial;
+    }
+
+    for (const auto &stackInfo: stackInfos)
+    {
+        crateConfig.triggers.push_back(stackInfo.triggerValue);
+        crateConfig.stacks.emplace_back(stack_builder_from_buffer(stackInfo.contents));
+    }
+
+    std::cout << to_yaml(crateConfig);
+
+    return 0;
+}
+
+static const Command CrateConfigFromMvlcCommand
+{
+    .name = "crateconfig_from_mvlc",
+    .help = R"~(
+usage: mvlc-cli crateconfig_from_mvlc
+
+    Read stack contents and trigger values from the MVLC to create and print a CrateConfig.
+    Note: the resulting CrateConfig is missing the Trigger / IO setup as that can't be read
+    back and the VME module init commands used to start the DAQ.
+
+    The remaining information in the resulting CrateConfig is still useful for
+    debugging.
+)~",
+    .exec = crateconfig_from_mvlc,
+};
+
+DEF_EXEC_FUNC(show_usb_devices)
+{
+    spdlog::trace("entered show_usb_devices()");
+    trace_log_parser_info(ctx.parser, "show_usb_devices");
+
+    auto listOptions = usb::ListOptions::MVLCDevices;
+
+    if (ctx.parser["--all-devices"])
+        listOptions = usb::ListOptions::AllDevices;
+
+    const auto allDevices = usb::get_device_info_list(listOptions);
+
+    for (const auto &devInfo: allDevices)
+    {
+        std::cout << fmt::format("index={}, serial='{}', description='{}'",
+            devInfo.index, devInfo.serial, devInfo.description);
+
+        if (util::contains(devInfo.description, "MVLC"))
+        {
+            std::cout << fmt::format(", url='usb://{}'", devInfo.serial);
+        }
+
+        std::cout << "\n";
+    }
+
+    return 0;
+}
+
+static const Command ShowUsbDevicesCommand
+{
+    .name = "show_usb_devices",
+    .help = R"~(
+usage: mvlc-cli show_usb_devices [--all-devices]
+
+    Print information about MVLC_USB devices connected to the system.
+
+    If --all-devices is specified all devices found by the FTD3xx driver are
+    listed.
+)~",
+    .exec = show_usb_devices,
+};
+
 int main(int argc, char *argv[])
 {
     std::string generalHelp = R"~(
@@ -1162,6 +1303,8 @@ MVLC connection URIs:
     ctx.commands.insert(VmeReadCommand);
     ctx.commands.insert(VmeWriteCommand);
     ctx.commands.insert(DumpRegistersCommand);
+    ctx.commands.insert(CrateConfigFromMvlcCommand);
+    ctx.commands.insert(ShowUsbDevicesCommand);
     ctx.parser = parser;
 
     // mvlc-cli                 // show generalHelp

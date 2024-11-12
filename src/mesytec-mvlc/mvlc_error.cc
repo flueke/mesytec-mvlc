@@ -38,7 +38,7 @@ class MVLCErrorCategory: public std::error_category
         switch (static_cast<MVLCErrorCode>(ev))
         {
             case MVLCErrorCode::NoError:
-                return "No Error";
+                return "Ok";
 
             case MVLCErrorCode::IsConnected:
                 return "MVLC is connected";
