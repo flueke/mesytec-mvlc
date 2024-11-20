@@ -1478,7 +1478,6 @@ MVLC::MVLC(std::unique_ptr<MVLCBasicInterface> &&impl)
 
 MVLC::~MVLC()
 {
-    get_logger("mvlc")->trace(__PRETTY_FUNCTION__);
 }
 
 std::error_code MVLC::connect()
