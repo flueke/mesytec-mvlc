@@ -95,7 +95,7 @@ class ReadoutLoopPlugin
         struct Arguments
         {
             ReadoutWorker *readoutWorker = nullptr;
-            listfile::WriteHandle *listfileHandle = nullptr;;
+            listfile::WriteHandle *listfileHandle = nullptr;
             u8 crateId = 0;
         };
 
