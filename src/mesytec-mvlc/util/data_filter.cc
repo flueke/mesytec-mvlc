@@ -1,13 +1,12 @@
 #include "data_filter.h"
 
+#include <algorithm>
 #include <cctype>
+#include <numeric>
+#include <set>
 #include <stdexcept>
 
-namespace mesytec
-{
-namespace mvlc
-{
-namespace util
+namespace mesytec::mvlc::util
 {
 
 namespace
@@ -116,7 +115,40 @@ std::string to_string(const DataFilter &filter)
     return result;
 }
 
+FilterWithCaches make_filter_with_caches(const std::string &pattern)
+{
+    auto markers = std::accumulate(std::begin(pattern), std::end(pattern), std::set<char>{},
+        [] (auto &accu, char c) { if (std::isalpha(c)) accu.insert(std::tolower(c)); return accu; });
 
+    FilterWithCaches result;
+    result.filter = make_filter(pattern);
+
+    for (auto marker: markers)
+    {
+        result.markers.emplace_back(marker);
+        result.caches.emplace_back(make_cache_entry(result.filter, marker));
+    }
+
+    assert(result.markers.size() == result.caches.size());
+
+    return result;
 }
+
+std::optional<CacheEntry> get_cache_entry(const FilterWithCaches &filters, char marker)
+{
+    assert(filters.markers.size() == filters.caches.size());
+
+    auto it = std::find(std::begin(filters.markers), std::end(filters.markers), marker);
+
+    if (it == std::end(filters.markers))
+        return std::nullopt;
+
+    auto jt = std::begin(filters.caches) + std::distance(std::begin(filters.markers), it);
+
+    if (jt < std::end(filters.caches))
+        return *jt;
+
+    return std::nullopt;
 }
+
 }

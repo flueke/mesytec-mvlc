@@ -2,15 +2,13 @@
 #define __MESYTEC_MVLC_DATA_FILTER_H__
 
 #include <array>
+#include <optional>
 #include <string>
+#include <vector>
 #include "mesytec-mvlc/mesytec-mvlc_export.h"
 #include "mesytec-mvlc/util/bits.h"
 
-namespace mesytec
-{
-namespace mvlc
-{
-namespace util
+namespace mesytec::mvlc::util
 {
 
 // Always doing a bit gather is a speedup if bmi2 is available, otherwise
@@ -96,8 +94,30 @@ inline u8 get_extract_shift(const DataFilter &filter, char marker)
 
 MESYTEC_MVLC_EXPORT std::string to_string(const DataFilter &filter);
 
+struct MESYTEC_MVLC_EXPORT FilterWithCaches
+{
+    DataFilter filter;
+    std::vector<char> markers;
+    std::vector<CacheEntry> caches;
+};
+
+FilterWithCaches MESYTEC_MVLC_EXPORT make_filter_with_caches(const std::string &pattern);
+std::optional<CacheEntry> MESYTEC_MVLC_EXPORT get_cache_entry(const FilterWithCaches &filters, char marker);
+
+inline bool matches(const FilterWithCaches &filter, u32 value, s32 wordIndex = -1)
+{
+    return matches(filter.filter, value, wordIndex);
 }
+
+inline std::optional<u64> extract(const FilterWithCaches &filters, u32 value, char marker)
+{
+    if (auto cache = get_cache_entry(filters, std::tolower(marker)))
+    {
+        return extract(*cache, value);
+    }
+    return std::nullopt;
 }
+
 }
 
 #endif /* __MESYTEC_MVLC_DATA_FILTER_H__ */
