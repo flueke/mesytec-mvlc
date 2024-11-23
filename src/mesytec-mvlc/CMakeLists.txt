@@ -18,7 +18,6 @@ add_library(mesytec-mvlc SHARED
     mvlc_factory.cc
     mvlc_impl_eth.cc
     mvlc_impl_support.cc
-    mvlc_impl_usb.cc
     mvlc_impl_usb_common.cc
     mvlc_impl_usb_internal.cc
     mvlc_listfile.cc
@@ -50,13 +49,17 @@ add_library(mesytec-mvlc SHARED
     util/udp_sockets.cc
     )
 
-if (DMESYTEC_MVLC_PLATFORM_LINUX)
+if (MESYTEC_MVLC_PLATFORM_LINUX)
     if (CMAKE_HOST_SYSTEM_PROCESSOR STREQUAL "x86_64")
+        message("-- mesytec::mvlc::usb using mvlc_impl_usb_linux_x86_64.cc")
         target_sources(mesytec-mvlc PRIVATE mvlc_impl_usb_linux_x86_64.cc)
     elseif (CMAKE_HOST_SYSTEM_PROCESSOR STREQUAL "aarch64")
+        message("-- mesytec::mvlc::usb using mvlc_impl_usb_linux_aarch64.cc")
         target_sources(mesytec-mvlc PRIVATE mvlc_impl_usb_linux_aarch64.cc)
     endif()
-elseif (DMESYTEC_MVLC_PLATFORM_WINDOWS)
+elseif (MESYTEC_MVLC_PLATFORM_WINDOWS)
+    target_sources(mesytec-mvlc PRIVATE mvlc_impl_usb_windows.cc)
+    message("-- mesytec::mvlc::usb using mvlc_impl_usb_windows.cc")
     target_sources(mesytec-mvlc PRIVATE mvlc_impl_usb_windows.cc)
 endif()
 
