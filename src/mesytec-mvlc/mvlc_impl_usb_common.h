@@ -2,12 +2,17 @@
 #define F3415BFF_8ECD_4E52_8C61_6BD268296B84
 
 #include <string>
+#include <system_error>
 #include <vector>
-#include "util/int_types.h"
 #include "mesytec-mvlc/mesytec-mvlc_export.h"
+#include "mesytec-mvlc/mvlc_basic_interface.h"
+#include "mesytec-mvlc/mvlc_usb_interface.h"
+#include "mesytec-mvlc/util/int_types.h"
 
 namespace mesytec::mvlc::usb
 {
+
+class Impl;
 
 struct DeviceInfo
 {
@@ -48,6 +53,9 @@ enum class EndpointDirection: u8
     In,
     Out
 };
+
+std::error_code check_chip_configuration(void *handle);
+std::error_code post_connect_cleanup(Impl &impl);
 
 }
 

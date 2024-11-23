@@ -53,53 +53,6 @@ static const unsigned ReadTimeout_ms  = 1000;
 namespace
 {
 
-// Returns an unfiltered list of all connected FT60X devices. */
-mesytec::mvlc::usb::DeviceInfoList make_device_info_list()
-{
-    using mesytec::mvlc::usb::DeviceInfoList;
-    using mesytec::mvlc::usb::DeviceInfo;
-
-    DeviceInfoList result;
-
-    DWORD numDevs = 0;
-    FT_STATUS st = FT_CreateDeviceInfoList(&numDevs);
-
-    if (st == FT_OK && numDevs > 0)
-    {
-        auto ftInfoNodes = std::make_unique<FT_DEVICE_LIST_INFO_NODE[]>(numDevs);
-        st = FT_GetDeviceInfoList(ftInfoNodes.get(), &numDevs);
-
-        if (st == FT_OK)
-        {
-            result.reserve(numDevs);
-
-            for (DWORD ftIndex = 0; ftIndex < numDevs; ftIndex++)
-            {
-                const auto &infoNode = ftInfoNodes[ftIndex];
-                DeviceInfo di = {};
-                di.index = ftIndex;
-                di.serial = infoNode.SerialNumber;
-                di.description = infoNode.Description;
-
-                if (infoNode.Flags & FT_FLAGS_OPENED)
-                    di.flags |= DeviceInfo::Flags::Opened;
-
-                if (infoNode.Flags & FT_FLAGS_HISPEED)
-                    di.flags |= DeviceInfo::Flags::USB2;
-
-                if (infoNode.Flags & FT_FLAGS_SUPERSPEED)
-                    di.flags |= DeviceInfo::Flags::USB3;
-
-                di.handle = infoNode.ftHandle;
-
-                result.emplace_back(di);
-            }
-        }
-    }
-
-    return result;
-}
-
 static const size_t DataBufferSize = usb::USBStreamPipeReadSize;
 
 template<typename Impl>
@@ -250,55 +203,6 @@ std::error_code post_connect_cleanup(mesytec::mvlc::usb::Impl &impl)
 namespace mesytec::mvlc::usb
 {
 
-DeviceInfoList get_device_info_list(const ListOptions opts)
-{
-    auto result = make_device_info_list();
-
-    if (opts == ListOptions::MVLCDevices)
-    {
-        // Remove if the description does not contain "MVLC"
-        auto it = std::remove_if(result.begin(), result.end(), [] (const DeviceInfo &di) {
-            static const std::regex reDescr("MVLC");
-            return !(std::regex_search(di.description, reDescr));
-        });
-
-        result.erase(it, result.end());
-    }
-
-    return result;
-}
-
-DeviceInfo get_device_info_by_serial(const DeviceInfoList &infoList, const std::string &serial)
-{
-    auto it = std::find_if(infoList.begin(), infoList.end(),
-                           [&serial] (const DeviceInfo &di) {
-        return di.serial == serial;
-    });
-
-    return it != infoList.end() ? *it : DeviceInfo{};
-}
-
-std::error_code check_chip_configuration(void *handle)
-{
-    FT_60XCONFIGURATION conf = {};
-
-    FT_STATUS st = FT_GetChipConfiguration(handle, &conf);
-
-    if (st != FT_OK)
-        return make_error_code(st);
-
-    if (conf.FIFOClock != CONFIGURATION_FIFO_CLK_100
-        || conf.FIFOMode != CONFIGURATION_FIFO_MODE_600
-        || conf.ChannelConfig != CONFIGURATION_CHANNEL_CONFIG_2
-        || !(conf.PowerAttributes & 0x40) // self powered
-        || !(conf.PowerAttributes & 0x20) // remote wakup
-        || conf.OptionalFeatureSupport != CONFIGURATION_OPTIONAL_FEATURE_DISABLEALL)
-    {
-        return std::error_code(MVLCErrorCode::USBChipConfigError);
-    }
-
-    return {};
-}
 
 //
 // Impl

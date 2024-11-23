@@ -1,6 +1,7 @@
 #include "mvlc_impl_usb_internal.h"
 
 #include <cassert>
+#include <string_view>
 
 #include "mvlc_error.h"
 
@@ -123,6 +124,40 @@ namespace mesytec::mvlc::usb
 std::error_code make_error_code(FT_STATUS st)
 {
     return { static_cast<int>(st), theFTErrorCategory };
+}
+
+static const size_t DataBufferSize = usb::USBStreamPipeReadSize;
+
+std::pair<std::error_code, size_t> read_pipe_until_empty(
+    MVLC_USB_Interface &impl, Pipe pipe, std::shared_ptr<spdlog::logger> &logger)
+{
+    size_t totalBytesTransferred = 0;
+    size_t bytesTransferred = 0;
+    std::array<u8, DataBufferSize> buffer;
+    std::error_code ec = {};
+    do
+    {
+        bytesTransferred = 0;
+        ec = impl.read_unbuffered(pipe, buffer.data(), buffer.size(), bytesTransferred);
+        totalBytesTransferred += bytesTransferred;
+
+        if (logger)
+        {
+            logger->debug("read_pipe_until_empty: pipe={}, ec={}, bytes={}",
+                          static_cast<int>(pipe), ec.message(), bytesTransferred);
+
+            log_buffer(logger, spdlog::level::trace,
+                       std::basic_string_view<u32>(reinterpret_cast<u32*>(buffer.data()), bytesTransferred/sizeof(u32)),
+                       fmt::format("read_pipe_until_empty: pipe={}, ec={}, bytes={}, data:",
+                                   static_cast<int>(pipe), ec.message(), bytesTransferred)
+                       );
+        }
+
+        if (ec == ErrorType::ConnectionError)
+            break;
+    } while (bytesTransferred > 0);
+
+    return std::make_pair(ec, totalBytesTransferred);
 }
 
 }

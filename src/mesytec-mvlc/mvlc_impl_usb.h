@@ -32,7 +32,6 @@
 #ifdef __WIN32
 #include "mesytec-mvlc/mvlc_impl_support.h"
 #endif
-#include "mesytec-mvlc/mvlc_usb_interface.h"
 #include "mesytec-mvlc/mvlc_impl_usb_common.h"
 
 namespace mesytec::mvlc::usb
