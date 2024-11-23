@@ -154,6 +154,9 @@ class MVLCErrorCategory: public std::error_category
             case MVLCErrorCode::InUse:
                  return "MVLC is in use";
 
+            case MVLCErrorCode::USBNoDeviceFound:
+                 return "No MVLC_USB device found (FTDI)";
+
             case MVLCErrorCode::USBChipConfigError:
                  return "Incorrect USB chip configuration (FTDI)";
 
@@ -212,6 +215,7 @@ class MVLCErrorCategory: public std::error_category
             case MVLCErrorCode::SocketError:
             case MVLCErrorCode::EmptyHostname:
             case MVLCErrorCode::InUse:
+            case MVLCErrorCode::USBNoDeviceFound:
             case MVLCErrorCode::USBChipConfigError:
             case MVLCErrorCode::MirrorMaxTriesExceeded:
             case MVLCErrorCode::FirmwareTooOld:

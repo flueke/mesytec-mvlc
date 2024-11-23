@@ -64,6 +64,7 @@ enum class MVLCErrorCode
 
     // USB specific error code to indicate that the FTDI chip configuration is
     // not correct.
+    USBNoDeviceFound,
     USBChipConfigError,
 
     // Added for mvlc_apiv2.cc
