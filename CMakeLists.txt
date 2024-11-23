@@ -9,14 +9,28 @@ if (CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
     set(MESYTEC_MVLC_MASTER_PROJECT ON)
 endif()
 
+# Taken from nng/CMakeLists.txt
+if (CMAKE_SYSTEM_NAME MATCHES "Linux")
+    add_definitions(-DMESYTEC_MVLC_PLATFORM_POSIX)
+    add_definitions(-DMESYTEC_MVLC_PLATFORM_LINUX)
+    # Windows subsystem for Linux -- smells like Linux, but it has
+    # some differences (SO_REUSEADDR for one).
+    if (CMAKE_SYSTEM_VERSION MATCHES "Microsoft")
+        add_definitions(-DMESYTEC_MVLC_PLATFORM_WSL)
+    endif ()
+    set(MESYTEC_MVLC_PLATFORM_POSIX ON)
+elseif (CMAKE_SYSTEM_NAME MATCHES "Windows")
+    add_definitions(-DMESYTEC_MVLC_PLATFORM_WINDOWS)
+else ()
+    message(AUTHOR_WARNING "WARNING: This platform may not be supported: ${CMAKE_SYSTEM_NAME}")
+    # blithely hope for POSIX to work
+    add_definitions(-DMESYTEC_MVLC_PLATFORM_POSIX)
+    set(NNG_PLATFORM_POSIX ON)
+endif ()
+
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-#set(CMAKE_SKIP_BUILD_RPATH FALSE)
-#set(CMAKE_BUILD_RPATH_USE_ORIGIN TRUE)
-#set(BUILD_WITH_INSTALL_RPATH TRUE)
 set(CMAKE_INSTALL_RPATH "$ORIGIN;$ORIGIN/../lib")
-#set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
-#set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 
 # Add the local cmake directory module path.
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/tools/cmake")
