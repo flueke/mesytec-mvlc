@@ -19,6 +19,115 @@ using std::endl;
 
 using namespace mesytec::mvlc;
 
+struct MiniDaqCountersSnapshot
+{
+    StackErrorCounters mvlcStackErrors;
+    ReadoutWorker::Counters readoutWorkerCounters;
+    readout_parser::ReadoutParserCounters parserCounters;
+};
+
+template<typename Map>
+Map delta_map(const Map &prevMap, const Map &currMap)
+{
+    Map result;
+
+    for (const auto &[key, value]: currMap)
+    {
+        auto it = prevMap.find(key);
+        result[key] = it != prevMap.end() ? value - it->second : value;
+    }
+
+    return result;
+}
+
+StackErrorCounters delta_counters(const StackErrorCounters &prev, const StackErrorCounters &curr)
+{
+    StackErrorCounters result;
+
+    std::transform(std::begin(prev.stackErrors), std::end(prev.stackErrors),
+                   std::begin(curr.stackErrors),
+                   std::begin(result.stackErrors),
+                   delta_map<ErrorInfoCounts>);
+
+    result.nonErrorFrames = calc_delta0(curr.nonErrorFrames, prev.nonErrorFrames);
+    result.nonErrorHeaderCounts = delta_map(prev.nonErrorHeaderCounts, curr.nonErrorHeaderCounts);
+
+    return result;
+}
+
+#define CALC_DELTA0(member) result.member = calc_delta0(curr.member, prev.member)
+
+ReadoutWorker::Counters delta_counters(const ReadoutWorker::Counters &prev, const ReadoutWorker::Counters &curr)
+{
+    ReadoutWorker::Counters result;
+
+    CALC_DELTA0(buffersRead);
+    CALC_DELTA0(buffersFlushed);
+    CALC_DELTA0(bytesRead);
+    CALC_DELTA0(snoopMissedBuffers);
+    CALC_DELTA0(usbFramingErrors);
+    CALC_DELTA0(usbTempMovedBytes);
+    CALC_DELTA0(ethShortReads);
+    CALC_DELTA0(readTimeouts);
+
+    std::transform(std::begin(prev.stackHits), std::end(prev.stackHits),
+                   std::begin(curr.stackHits),
+                   std::begin(result.stackHits),
+                   calc_delta0<size_t>);
+
+    // TODO eth::PipeStats
+    // TODO ListfileWriterCounters
+
+    return result;
+}
+
+MiniDaqCountersSnapshot delta_counters(const MiniDaqCountersSnapshot &prev, const MiniDaqCountersSnapshot &curr)
+{
+    MiniDaqCountersSnapshot result;
+
+    result.mvlcStackErrors = delta_counters(prev.mvlcStackErrors, curr.mvlcStackErrors);
+    result.readoutWorkerCounters = delta_counters(prev.readoutWorkerCounters, curr.readoutWorkerCounters);
+    // TODO: result.parserCounters = delta_counters(prev.parserCounters, curr.parserCounters);
+
+    return result;
+}
+
+#undef CALC_DELTA0
+
+
+struct MiniDaqCountersUpdate
+{
+    MiniDaqCountersSnapshot prev;
+    MiniDaqCountersSnapshot curr;
+    std::chrono::milliseconds dt;
+};
+
+void dump_counters2(
+    std::ostream &out,
+    const MiniDaqCountersSnapshot &prev,
+    const MiniDaqCountersSnapshot &curr,
+    const std::chrono::milliseconds &dt)
+{
+    auto delta = delta_counters(prev, curr);
+
+    out << fmt::format("dt={} ms, dBytesRead={} B, {} MiB, readRate={} B/s, {}MiB/s\n",
+                       dt.count(),
+                       delta.readoutWorkerCounters.bytesRead,
+                       delta.readoutWorkerCounters.bytesRead / 1024.0 / 1024.0,
+                       static_cast<double>(delta.readoutWorkerCounters.bytesRead) / (dt.count() / 1000.0),
+                       static_cast<double>(delta.readoutWorkerCounters.bytesRead) / 1024.0 / 1024.0 / (dt.count() / 1000.0));
+}
+
+void update_counters(MiniDaqCountersUpdate &counters, MVLCReadout &rdo, std::chrono::milliseconds dt)
+{
+    counters.prev = counters.curr;
+    auto &mvlc = rdo.readoutWorker().mvlc();
+    counters.curr.mvlcStackErrors = mvlc.getStackErrorCounters();
+    counters.curr.readoutWorkerCounters = rdo.workerCounters();
+    counters.curr.parserCounters = rdo.parserCounters();
+    counters.dt = dt;
+}
+
 void dump_counters(
     std::ostream &out,
     const ConnectionType &connectionType,
@@ -419,6 +528,9 @@ int main(int argc, char *argv[])
             throw std::runtime_error("ReadoutWorker error");
         }
 
+        MiniDaqCountersUpdate counters;
+        Stopwatch sw;
+
         while (!rdo.finished())
         {
             std::this_thread::sleep_for(std::chrono::milliseconds(1000));
@@ -431,6 +543,10 @@ int main(int argc, char *argv[])
                     mvlc.getStackErrorCounters(),
                     rdo.workerCounters(),
                     rdo.parserCounters());
+
+                update_counters(counters, rdo, std::chrono::duration_cast<std::chrono::milliseconds>(sw.interval()));
+                dump_counters2(cout, counters.prev, counters.curr, counters.dt);
+
             }
         }
 
@@ -444,6 +560,9 @@ int main(int argc, char *argv[])
             mvlc.getStackErrorCounters(),
             rdo.workerCounters(),
             rdo.parserCounters());
+
+        update_counters(counters, rdo, std::chrono::duration_cast<std::chrono::milliseconds>(sw.interval()));
+        dump_counters2(cout, counters.prev, counters.curr, counters.dt);
 
 
         auto cmdPipeCounters = mvlc.getCmdPipeCounters();
