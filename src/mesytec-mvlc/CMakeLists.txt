@@ -19,6 +19,8 @@ add_library(mesytec-mvlc SHARED
     mvlc_impl_eth.cc
     mvlc_impl_support.cc
     mvlc_impl_usb.cc
+    mvlc_impl_usb_common.cc
+    mvlc_impl_usb_internal.cc
     mvlc_listfile.cc
     mvlc_listfile_gen.cc
     mvlc_listfile_util.cc
@@ -47,6 +49,16 @@ add_library(mesytec-mvlc SHARED
     util/ticketmutex.cc
     util/udp_sockets.cc
     )
+
+if (DMESYTEC_MVLC_PLATFORM_LINUX)
+    if (CMAKE_HOST_SYSTEM_PROCESSOR STREQUAL "x86_64")
+        target_sources(mesytec-mvlc PRIVATE mvlc_impl_usb_linux_x86_64.cc)
+    elseif (CMAKE_HOST_SYSTEM_PROCESSOR STREQUAL "aarch64")
+        target_sources(mesytec-mvlc PRIVATE mvlc_impl_usb_linux_aarch64.cc)
+    endif()
+elseif (DMESYTEC_MVLC_PLATFORM_WINDOWS)
+    target_sources(mesytec-mvlc PRIVATE mvlc_impl_usb_windows.cc)
+endif()
 
 target_include_directories(mesytec-mvlc
     PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/..>

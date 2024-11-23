@@ -33,6 +33,7 @@
 #include "mesytec-mvlc/mvlc_impl_support.h"
 #endif
 #include "mesytec-mvlc/mvlc_usb_interface.h"
+#include "mesytec-mvlc/mvlc_impl_usb_common.h"
 
 namespace mesytec::mvlc::usb
 {
@@ -63,46 +64,6 @@ namespace mesytec::mvlc::usb
 //   KERNEL32.DLL!DeviceIoControl+0x80
 //   FTD3XX.dll!FT_IoCtl+0x7e
 //   FTD3XX.dll!FT_SetPipeTimeout+0x3e
-
-struct DeviceInfo
-{
-    struct Flags
-    {
-        // Opened is set if the device is opened by some process at the time
-        // the info is queried.
-        static const u8 Opened = 1;
-        static const u8 USB2   = 2;
-        static const u8 USB3   = 4;
-    };
-
-    int index = -1;             // index value used by the FTDI lib for this device.
-    std::string serial;         // usb serial number string
-    std::string description;    // usb device description string
-    u8 flags = 0;               // Flags bits
-    void *handle = nullptr;     // FTDI handle if opened
-
-    inline explicit operator bool() const { return index >= 0; }
-};
-
-using DeviceInfoList = std::vector<DeviceInfo>;
-
-enum class ListOptions
-{
-    MVLCDevices,
-    AllDevices,
-};
-
-MESYTEC_MVLC_EXPORT DeviceInfoList get_device_info_list(
-    const ListOptions opts = ListOptions::MVLCDevices);
-
-MESYTEC_MVLC_EXPORT DeviceInfo get_device_info_by_serial(
-    const DeviceInfoList &infoList, const std::string &serial);
-
-enum class EndpointDirection: u8
-{
-    In,
-    Out
-};
 
 class MESYTEC_MVLC_EXPORT Impl: public MVLCBasicInterface, public MVLC_USB_Interface
 {
