@@ -1,4 +1,4 @@
-#include "mvlc_impl_usb_common.h"
+#include "mvlc_impl_usb.h"
 #include "mvlc_impl_usb_internal.h"
 #include "util/logging.h"
 #include "mvlc_dialog.h"
@@ -93,6 +93,11 @@ std::pair<std::error_code, size_t> read_pipe_until_empty(
 };
 #endif
 
+} // end anon namespace
+
+namespace mesytec::mvlc::usb
+{
+
 #ifdef __WIN32
 std::error_code abort_pipe(void *ftdiHandle, Pipe pipe, mesytec::mvlc::usb::EndpointDirection dir)
 {
@@ -118,10 +123,6 @@ std::error_code abort_pipe(void *ftdiHandle, Pipe pipe, mesytec::mvlc::usb::Endp
 }
 #endif // __WIN32
 
-} // end anon namespace
-
-namespace mesytec::mvlc::usb
-{
 
 DeviceInfoList get_device_info_list(const ListOptions opts)
 {

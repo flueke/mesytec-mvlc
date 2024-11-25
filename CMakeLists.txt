@@ -22,7 +22,7 @@ if (CMAKE_SYSTEM_NAME MATCHES "Linux")
     set(MESYTEC_MVLC_PLATFORM_POSIX ON)
 elseif (CMAKE_SYSTEM_NAME MATCHES "Windows")
     add_definitions(-DMESYTEC_MVLC_PLATFORM_WINDOWS)
-    set(MESYTEC_MVLC_PLATFORM_WINDOW ON)
+    set(MESYTEC_MVLC_PLATFORM_WINDOWS ON)
 else ()
     message(AUTHOR_WARNING "WARNING: This platform may not be supported: ${CMAKE_SYSTEM_NAME}")
     # blithely hope for POSIX to work

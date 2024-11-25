@@ -12,7 +12,7 @@
 namespace mesytec::mvlc::usb
 {
 
-class Impl;
+class MESYTEC_MVLC_EXPORT Impl;
 
 struct DeviceInfo
 {
