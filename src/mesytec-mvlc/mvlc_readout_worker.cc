@@ -81,6 +81,7 @@
 #include "util/io_util.h"
 #include "util/logging.h"
 #include "util/perf.h"
+#include "util/stopwatch.h"
 #include "util/storage_sizes.h"
 
 using std::cerr;
@@ -467,6 +468,51 @@ void StackErrorsPlugin::writeStackErrorsEvent(listfile::WriteHandle &lfh, u8 cra
             lfh, crateId, system_event::subtype::StackErrors,
             buffer.data(), buffer.size());
     }
+}
+
+std::pair<std::error_code, size_t> readout_usb(
+    usb::MVLC_USB_Interface &mvlc, ReadoutBuffer &tmpBuffer, util::span<u8> dest, std::chrono::milliseconds timeout)
+{
+    assert(!"not implemented");
+}
+
+std::pair<std::error_code, size_t> readout_eth(
+    eth::MVLC_ETH_Interface &mvlcETH, util::span<u8> dest, std::chrono::milliseconds timeout)
+{
+    std::pair<std::error_code, size_t> result{};
+    util::Stopwatch sw;
+
+    while (dest.size() >= eth::JumboFrameMaxSize && sw.get_elapsed() < timeout)
+    {
+        auto readResult = mvlcETH.read_packet(Pipe::Data, dest.data(), dest.size());
+        result.first = readResult.ec;
+        result.second += readResult.bytesTransferred;
+        dest = dest.subspan(readResult.bytesTransferred);
+
+        if (result.first)
+            break;
+    }
+
+    return result;
+}
+
+std::pair<std::error_code, size_t>
+    readout(MVLC &mvlc, ReadoutBuffer &tmpBuffer, util::span<u8> dest, std::chrono::milliseconds timeout)
+{
+    auto dataGuard = mvlc.getLocks().lockData();
+
+    if (auto mvlcUSB = dynamic_cast<usb::MVLC_USB_Interface *>(mvlc.getImpl()))
+    {
+        return readout_usb(*mvlcUSB, tmpBuffer, dest, timeout);
+    }
+    else if (auto mvlcETH = dynamic_cast<eth::MVLC_ETH_Interface *>(mvlc.getImpl()))
+    {
+        return readout_eth(*mvlcETH, dest, timeout);
+    }
+
+    assert(false);
+
+    return {}; // TODO: return an error code here
 }
 
 struct ReadoutWorker::Private
