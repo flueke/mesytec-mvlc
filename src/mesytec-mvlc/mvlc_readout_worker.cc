@@ -470,10 +470,94 @@ void StackErrorsPlugin::writeStackErrorsEvent(listfile::WriteHandle &lfh, u8 cra
     }
 }
 
-std::pair<std::error_code, size_t> readout_usb(
-    usb::MVLC_USB_Interface &mvlc, ReadoutBuffer &tmpBuffer, util::span<u8> dest, std::chrono::milliseconds timeout)
+inline util::span<u8> fixup_usb_buffer(util::span<u8> input, ReadoutBuffer &tmpBuffer)
 {
-    assert(!"not implemented");
+    // FIXME: this is wrong if input.size() < sizeof(u32): it returns the
+    // original span instead of copying the data to tmpBuffer and returning an
+    // empty span.
+
+    auto originalInput = input;
+
+    while (input.size() >= sizeof(u32))
+    {
+        FrameInfo frameInfo = {};
+        u32 frameHeader = 0u;
+
+        while (input.size() >= sizeof(u32))
+        {
+            // Can peek and check the next frame header
+            frameHeader = *reinterpret_cast<const u32 *>(&input[0]);
+            frameInfo = extract_frame_info(frameHeader);
+
+            if (is_valid_readout_frame(frameInfo))
+                break;
+
+            // TODO: counters.access()->usbFramingErrors++;
+            input = input.subspan(sizeof(u32));
+        }
+
+        if (!is_valid_readout_frame(frameInfo))
+            break; // TODO (either here or above or both): counters.access()->usbFramingErrors++;
+
+        const auto frameBytes = (frameInfo.len + 1) * sizeof(u32);
+
+        // Check if the full frame including the header is in the
+        // readBuffer. If not move the trailing data to the tempBuffer.
+        if (frameBytes > input.size())
+        {
+            tmpBuffer.ensureFreeSpace(input.size());
+            std::memcpy(tmpBuffer.data() + tmpBuffer.used(), input.data(), input.size());
+            tmpBuffer.setUsed(input.size());
+            // TODO: counters.access()->usbTempMovedBytes += view.size();
+            return { originalInput.data(), originalInput.size() - input.size() };
+        }
+
+        // TODO (maybe make an extra count_stack_hits() function):
+        //if (frameInfo.type == frame_headers::StackFrame
+        //    || frameInfo.type == frame_headers::StackContinuation)
+        //{
+        //    ++counters.access()->stackHits[frameInfo.stack];
+        //}
+
+        // Skip over the frameHeader and the frame contents.
+        input = input.subspan(frameBytes);
+    }
+
+    return originalInput;
+}
+
+std::pair<std::error_code, size_t> readout_usb(
+    usb::MVLC_USB_Interface &mvlcUSB, ReadoutBuffer &tmpBuffer, util::span<u8> dest, std::chrono::milliseconds timeout)
+{
+    std::pair<std::error_code, size_t> result{};
+    util::Stopwatch sw;
+    auto originalDest = dest;
+
+    if (tmpBuffer.used() && dest.size() >= tmpBuffer.used())
+    {
+        std::memcpy(dest.data(), tmpBuffer.data(), tmpBuffer.used());
+        dest = dest.subspan(tmpBuffer.used());
+        tmpBuffer.clear();
+    }
+
+    const size_t bytesToRead = usb::USBStreamPipeReadSize;
+
+    while (dest.size() >= bytesToRead && sw.get_elapsed() < timeout)
+    {
+        size_t bytesTransferred = 0;
+        result.first = mvlcUSB.read_unbuffered(Pipe::Data, dest.data(), bytesToRead, bytesTransferred);
+        result.second += bytesTransferred;
+        dest = dest.subspan(bytesTransferred);
+
+        if (result.first)
+            break;
+    }
+
+    assert(tmpBuffer.empty());
+    fixup_usb_buffer({originalDest.data(), result.second}, tmpBuffer);
+    result.second -= tmpBuffer.used();
+
+    return result;
 }
 
 std::pair<std::error_code, size_t> readout_eth(
