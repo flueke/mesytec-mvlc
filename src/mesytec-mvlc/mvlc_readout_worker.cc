@@ -470,6 +470,15 @@ void StackErrorsPlugin::writeStackErrorsEvent(listfile::WriteHandle &lfh, u8 cra
     }
 }
 
+// Note: in addition to stack frames this includes SystemEvent frames. These
+// are written into the readout buffers by the listfile_write_* functions.
+inline bool is_valid_readout_frame(const FrameInfo &frameInfo)
+{
+    return (frameInfo.type == frame_headers::StackFrame
+            || frameInfo.type == frame_headers::StackContinuation
+            || frameInfo.type == frame_headers::SystemEvent);
+}
+
 inline util::span<u8> fixup_usb_buffer(util::span<u8> input, ReadoutBuffer &tmpBuffer)
 {
     // FIXME: this is wrong if input.size() < sizeof(u32): it returns the
@@ -1294,15 +1303,6 @@ std::error_code ReadoutWorker::Private::terminateReadout()
     readerAction = ec ? ReaderAction::Quit : ReaderAction::QuitWhenEmpty;
     fReadout.get();
     return ec;
-}
-
-// Note: in addition to stack frames this includes SystemEvent frames. These
-// are written into the readout buffers by the listfile_write_* functions.
-inline bool is_valid_readout_frame(const FrameInfo &frameInfo)
-{
-    return (frameInfo.type == frame_headers::StackFrame
-            || frameInfo.type == frame_headers::StackContinuation
-            || frameInfo.type == frame_headers::SystemEvent);
 }
 
 // Ensure that the readBuffer contains only complete frames. In other words: if
