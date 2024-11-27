@@ -43,8 +43,6 @@ static const unsigned WriteTimeout_ms = 2000;
 // XXX: Do not raise the read timeout above 1000ms, otherwise mvme rate monitoring will break!
 static const unsigned ReadTimeout_ms  = 1000;
 
-static const size_t DataBufferSize = usb::USBStreamPipeReadSize;
-
 }
 
 namespace mesytec::mvlc::usb
