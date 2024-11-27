@@ -324,6 +324,9 @@ class MESYTEC_MVLC_EXPORT StackErrorsPlugin: public ReadoutLoopPlugin
         StackErrorCounters prevCounters_ = {};
 };
 
+std::pair<std::error_code, size_t> MESYTEC_MVLC_EXPORT
+    readout(MVLC &mvlc, ReadoutBuffer &tmpBuffer, util::span<u8> dest, std::chrono::milliseconds timeout);
+
 } // end namespace mvlc
 } // end namespace mesytec
 

@@ -481,10 +481,6 @@ inline bool is_valid_readout_frame(const FrameInfo &frameInfo)
 
 inline util::span<u8> fixup_usb_buffer(util::span<u8> input, ReadoutBuffer &tmpBuffer)
 {
-    // FIXME: this is wrong if input.size() < sizeof(u32): it returns the
-    // original span instead of copying the data to tmpBuffer and returning an
-    // empty span.
-
     auto originalInput = input;
 
     while (input.size() >= sizeof(u32))
@@ -513,13 +509,7 @@ inline util::span<u8> fixup_usb_buffer(util::span<u8> input, ReadoutBuffer &tmpB
         // Check if the full frame including the header is in the
         // readBuffer. If not move the trailing data to the tempBuffer.
         if (frameBytes > input.size())
-        {
-            tmpBuffer.ensureFreeSpace(input.size());
-            std::memcpy(tmpBuffer.data() + tmpBuffer.used(), input.data(), input.size());
-            tmpBuffer.setUsed(input.size());
-            // TODO: counters.access()->usbTempMovedBytes += view.size();
-            return { originalInput.data(), originalInput.size() - input.size() };
-        }
+            break;
 
         // TODO (maybe make an extra count_stack_hits() function):
         //if (frameInfo.type == frame_headers::StackFrame
@@ -531,6 +521,14 @@ inline util::span<u8> fixup_usb_buffer(util::span<u8> input, ReadoutBuffer &tmpB
         // Skip over the frameHeader and the frame contents.
         input = input.subspan(frameBytes);
     }
+
+    // Move any data that's still left in the input buffer to the tempBuffer and
+    // return an adjusted span containing only the fully framed data.
+    tmpBuffer.ensureFreeSpace(input.size());
+    std::memcpy(tmpBuffer.data() + tmpBuffer.used(), input.data(), input.size());
+    tmpBuffer.setUsed(input.size());
+    // TODO: counters.access()->usbTempMovedBytes += view.size();
+    return { originalInput.data(), originalInput.size() - input.size() };
 
     return originalInput;
 }
@@ -605,7 +603,7 @@ std::pair<std::error_code, size_t>
 
     assert(false);
 
-    return {}; // TODO: return an error code here
+    return { std::make_error_code(std::errc::argument_out_of_domain), 0 }; // { EDOM, 0 }
 }
 
 struct ReadoutWorker::Private
