@@ -37,9 +37,20 @@ struct MESYTEC_MVLC_EXPORT ReadoutInitResults
 //   3) upload readout stacks
 //   4) setup readout stack triggers
 //   5) [enable/disable eth jumbo frames]
+//   --
+//   left to someone else: enable daq mode to make the MVLC start processing
+//   triggers and produce readout data.
 ReadoutInitResults MESYTEC_MVLC_EXPORT init_readout(
     MVLC &mvlc, const CrateConfig &crateConfig,
     const CommandExecOptions stackExecOptions = {});
+
+// FIXME: the USB version of the readout can potentially run into the issue
+// where a readout frame is larger than the supplied dest buffer. In this case
+// all readout data would be moved into tmpBuffer and an a 0 length is returned.
+// Return a new error code to indicate this case, so the user can supply a
+// larger buffer.
+std::pair<std::error_code, size_t> MESYTEC_MVLC_EXPORT
+    readout(MVLC &mvlc, ReadoutBuffer &tmpBuffer, util::span<u8> dest, std::chrono::milliseconds timeout);
 
 struct MESYTEC_MVLC_EXPORT ListfileWriterCounters
 {
@@ -323,9 +334,6 @@ class MESYTEC_MVLC_EXPORT StackErrorsPlugin: public ReadoutLoopPlugin
         std::chrono::time_point<std::chrono::steady_clock> tLastCheck_ = {};
         StackErrorCounters prevCounters_ = {};
 };
-
-std::pair<std::error_code, size_t> MESYTEC_MVLC_EXPORT
-    readout(MVLC &mvlc, ReadoutBuffer &tmpBuffer, util::span<u8> dest, std::chrono::milliseconds timeout);
 
 } // end namespace mvlc
 } // end namespace mesytec
