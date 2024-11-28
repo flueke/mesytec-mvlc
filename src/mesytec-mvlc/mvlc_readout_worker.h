@@ -32,11 +32,14 @@ struct MESYTEC_MVLC_EXPORT ReadoutInitResults
 // readout stacks and enables readout triggers.
 // MVLC DAQ mode is not enabled by this function!
 // Steps:
-//   1) MVLC Trigger/IO,
-//   2) DAQ init commands,
-//   3) upload readout stacks
-//   4) setup readout stack triggers
-//   5) [enable/disable eth jumbo frames]
+//   * Disable triggers and DAQ mode to start from a clean state.
+//   * Set crate id
+//   * Write MVLC 'init registers' (MVLC StackTimer setup, more to come?)
+//   * MVLC Trigger/IO,
+//   * DAQ init commands,
+//   * upload readout stacks
+//   * setup readout stack triggers
+//   * [enable/disable eth jumbo frames]
 //   --
 //   left to someone else: enable daq mode to make the MVLC start processing
 //   triggers and produce readout data.

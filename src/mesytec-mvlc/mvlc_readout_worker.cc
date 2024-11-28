@@ -101,7 +101,7 @@ ReadoutInitResults MESYTEC_MVLC_EXPORT init_readout(
 
     ReadoutInitResults ret;
 
-    // 0) Reset to a clean state
+    // Reset to a clean state
     logger->info("begin disable_daq_mode_and_triggers");
     if (auto ec = disable_daq_mode_and_triggers(mvlc))
     {
@@ -131,7 +131,7 @@ ReadoutInitResults MESYTEC_MVLC_EXPORT init_readout(
         }
     }
 
-    // 1) MVLC Trigger/IO,
+    // MVLC Trigger/IO,
     {
         ret.triggerIo = run_commands(
             mvlc,
@@ -150,7 +150,7 @@ ReadoutInitResults MESYTEC_MVLC_EXPORT init_readout(
         }
     }
 
-    // 2) DAQ init commands
+    // DAQ init commands
     {
         ret.init = run_commands(
             mvlc,
@@ -165,7 +165,7 @@ ReadoutInitResults MESYTEC_MVLC_EXPORT init_readout(
         }
     }
 
-    // 3) upload readout stacks
+    // upload readout stacks
     {
         ret.ec = setup_readout_stacks(mvlc, crateConfig.stacks);
 
@@ -176,7 +176,7 @@ ReadoutInitResults MESYTEC_MVLC_EXPORT init_readout(
         }
     }
 
-    // 4) setup readout stack triggers
+    // setup readout stack triggers
     {
         ret.ec = setup_readout_triggers(mvlc, crateConfig.triggers);
 
@@ -187,7 +187,7 @@ ReadoutInitResults MESYTEC_MVLC_EXPORT init_readout(
         }
     }
 
-    // 5) [enable/disable eth jumbo frames]
+    // [enable/disable eth jumbo frames]
     if (mvlc.connectionType() == ConnectionType::ETH)
     {
         if ((ret.ec = mvlc.enableJumboFrames(crateConfig.ethJumboEnable)))
