@@ -216,6 +216,7 @@ class MESYTEC_MVLC_EXPORT StackCommandBuilder
 
             // Optional meta info. mvme stores the VME module type name (the one
             // defined by the mvme templates) under 'vme_module_type'.
+            // The module vendor names is now also stored under 'vme_module_vendor'.
             std::map<std::string, std::string> meta;
 
             bool operator==(const Group &o) const

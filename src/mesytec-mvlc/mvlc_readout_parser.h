@@ -168,6 +168,11 @@ struct ModuleReadoutStructure
     u8 suffixLen;       // length in 32 bit words of the fixed part suffix
     bool hasDynamic;    // true if a dynamic part (block read) is present
     std::string name;   // name of the stack group/module that produced the data.
+
+    // Set to true if the module is from mesytec and a 2eSST transfer mode is used for the readout.
+    // This is used to detect trailing 0xff..ff words produced by modules that do not have the 'retry'
+    // VME line connected.
+    bool isMesytecAndUsing2eSST;
 };
 
 inline bool is_empty(const ModuleReadoutStructure &mrs)
