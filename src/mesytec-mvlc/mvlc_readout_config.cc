@@ -2,12 +2,11 @@
 
 #include <cassert>
 #include <fstream>
-#include <yaml-cpp/yaml.h>
-#include <yaml-cpp/emittermanip.h>
-#include <nlohmann/json.hpp>
 
 #include "util/fmt.h"
 #include "util/string_util.h"
+#include "util/yaml_json.h"
+#include "util/yaml_json_internal.h"
 
 namespace mesytec
 {
@@ -316,67 +315,6 @@ StackCommandBuilder stack_command_builder_from_yaml_file(
     return stack_command_builder_from_yaml(input);
 }
 
-inline nlohmann::json yaml_to_json(const YAML::Node &yNode)
-{
-    nlohmann::json jNode;
-
-    switch (yNode.Type())
-    {
-        case YAML::NodeType::Null:
-            jNode = nullptr;
-            break;
-
-        case YAML::NodeType::Scalar:
-            jNode = yNode.as<std::string>();
-            break;
-
-        case YAML::NodeType::Sequence:
-            for (const auto &yElem: yNode)
-                jNode.push_back(yaml_to_json(yElem));
-            break;
-
-        case YAML::NodeType::Map:
-            for (const auto &yPair: yNode)
-                jNode[yPair.first.as<std::string>()] = yaml_to_json(yPair.second);
-            break;
-
-        default:
-            break;
-    }
-
-    return jNode;
-}
-
-inline YAML::Node json_to_yaml(const nlohmann::json &jNode)
-{
-    YAML::Node yNode;
-
-    switch (jNode.type())
-    {
-        case nlohmann::json::value_t::null:
-            break;
-
-        case nlohmann::json::value_t::string:
-            yNode = jNode.get<std::string>();
-            break;
-
-        case nlohmann::json::value_t::array:
-            for (const auto &jElem: jNode)
-                yNode.push_back(json_to_yaml(jElem));
-            break;
-
-        case nlohmann::json::value_t::object:
-            for (const auto &jPair: jNode.items())
-                yNode[jPair.key()] = json_to_yaml(jPair.value());
-            break;
-
-        default:
-            break;
-    }
-
-    return yNode;
-}
-
 namespace detail
 {
 template<typename T>
@@ -388,7 +326,7 @@ std::string to_json(const T &t)
     if (!yRoot)
         return {};
 
-    return yaml_to_json(yRoot).dump(true);
+    return util::detail::yaml_to_json(yRoot).dump(true);
 }
 }
 
@@ -397,16 +335,12 @@ std::string to_json(const StackCommandBuilder &t) { return detail::to_json(t); }
 
 CrateConfig crate_config_from_json(const std::string &json)
 {
-    auto j = nlohmann::json::parse(json);
-    auto y = json_to_yaml(j);
-    return crate_config_from_yaml(y);
+    return crate_config_from_yaml(util::json_to_yaml(json));
 }
 
 StackCommandBuilder stack_command_builder_from_json(const std::string &json)
 {
-    auto j = nlohmann::json::parse(json);
-    auto y = json_to_yaml(j);
-    return stack_command_builder_from_yaml(y);
+    return stack_command_builder_from_yaml(util::json_to_yaml(json));
 }
 
 } // end namespace mvlc

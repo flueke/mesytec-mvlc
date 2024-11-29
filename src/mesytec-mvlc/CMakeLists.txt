@@ -48,6 +48,7 @@ add_library(mesytec-mvlc SHARED
     util/threadsafequeue.cc
     util/ticketmutex.cc
     util/udp_sockets.cc
+    util/yaml_json.cc
     )
 
 if (MESYTEC_MVLC_PLATFORM_LINUX)
