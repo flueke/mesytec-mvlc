@@ -4,6 +4,7 @@
 #include <fstream>
 #include <yaml-cpp/yaml.h>
 #include <yaml-cpp/emittermanip.h>
+#include <nlohmann/json.hpp>
 
 #include "util/fmt.h"
 #include "util/string_util.h"
@@ -117,16 +118,11 @@ StackCommandBuilder stack_command_builder_from_yaml(const YAML::Node &yStack)
     return stack;
 }
 
-} // end anon namespace
-
-/// Serializes a CrateConfig to YAML format.
-std::string to_yaml(const CrateConfig &crateConfig)
+YAML::Emitter &operator<<(YAML::Emitter &out, const CrateConfig &crateConfig)
 {
-    YAML::Emitter out;
+    assert(out.good());
 
     out << YAML::Hex;
-
-    assert(out.good());
 
     out << YAML::BeginMap;
     out << YAML::Key << "crate" << YAML::Value << YAML::BeginMap;
@@ -167,7 +163,18 @@ std::string to_yaml(const CrateConfig &crateConfig)
 
     assert(out.good());
 
-    return out.c_str();
+    return out;
+}
+
+} // end anon namespace
+
+inline YAML::Emitter & to_yaml(YAML::Emitter &out, const CrateConfig &crateConfig)
+{
+    out << YAML::Hex;
+    assert(out.good());
+    out << crateConfig;
+    assert(out.good());
+    return out;
 }
 
 /// Parses a CreateConfig from the given YAML input string.
@@ -180,11 +187,9 @@ CrateConfig crate_config_from_yaml(const std::string &yamlText)
 
 /// Parses a CreateConfig from the given YAML input stream.
 /// throws std::runtime_error on error.
-CrateConfig crate_config_from_yaml(std::istream &input)
+CrateConfig crate_config_from_yaml(const YAML::Node &yRoot)
 {
     CrateConfig result = {};
-
-    YAML::Node yRoot = YAML::Load(input);
 
     if (!yRoot)
         throw std::runtime_error("CrateConfig YAML data is empty");
@@ -249,6 +254,16 @@ CrateConfig crate_config_from_yaml(std::istream &input)
     return result;
 }
 
+CrateConfig crate_config_from_yaml(std::istream &input)
+{
+    YAML::Node yRoot = YAML::Load(input);
+
+    if (!yRoot)
+        throw std::runtime_error("CrateConfig YAML data is empty");
+
+    return crate_config_from_yaml(yRoot);
+}
+
 CrateConfig MESYTEC_MVLC_EXPORT crate_config_from_yaml_file(const std::string &filename)
 {
     std::ifstream input(filename);
@@ -256,14 +271,25 @@ CrateConfig MESYTEC_MVLC_EXPORT crate_config_from_yaml_file(const std::string &f
     return crate_config_from_yaml(input);
 }
 
-std::string to_yaml(const StackCommandBuilder &sb)
+inline YAML::Emitter & to_yaml(YAML::Emitter &out, const StackCommandBuilder &sb)
 {
-    YAML::Emitter out;
     out << YAML::Hex;
     assert(out.good());
     out << sb;
     assert(out.good());
-    return out.c_str();
+    return out;
+}
+
+std::string to_yaml(const StackCommandBuilder &sb)
+{
+    YAML::Emitter yEmitter;
+    return to_yaml(yEmitter, sb).c_str();
+}
+
+std::string to_yaml(const CrateConfig &crateConfig)
+{
+    YAML::Emitter yEmitter;
+    return to_yaml(yEmitter, crateConfig).c_str();
 }
 
 StackCommandBuilder stack_command_builder_from_yaml(const std::string &yaml)
@@ -282,12 +308,105 @@ StackCommandBuilder stack_command_builder_from_yaml(std::istream &input)
     return stack_command_builder_from_yaml(yRoot);
 }
 
-StackCommandBuilder MESYTEC_MVLC_EXPORT stack_command_builder_from_yaml_file(
+StackCommandBuilder stack_command_builder_from_yaml_file(
     const std::string &filename)
 {
     std::ifstream input(filename);
     input.exceptions(std::ios::failbit | std::ios::badbit);
     return stack_command_builder_from_yaml(input);
+}
+
+inline nlohmann::json yaml_to_json(const YAML::Node &yNode)
+{
+    nlohmann::json jNode;
+
+    switch (yNode.Type())
+    {
+        case YAML::NodeType::Null:
+            jNode = nullptr;
+            break;
+
+        case YAML::NodeType::Scalar:
+            jNode = yNode.as<std::string>();
+            break;
+
+        case YAML::NodeType::Sequence:
+            for (const auto &yElem: yNode)
+                jNode.push_back(yaml_to_json(yElem));
+            break;
+
+        case YAML::NodeType::Map:
+            for (const auto &yPair: yNode)
+                jNode[yPair.first.as<std::string>()] = yaml_to_json(yPair.second);
+            break;
+
+        default:
+            break;
+    }
+
+    return jNode;
+}
+
+inline YAML::Node json_to_yaml(const nlohmann::json &jNode)
+{
+    YAML::Node yNode;
+
+    switch (jNode.type())
+    {
+        case nlohmann::json::value_t::null:
+            break;
+
+        case nlohmann::json::value_t::string:
+            yNode = jNode.get<std::string>();
+            break;
+
+        case nlohmann::json::value_t::array:
+            for (const auto &jElem: jNode)
+                yNode.push_back(json_to_yaml(jElem));
+            break;
+
+        case nlohmann::json::value_t::object:
+            for (const auto &jPair: jNode.items())
+                yNode[jPair.key()] = json_to_yaml(jPair.value());
+            break;
+
+        default:
+            break;
+    }
+
+    return yNode;
+}
+
+namespace detail
+{
+template<typename T>
+std::string to_json(const T &t)
+{
+    YAML::Emitter yEmitter;
+    YAML::Node yRoot = YAML::Load(to_yaml(yEmitter, t).c_str());
+
+    if (!yRoot)
+        return {};
+
+    return yaml_to_json(yRoot).dump(true);
+}
+}
+
+std::string to_json(const CrateConfig &t) { return detail::to_json(t); }
+std::string to_json(const StackCommandBuilder &t) { return detail::to_json(t); }
+
+CrateConfig crate_config_from_json(const std::string &json)
+{
+    auto j = nlohmann::json::parse(json);
+    auto y = json_to_yaml(j);
+    return crate_config_from_yaml(y);
+}
+
+StackCommandBuilder stack_command_builder_from_json(const std::string &json)
+{
+    auto j = nlohmann::json::parse(json);
+    auto y = json_to_yaml(j);
+    return stack_command_builder_from_yaml(y);
 }
 
 } // end namespace mvlc

@@ -72,6 +72,12 @@ StackCommandBuilder MESYTEC_MVLC_EXPORT stack_command_builder_from_yaml(const st
 StackCommandBuilder MESYTEC_MVLC_EXPORT stack_command_builder_from_yaml(std::istream &input);
 StackCommandBuilder MESYTEC_MVLC_EXPORT stack_command_builder_from_yaml_file(const std::string &filename);
 
+std::string MESYTEC_MVLC_EXPORT to_json(const CrateConfig &crateConfig);
+CrateConfig MESYTEC_MVLC_EXPORT crate_config_from_json(const std::string &json);
+
+std::string MESYTEC_MVLC_EXPORT to_json(const StackCommandBuilder &sb);
+StackCommandBuilder MESYTEC_MVLC_EXPORT stack_command_builder_from_json(const std::string &json);
+
 
 } // end namespace mvlc
 } // end namespace mesytec

@@ -73,6 +73,7 @@ target_link_libraries(mesytec-mvlc
     PRIVATE lz4_static
     PRIVATE minizip
     PRIVATE yaml-cpp
+    PRIVATE nlohmann_json::nlohmann_json
     PUBLIC argh
     PUBLIC spdlog::spdlog
     PUBLIC Threads::Threads
