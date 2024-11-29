@@ -49,6 +49,14 @@ option(YAML_BUILD_SHARED_LIBS "Build Shared Libraries" OFF)
 add_subdirectory(yaml-cpp)
 target_compile_options(yaml-cpp PRIVATE -Wno-shadow)
 
+# nlohmann/json
+set(JSON_BuildTests OFF CACHE INTERNAL "")
+
+# If you only include this third party in PRIVATE source files, you do not
+# need to install it when your main project gets installed.
+set(JSON_Install OFF CACHE INTERNAL "")
+add_subdirectory(nlohmann_json)
+
 # Enable the PIC flag to fix a relocation error when linking against the
 # static version of yaml-cpp.
 set_target_properties(yaml-cpp PROPERTIES POSITION_INDEPENDENT_CODE ON)
