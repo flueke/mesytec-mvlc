@@ -446,6 +446,7 @@ StackCommand stack_command_from_string(const std::string &str)
         arg = {};
         iss >> arg; result.lateRead = (arg == "slow" || arg == "late");
     }
+    // FIXME: undocumeneted as of yet. only the block read versions make sense?
     else if (name == "vme_read_mem")
     {
         result.type = CT::VMEReadMem;
@@ -522,6 +523,7 @@ StackCommand stack_command_from_string(const std::string &str)
         result.type = CT::WriteMarker;
         iss >> arg; result.value = std::stoul(arg, nullptr, 0);
     }
+    // TODO: test and document
     else if (name == "write_special")
     {
         result.type = CT::WriteSpecial;
@@ -567,7 +569,7 @@ StackCommand stack_command_from_string(const std::string &str)
         result.type = CT::SoftwareDelay;
         iss >> arg; result.value = std::stoul(arg, nullptr, 0);
     }
-    else if (name == "custom_cmd:")
+    else if (name == "custom_cmd:") // FIXME: remove the YAML dependency or do not support anymore or reimplement
     {
         // Note: the custom command is encoded as inline YAML!
         YAML::Node yRoot = YAML::Load(str);
