@@ -25,6 +25,7 @@ std::shared_ptr<spdlog::logger>
         else
         {
             logger = spdlog::stdout_color_mt(name);
+            spdlog::register_logger(logger);
         }
     }
 
