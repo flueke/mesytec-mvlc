@@ -797,6 +797,18 @@ StackCommandBuilder &StackCommandBuilder::addCommand(const StackCommand &cmd)
     return *this;
 }
 
+StackCommandBuilder &StackCommandBuilder::addCommand(const str::string &str)
+{
+    if (!hasOpenGroup())
+        beginGroup();
+
+    assert(hasOpenGroup());
+
+    m_groups.back().commands.push_back(stack_command_from_string(str));
+
+    return *this;
+}
+
 StackCommandBuilder &StackCommandBuilder::beginGroup(const std::string &name,
     const std::map<std::string, std::string> & meta)
 {

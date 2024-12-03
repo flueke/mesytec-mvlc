@@ -279,6 +279,8 @@ class MESYTEC_MVLC_EXPORT StackCommandBuilder
         // Add a manually created StackCommand object.
         StackCommandBuilder &addCommand(const StackCommand &cmd);
 
+        StackCommandBuilder &addCommand(const std::string &str);
+
         // Begins a new group using the supplied name.
         StackCommandBuilder &beginGroup(
             const std::string &name = {},
@@ -343,6 +345,7 @@ class MESYTEC_MVLC_EXPORT StackCommandBuilder
         }
 
         size_t commandCount() const;
+        void clear() { m_groups.clear(); }
 
     private:
         std::string m_name;
