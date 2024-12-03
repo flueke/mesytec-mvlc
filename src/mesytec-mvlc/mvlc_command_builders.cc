@@ -797,7 +797,7 @@ StackCommandBuilder &StackCommandBuilder::addCommand(const StackCommand &cmd)
     return *this;
 }
 
-StackCommandBuilder &StackCommandBuilder::addCommand(const str::string &str)
+StackCommandBuilder &StackCommandBuilder::addCommand(const std::string &str)
 {
     if (!hasOpenGroup())
         beginGroup();
