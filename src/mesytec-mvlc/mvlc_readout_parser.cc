@@ -33,6 +33,7 @@
 #include "mvlc_buffer_validators.h"
 #include "mvlc_constants.h"
 #include "mvlc_impl_eth.h"
+#include "cpp_compat.h"
 #include "util/io_util.h"
 #include "util/logging.h"
 #include "util/storage_sizes.h"
@@ -68,11 +69,19 @@ namespace
 {
     using StackCT = StackCommand::CommandType;
 
-    ModuleReadoutStructure parse_module_readout_commands(const std::vector<StackCommand> &commands)
+    ModuleReadoutStructure parse_module_readout_commands(const StackCommandBuilder::Group &cmdGroup)
     {
         enum State { Prefix, Dynamic, Suffix };
         State state = Prefix;
         ModuleReadoutStructure modParts = {};
+
+        bool isMesytecModule = false;
+
+        if (auto it = cmdGroup.meta.find("vme_module_vendor");
+            it != cmdGroup.meta.end() && it->second == "mesytec")
+        {
+            isMesytecModule = true;
+        }
 
         // Tracks state of the MVLC stack accumulator functionality.
         // This is set to true on encountering SetAccu, ReadToAccu or CompareLoopAccu.
@@ -83,6 +92,8 @@ namespace
         // the accu and packages the resulting data into a standard 0xF5 block
         // frame.
         bool accumulatorActive = false;
+
+        const auto &commands = cmdGroup.commands;
 
         for (const auto &cmd: commands)
         {
@@ -122,6 +133,7 @@ namespace
                 {
                     case Prefix:
                         modParts.hasDynamic = true;
+                        modParts.isMesytecAndUsing2eSST = isMesytecModule && vme_amods::is_esst64_mode(cmd.amod);
                         state = Dynamic;
                         break;
                     case Dynamic:
@@ -190,7 +202,7 @@ ReadoutParserState::ReadoutStructure build_readout_structure(
 
         for (const auto &group: stack.getGroups())
         {
-            auto moduleReadoutStructure = parse_module_readout_commands(group.commands);
+            auto moduleReadoutStructure = parse_module_readout_commands(group);
             moduleReadoutStructure.name = group.name;
             groupStructure.emplace_back(moduleReadoutStructure);
         }
@@ -813,6 +825,28 @@ ParseResult parse_readout_contents(
                     if (state.curBlockFrame.wordsLeft == 0
                         && !(state.curBlockFrame.info().flags & frame_flags::Continue))
                     {
+                        // All dynamic data of this module was recorded in moduleSpan. Now handle the special
+                        // case of a mesytec module without the 'retry' VME line connected, combined with a 2eSST
+                        // transfer mode:  determine if there are trailing 0xff.ff words,
+                        // then remove those from the output span.
+                        if (moduleParts.isMesytecAndUsing2eSST)
+                        {
+                            // an actual std::span since we have that now, yay! :)
+                            util::span<u32> dynamicSpan = {
+                                state.workBuffer.buffer.data() + moduleSpans.dynamicSpan.offset,
+                                moduleSpans.dynamicSpan.size
+                            };
+
+                            if (dynamicSpan.size() >= 2)
+                            {
+                                if (*std::rbegin(dynamicSpan) == 0xffffffffu
+                                    && *(std::rbegin(dynamicSpan) + 1) == 0xffffffffu)
+                                {
+                                    moduleSpans.dynamicSpan.size -= 2;
+                                }
+                            }
+                        }
+
                         if (moduleParts.suffixLen == 0)
                         {
                             // No suffix, we're done with the module

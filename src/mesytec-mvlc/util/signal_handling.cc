@@ -1,4 +1,5 @@
 #include "signal_handling.h"
+#include <atomic>
 #include <signal.h>
 #include <system_error>
 

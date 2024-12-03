@@ -48,6 +48,7 @@ add_library(mesytec-mvlc SHARED
     util/threadsafequeue.cc
     util/ticketmutex.cc
     util/udp_sockets.cc
+    util/yaml_json.cc
     )
 
 if (MESYTEC_MVLC_PLATFORM_LINUX)
@@ -73,6 +74,7 @@ target_link_libraries(mesytec-mvlc
     PRIVATE lz4_static
     PRIVATE minizip
     PRIVATE yaml-cpp
+    PRIVATE nlohmann_json::nlohmann_json
     PUBLIC argh
     PUBLIC spdlog::spdlog
     PUBLIC Threads::Threads
