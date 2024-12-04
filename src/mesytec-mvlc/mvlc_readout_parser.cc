@@ -831,13 +831,12 @@ ParseResult parse_readout_contents(
                         // then remove those from the output span.
                         if (moduleParts.isMesytecAndUsing2eSST)
                         {
-                            // an actual std::span since we have that now, yay! :)
                             util::span<u32> dynamicSpan = {
                                 state.workBuffer.buffer.data() + moduleSpans.dynamicSpan.offset,
                                 moduleSpans.dynamicSpan.size
                             };
 
-                            if (dynamicSpan.size() >= 2)
+                            if (dynamicSpan.size() >= 2 && dynamicSpan.size() % 4 == 0)
                             {
                                 if (*std::rbegin(dynamicSpan) == 0xffffffffu
                                     && *(std::rbegin(dynamicSpan) + 1) == 0xffffffffu)
