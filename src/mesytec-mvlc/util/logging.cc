@@ -15,6 +15,8 @@ std::shared_ptr<spdlog::logger>
     std::unique_lock<std::mutex> lock(g_mutex);
     auto logger = spdlog::get(name);
 
+    //fmt::print(stderr, "mvlc::create_logger: name={}, logger={}\n", name, fmt::ptr(logger.get()));
+
     if (!logger)
     {
         if (!sinks.empty())
@@ -27,7 +29,14 @@ std::shared_ptr<spdlog::logger>
         }
 
         if (logger)
-            spdlog::register_logger(logger);
+        {
+            try
+            {
+                spdlog::register_logger(logger);
+            }
+            catch (const std::exception &e)
+            { }
+        }
     }
 
     return logger;
@@ -67,6 +76,11 @@ std::vector<std::string> list_logger_names()
         });
 
     return result;
+}
+
+std::vector<std::string> get_logger_names()
+{
+    return list_logger_names();
 }
 
 } // end namespace mvlc
