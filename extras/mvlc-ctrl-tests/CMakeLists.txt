@@ -5,7 +5,6 @@ function(add_mvlc_test exe_name exe_source)
         PRIVATE mesytec-mvlc
         PRIVATE gtest
         PRIVATE gtest_main
-        PRIVATE spdlog::spdlog
         )
 
     add_test(NAME ${exe_name} COMMAND $<TARGET_FILE:${exe_name}>)
