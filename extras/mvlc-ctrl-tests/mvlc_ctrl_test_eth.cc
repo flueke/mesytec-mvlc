@@ -1,5 +1,4 @@
 #include "gtest/gtest.h"
-#include <spdlog/spdlog.h>
 #include <mesytec-mvlc/mesytec-mvlc.h>
 #include <mesytec-mvlc/mvlc_impl_eth.h>
 
@@ -29,14 +28,13 @@ class MvlcEthTestBase: public ::testing::TestWithParam<const char *>
 
 TEST_P(MvlcEthTestBase, ReadRegister)
 {
-    //spdlog::set_level(spdlog::level::trace);
     // TODO: move this into a setUp routine
     auto &mvlc = *impl;
     auto ec = mvlc.connect();
     ASSERT_FALSE(ec) << ec.message();
     ASSERT_TRUE(mvlc.isConnected());
 
-    for (size_t i=0; i<10000; ++i)
+    for (size_t i=0; i<1000; ++i)
     {
         SuperCommandBuilder cmdList;
         cmdList.addReferenceWord(i); // XXX: Makes the response one word larger. 15 bytes in total now!

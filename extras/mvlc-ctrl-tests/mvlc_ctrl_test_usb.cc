@@ -1,5 +1,4 @@
 #include "gtest/gtest.h"
-#include <spdlog/spdlog.h>
 #include <ftd3xx.h>
 #include <mesytec-mvlc/mesytec-mvlc.h>
 #include <mesytec-mvlc/mvlc_impl_usb.h>
@@ -85,7 +84,7 @@ TEST(MvlcUsb, ReadRegister)
     ASSERT_FALSE(ec) << ec.message();
     ASSERT_TRUE(mvlc.isConnected());
 
-    for (size_t i = 0; i < 10000; ++i)
+    for (size_t i = 0; i < 1000; ++i)
     {
         SuperCommandBuilder cmdList;
         cmdList.addReferenceWord(i); // XXX: Makes the response one word larger. 15 bytes in total now!

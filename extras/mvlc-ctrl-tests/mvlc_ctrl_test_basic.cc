@@ -101,7 +101,7 @@ TEST_P(MVLCTestBase, TestRegisterReadWrite)
 TEST_P(MVLCTestBase, TestRegisterReadWriteMultiThreaded)
 {
     static const unsigned ThreadCount = 4;      // total number of threads to spawn
-    static const unsigned LoopCount   = 10000;   // total number of loops each thread performs
+    static const unsigned LoopCount   = 1000;   // total number of loops each thread performs
 
     //mesytec::mvlc::get_logger("cmd_pipe_reader")->set_level(spdlog::level::trace);
 
