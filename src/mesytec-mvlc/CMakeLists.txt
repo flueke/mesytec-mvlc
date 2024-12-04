@@ -102,6 +102,7 @@ set(MVLC_SPDLOG_ACTIVE_LEVEL "SPDLOG_LEVEL_WARN" CACHE STRING "Compile time spdl
 
 target_compile_definitions(mesytec-mvlc PRIVATE SPDLOG_ACTIVE_LEVEL=${MVLC_SPDLOG_ACTIVE_LEVEL})
 target_compile_options(mesytec-mvlc PRIVATE -Wall -Wextra -Wimplicit-fallthrough PUBLIC -Wno-gnu-anonymous-struct)
+target_compile_options(mesytec-mvlc PUBLIC -Wno-dangling-reference) # to silence spdlog warnings with some gcc-14
 target_compile_features(mesytec-mvlc PUBLIC cxx_std_17)
 
 if (WIN32)
