@@ -481,6 +481,11 @@ inline bool is_valid_readout_frame(const FrameInfo &frameInfo)
 
 util::span<u8> fixup_usb_buffer(util::span<u8> input, ReadoutBuffer &tmpBuffer)
 {
+    // The caller is expected to place any data in tmpBuffer from the previous
+    // call to this function, at the start of the next readout destination buffer.
+    // They should also empty the buffer to indicate the data has been consumed.
+    assert(tmpBuffer.empty());
+
     auto originalInput = input;
 
     while (input.size() >= sizeof(u32))
