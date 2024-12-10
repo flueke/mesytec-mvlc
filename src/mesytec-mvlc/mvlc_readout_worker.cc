@@ -479,7 +479,7 @@ inline bool is_valid_readout_frame(const FrameInfo &frameInfo)
             || frameInfo.type == frame_headers::SystemEvent);
 }
 
-inline util::span<u8> fixup_usb_buffer(util::span<u8> input, ReadoutBuffer &tmpBuffer)
+util::span<u8> fixup_usb_buffer(util::span<u8> input, ReadoutBuffer &tmpBuffer)
 {
     auto originalInput = input;
 
@@ -529,8 +529,6 @@ inline util::span<u8> fixup_usb_buffer(util::span<u8> input, ReadoutBuffer &tmpB
     tmpBuffer.setUsed(input.size());
     // TODO: counters.access()->usbTempMovedBytes += view.size();
     return { originalInput.data(), originalInput.size() - input.size() };
-
-    return originalInput;
 }
 
 std::pair<std::error_code, size_t> readout_usb(
