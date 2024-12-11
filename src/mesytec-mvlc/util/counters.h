@@ -77,6 +77,24 @@ ResultType calc_rates0(InputIterator curBegin, InputIterator curEnd,
     return result;
 }
 
+// Calculates the delta of each entry in the current and previous maps (curr -
+// prev). currMap dictates the key set. If the key is not present in prevMap the
+// value from currMap is returned in the result.
+// Should work for anything with pair iterators and operator[key] access.
+template<typename Map>
+Map delta_map(const Map &prevMap, const Map &currMap)
+{
+    Map result;
+
+    for (const auto &[key, value]: currMap)
+    {
+        auto it = prevMap.find(key);
+        result[key] = it != prevMap.end() ? value - it->second : value;
+    }
+
+    return result;
 }
+
+} // namespace mesytec::mvlc::util
 
 #endif /* ABA2EA1D_7F11_4B46_9244_031F4512AEDD */

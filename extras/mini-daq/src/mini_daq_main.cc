@@ -26,20 +26,6 @@ struct MiniDaqCountersSnapshot
     readout_parser::ReadoutParserCounters parserCounters;
 };
 
-template<typename Map>
-Map delta_map(const Map &prevMap, const Map &currMap)
-{
-    Map result;
-
-    for (const auto &[key, value]: currMap)
-    {
-        auto it = prevMap.find(key);
-        result[key] = it != prevMap.end() ? value - it->second : value;
-    }
-
-    return result;
-}
-
 StackErrorCounters delta_counters(const StackErrorCounters &prev, const StackErrorCounters &curr)
 {
     StackErrorCounters result;
@@ -47,7 +33,7 @@ StackErrorCounters delta_counters(const StackErrorCounters &prev, const StackErr
     std::transform(std::begin(prev.stackErrors), std::end(prev.stackErrors),
                    std::begin(curr.stackErrors),
                    std::begin(result.stackErrors),
-                   delta_map<ErrorInfoCounts>);
+                   util::delta_map<ErrorInfoCounts>);
 
     result.nonErrorFrames = calc_delta0(curr.nonErrorFrames, prev.nonErrorFrames);
     result.nonErrorHeaderCounts = delta_map(prev.nonErrorHeaderCounts, curr.nonErrorHeaderCounts);
