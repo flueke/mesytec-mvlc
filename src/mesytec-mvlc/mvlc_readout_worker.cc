@@ -551,10 +551,10 @@ std::pair<std::error_code, size_t> readout_usb(
     {
         //spdlog::warn("moving {} bytes from tmpBuffer to dest: {:#010x}",
         //             tmpBuffer.used(), fmt::join(tmpBuffer.viewU32().begin(), tmpBuffer.viewU32().end(), ", "));
-        auto size_before = dest.size();
+        auto size_before = dest.size(); (void) size_before;
         std::memcpy(dest.data(), tmpBuffer.data(), tmpBuffer.used());
         dest = dest.subspan(tmpBuffer.used());
-        auto size_after = dest.size();
+        auto size_after = dest.size(); (void) size_after;
         assert(size_before - size_after == tmpBuffer.used());
         bytesMovedFromTempBuffer = tmpBuffer.used();
         tmpBuffer.clear();
@@ -599,12 +599,12 @@ std::pair<std::error_code, size_t> readout_usb(
     assert(tmpBuffer.empty());
     fixup_usb_buffer({originalDest.data(), totalBytesTransferred}, tmpBuffer);
 
-    if (tmpBuffer.used() > 0)
-    {
-        auto v = tmpBuffer.viewU32();
-        //spdlog::warn("readout_usb(): moved {} bytes to tmpBuffer: {:#010x}", tmpBuffer.used(),
-        //                fmt::join(v.begin(), v.end(), ", "));
-    }
+    //if (tmpBuffer.used() > 0)
+    //{
+    //    auto v = tmpBuffer.viewU32();
+    //    //spdlog::warn("readout_usb(): moved {} bytes to tmpBuffer: {:#010x}", tmpBuffer.used(),
+    //    //                fmt::join(v.begin(), v.end(), ", "));
+    //}
 
     size_t bytesInResult = totalBytesTransferred + bytesMovedFromTempBuffer - tmpBuffer.used();
     //spdlog::info("leaving readout_usb(): ec={}, bytesInResult={}, tmpBuffer.used()={}",
