@@ -537,37 +537,79 @@ util::span<u8> fixup_usb_buffer(util::span<u8> input, ReadoutBuffer &tmpBuffer)
 }
 
 std::pair<std::error_code, size_t> readout_usb(
-    usb::MVLC_USB_Interface &mvlcUSB, ReadoutBuffer &tmpBuffer, util::span<u8> dest, std::chrono::milliseconds timeout)
+    usb::MVLC_USB_Interface &mvlcUSB, ReadoutBuffer &tmpBuffer, util::span<u8> dest,
+    std::chrono::milliseconds timeout)
 {
-    std::pair<std::error_code, size_t> result{};
+    //spdlog::info("entering readout_usb(): tmpBuffer.used()={} bytes, dest.size()={} bytes",
+    //             tmpBuffer.used(), dest.size());
+
     util::Stopwatch sw;
     auto originalDest = dest;
+    size_t bytesMovedFromTempBuffer = 0;
 
     if (tmpBuffer.used() && dest.size() >= tmpBuffer.used())
     {
+        //spdlog::warn("moving {} bytes from tmpBuffer to dest: {:#010x}",
+        //             tmpBuffer.used(), fmt::join(tmpBuffer.viewU32().begin(), tmpBuffer.viewU32().end(), ", "));
+        auto size_before = dest.size();
         std::memcpy(dest.data(), tmpBuffer.data(), tmpBuffer.used());
         dest = dest.subspan(tmpBuffer.used());
+        auto size_after = dest.size();
+        assert(size_before - size_after == tmpBuffer.used());
+        bytesMovedFromTempBuffer = tmpBuffer.used();
         tmpBuffer.clear();
     }
 
     const size_t bytesToRead = usb::USBStreamPipeReadSize;
+    size_t totalBytesTransferred = 0;
+    size_t readCycles = 0;
+    std::error_code ec;
 
     while (dest.size() >= bytesToRead && sw.get_elapsed() < timeout)
     {
         size_t bytesTransferred = 0;
-        result.first = mvlcUSB.read_unbuffered(Pipe::Data, dest.data(), bytesToRead, bytesTransferred);
-        result.second += bytesTransferred;
+        ec = mvlcUSB.read_unbuffered(Pipe::Data, dest.data(), bytesToRead, bytesTransferred);
+        totalBytesTransferred += bytesTransferred;
         dest = dest.subspan(bytesTransferred);
 
-        if (result.first)
+        //spdlog::info("readout_usb(): read_cycles={}: read {} bytes from usb, ec={}, remaining size in dest buffer: {}",
+        //             readCycles, bytesTransferred, ec.message(), dest.size());
+
+        if (ec && ec != ErrorType::Timeout)
+        {
+            //spdlog::warn("readout_usb(): read_cycles={}: leaving read loop due to ec={}. totalBytesTransferred={}",
+            //    readCycles, ec.message(), totalBytesTransferred);
             break;
+        }
+
+        ++readCycles;
+    }
+
+    if (dest.size() < bytesToRead)
+    {
+        //spdlog::info("readout_usb(): read_cycles={}: dest exhausted, dest.size()={}, totalBytesTransferred={}",
+        //  readCycles, dest.size(), totalBytesTransferred);
+    }
+    else if (sw.get_elapsed() >= timeout)
+    {
+        //spdlog::info("readout_usb(): read_cycles={}: timeout elapsed, totalBytesTransferred={}",
+        //    readCycles, totalBytesTransferred);
     }
 
     assert(tmpBuffer.empty());
-    fixup_usb_buffer({originalDest.data(), result.second}, tmpBuffer);
-    result.second -= tmpBuffer.used();
+    fixup_usb_buffer({originalDest.data(), totalBytesTransferred}, tmpBuffer);
 
-    return result;
+    if (tmpBuffer.used() > 0)
+    {
+        auto v = tmpBuffer.viewU32();
+        //spdlog::warn("readout_usb(): moved {} bytes to tmpBuffer: {:#010x}", tmpBuffer.used(),
+        //                fmt::join(v.begin(), v.end(), ", "));
+    }
+
+    size_t bytesInResult = totalBytesTransferred + bytesMovedFromTempBuffer - tmpBuffer.used();
+    //spdlog::info("leaving readout_usb(): ec={}, bytesInResult={}, tmpBuffer.used()={}",
+    //             ec.message(), bytesInResult, tmpBuffer.used());
+    return { ec, bytesInResult };
 }
 
 std::pair<std::error_code, size_t> readout_eth(
