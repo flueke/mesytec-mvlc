@@ -54,7 +54,7 @@ ReadoutInitResults MESYTEC_MVLC_EXPORT init_readout(
 // larger buffer.
 std::pair<std::error_code, size_t> MESYTEC_MVLC_EXPORT
     readout(MVLC &mvlc, ReadoutBuffer &tmpBuffer, util::span<u8> dest, std::chrono::milliseconds timeout);
-util::span<u8> fixup_usb_buffer(util::span<u8> input, ReadoutBuffer &tmpBuffer);
+util::span<u8> MESYTEC_MVLC_EXPORT fixup_usb_buffer(util::span<u8> input, ReadoutBuffer &tmpBuffer);
 
 struct MESYTEC_MVLC_EXPORT ListfileWriterCounters
 {
