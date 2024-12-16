@@ -152,6 +152,9 @@ namespace frame_headers
                                     // The last F9 frame in a sequence has the Continue bit cleared.
         SystemEvent         = 0xFA, // Software generated frames used for transporting additional
                                     // information. See the system_event namespace below for details.
+
+        SystemEvent2        = 0xFB, // Software generated frames used for transporting additional
+                                    // information. See the system_event namespace below for details.
     };
 
     // Header: Type[7:0] Continue[0:0] ErrorFlags[2:0] StackNum[3:0] CtrlId[2:0] Length[12:0]
@@ -263,6 +266,11 @@ namespace system_event
         // Format of each 32-bit word:
         //   [stackNum (4), frame_flags (4), stackLine (8), count(16)]
         static const u8 StackErrors     = 0x15;
+
+        // Range reversed for user-defined system events injected into the data
+        // stream.
+        static const u8 UserMin         = 0x20;
+        static const u8 UserMax         = 0x2F;
 
         // Written before closing the listfile.
         static const u8 EndOfFile       = 0x77;
