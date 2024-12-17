@@ -1,3 +1,6 @@
+
+** Incomplete, old and untested **
+
 Using the mesytec-mvlc library {#usage-guide}
 =============================================
 

@@ -47,7 +47,7 @@ vme_read_mem 0x09 d16 0x0000
 ```
 
 In combination with **read_to_accu** and **mask_shift_accu** this can be used to
-read a transfer count from a module and use it to create a fake block transfer.
+read a transfer count from a module to create a fake block transfer.
 
 **signal_accu** creates an MVLC internal IRQ signal using the current accu
 *value. This can be used to dispatch
