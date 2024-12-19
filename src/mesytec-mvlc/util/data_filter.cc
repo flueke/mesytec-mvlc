@@ -138,6 +138,11 @@ std::optional<CacheEntry> get_cache_entry(const FilterWithCaches &filters, char 
 {
     assert(filters.markers.size() == filters.caches.size());
 
+    if (!std::isalpha(marker))
+        return std::nullopt;
+
+    marker = std::tolower(marker);
+
     auto it = std::find(std::begin(filters.markers), std::end(filters.markers), marker);
 
     if (it == std::end(filters.markers))
