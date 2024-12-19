@@ -144,9 +144,8 @@ struct ReadoutParserCallbacks
     // - moduleDataList: pointer to ModuleData structures
     // - number of ModuleData structures stored in moduleDataList
 
-    std::function<void (void *userContext, int crateIndex, int eventIndex,
-                        const ModuleData *moduleDataList, unsigned moduleCount)>
-        eventData = [] (void *, int, int, const ModuleData *, unsigned) {};
+    using EventData = std::function<void(void *userContext, int crateIndex, int eventIndex,
+                                         const ModuleData *moduleDataList, unsigned moduleCount)>;
 
     // Parameters: pointer to the system event header, number of words in the
     // system event
@@ -158,8 +157,10 @@ struct ReadoutParserCallbacks
     // - crateIndex as passed to make_readout_parser(), starts from 0
     // - header: pointer to the system_event header
     // - number of words in the system event
-    std::function<void (void *userContext, int crateIndex, const u32 *header, u32 size)>
-        systemEvent = [] (void *, int, const u32 *, u32) {};
+    using SystemEvent = std::function<void(void *userContext, int crateIndex,
+                                           const u32 *header, u32 size)>;
+    EventData eventData;
+    SystemEvent systemEvent;
 };
 
 struct ModuleReadoutStructure
