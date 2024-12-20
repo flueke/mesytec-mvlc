@@ -10,6 +10,8 @@ to build high-performance MVLC based DAQ readout systems are provided:
 * Configuration holding the setup and readout information for a single VME
   crate containing multiple VME modules.
 
+  JSON and YAML formats are currently implemented.
+
 * Multithreaded readout worker and listfile writer using fast data compression
   (LZ4 or ZIP deflate).
 
@@ -30,17 +32,18 @@ software.
 
 * [MVLC command format](doc/command_format.md)
 * [MVLC data format](doc/data_format.md)
+* [The readout_parser module](doc/readout_parser.md)
 * [mvme manual](https://mesytec.com/downloads/mvme/mvme.pdf)
 
-  The mvme manual contains a section about the MVLC Trigger/IO system. mvme VME
-  script supports all implemented MVLC commands.
+  The mvme manual contains a section about the MVLC Trigger/IO system. mvme *VME
+  scripts* supports all implemented MVLC commands.
 
 ## Building
 
 ```sh
 apt-get update && apt-get install -y --no-install-recommends \
-ca-certificates build-essential git cmake ninja-build zlib1g-dev \
-libzmq3-dev cppzmq-dev
+  ca-certificates build-essential git cmake ninja-build zlib1g-dev \
+  libzmq3-dev
 
 mkdir build && cd build
 cmake -GNinja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_INSTALL_PREFIX=~/local/mesytec-mvlc .. \
@@ -49,6 +52,8 @@ ctest .
 ```
 
 Dockerfiles can be found [here](tools/dockerfiles).
+
+Pass `-DMVLC_BUILD_DEV_TOOLS=ON -DMVLC_BUILD_TOOLS=ON` to cmake to build additional tools.
 
 ## Tools
 
@@ -64,8 +69,6 @@ Dockerfiles can be found [here](tools/dockerfiles).
 * `mvlc-mini-daq`: Standalone minimal DAQ tool. Configuration via .yaml/json
   files exported from mvme. Writes readout data to listfile and/or dumps it to
   console.
-
-Pass `-DMVLC_BUILD_DEV_TOOLS=ON -DMVLC_BUILD_TOOLS=ON` to cmake to build additional tools.
 
 * `mvlc-listfile-info <zipfile>`: Processes the input listfile, showing
   information about the contained configuration and decoded readout/system
