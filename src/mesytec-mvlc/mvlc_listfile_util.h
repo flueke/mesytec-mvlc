@@ -78,14 +78,6 @@ struct OStreamWriteHandle: public mvlc::listfile::WriteHandle
 
 struct ListfileReaderHelper
 {
-    // Two buffers, one to read data into, one to store temporary data after
-    // fixing up the destination buffer.
-    std::array<mvlc::ReadoutBuffer, 2> buffers =
-    {
-        ReadoutBuffer(1u << 20),
-        ReadoutBuffer(1u << 20),
-    };
-
     ReadoutBuffer destBuf_ = ReadoutBuffer{1u << 20};
     std::vector<u8> tmpBuf_;
     ReadHandle *readHandle = nullptr;
