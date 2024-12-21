@@ -235,6 +235,9 @@ class MESYTEC_MVLC_EXPORT ZipReader
         ZipReader();
         ~ZipReader();
 
+        ZipReader(ZipReader &&);
+        ZipReader &operator=(ZipReader &&);
+
         void openArchive(const std::string &archiveName);
         void closeArchive();
         std::vector<std::string> entryNameList();

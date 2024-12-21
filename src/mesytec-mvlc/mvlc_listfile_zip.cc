@@ -678,6 +678,9 @@ ZipReader::ZipReader()
 
 ZipReader::~ZipReader()
 {
+    if (!d)
+        return;
+
     try
     {
         closeArchive();
@@ -687,6 +690,17 @@ ZipReader::~ZipReader()
 
     mz_zip_reader_delete(&d->reader);
     mz_stream_os_delete(&d->osStream);
+}
+
+ZipReader::ZipReader(ZipReader &&o)
+{
+    std::swap(d, o.d);
+}
+
+ZipReader &ZipReader::operator=(ZipReader &&o)
+{
+    std::swap(d, o.d);
+    return *this;
 }
 
 void ZipReader::openArchive(const std::string &archiveName)
