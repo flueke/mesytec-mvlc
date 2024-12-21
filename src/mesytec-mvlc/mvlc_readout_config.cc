@@ -83,6 +83,8 @@ YAML::Emitter &operator<<(YAML::Emitter &out, const StackCommandBuilder &stack)
             out << to_string(cmd);
         out << YAML::EndSeq;
 
+        out << YAML::Key << "meta" << YAML::Value << group.meta;
+
         out << YAML::EndMap;
     }
 
@@ -110,7 +112,13 @@ StackCommandBuilder stack_command_builder_from_yaml(const YAML::Node &yStack)
             for (const auto &yCmd: yGroup["contents"])
                 groupCommands.emplace_back(stack_command_from_string(yCmd.as<std::string>()));
 
-            stack.addGroup(groupName, groupCommands);
+
+            std::map<std::string, std::string> moduleMeta;
+
+            if (const auto &yMeta = yGroup["meta"])
+                moduleMeta = yMeta.as<std::map<std::string, std::string>>();
+
+            stack.addGroup(groupName, groupCommands, moduleMeta);
         }
     }
 
