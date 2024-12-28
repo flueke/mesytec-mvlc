@@ -292,10 +292,10 @@ static constexpr int PARALLEL_VMEWRITE_TESTS = 2;
         auto stackRate = 1000.0 * stackTransactions / tElapsed.count();
 
         spdlog::info("loop done, elapsed={}ms, superTransactions={}, superRate={}",
-                     tElapsed.count(), superTransactions, superRate);
+                     tElapsed.count(), superTransactions.load(), superRate);
 
         spdlog::info("loop done, elapsed={}ms, stackTransactions={}, stackRate={}",
-                     tElapsed.count(), stackTransactions, stackRate);
+                     tElapsed.count(), stackTransactions.load(), stackRate);
 
         auto counters = mvlc.getCmdPipeCounters();
 
