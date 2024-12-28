@@ -70,8 +70,8 @@ target_include_directories(lz4_static
 add_subdirectory(Lyra)
 
 # spdlog
-find_package(spdlog QUIET)
-if (NOT spdlog_FOUND)
+if (NOT TARGET spdlog)
+    message(STATUS "${CMAKE_PROJECT_NAME}: Using spdlog from ${CMAKE_CURRENT_SOURCE_DIR}/spdlog")
     option(SPDLOG_FMT_EXTERNAL "Use external fmt library instead of bundled" OFF)
     option(SPDLOG_INSTALL "Generate the install target" ON)
     add_subdirectory(spdlog-1.14.0)
