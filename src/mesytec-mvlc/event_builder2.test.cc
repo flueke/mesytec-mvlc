@@ -82,7 +82,7 @@ std::optional<u32> simple_timestamp_extractor(const u32 *data, size_t size)
 
 } // namespace
 
-#if 0
+#if 1
 TEST(EventBuilder2, OneModule)
 {
     const std::vector<u32> sysEventData = {0x12345678, 0x87654321};
@@ -167,7 +167,7 @@ TEST(EventBuilder2, OneModule)
 }
 #endif
 
-#if 0
+#if 1
 TEST(EventBuilder2, TwoModules)
 {
     ModuleConfig mod0;

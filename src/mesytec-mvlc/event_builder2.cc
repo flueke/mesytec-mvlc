@@ -195,6 +195,12 @@ struct EventBuilder2::Private
 
                 if (matchResult.match == WindowMatch::too_old)
                 {
+                    // XXX: I don't think this can be reached with the current
+                    // algorithm. The oldest timestamps are yielded as soon as
+                    // all modules have a stamp that's too far in the future.
+                    // Update: this can be reached if some modules are
+                    // 'ignored', meaning they do not contribute global stamps?!
+
                     // discard old data
                     mds.pop_front();
                     mts.pop_front();
