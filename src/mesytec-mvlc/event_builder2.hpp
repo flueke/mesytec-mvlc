@@ -95,7 +95,7 @@ struct MESYTEC_MVLC_EXPORT EventBuilderConfig
     int outputCrateIndex = 0;
 };
 
-class EventBuilder2
+class MESYTEC_MVLC_EXPORT EventBuilder2
 {
   public:
     EventBuilder2(const EventBuilderConfig &cfg, Callbacks callbacks, void *userContext = nullptr);
