@@ -8,7 +8,7 @@
 #include <mesytec-mvlc/util/data_filter.h>
 #include <mesytec-mvlc/util/storage_sizes.h>
 
-namespace mesytec::mvlc::event_builder
+namespace mesytec::mvlc::event_builder2
 {
 
 enum class WindowMatch
@@ -87,6 +87,7 @@ struct MESYTEC_MVLC_EXPORT ModuleConfig
 struct MESYTEC_MVLC_EXPORT EventConfig
 {
     std::vector<ModuleConfig> moduleConfigs;
+    bool enabled; // true if event building is enabled for this event
 };
 
 struct MESYTEC_MVLC_EXPORT EventBuilderConfig
@@ -100,7 +101,11 @@ class MESYTEC_MVLC_EXPORT EventBuilder2
   public:
     EventBuilder2(const EventBuilderConfig &cfg, Callbacks callbacks, void *userContext = nullptr);
     EventBuilder2(const EventBuilderConfig &cfg, void *userContext = nullptr);
+    explicit EventBuilder2();
     ~EventBuilder2();
+
+    EventBuilder2(EventBuilder2 &&) = default;
+    EventBuilder2 &operator=(EventBuilder2 &&) = default;
 
     void setCallbacks(const Callbacks &callbacks);
     bool recordModuleData(int eventIndex, const ModuleData *moduleDataList, unsigned moduleCount);
@@ -111,11 +116,13 @@ class MESYTEC_MVLC_EXPORT EventBuilder2
     std::string debugDump() const;
     //std::string debugDumpConfig() const;
 
+    bool isEnabledForAnyEvent() const;
+
   private:
     struct Private;
     std::unique_ptr<Private> d;
 };
 
-} // namespace mesytec::mvlc::event_builder
+} // namespace mesytec::mvlc::event_builder2
 
 #endif /* BC399B1E_8B8A_42B2_8AD4_CB28FCE98B32 */

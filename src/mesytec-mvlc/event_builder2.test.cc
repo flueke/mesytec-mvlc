@@ -3,10 +3,10 @@
 #include <spdlog/spdlog.h>
 
 using namespace mesytec::mvlc;
-using namespace mesytec::mvlc::event_builder;
+using namespace mesytec::mvlc::event_builder2;
 
 #if 1
-TEST(event_builder2, TimestampMatch2)
+TEST(EventBuilder2, TimestampMatch2)
 {
     WindowMatchResult mr = {};
 
@@ -332,7 +332,7 @@ TEST(EventBuilder2, TwoModulesOneIsSlow)
 }
 #endif
 
-TEST(event_builder, VectorAtIsWeird)
+TEST(EventBuilder2, VectorAtIsWeird)
 {
     {
         std::vector<int> v1 = {0, 1, 2};

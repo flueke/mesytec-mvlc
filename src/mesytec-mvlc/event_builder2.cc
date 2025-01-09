@@ -2,7 +2,7 @@
 #include <deque>
 #include <spdlog/spdlog.h>
 
-namespace mesytec::mvlc::event_builder
+namespace mesytec::mvlc::event_builder2
 {
 
 IndexedTimestampFilterExtractor::IndexedTimestampFilterExtractor(const util::DataFilter &filter,
@@ -291,6 +291,12 @@ EventBuilder2::EventBuilder2(const EventBuilderConfig &cfg, void *userContext)
 {
 }
 
+EventBuilder2::EventBuilder2()
+    : d(std::make_unique<Private>())
+{
+    *d = {};
+}
+
 EventBuilder2::~EventBuilder2() = default;
 
 void EventBuilder2::setCallbacks(const Callbacks &callbacks) { d->callbacks_ = callbacks; }
@@ -360,4 +366,14 @@ std::string EventBuilder2::debugDump() const
     return result;
 }
 
-} // namespace mesytec::mvlc::event_builder
+bool EventBuilder2::isEnabledForAnyEvent() const
+{
+    for (const auto &ec : d->cfg_.eventConfigs)
+    {
+        if (ec.enabled)
+            return true;
+    }
+    return false;
+}
+
+} // namespace mesytec::mvlc::event_builder2
