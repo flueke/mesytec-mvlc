@@ -129,6 +129,8 @@ struct EventBuilder2::Private
 
         for (size_t mi = 0; mi < moduleCount; ++mi)
         {
+            assert(mvlc::readout_parser::size_consistency_check(moduleDataList[mi]));
+
             auto md = moduleDataList[mi];
             auto &mc = ec.moduleConfigs.at(mi);
             std::optional<s64> ts = mc.tsExtractor(md.data.data, md.data.size);
@@ -139,10 +141,11 @@ struct EventBuilder2::Private
                     ed.allTimestamps.emplace_back(*ts);
                 ed.moduleTimestamps.at(mi).emplace_back(*ts);
                 ed.moduleDatas.at(mi).emplace_back(ModuleStorage(md));
+                assert(mvlc::readout_parser::size_consistency_check(ed.moduleDatas.at(mi).back().to_module_data()));
             }
             else if (md.data.size > 0)
             {
-                spdlog::warn("recordModuleData: failed to extract timestamp from event={}, module={}, data={}", eventIndex, mi, fmt::join(md.data.data, md.data.data + md.data.size, ", "));
+                spdlog::warn("recordModuleData: failed to extract timestamp from module data. discarding! event={}, module={}, data={}", eventIndex, mi, fmt::join(md.data.data, md.data.data + md.data.size, ", "));
             }
         }
     }
@@ -153,6 +156,18 @@ struct EventBuilder2::Private
         auto &ec = cfg_.eventConfigs.at(eventIndex);
         const auto moduleCount = ec.moduleConfigs.size();
         const auto refTs = ed.allTimestamps.front();
+
+#ifndef NDEBUG
+        for (size_t mi=0; mi< moduleCount; ++mi)
+        {
+            auto &mds = ed.moduleDatas.at(mi);
+
+            for (const auto &md: mds)
+            {
+                assert(mvlc::readout_parser::size_consistency_check(md.to_module_data()));
+            }
+        }
+#endif
 
         // check if the latest timestamps of all modules are "in the future",
         // e.g. too new to be in the match window of the current reference
@@ -186,7 +201,7 @@ struct EventBuilder2::Private
             auto &mds = ed.moduleDatas.at(mi);
             auto &mts = ed.moduleTimestamps.at(mi);
 
-            outputModuleStorage_[mi].data.clear();
+            outputModuleStorage_[mi] = {};
 
             while (!mts.empty())
             {
@@ -200,6 +215,7 @@ struct EventBuilder2::Private
                     // all modules have a stamp that's too far in the future.
                     // Update: this can be reached if some modules are
                     // 'ignored', meaning they do not contribute global stamps?!
+                    // More cases possible: figure this out and test it.
 
                     // discard old data
                     mds.pop_front();
@@ -208,7 +224,7 @@ struct EventBuilder2::Private
                 else if (matchResult.match == WindowMatch::in_window)
                 {
                     // Move data to the output buffer. Needed for the linear ModuleData array.
-                    std::swap(outputModuleStorage_[mi], mds.front());
+                    outputModuleStorage_[mi] = mds.front();
                     mds.pop_front();
                     mts.pop_front();
                     break;
@@ -225,6 +241,7 @@ struct EventBuilder2::Private
         for (size_t mi = 0; mi < moduleCount; ++mi)
         {
             outputModuleData_[mi] = outputModuleStorage_[mi].to_module_data();
+            assert(mvlc::readout_parser::size_consistency_check(outputModuleData_[mi]));
         }
 
         callbacks_.eventData(userContext_, cfg_.outputCrateIndex, eventIndex,
@@ -252,7 +269,7 @@ struct EventBuilder2::Private
                     continue;
                 }
                 // Move data to the output buffer. Needed for the linear ModuleData array.
-                std::swap(outputModuleStorage_[mi], mds.front());
+                outputModuleStorage_[mi] = mds.front();
                 mds.pop_front();
                 outputModuleData_[mi] = outputModuleStorage_[mi].to_module_data();
                 haveData = true;
@@ -297,7 +314,10 @@ EventBuilder2::EventBuilder2()
     *d = {};
 }
 
-EventBuilder2::~EventBuilder2() = default;
+EventBuilder2::EventBuilder2(EventBuilder2 &&) = default;
+EventBuilder2 &EventBuilder2::operator=(EventBuilder2 &&) = default;
+
+EventBuilder2::~EventBuilder2() {}
 
 void EventBuilder2::setCallbacks(const Callbacks &callbacks) { d->callbacks_ = callbacks; }
 
