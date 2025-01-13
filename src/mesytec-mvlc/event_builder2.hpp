@@ -115,14 +115,22 @@ struct EventCounters
     std::vector<size_t> outputHits;
     std::vector<size_t> emptyInputs;
     std::vector<size_t> discardsAge;   // number of event discarded due to stamp age
+    std::vector<size_t> stampFailed;   // number of failed stamp extractions
+
+    // these can be determinted from the contents of the data buffers
     std::vector<size_t> currentEvents; // current events in the buffer
     std::vector<size_t> currentMem;    // current buffer memory usage
+
+    // these are upated in tryFlush() and/or periodcally? not sure yet. possibly on-demand only when
+    // a getCounters() method is called
     std::vector<size_t> maxEvents;     // max events buffered so far (until flushed)
     std::vector<size_t> maxMem;        // max mem usage so far (until flushed)
-    std::vector<size_t> stampFailed;   // number of failed stamp extractions
+
     // non-module specific
     size_t recordingFailed = 0;
 };
+
+std::string dump_counters(const EventCounters &counters);
 
 struct BuilderCounters
 {
@@ -152,6 +160,7 @@ class MESYTEC_MVLC_EXPORT EventBuilder2
     // std::string debugDumpConfig() const;
 
     bool isEnabledForAnyEvent() const;
+    BuilderCounters getCounters() const;
 
   private:
     struct Private;

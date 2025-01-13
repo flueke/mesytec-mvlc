@@ -140,6 +140,7 @@ inline bool record_module_data(const ModuleData *moduleDataList, unsigned module
         auto ts = mcfg.tsExtractor(mdata.data.data, mdata.data.size);
 
         ++counters.inputHits[mi];
+
         if (mdata.data.size == 0)
             ++counters.emptyInputs[mi];
 
@@ -149,9 +150,33 @@ inline bool record_module_data(const ModuleData *moduleDataList, unsigned module
             ++counters.stampFailed[mi];
 
         dest[mi].emplace_back(ModuleStorage(mdata, ts));
+
+        ++counters.currentEvents[mi]; // same as dest[mi].size()
+        counters.currentMem[mi] += mdata.data.size * sizeof(u32);
+        counters.maxEvents[mi] = std::max(counters.maxEvents[mi], counters.currentEvents[mi]);
+        counters.maxMem[mi] = std::max(counters.maxMem[mi], counters.currentMem[mi]);
     }
 
     return true;
+}
+
+std::string dump_counters(const EventCounters &counters)
+{
+    std::ostringstream oss;
+
+    oss << fmt::format("inputHits: {}\n", fmt::join(counters.inputHits, ", "));
+    oss << fmt::format("outputHits: {}\n", fmt::join(counters.outputHits, ", "));
+    oss << fmt::format("emptyInputs: {}\n", fmt::join(counters.emptyInputs, ", "));
+    oss << fmt::format("discardsAge: {}\n", fmt::join(counters.discardsAge, ", "));
+    oss << fmt::format("stampFailed: {}\n", fmt::join(counters.stampFailed, ", "));
+
+    oss << fmt::format("currentEvents: {}\n", fmt::join(counters.currentEvents, ", "));
+    oss << fmt::format("maxEvents: {}\n", fmt::join(counters.maxEvents, ", "));
+
+    oss << fmt::format("currentMem: {}\n", fmt::join(counters.currentMem, ", "));
+    oss << fmt::format("maxMem: {}\n", fmt::join(counters.maxMem, ", "));
+
+    return oss.str();
 }
 
 struct EventBuilder2::Private
@@ -339,6 +364,7 @@ struct EventBuilder2::Private
                 if (matchResult.match == WindowMatch::too_old)
                 {
                     moduleDatas.pop_front();
+                    ++eventCtrs.discardsAge[mi];
                 }
                 else
                 {
@@ -372,6 +398,7 @@ struct EventBuilder2::Private
                     // Move data to the output buffer. Needed for the linear ModuleData array.
                     outputModuleStorage_[mi] = std::move(moduleDatas.front());
                     moduleDatas.pop_front();
+                    ++eventCtrs.outputHits[mi];
                     break;
                 }
                 else if (matchResult.match == WindowMatch::too_new)
@@ -390,6 +417,9 @@ struct EventBuilder2::Private
         {
             outputModuleData_[mi] = outputModuleStorage_[mi].to_module_data();
             assert(mvlc::readout_parser::size_consistency_check(outputModuleData_[mi]));
+
+            --eventCtrs.currentEvents[mi];
+            eventCtrs.currentMem[mi] -= outputModuleData_[mi].data.size * sizeof(u32);
         }
 
         callbacks_.eventData(userContext_, cfg_.outputCrateIndex, eventIndex,
@@ -515,13 +545,13 @@ size_t EventBuilder2::flush(bool force)
 
         for (size_t eventIndex = 0; eventIndex < d->perEventData_.size(); ++eventIndex)
         {
-            fmt::print("pre tryFlush: {}\n", debugDump());
+            //fmt::print("pre tryFlush: {}\n", debugDump());
             while (d->tryFlush(eventIndex))
             {
                 ++flushed;
             }
-            if (flushed > 0)
-                fmt::print("post tryFlush: {}\n", debugDump());
+            //if (flushed > 0)
+            //    fmt::print("post tryFlush: {}\n", debugDump());
         }
     }
 
@@ -575,6 +605,11 @@ bool EventBuilder2::isEnabledForAnyEvent() const
             return true;
     }
     return false;
+}
+
+BuilderCounters EventBuilder2::getCounters() const
+{
+    return d->counters_;
 }
 
 } // namespace mesytec::mvlc::event_builder2
