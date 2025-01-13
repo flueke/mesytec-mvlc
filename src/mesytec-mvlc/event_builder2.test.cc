@@ -94,6 +94,7 @@ TEST(EventBuilder2, OneModule)
     moduleConfig.offset = 0; // offset does not matter with only one module
     EventConfig eventConfig;
     eventConfig.moduleConfigs.push_back(moduleConfig);
+    eventConfig.enabled = true;
     EventBuilderConfig cfg;
     cfg.eventConfigs.push_back(eventConfig);
 
@@ -182,6 +183,7 @@ TEST(EventBuilder2, TwoModules)
 
     EventConfig eventConfig;
     eventConfig.moduleConfigs = {mod0, mod1};
+    eventConfig.enabled = true;
     EventBuilderConfig cfg;
     cfg.eventConfigs.push_back(eventConfig);
 
@@ -262,6 +264,7 @@ TEST(EventBuilder2, TwoModulesOneIsSlow)
 
     EventConfig eventConfig;
     eventConfig.moduleConfigs = {mod0, mod1};
+    eventConfig.enabled = true;
     EventBuilderConfig cfg;
     cfg.eventConfigs.push_back(eventConfig);
 
@@ -308,27 +311,25 @@ TEST(EventBuilder2, TwoModulesOneIsSlow)
     moduleTestData = {{{11}}, {{}}};
     eb.recordModuleData(0, to_module_data_list(moduleTestData).data(), moduleTestData.size());
     fmt::print(eb.debugDump());
-    // 0, 5, 10, 11 and 0, 5, 10. Need another hit for module1 with value >= 11 to yield.
-    ASSERT_EQ(eb.flush(), 0);
-    ASSERT_EQ(dataCallbackCount, 0);
-
-    // 0, 5, 10, 11, 15 and 0, 5, 10, 15 -> can yield event0 now
-    moduleTestData = {{{15}}, {{15}}};
-    eb.recordModuleData(0, to_module_data_list(moduleTestData).data(), moduleTestData.size());
+    // 0, 5, 10, 11 and 0, 5, 10, <artifical 11 from mod0> -> yield
     ASSERT_EQ(eb.flush(), 1);
     ASSERT_EQ(dataCallbackCount, 1);
 
-    // 5, 10, 11, 15 and 5, 10, 15
+    moduleTestData = {{{15}}, {{15}}};
+    eb.recordModuleData(0, to_module_data_list(moduleTestData).data(), moduleTestData.size());
+    // 5, 10, 11, 15 and 5, 10, 11, 15 -> cannot yield due to age
+    ASSERT_EQ(eb.flush(), 0);
+    ASSERT_EQ(dataCallbackCount, 1);
+
     moduleTestData = {{{16}}, {{16}}};
     eb.recordModuleData(0, to_module_data_list(moduleTestData).data(), moduleTestData.size());
-    fmt::print(eb.debugDump());
+    // 5, 10, 11, 15, 16 and 5, 10, 11, 15, 16 -> yield
     ASSERT_EQ(eb.flush(), 1);
     ASSERT_EQ(dataCallbackCount, 2);
 
-    // 10, 11, 15, 16 and 10, 15, 16. Force flush now.
-    fmt::print(eb.debugDump());
+    // 10, 11, 15, 16 and 10, 11, 15, 16 -> cannot yield due to age
     ASSERT_EQ(eb.flush(true), 4);
-    ASSERT_EQ(dataCallbackCount, 2 + 4);
+    ASSERT_EQ(dataCallbackCount, 6);
 }
 #endif
 

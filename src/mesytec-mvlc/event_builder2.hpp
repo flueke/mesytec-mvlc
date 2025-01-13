@@ -36,6 +36,7 @@ static const auto DefaultMatchOffset = 0u;
 static const auto DefaultMatchWindow = 16u;
 static const u32 TimestampMax = 0x3fffffffu; // 30 bits
 static const u32 TimestampHalf = TimestampMax >> 1;
+//static const u32 TimestampExtractionFailed = 0xffffffffu;
 
 struct MESYTEC_MVLC_EXPORT IndexedTimestampFilterExtractor
 {
@@ -70,11 +71,19 @@ struct MESYTEC_MVLC_EXPORT TimestampFilterExtractor
     util::CacheEntry filterCache_;
 };
 
-// Always returns an empty optional to signal that timestamp extraction failed.
-struct MESYTEC_MVLC_EXPORT InvalidTimestampExtractor
+#if 0
+struct MESYTEC_MVLC_EXPORT FailingTimestampExtractor
+{
+    std::optional<u32> operator()(const u32 *, size_t) { return TimestampExtractionFailed; }
+};
+#endif
+
+struct MESYTEC_MVLC_EXPORT EmptyTimestampExtractor
 {
     std::optional<u32> operator()(const u32 *, size_t) { return {}; }
 };
+
+// Configuration ==========
 
 struct MESYTEC_MVLC_EXPORT ModuleConfig
 {
@@ -97,6 +106,29 @@ struct MESYTEC_MVLC_EXPORT EventBuilderConfig
     int outputCrateIndex = 0;
 };
 
+// Counters and Stats ==========
+
+struct EventCounters
+{
+    // data is stored per module
+    std::vector<size_t> inputHits;
+    std::vector<size_t> outputHits;
+    std::vector<size_t> emptyInputs;
+    std::vector<size_t> discardsAge;   // number of event discarded due to stamp age
+    std::vector<size_t> currentEvents; // current events in the buffer
+    std::vector<size_t> currentMem;    // current buffer memory usage
+    std::vector<size_t> maxEvents;     // max events buffered so far (until flushed)
+    std::vector<size_t> maxMem;        // max mem usage so far (until flushed)
+    std::vector<size_t> stampFailed;   // number of failed stamp extractions
+    // non-module specific
+    size_t recordingFailed = 0;
+};
+
+struct BuilderCounters
+{
+    std::vector<EventCounters> eventCounters;
+};
+
 class MESYTEC_MVLC_EXPORT EventBuilder2
 {
   public:
@@ -110,12 +142,14 @@ class MESYTEC_MVLC_EXPORT EventBuilder2
 
     void setCallbacks(const Callbacks &callbacks);
     bool recordModuleData(int eventIndex, const ModuleData *moduleDataList, unsigned moduleCount);
-    void handleSystemEvent(const u32 *header,
-                           u32 size); // directly invokes the output system event callback
-    size_t flush(bool force = false); // returns the total number of data events flushed to the callbacks
+    // directly invokes the output system event callback
+    void handleSystemEvent(const u32 *header, u32 size);
+    // returns the total number of data events flushed to the callbacks
+    // if force is true all remaining events will be output until all module buffers are empty
+    size_t flush(bool force = false);
 
     std::string debugDump() const;
-    //std::string debugDumpConfig() const;
+    // std::string debugDumpConfig() const;
 
     bool isEnabledForAnyEvent() const;
 
