@@ -42,7 +42,7 @@ std::optional<u32> TimestampFilterExtractor::operator()(const u32 *data, size_t 
 
 u32 add_offset_to_timestamp(u32 ts, s32 offset)
 {
-    return (ts + offset) & ((1 << 30) - 1); // Adjust and wrap around within 30-bit range
+    return (ts + offset) & TimestampMax; // Adjust and wrap around within 30-bit range
 }
 
 WindowMatchResult timestamp_match(s64 tsMain, s64 tsModule, u32 windowWidth)

@@ -37,7 +37,6 @@ static const auto DefaultMatchOffset = 0u;
 static const auto DefaultMatchWindow = 16u;
 static const u32 TimestampMax = 0x3fffffffu; // 30 bits
 static const u32 TimestampHalf = TimestampMax >> 1;
-//static const u32 TimestampExtractionFailed = 0xffffffffu;
 
 struct MESYTEC_MVLC_EXPORT IndexedTimestampFilterExtractor
 {
