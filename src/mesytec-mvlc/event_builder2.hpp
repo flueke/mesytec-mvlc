@@ -26,7 +26,7 @@ struct MESYTEC_MVLC_EXPORT WindowMatchResult
     u32 invscore;
 };
 
-u32 add_offset_to_timestamp(u32 ts, s32 offset);
+u32 MESYTEC_MVLC_EXPORT add_offset_to_timestamp(u32 ts, s32 offset);
 WindowMatchResult MESYTEC_MVLC_EXPORT timestamp_match(s64 tsMain, s64 tsModule, u32 windowWidth);
 
 using ModuleData = readout_parser::ModuleData;
@@ -101,7 +101,7 @@ struct MESYTEC_MVLC_EXPORT EventBuilderConfig
 
 // Counters and Stats ==========
 
-struct EventCounters
+struct MESYTEC_MVLC_EXPORT EventCounters
 {
     // data is stored per module
     std::vector<size_t> inputHits;
@@ -123,9 +123,9 @@ struct EventCounters
     size_t recordingFailed = 0;
 };
 
-std::string dump_counters(const EventCounters &counters);
+std::string MESYTEC_MVLC_EXPORT dump_counters(const EventCounters &counters);
 
-struct BuilderCounters
+struct MESYTEC_MVLC_EXPORT BuilderCounters
 {
     std::vector<EventCounters> eventCounters;
 };
