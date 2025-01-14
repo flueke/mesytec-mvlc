@@ -1,5 +1,7 @@
 #include "event_builder2.hpp"
+
 #include <deque>
+#include <mesytec-mvlc/util/ticketmutex.h>
 #include <spdlog/spdlog.h>
 
 namespace mesytec::mvlc::event_builder2
@@ -150,9 +152,15 @@ inline bool record_module_data(const ModuleData *moduleDataList, unsigned module
             ++counters.emptyInputs[mi];
 
         if (ts.has_value())
+        {
             *ts = add_offset_to_timestamp(*ts, mcfg.offset);
-        else
+        }
+        else if (!mcfg.ignored && mdata.data.size > 0)
+        {
             ++counters.stampFailed[mi];
+            //spdlog::warn("record_module_data: failed timestamp extraction, module{}, data.size={}, data={:#010x}",
+            //    mi, mdata.data.size, fmt::join(mdata.data.data, mdata.data.data + mdata.data.size, ", "));
+        }
 
         dest[mi].emplace_back(ModuleStorage(mdata, ts));
 
@@ -169,17 +177,23 @@ std::string dump_counters(const EventCounters &counters)
 {
     std::ostringstream oss;
 
-    oss << fmt::format("inputHits: {}\n", fmt::join(counters.inputHits, ", "));
-    oss << fmt::format("outputHits: {}\n", fmt::join(counters.outputHits, ", "));
-    oss << fmt::format("emptyInputs: {}\n", fmt::join(counters.emptyInputs, ", "));
-    oss << fmt::format("discardsAge: {}\n", fmt::join(counters.discardsAge, ", "));
-    oss << fmt::format("stampFailed: {}\n", fmt::join(counters.stampFailed, ", "));
+    std::vector<size_t> sumOutputsDiscards(counters.outputHits.size());
+    std::transform(std::begin(counters.outputHits), std::end(counters.outputHits),
+                   std::begin(counters.discardsAge), std::begin(sumOutputsDiscards),
+                   std::plus<size_t>());
 
-    oss << fmt::format("currentEvents: {}\n", fmt::join(counters.currentEvents, ", "));
-    oss << fmt::format("maxEvents: {}\n", fmt::join(counters.maxEvents, ", "));
+    oss << fmt::format("inputHits:          {}\n", fmt::join(counters.inputHits, ", "));
+    oss << fmt::format("discardsAge:        {}\n", fmt::join(counters.discardsAge, ", "));
+    oss << fmt::format("outputHits:         {}\n", fmt::join(counters.outputHits, ", "));
+    oss << fmt::format("sumOutputsDiscards: {}\n", fmt::join(sumOutputsDiscards, ", "));
+    oss << fmt::format("emptyInputs:        {}\n", fmt::join(counters.emptyInputs, ", "));
+    oss << fmt::format("stampFailed:        {}\n", fmt::join(counters.stampFailed, ", "));
 
-    oss << fmt::format("currentMem: {}\n", fmt::join(counters.currentMem, ", "));
-    oss << fmt::format("maxMem: {}\n", fmt::join(counters.maxMem, ", "));
+    oss << fmt::format("currentEvents:      {}\n", fmt::join(counters.currentEvents, ", "));
+    oss << fmt::format("maxEvents:          {}\n", fmt::join(counters.maxEvents, ", "));
+
+    oss << fmt::format("currentMem:         {}\n", fmt::join(counters.currentMem, ", "));
+    oss << fmt::format("maxMem:             {}\n", fmt::join(counters.maxMem, ", "));
 
     return oss.str();
 }
@@ -195,6 +209,7 @@ struct EventBuilder2::Private
     std::vector<ModuleStorage> outputModuleStorage_;
 
     BuilderCounters counters_;
+    mvlc::TicketMutex countersMutex_;
 
     bool checkConsistency(int eventIndex, const ModuleData *moduleDataList, unsigned moduleCount)
     {
@@ -368,8 +383,10 @@ struct EventBuilder2::Private
 
                 if (matchResult.match == WindowMatch::too_old)
                 {
-                    moduleDatas.pop_front();
                     ++eventCtrs.discardsAge[mi];
+                    --eventCtrs.currentEvents[mi];
+                    eventCtrs.currentMem[mi] -= moduleDatas.front().data.size() * sizeof(u32);
+                    moduleDatas.pop_front();
                 }
                 else
                 {
@@ -439,6 +456,7 @@ struct EventBuilder2::Private
         size_t result = 0;
         const auto moduleCount = ed.moduleDatas.size();
         outputModuleData_.resize(moduleCount);
+        auto &eventCtrs = counters_.eventCounters[eventIndex];
 
         do
         {
@@ -452,9 +470,12 @@ struct EventBuilder2::Private
                     continue;
                 }
                 // Move data to the output buffer. Needed for the linear ModuleData array.
-                outputModuleStorage_[mi] = mds.front();
+                outputModuleStorage_[mi] = std::move(mds.front());
                 mds.pop_front();
                 outputModuleData_[mi] = outputModuleStorage_[mi].to_module_data();
+                ++eventCtrs.outputHits[mi];
+                --eventCtrs.currentEvents[mi];
+                eventCtrs.currentMem[mi] -= outputModuleStorage_[mi].data.size() * sizeof(u32);
                 haveData = true;
             }
             if (haveData)
@@ -521,6 +542,7 @@ void EventBuilder2::setCallbacks(const Callbacks &callbacks) { d->callbacks_ = c
 bool EventBuilder2::recordModuleData(int eventIndex, const ModuleData *moduleDataList,
                                      unsigned moduleCount)
 {
+    std::unique_lock<mvlc::TicketMutex> guard(d->countersMutex_);
     if (0 > eventIndex || static_cast<size_t>(eventIndex) >= d->perEventData_.size())
     {
         // TODO: count EventIndexOutOfRange
@@ -533,11 +555,13 @@ bool EventBuilder2::recordModuleData(int eventIndex, const ModuleData *moduleDat
 
 void EventBuilder2::handleSystemEvent(const u32 *header, u32 size)
 {
+    std::unique_lock<mvlc::TicketMutex> guard(d->countersMutex_);
     d->callbacks_.systemEvent(d->userContext_, d->cfg_.outputCrateIndex, header, size);
 }
 
 size_t EventBuilder2::flush(bool force)
 {
+    std::unique_lock<mvlc::TicketMutex> guard(d->countersMutex_);
     size_t flushed = 0;
 
     if (force)
@@ -567,6 +591,7 @@ size_t EventBuilder2::flush(bool force)
 
 std::string EventBuilder2::debugDump() const
 {
+    std::unique_lock<mvlc::TicketMutex> guard(d->countersMutex_);
     std::string result;
 
     for (size_t ei = 0; ei < d->perEventData_.size(); ++ei)
@@ -616,6 +641,10 @@ bool EventBuilder2::isEnabledForAnyEvent() const
     return false;
 }
 
-BuilderCounters EventBuilder2::getCounters() const { return d->counters_; }
+BuilderCounters EventBuilder2::getCounters() const
+{
+    std::unique_lock<mvlc::TicketMutex> guard(d->countersMutex_);
+    return d->counters_;
+}
 
 } // namespace mesytec::mvlc::event_builder2
