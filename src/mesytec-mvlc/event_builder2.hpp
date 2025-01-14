@@ -26,6 +26,7 @@ struct MESYTEC_MVLC_EXPORT WindowMatchResult
     u32 invscore;
 };
 
+u32 add_offset_to_timestamp(u32 ts, s32 offset);
 WindowMatchResult MESYTEC_MVLC_EXPORT timestamp_match(s64 tsMain, s64 tsModule, u32 windowWidth);
 
 using ModuleData = readout_parser::ModuleData;
@@ -70,13 +71,6 @@ struct MESYTEC_MVLC_EXPORT TimestampFilterExtractor
     util::DataFilter filter_;
     util::CacheEntry filterCache_;
 };
-
-#if 0
-struct MESYTEC_MVLC_EXPORT FailingTimestampExtractor
-{
-    std::optional<u32> operator()(const u32 *, size_t) { return TimestampExtractionFailed; }
-};
-#endif
 
 struct MESYTEC_MVLC_EXPORT EmptyTimestampExtractor
 {

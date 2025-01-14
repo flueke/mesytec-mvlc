@@ -6,6 +6,85 @@ using namespace mesytec::mvlc;
 using namespace mesytec::mvlc::event_builder2;
 
 #if 1
+TEST(EventBuilder2, TimestampOffset)
+{
+    // ts = TimestampMax
+
+    {
+        u32 ts = TimestampMax;
+        s32 offset = 0;
+        u32 result = add_offset_to_timestamp(ts, offset);
+        ASSERT_EQ(result, TimestampMax);
+    }
+
+    {
+        u32 ts = TimestampMax;
+        s32 offset = 1;
+        u32 result = add_offset_to_timestamp(ts, offset);
+        ASSERT_EQ(result, 0u);
+    }
+
+    {
+        u32 ts = TimestampMax;
+        s32 offset = -1;
+        u32 result = add_offset_to_timestamp(ts, offset);
+        ASSERT_EQ(result, TimestampMax - 1);
+    }
+
+    {
+        u32 ts = TimestampMax;
+        s32 offset = TimestampMax;
+        u32 result = add_offset_to_timestamp(ts, offset);
+        ASSERT_EQ(result, TimestampMax - 1);
+    }
+
+    {
+        u32 ts = TimestampMax;
+        s32 offset = -TimestampMax;
+        u32 result = add_offset_to_timestamp(ts, offset);
+        ASSERT_EQ(result, 0);
+    }
+
+    // ts = 0
+
+    {
+        u32 ts = 0;
+        s32 offset = 0;
+        u32 result = add_offset_to_timestamp(ts, offset);
+        ASSERT_EQ(result, 0);
+    }
+
+    {
+        u32 ts = 0;
+        s32 offset = 1;
+        u32 result = add_offset_to_timestamp(ts, offset);
+        ASSERT_EQ(result, 1);
+    }
+
+    {
+        u32 ts = 0;
+        s32 offset = -1;
+        u32 result = add_offset_to_timestamp(ts, offset);
+        ASSERT_EQ(result, TimestampMax);
+    }
+
+    {
+        u32 ts = 0;
+        s32 offset = TimestampMax;
+        u32 result = add_offset_to_timestamp(ts, offset);
+        ASSERT_EQ(result, TimestampMax);
+    }
+
+    {
+        u32 ts = 0;
+        s32 offset = -TimestampMax;
+        u32 result = add_offset_to_timestamp(ts, offset);
+        ASSERT_EQ(result, 1);
+    }
+}
+#endif
+
+#if 1
 TEST(EventBuilder2, TimestampMatch2)
 {
     WindowMatchResult mr = {};
