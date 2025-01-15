@@ -375,7 +375,7 @@ inline ParseResult parser_begin_event(ReadoutParserState &state, u32 frameHeader
     if (frameInfo.type != frame_headers::StackFrame)
     {
         auto logger = get_logger("readout_parser");
-        logger->warn("NotAStackFrame: 0x{:008x}", frameHeader);
+        logger->warn("NotAStackFrame: 0x{:08x}", frameHeader);
         return ParseResult::NotAStackFrame;
     }
 
@@ -584,7 +584,7 @@ ParseResult parse_readout_contents(
                     // The stack frame is ok and can now be extracted from the
                     // buffer.
                     state.curStackFrame = ReadoutParserState::FrameParseState{ input[0] };
-                    logger->trace("new curStackFrame: 0x{:008x}", state.curStackFrame.header);
+                    logger->trace("new curStackFrame: 0x{:08x}", state.curStackFrame.header);
                     input.remove_prefix(1);
 
                     if (state.curStackFrame.wordsLeft == 0)
@@ -601,7 +601,7 @@ ParseResult parse_readout_contents(
                         // is set. To avoid this the block frame is cleared
                         // here.
                         //cout << "Hello empty stackFrame!" << endl;
-                        logger->warn("got an empty stack frame: 0x{:008x}",
+                        logger->warn("got an empty stack frame: 0x{:08x}",
                                  state.curStackFrame.header);
                         ++counters.emptyStackFrames;
                         state.curBlockFrame = ReadoutParserState::FrameParseState{};
@@ -626,7 +626,7 @@ ParseResult parse_readout_contents(
                     assert(input.data() == nextStackFrame);
 
                     auto stackFrameOffset = nextStackFrame - prevIterPtr;
-                    logger->trace("found next StackFrame: @{} 0x{:008x} (searchOffset={})",
+                    logger->trace("found next StackFrame: @{} 0x{:08x} (searchOffset={})",
                               reinterpret_cast<const void *>(nextStackFrame),
                               *nextStackFrame, stackFrameOffset);
 
@@ -676,7 +676,7 @@ ParseResult parse_readout_contents(
                 if (fi.len != 0u)
                 {
                     logger->warn("No modules in event {} but got a non-empty "
-                             "stack frame of len {} (header=0x{:008x})",
+                             "stack frame of len {} (header=0x{:08x})",
                              state.eventIndex, fi.len, state.curStackFrame.header);
                     parser_clear_event_state(state);
                     return ParseResult::UnexpectedNonEmptyStackFrame;
@@ -795,7 +795,7 @@ ParseResult parse_readout_contents(
                             //std::terminate();
 #endif
 
-                            logger->warn("NotABlockFrame: frameType=0x{:x}, frameHeader=0x{:008x}",
+                            logger->warn("NotABlockFrame: frameType=0x{:x}, frameHeader=0x{:08x}",
                                       state.curBlockFrame.info().type,
                                       state.curBlockFrame.header);
 
