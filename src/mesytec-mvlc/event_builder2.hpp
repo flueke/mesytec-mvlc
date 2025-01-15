@@ -85,6 +85,7 @@ struct MESYTEC_MVLC_EXPORT ModuleConfig
                 // timestamp offsets.
     u32 window; // Width of the match window in timestamp units.
     bool ignored = false; // If true this module does not contribute reference timestamps.
+    bool hasDynamic = false; // If true the module has a dynamic part (block read).
 };
 
 struct MESYTEC_MVLC_EXPORT EventConfig

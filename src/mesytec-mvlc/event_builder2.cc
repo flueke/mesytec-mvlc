@@ -403,6 +403,9 @@ struct EventBuilder2::Private
             auto &moduleDatas = eventData.moduleDatas.at(mi);
 
             outputModuleStorage_[mi] = {};
+            // copy hasDynamic from the config so that the output format is
+            // guaranteed to be consistent
+            outputModuleStorage_[mi].hasDynamic = moduleConfig.hasDynamic;
 
             while (!moduleDatas.empty())
             {
