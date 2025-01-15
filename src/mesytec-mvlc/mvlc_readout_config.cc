@@ -116,7 +116,15 @@ StackCommandBuilder stack_command_builder_from_yaml(const YAML::Node &yStack)
             std::map<std::string, std::string> moduleMeta;
 
             if (const auto &yMeta = yGroup["meta"])
-                moduleMeta = yMeta.as<std::map<std::string, std::string>>();
+            {
+                try
+                {
+                    moduleMeta = yMeta.as<std::map<std::string, std::string>>();
+                }
+                catch(const std::exception& e)
+                {
+                }
+            }
 
             stack.addGroup(groupName, groupCommands, moduleMeta);
         }
