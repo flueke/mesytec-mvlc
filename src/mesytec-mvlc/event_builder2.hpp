@@ -34,7 +34,7 @@ using Callbacks = readout_parser::ReadoutParserCallbacks;
 using timestamp_extractor = std::function<std::optional<u32>(const u32 *data, size_t size)>;
 
 static const auto DefaultMatchOffset = 0u;
-static const auto DefaultMatchWindow = 16u;
+static const auto DefaultMatchWindow = 8u;
 static const u32 TimestampMax = 0x3fffffffu; // 30 bits
 static const u32 TimestampHalf = TimestampMax >> 1;
 
