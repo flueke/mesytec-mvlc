@@ -45,6 +45,7 @@ void close_frame(FrameState &frameState, ReadoutBuffer &dest)
     *hdrPtr |= frameState.wordsWritten & frame_headers::LengthMask;
     frameState.headerOffset = -1;
     frameState.wordsWritten = 0;
+    assert(!is_frame_open(frameState));
 }
 
 void push_frame_header(FrameState &frameState, ReadoutBuffer &dest, u32 frameHeader)
