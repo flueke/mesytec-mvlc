@@ -86,6 +86,8 @@ struct MESYTEC_MVLC_EXPORT ModuleConfig
     u32 window; // Width of the match window in timestamp units.
     bool ignored = false; // If true this module does not contribute reference timestamps.
     bool hasDynamic = false; // If true the module has a dynamic part (block read).
+    u32 prefixSize = 0; // Number of words in the static prefix. May only be set if hasDynamic==false.
+    std::string name;
 };
 
 struct MESYTEC_MVLC_EXPORT EventConfig

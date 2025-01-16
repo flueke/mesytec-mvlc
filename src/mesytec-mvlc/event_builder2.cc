@@ -158,8 +158,10 @@ inline bool record_module_data(const ModuleData *moduleDataList, unsigned module
         else if (!mcfg.ignored && mdata.data.size > 0)
         {
             ++counters.stampFailed[mi];
-            //spdlog::warn("record_module_data: failed timestamp extraction, module{}, data.size={}, data={:#010x}",
-            //    mi, mdata.data.size, fmt::join(mdata.data.data, mdata.data.data + mdata.data.size, ", "));
+            spdlog::trace("record_module_data: failed timestamp extraction, module{}, data.size={}, "
+                         "data={:#010x}",
+                         mi, mdata.data.size,
+                         fmt::join(mdata.data.data, mdata.data.data + mdata.data.size, ", "));
         }
 
         dest[mi].emplace_back(ModuleStorage(mdata, ts));
@@ -301,7 +303,12 @@ struct EventBuilder2::Private
                     eventData.allTimestamps.push_back(*ts);
 
                     if (!fillerTs.has_value())
+                    {
                         fillerTs = ts;
+                        spdlog::trace(
+                            "recordModuleData: eventIndex={}, moduleIndex={} -> set fillerTs={}",
+                            eventIndex, mi, fillerTs.value());
+                    }
                 }
             }
 
@@ -310,8 +317,27 @@ struct EventBuilder2::Private
                 for (unsigned mi = 0; mi < moduleCount; ++mi)
                 {
                     if (!eventData.moduleDatas[mi].back().timestamp.has_value())
+                    {
                         eventData.moduleDatas[mi].back().timestamp = fillerTs;
+                        spdlog::trace("recordModuleData: eventIndex={}, moduleIndex={} -> assign "
+                                     "fillerTs={}, data.size={}",
+                                     eventIndex, mi, fillerTs.value(),
+                                     eventData.moduleDatas[mi].back().data.size());
+                    }
+                    else
+                    {
+                        spdlog::trace("recordModuleData: eventIndex={}, moduleIndex={} -> module "
+                                     "has valid ts, ts={}, data.size={}",
+                                     eventIndex, mi,
+                                     eventData.moduleDatas[mi].back().timestamp.value(),
+                                     eventData.moduleDatas[mi].back().data.size());
+                    }
                 }
+            }
+            else
+            {
+                spdlog::trace("recordModuleData: eventIndex={} -> no fillerTs available",
+                             eventIndex);
             }
 
             return true;
@@ -343,15 +369,15 @@ struct EventBuilder2::Private
         {
             auto &mc = eventCfg.moduleConfigs[mi];
 
-            // ignored or no data in the queue
-            if (mc.ignored || eventData.moduleDatas.at(mi).empty())
+            // no data in the queue for this module
+            if (eventData.moduleDatas.at(mi).empty())
                 continue;
 
             auto modTs = eventData.moduleDatas.at(mi).back().timestamp.value();
             auto matchResult = timestamp_match(refTs, modTs, mc.window);
             if (matchResult.match != WindowMatch::too_new)
             {
-                // spdlog::warn("tryFlush: module{}, refTs={}, modTs={}, window={}, match={} -> "
+                // spdlog::trace("tryFlush: module{}, refTs={}, modTs={}, window={}, match={} -> "
                 //              "newest stamp is not far enough in the future, cannot flush yet -> "
                 //              "return false",
                 //              mi, refTs, modTs, mc.window, (int)matchResult.match);
@@ -359,7 +385,7 @@ struct EventBuilder2::Private
             }
         }
 
-        // spdlog::warn("tryFlush: refTs={}, all modules have a ts in the future -> flushing at
+        // spdlog::trace("tryFlush: refTs={}, all modules have a ts in the future -> flushing at
         // least "
         //              "one event", refTs);
 
@@ -416,7 +442,7 @@ struct EventBuilder2::Private
 
                 if (matchResult.match == WindowMatch::in_window)
                 {
-                    // spdlog::warn("  tryFlush: mi={}, refTs={}, modTs={}, dt={}, window={}, "
+                    // spdlog::trace("  tryFlush: mi={}, refTs={}, modTs={}, dt={}, window={}, "
                     //              "in_window -> add to out event",
                     //              mi, refTs, modTs, dt, moduleConfig.window);
                     //  Move data to the output buffer. Needed for the linear ModuleData array.
@@ -429,7 +455,7 @@ struct EventBuilder2::Private
                 }
                 else if (matchResult.match == WindowMatch::too_new)
                 {
-                    // spdlog::warn("  tryFlush: mi={}, refTs={}, modTs={}, dt={}, window={},
+                    // spdlog::trace("  tryFlush: mi={}, refTs={}, modTs={}, dt={}, window={},
                     // too_new "
                     //              "-> leave in buffer",
                     //              mi, refTs, modTs, dt, moduleConfig.window);
@@ -439,9 +465,35 @@ struct EventBuilder2::Private
             }
         }
 
+        std::vector<std::string> debugStamps;
+        for (size_t mi = 0; mi < moduleCount; ++mi)
+        {
+            if (outputModuleStorage_[mi].timestamp.has_value())
+            {
+                debugStamps.push_back(
+                    fmt::format("{}", outputModuleStorage_[mi].timestamp.value()));
+            }
+            else
+            {
+                debugStamps.push_back("n/a");
+            }
+        }
+
+        spdlog::trace("tryFlush: eventIndex={}, refTs={}, outputStamps={}", eventIndex, refTs,
+                     fmt::join(debugStamps, ", "));
+
         outputModuleData_.resize(moduleCount);
         for (size_t mi = 0; mi < moduleCount; ++mi)
         {
+            auto &mcfg = eventCfg.moduleConfigs.at(mi);
+            if (mcfg.prefixSize > 0 && outputModuleStorage_[mi].prefixSize != mcfg.prefixSize)
+            {
+                assert(outputModuleStorage_[mi].prefixSize == 0);
+                assert(outputModuleStorage_[mi].data.size() == 0);
+                outputModuleStorage_[mi].data.resize(mcfg.prefixSize);
+                outputModuleStorage_[mi].prefixSize = mcfg.prefixSize;
+            }
+            assert(size_consistency_check(outputModuleStorage_[mi]));
             outputModuleData_[mi] = outputModuleStorage_[mi].to_module_data();
             assert(mvlc::readout_parser::size_consistency_check(outputModuleData_[mi]));
         }
@@ -508,6 +560,22 @@ template <typename... Ts> void resize_and_clear(size_t size, Ts &&...args)
 EventBuilder2::EventBuilder2(const EventBuilderConfig &cfg, Callbacks callbacks, void *userContext)
     : d(std::make_unique<Private>())
 {
+    for (size_t ei = 0; ei < cfg.eventConfigs.size(); ++ei)
+    {
+        const auto &ecfg = cfg.eventConfigs.at(ei);
+        for (size_t mi = 0; mi < ecfg.moduleConfigs.size(); ++mi)
+        {
+            const auto &mcfg = ecfg.moduleConfigs.at(mi);
+            if (!mcfg.hasDynamic && mcfg.prefixSize == 0)
+            {
+                throw std::runtime_error(
+                    fmt::format("EventBuilder2: config error: eventIndex={}, moduleIndex={} -> "
+                                "static prefix size must be set if hasDynamic==false",
+                                ei, mi));
+            }
+        }
+    }
+
     d->cfg_ = cfg;
     d->callbacks_ = callbacks;
     d->userContext_ = userContext;
