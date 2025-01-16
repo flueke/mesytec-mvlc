@@ -19,7 +19,7 @@ std::optional<u32> IndexedTimestampFilterExtractor::operator()(const u32 *data, 
 {
     size_t idx = index_ < 0 ? size + index_ : index_;
 
-    if (0 <= idx && static_cast<size_t>(idx) < size && matches(filter_, data[idx]))
+    if (static_cast<size_t>(idx) < size && matches(filter_, data[idx]))
         return extract(filterCache_, data[idx]);
 
     return {};
