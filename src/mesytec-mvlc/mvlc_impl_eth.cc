@@ -931,10 +931,10 @@ PacketReadResult Impl::read_packet(Pipe pipe_, u8 *buffer, size_t size)
         return res;
     }
 
-    logger->trace("read_packet: pipe={}, header0=0x{:008x} -> packetChannel={}, packetNumber={}, controllerId={}, wordCount={}",
+    logger->trace("read_packet: pipe={}, header0=0x{:08x} -> packetChannel={}, packetNumber={}, controllerId={}, wordCount={}",
               pipe, res.header0(), res.packetChannel(), res.packetNumber(), res.controllerId(), res.dataWordCount());
 
-    logger->trace("read_packet: pipe={}, header1=0x{:008x} -> udpTimestamp={}, nextHeaderPointer={}",
+    logger->trace("read_packet: pipe={}, header1=0x{:08x} -> udpTimestamp={}, nextHeaderPointer={}",
               pipe, res.header1(), res.udpTimestamp(), res.nextHeaderPointer());
 
     logger->trace("read_packet: pipe={}, calculated available data words = {}, leftover bytes = {}",
@@ -1034,7 +1034,7 @@ PacketReadResult Impl::read_packet(Pipe pipe_, u8 *buffer, size_t size)
         else
         {
             u32 header = *headerp;
-            logger->trace("read_packet: pipe={}, nextHeaderPointer={} -> header=0x{:008x}",
+            logger->trace("read_packet: pipe={}, nextHeaderPointer={} -> header=0x{:08x}",
                       pipe, res.nextHeaderPointer(), header);
             u32 type = get_frame_type(header);
             UniqueLock guard(m_statsMutex);
@@ -1044,7 +1044,7 @@ PacketReadResult Impl::read_packet(Pipe pipe_, u8 *buffer, size_t size)
     }
     else
     {
-        logger->trace("read_packet: pipe={}, NoHeaderPointerPresent, eth header1=0x{:008x}",
+        logger->trace("read_packet: pipe={}, NoHeaderPointerPresent, eth header1=0x{:08x}",
                   pipe, res.header1());
         UniqueLock guard(m_statsMutex);
         ++pipeStats.noHeader;

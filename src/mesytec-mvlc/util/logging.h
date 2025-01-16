@@ -51,7 +51,7 @@ void log_buffer(const std::shared_ptr<spdlog::logger> &logger,
         logger->log(level, "begin buffer '{}' (size={}, first {} words)", header, buffer.size(), numWordsBegin);
 
     for (size_t i=0; i<numWordsBegin; ++i)
-        logger->log(level, "  0x{:008X}", buffer[i]);
+        logger->log(level, "  0x{:08X}", buffer[i]);
 
     auto wordsLeft = buffer.size() - numWordsBegin;
 

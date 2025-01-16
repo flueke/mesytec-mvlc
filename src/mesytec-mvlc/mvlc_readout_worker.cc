@@ -1389,7 +1389,7 @@ inline void fixup_usb_buffer(
 
                 std::cout << fmt::format(
                     "!is_valid_readout_frame: buffer #{},  byteOffset={}, "
-                    "wordOffset={}, frameHeader=0x{:008x}",
+                    "wordOffset={}, frameHeader=0x{:08x}",
                     readBuffer.bufferNumber(),
                     offset, wordOffset, frameHeader) << std::endl;
 #endif
