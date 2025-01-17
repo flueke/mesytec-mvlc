@@ -491,6 +491,8 @@ struct EventBuilder2::Private
                 assert(outputModuleStorage_[mi].prefixSize == 0);
                 assert(outputModuleStorage_[mi].data.size() == 0);
                 outputModuleStorage_[mi].data.resize(mcfg.prefixSize);
+                std::fill(std::begin(outputModuleStorage_[mi].data),
+                          std::end(outputModuleStorage_[mi].data), 0);
                 outputModuleStorage_[mi].prefixSize = mcfg.prefixSize;
             }
             assert(size_consistency_check(outputModuleStorage_[mi]));
