@@ -130,8 +130,7 @@ inline bool record_module_data(const ModuleData *moduleDataList, unsigned module
 {
     assert(cfgs.size() == moduleCount);
     assert(dest.size() == moduleCount);
-    assert(std::all_of(moduleDataList, moduleDataList + moduleCount,
-                       [](const ModuleData &md)
+    assert(std::all_of(moduleDataList, moduleDataList + moduleCount, [](const ModuleData &md)
                        { return mvlc::readout_parser::size_consistency_check(md); }));
 
     if (cfgs.size() != moduleCount)
@@ -158,10 +157,11 @@ inline bool record_module_data(const ModuleData *moduleDataList, unsigned module
         else if (!mcfg.ignored && mdata.data.size > 0)
         {
             ++counters.stampFailed[mi];
-            spdlog::trace("record_module_data: failed timestamp extraction, module{}, data.size={}, "
-                         "data={:#010x}",
-                         mi, mdata.data.size,
-                         fmt::join(mdata.data.data, mdata.data.data + mdata.data.size, ", "));
+            spdlog::trace(
+                "record_module_data: failed timestamp extraction, module{}, data.size={}, "
+                "data={:#010x}",
+                mi, mdata.data.size,
+                fmt::join(mdata.data.data, mdata.data.data + mdata.data.size, ", "));
         }
 
         dest[mi].emplace_back(ModuleStorage(mdata, ts));
@@ -247,17 +247,17 @@ struct EventBuilder2::Private
         {
             auto &mds = eventData.moduleDatas[mi];
 
-            result = result && std::all_of(std::begin(mds), std::end(mds),
-                                           [](const ModuleStorage &md)
-                                           { return size_consistency_check(md); });
+            result =
+                result && std::all_of(std::begin(mds), std::end(mds), [](const ModuleStorage &md)
+                                      { return size_consistency_check(md); });
 
             // This will fail for the extreme case where none of the modules in
             // an event yielded a timestamp. fillerTs in recordModuleData() will
             // not be set and the otherwise guaranteed stamp will not be
             // appended to the queue.
-            result = result &&
-                     std::all_of(std::begin(mds), std::end(mds),
-                                 [](const ModuleStorage &md) { return md.timestamp.has_value(); });
+            result =
+                result && std::all_of(std::begin(mds), std::end(mds), [](const ModuleStorage &md)
+                                      { return md.timestamp.has_value(); });
         }
 
         return result;
@@ -320,24 +320,24 @@ struct EventBuilder2::Private
                     {
                         eventData.moduleDatas[mi].back().timestamp = fillerTs;
                         spdlog::trace("recordModuleData: eventIndex={}, moduleIndex={} -> assign "
-                                     "fillerTs={}, data.size={}",
-                                     eventIndex, mi, fillerTs.value(),
-                                     eventData.moduleDatas[mi].back().data.size());
+                                      "fillerTs={}, data.size={}",
+                                      eventIndex, mi, fillerTs.value(),
+                                      eventData.moduleDatas[mi].back().data.size());
                     }
                     else
                     {
                         spdlog::trace("recordModuleData: eventIndex={}, moduleIndex={} -> module "
-                                     "has valid ts, ts={}, data.size={}",
-                                     eventIndex, mi,
-                                     eventData.moduleDatas[mi].back().timestamp.value(),
-                                     eventData.moduleDatas[mi].back().data.size());
+                                      "has valid ts, ts={}, data.size={}",
+                                      eventIndex, mi,
+                                      eventData.moduleDatas[mi].back().timestamp.value(),
+                                      eventData.moduleDatas[mi].back().data.size());
                     }
                 }
             }
             else
             {
                 spdlog::trace("recordModuleData: eventIndex={} -> no fillerTs available",
-                             eventIndex);
+                              eventIndex);
             }
 
             return true;
@@ -480,7 +480,7 @@ struct EventBuilder2::Private
         }
 
         spdlog::trace("tryFlush: eventIndex={}, refTs={}, outputStamps={}", eventIndex, refTs,
-                     fmt::join(debugStamps, ", "));
+                      fmt::join(debugStamps, ", "));
 
         outputModuleData_.resize(moduleCount);
         for (size_t mi = 0; mi < moduleCount; ++mi)
@@ -690,7 +690,8 @@ std::string EventBuilder2::debugDump() const
             std::advance(stampsEnd, stampsToPrint);
             std::vector<std::string> stamps;
             std::transform(stampsBegin, stampsEnd, std::back_inserter(stamps),
-                           [](const ModuleStorage &md) {
+                           [](const ModuleStorage &md)
+                           {
                                return md.timestamp.has_value()
                                           ? std::to_string(md.timestamp.value())
                                           : "no ts";
