@@ -164,6 +164,7 @@ std::optional<u32> simple_timestamp_extractor(const u32 *data, size_t size)
 #if 1
 TEST(EventBuilder2, OneModule)
 {
+    spdlog::set_level(spdlog::level::debug);
     const std::vector<u32> sysEventData = {0x12345678, 0x87654321};
     std::vector<ModuleDataStorage> moduleTestData;
 
@@ -171,6 +172,8 @@ TEST(EventBuilder2, OneModule)
     moduleConfig.tsExtractor = simple_timestamp_extractor;
     moduleConfig.window = 20;
     moduleConfig.offset = 0; // offset does not matter with only one module
+    moduleConfig.prefixSize = 1;
+    moduleConfig.hasDynamic = false;
     EventConfig eventConfig;
     eventConfig.moduleConfigs.push_back(moduleConfig);
     eventConfig.enabled = true;
@@ -254,11 +257,13 @@ TEST(EventBuilder2, TwoModules)
     mod0.tsExtractor = simple_timestamp_extractor;
     mod0.window = 20;
     mod0.offset = 0;
+    mod0.prefixSize = 1;
 
     ModuleConfig mod1;
     mod1.tsExtractor = simple_timestamp_extractor;
     mod1.window = 20;
     mod1.offset = 0;
+    mod1.prefixSize = 1;
 
     EventConfig eventConfig;
     eventConfig.moduleConfigs = {mod0, mod1};
@@ -335,11 +340,13 @@ TEST(EventBuilder2, TwoModulesOneIsSlow)
     mod0.tsExtractor = simple_timestamp_extractor;
     mod0.window = 20;
     mod0.offset = 0;
+    mod0.prefixSize = 1;
 
     ModuleConfig mod1;
     mod1.tsExtractor = simple_timestamp_extractor;
     mod1.window = 20;
     mod1.offset = 0;
+    mod1.prefixSize = 1;
 
     EventConfig eventConfig;
     eventConfig.moduleConfigs = {mod0, mod1};
