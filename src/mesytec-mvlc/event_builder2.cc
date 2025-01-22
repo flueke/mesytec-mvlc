@@ -157,7 +157,7 @@ inline bool record_module_data(const ModuleData *moduleDataList, unsigned module
         else if (!mcfg.ignored && mdata.data.size > 0)
         {
             ++counters.stampFailed[mi];
-            spdlog::debug(
+            spdlog::trace(
                 "record_module_data: failed timestamp extraction, module{}, data.size={}, "
                 "data={:#010x}",
                 mi, mdata.data.size,
@@ -265,7 +265,7 @@ struct EventBuilder2::Private
 
     bool recordModuleData(int eventIndex, const ModuleData *moduleDataList, unsigned moduleCount)
     {
-        spdlog::debug("entering recordModuleData: eventIndex={}, moduleCount={}", eventIndex, moduleCount);
+        spdlog::trace("entering recordModuleData: eventIndex={}, moduleCount={}", eventIndex, moduleCount);
 
         if (!checkConsistency(eventIndex, moduleDataList, moduleCount))
         {
@@ -311,7 +311,7 @@ struct EventBuilder2::Private
                     if (!fillerTs.has_value())
                     {
                         fillerTs = ts;
-                        spdlog::debug(
+                        spdlog::trace(
                             "recordModuleData: eventIndex={}, moduleIndex={} -> set fillerTs={}",
                             eventIndex, mi, fillerTs.value());
                     }
@@ -325,14 +325,14 @@ struct EventBuilder2::Private
                     if (!eventData.moduleDatas[mi].back().timestamp.has_value())
                     {
                         eventData.moduleDatas[mi].back().timestamp = fillerTs;
-                        spdlog::debug("recordModuleData: eventIndex={}, moduleIndex={} -> assign "
+                        spdlog::trace("recordModuleData: eventIndex={}, moduleIndex={} -> assign "
                                       "fillerTs={}, data.size={}",
                                       eventIndex, mi, fillerTs.value(),
                                       eventData.moduleDatas[mi].back().data.size());
                     }
                     else
                     {
-                        spdlog::debug("recordModuleData: eventIndex={}, moduleIndex={} -> module "
+                        spdlog::trace("recordModuleData: eventIndex={}, moduleIndex={} -> module "
                                       "has valid ts, ts={}, data.size={}",
                                       eventIndex, mi,
                                       eventData.moduleDatas[mi].back().timestamp.value(),
@@ -342,11 +342,11 @@ struct EventBuilder2::Private
             }
             else
             {
-                spdlog::debug("recordModuleData: eventIndex={} -> no fillerTs available",
+                spdlog::trace("recordModuleData: eventIndex={} -> no fillerTs available",
                               eventIndex);
             }
 
-            spdlog::debug("leaving recordModuleData: eventIndex={}, moduleCount={} -> return true", eventIndex,
+            spdlog::trace("leaving recordModuleData: eventIndex={}, moduleCount={} -> return true", eventIndex,
                           moduleCount);
 
             return true;
@@ -361,11 +361,11 @@ struct EventBuilder2::Private
 
     bool tryFlush(int eventIndex)
     {
-        spdlog::debug("entering tryFlush: eventIndex={}", eventIndex);
+        spdlog::trace("entering tryFlush: eventIndex={}", eventIndex);
 
         if (!checkModuleBuffers(eventIndex))
         {
-            spdlog::debug("tryFlush: eventIndex={} -> checkModuleBuffers failed -> return false",
+            spdlog::trace("tryFlush: eventIndex={} -> checkModuleBuffers failed -> return false",
                           eventIndex);
             return false;
         }
@@ -395,7 +395,7 @@ struct EventBuilder2::Private
             auto matchResult = timestamp_match(refTs, modTs, mc.window);
             if (matchResult.match != WindowMatch::too_new)
             {
-                spdlog::debug("tryFlush: module{}, refTs={}, modTs={}, window={}, match={} -> "
+                spdlog::trace("tryFlush: module{}, refTs={}, modTs={}, window={}, match={} -> "
                              "newest stamp is not far enough in the future, cannot flush yet -> "
                              "return false",
                              mi, refTs, modTs, mc.window, (int)matchResult.match);
@@ -403,7 +403,7 @@ struct EventBuilder2::Private
             }
         }
 
-        spdlog::debug("tryFlush: refTs={}, all modules have a ts in the future -> flushing at least "
+        spdlog::trace("tryFlush: refTs={}, all modules have a ts in the future -> flushing at least "
                      "one event", refTs);
 
         // pop the refTs, so we won't encounter it again. Loop because multiple modules might yield
@@ -426,7 +426,7 @@ struct EventBuilder2::Private
 
                 if (matchResult.match == WindowMatch::too_old)
                 {
-                    spdlog::debug("  tryFlush: mi={}, refTs={}, modTs={}, window={}, too_old -> "
+                    spdlog::trace("  tryFlush: mi={}, refTs={}, modTs={}, window={}, too_old -> "
                                  "discard event",
                                  mi, refTs, modTs, moduleConfig.window);
                     ++eventCtrs.discardsAge[mi];
@@ -467,7 +467,7 @@ struct EventBuilder2::Private
 
                 if (matchResult.match == WindowMatch::in_window)
                 {
-                    spdlog::debug("  tryFlush: mi={}, refTs={}, modTs={}, dt={}, window={}, "
+                    spdlog::trace("  tryFlush: mi={}, refTs={}, modTs={}, dt={}, window={}, "
                                  "in_window -> add to out event",
                                  mi, refTs, modTs, dt, moduleConfig.window);
                     // Move data to the output buffer. Needed for the linear ModuleData array.
@@ -480,7 +480,7 @@ struct EventBuilder2::Private
                 }
                 else if (matchResult.match == WindowMatch::too_new)
                 {
-                    spdlog::debug("  tryFlush: mi={}, refTs={}, modTs={}, dt={}, window={}, too_new "
+                    spdlog::trace("  tryFlush: mi={}, refTs={}, modTs={}, dt={}, window={}, too_new "
                                  "-> leave in buffer",
                                  mi, refTs, modTs, dt, moduleConfig.window);
                     break;
@@ -502,7 +502,7 @@ struct EventBuilder2::Private
             }
         }
 
-        spdlog::debug("tryFlush: eventIndex={}, refTs={}, outputStamps={}", eventIndex, refTs,
+        spdlog::trace("tryFlush: eventIndex={}, refTs={}, outputStamps={}", eventIndex, refTs,
                       fmt::join(debugStamps, ", "));
 
         outputModuleData_.resize(moduleCount);
@@ -527,7 +527,7 @@ struct EventBuilder2::Private
 
     size_t forceFlush(int eventIndex)
     {
-        spdlog::debug("entering forceFlush: eventIndex={}", eventIndex);
+        spdlog::trace("entering forceFlush: eventIndex={}", eventIndex);
         auto &ed = perEventData_.at(eventIndex);
         bool haveData = false;
         size_t result = 0;
@@ -564,7 +564,7 @@ struct EventBuilder2::Private
         }
         while (haveData);
 
-        spdlog::debug("leaving forceFlush: eventIndex={} -> flushed {} events", eventIndex, result);
+        spdlog::trace("leaving forceFlush: eventIndex={} -> flushed {} events", eventIndex, result);
 
         return result;
     }
