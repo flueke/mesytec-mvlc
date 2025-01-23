@@ -334,7 +334,6 @@ struct EventBuilder2::Private
         {
             // The back of each 'moduleDatas' queue now contains the newest data+timestamp.
 
-#if 0
             auto &histos = eventData.dtHistograms;
             auto itHistos = std::begin(histos);
 
@@ -356,7 +355,6 @@ struct EventBuilder2::Private
                     ++itHistos;
                 }
             }
-#endif
 
             // Apply offsets to the timestamps.
             for (unsigned mi = 0; mi < moduleCount; ++mi)
@@ -693,7 +691,6 @@ EventBuilder2::EventBuilder2(const EventBuilderConfig &cfg, Callbacks callbacks,
     }
 
 // Create dtHistograms
-#if 0
     for (size_t ei = 0; ei < cfg.eventConfigs.size(); ++ei)
     {
         auto &ec = cfg.eventConfigs.at(ei);
@@ -719,7 +716,6 @@ EventBuilder2::EventBuilder2(const EventBuilderConfig &cfg, Callbacks callbacks,
             }
         }
     }
-#endif
 }
 
 EventBuilder2::EventBuilder2(const EventBuilderConfig &cfg, void *userContext)

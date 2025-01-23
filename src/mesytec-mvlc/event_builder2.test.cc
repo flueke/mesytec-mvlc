@@ -1,6 +1,8 @@
 #include "event_builder2.hpp"
 #include <gtest/gtest.h>
 #include <spdlog/spdlog.h>
+#include <unordered_set>
+#include <vector>
 
 using namespace mesytec::mvlc;
 using namespace mesytec::mvlc::event_builder2;
@@ -187,20 +189,20 @@ TEST(EventBuilder2, OneModule)
                                  const ModuleData *moduleDataList, unsigned moduleCount)
     {
         ++dataCallbackCount;
-        #if 0
+#if 0
         fmt::print("eventDataCallback: crateIndex={}, eventIndex={}, moduleCount={}\n", crateIndex,
                    eventIndex, moduleCount);
         fmt::print("eventDataCallback: module0: size={}, data[0]={}\n", moduleDataList[0].data.size,
                    moduleDataList[0].data.data[0]);
-        #endif
+#endif
     };
 
     auto systemEventCallback = [&](void *, int crateIndex, const u32 *header, u32 size)
     {
         ++systemCallbackCount;
-        #if 0
+#if 0
         fmt::print("systemEventCallback: crateIndex={}, size={}\n", crateIndex, size);
-        #endif
+#endif
     };
 
     EventBuilder2 eb(cfg, {eventDataCallback, systemEventCallback});
@@ -245,16 +247,16 @@ TEST(EventBuilder2, OneModule)
     ASSERT_EQ(dataCallbackCount, 2);
     ASSERT_EQ(systemCallbackCount, 1);
 
-    #if 0
+#if 0
     fmt::print(eb.debugDump());
-    #endif
+#endif
     // remaining stamps are 10, 11, 15, 16. Force flush now
     ASSERT_EQ(eb.flush(true), 4);
     ASSERT_EQ(dataCallbackCount, 2 + 4);
     ASSERT_EQ(systemCallbackCount, 1);
-    #if 0
+#if 0
     fmt::print(eb.debugDump());
-    #endif
+#endif
 }
 #endif
 
@@ -287,13 +289,13 @@ TEST(EventBuilder2, TwoModules)
                                  const ModuleData *moduleDataList, unsigned moduleCount)
     {
         ++dataCallbackCount;
-        #if 0
+#if 0
         fmt::print("eventDataCallback: crateIndex={}, eventIndex={}, moduleCount={}\n", crateIndex,
                    eventIndex, moduleCount);
         for (size_t i = 0; i < moduleCount; ++i)
             fmt::print("eventDataCallback:   module{}: size={}, data[0]={}\n", i,
                        moduleDataList[0].data.size, moduleDataList[0].data.data[0]);
-        #endif
+#endif
     };
 
     auto systemEventCallback = [&](void *, int, const u32 *, u32) {};
@@ -307,7 +309,7 @@ TEST(EventBuilder2, TwoModules)
 
     ASSERT_EQ(eb.flush(), 0);
     ASSERT_EQ(dataCallbackCount, 0);
-    //fmt::print(eb.debugDump());
+    // fmt::print(eb.debugDump());
 
     moduleTestData = {{{5}}, {{5}}};
     eb.recordModuleData(0, to_module_data_list(moduleTestData).data(), moduleTestData.size());
@@ -321,7 +323,7 @@ TEST(EventBuilder2, TwoModules)
 
     moduleTestData = {{{11}}, {{11}}};
     eb.recordModuleData(0, to_module_data_list(moduleTestData).data(), moduleTestData.size());
-    //fmt::print(eb.debugDump());
+    // fmt::print(eb.debugDump());
     ASSERT_EQ(eb.flush(), 1);
     ASSERT_EQ(dataCallbackCount, 1);
 
@@ -337,11 +339,11 @@ TEST(EventBuilder2, TwoModules)
     ASSERT_EQ(eb.flush(), 1);
     ASSERT_EQ(dataCallbackCount, 2);
 
-    //fmt::print(eb.debugDump());
-    // remaining stamps are 10, 11, 15, 16. Force flush now
+    // fmt::print(eb.debugDump());
+    //  remaining stamps are 10, 11, 15, 16. Force flush now
     ASSERT_EQ(eb.flush(true), 4);
     ASSERT_EQ(dataCallbackCount, 2 + 4);
-    //fmt::print(eb.debugDump());
+    // fmt::print(eb.debugDump());
 }
 #endif
 
@@ -375,7 +377,7 @@ TEST(EventBuilder2, TwoModulesOneIsSlow)
     {
         ++dataCallbackCount;
         spdlog::trace("eventDataCallback: crateIndex={}, eventIndex={}, moduleCount={}", crateIndex,
-                     eventIndex, moduleCount);
+                      eventIndex, moduleCount);
         for (size_t i = 0; i < moduleCount; ++i)
         {
             spdlog::trace(
@@ -396,7 +398,7 @@ TEST(EventBuilder2, TwoModulesOneIsSlow)
 
     ASSERT_EQ(eb.flush(), 0);
     ASSERT_EQ(dataCallbackCount, 0);
-    //fmt::print(eb.debugDump());
+    // fmt::print(eb.debugDump());
 
     moduleTestData = {{{5}}, {{5}}};
     eb.recordModuleData(0, to_module_data_list(moduleTestData).data(), moduleTestData.size());
@@ -410,8 +412,8 @@ TEST(EventBuilder2, TwoModulesOneIsSlow)
 
     moduleTestData = {{{11}}, {{}}};
     eb.recordModuleData(0, to_module_data_list(moduleTestData).data(), moduleTestData.size());
-    //fmt::print(eb.debugDump());
-    // 0, 5, 10, 11 and 0, 5, 10, <artifical 11 from mod0> -> yield
+    // fmt::print(eb.debugDump());
+    //  0, 5, 10, 11 and 0, 5, 10, <artifical 11 from mod0> -> yield
     ASSERT_EQ(eb.flush(), 1);
     ASSERT_EQ(dataCallbackCount, 1);
 
@@ -457,15 +459,48 @@ TEST(EventBuilder2, VectorAtIsWeird)
     }
 }
 
+// source: https://stackoverflow.com/a/15161034
+struct pair_hash
+{
+    inline std::size_t operator()(const std::pair<size_t, size_t> &v) const
+    {
+        return v.first * 31 + v.second;
+    }
+};
+
 TEST(EventBuilder2, MakeCombinations)
 {
     std::vector<ModuleConfig> mcs;
 
-    for (auto mi=0; mi<5; ++mi)
+    for (auto mi = 0; mi < 7; ++mi)
     {
         ModuleConfig mc;
         mc.name = fmt::format("mod{}", mi);
         mcs.push_back(mc);
+    }
+
+    std::vector<std::pair<ModuleConfig, ModuleConfig>> combinations;
+    std::unordered_set<std::pair<size_t, size_t>, pair_hash> seen;
+
+    for (size_t i = 0; i < mcs.size(); ++i)
+    {
+        for (size_t j = 0; j < mcs.size(); ++j)
+        {
+            if (i != j && seen.find({j, i}) == seen.end())
+            {
+                combinations.push_back({mcs[i], mcs[j]});
+                seen.insert({i, j});
+                seen.insert({j, i});
+            }
+        }
+    }
+
+    spdlog::info("Module count: {}, Combination count: {}", mcs.size(), combinations.size());
+
+    size_t i=0;
+    for (const auto &p: combinations)
+    {
+        spdlog::info("Index: {}, Combination: {} - {}", i++, p.first.name, p.second.name);
     }
 }
 
@@ -473,7 +508,7 @@ TEST(EventBuilder2, CreateHistograms)
 {
     EventConfig ec;
 
-    for (auto mi=0; mi<5; ++mi)
+    for (auto mi = 0; mi < 5; ++mi)
     {
         ModuleConfig mc;
         mc.name = fmt::format("mod{}", mi);
