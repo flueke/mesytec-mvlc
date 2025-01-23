@@ -84,9 +84,10 @@ struct MESYTEC_MVLC_EXPORT ModuleConfig
     s32 offset; // Offset applied to the extracted timestamp. Used to correct for module specific
                 // timestamp offsets.
     u32 window; // Width of the match window in timestamp units.
-    bool ignored = false; // If true this module does not contribute reference timestamps.
+    bool ignored = false;    // If true this module does not contribute reference timestamps.
     bool hasDynamic = false; // If true the module has a dynamic part (block read).
-    u32 prefixSize = 0; // Number of words in the static prefix. May only be set if hasDynamic==false.
+    u32 prefixSize =
+        0; // Number of words in the static prefix. May only be set if hasDynamic==false.
     std::string name;
 };
 
@@ -110,8 +111,8 @@ struct MESYTEC_MVLC_EXPORT EventCounters
     std::vector<size_t> inputHits;
     std::vector<size_t> outputHits;
     std::vector<size_t> emptyInputs;
-    std::vector<size_t> discardsAge;   // number of event discarded due to stamp age
-    std::vector<size_t> stampFailed;   // number of failed stamp extractions
+    std::vector<size_t> discardsAge; // number of event discarded due to stamp age
+    std::vector<size_t> stampFailed; // number of failed stamp extractions
 
     // these can be determinted from the contents of the data buffers
     std::vector<size_t> currentEvents; // current events in the buffer
@@ -119,8 +120,8 @@ struct MESYTEC_MVLC_EXPORT EventCounters
 
     // these are upated in tryFlush() and/or periodcally? not sure yet. possibly on-demand only when
     // a getCounters() method is called
-    std::vector<size_t> maxEvents;     // max events buffered so far (until flushed)
-    std::vector<size_t> maxMem;        // max mem usage so far (until flushed)
+    std::vector<size_t> maxEvents; // max events buffered so far (until flushed)
+    std::vector<size_t> maxMem;    // max mem usage so far (until flushed)
 
     // non-module specific
     size_t recordingFailed = 0;
@@ -135,12 +136,12 @@ struct MESYTEC_MVLC_EXPORT BuilderCounters
 
 struct MESYTEC_MVLC_EXPORT Histo
 {
-  std::string title;
-  double xMin;
-  double xMax;
-  std::vector<size_t> bins;
-  size_t underflows;
-  size_t overflows;
+    std::string title;
+    double xMin;
+    double xMax;
+    std::vector<size_t> bins;
+    size_t underflows;
+    size_t overflows;
 };
 
 bool fill(Histo &histo, double x);

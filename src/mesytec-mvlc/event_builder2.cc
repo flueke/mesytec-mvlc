@@ -140,7 +140,8 @@ inline bool record_module_data(const ModuleData *moduleDataList, unsigned module
 {
     assert(cfgs.size() == moduleCount);
     assert(dest.size() == moduleCount);
-    assert(std::all_of(moduleDataList, moduleDataList + moduleCount, [](const ModuleData &md)
+    assert(std::all_of(moduleDataList, moduleDataList + moduleCount,
+                       [](const ModuleData &md)
                        { return mvlc::readout_parser::size_consistency_check(md); }));
 
     if (cfgs.size() != moduleCount)
@@ -218,7 +219,8 @@ bool fill(Histo &histo, double x)
     }
     else
     {
-        size_t bin = static_cast<size_t>((x - histo.xMin) / (histo.xMax - histo.xMin) * histo.bins.size());
+        size_t bin =
+            static_cast<size_t>((x - histo.xMin) / (histo.xMax - histo.xMin) * histo.bins.size());
         assert(bin < histo.bins.size());
         if (bin < histo.bins.size())
         {
@@ -277,17 +279,17 @@ struct EventBuilder2::Private
         {
             auto &mds = eventData.moduleDatas[mi];
 
-            result =
-                result && std::all_of(std::begin(mds), std::end(mds), [](const ModuleStorage &md)
-                                      { return size_consistency_check(md); });
+            result = result && std::all_of(std::begin(mds), std::end(mds),
+                                           [](const ModuleStorage &md)
+                                           { return size_consistency_check(md); });
 
             // This will fail for the extreme case where none of the modules in
             // an event yielded a timestamp. fillerTs in recordModuleData() will
             // not be set and the otherwise guaranteed stamp will not be
             // appended to the queue.
-            result =
-                result && std::all_of(std::begin(mds), std::end(mds), [](const ModuleStorage &md)
-                                      { return md.timestamp.has_value(); });
+            result = result &&
+                     std::all_of(std::begin(mds), std::end(mds),
+                                 [](const ModuleStorage &md) { return md.timestamp.has_value(); });
         }
 
         return result;
@@ -295,11 +297,13 @@ struct EventBuilder2::Private
 
     bool recordModuleData(int eventIndex, const ModuleData *moduleDataList, unsigned moduleCount)
     {
-        spdlog::trace("entering recordModuleData: eventIndex={}, moduleCount={}", eventIndex, moduleCount);
+        spdlog::trace("entering recordModuleData: eventIndex={}, moduleCount={}", eventIndex,
+                      moduleCount);
 
         if (!checkConsistency(eventIndex, moduleDataList, moduleCount))
         {
-            spdlog::warn("recordModuleData: eventIndex={}, moduleCount={} -> module data consistency check failed",
+            spdlog::warn("recordModuleData: eventIndex={}, moduleCount={} -> module data "
+                         "consistency check failed",
                          eventIndex, moduleCount);
             return false;
         }
@@ -330,7 +334,7 @@ struct EventBuilder2::Private
         {
             // The back of each 'moduleDatas' queue now contains the newest data+timestamp.
 
-            #if 0
+#if 0
             auto &histos = eventData.dtHistograms;
             auto itHistos = std::begin(histos);
 
@@ -352,7 +356,7 @@ struct EventBuilder2::Private
                     ++itHistos;
                 }
             }
-            #endif
+#endif
 
             // Apply offsets to the timestamps.
             for (unsigned mi = 0; mi < moduleCount; ++mi)
@@ -360,7 +364,8 @@ struct EventBuilder2::Private
                 auto &ms = eventData.moduleDatas[mi].back();
                 if (ms.timestamp.has_value())
                 {
-                    *ms.timestamp = add_offset_to_timestamp(*ms.timestamp, eventCfg.moduleConfigs[mi].offset);
+                    *ms.timestamp =
+                        add_offset_to_timestamp(*ms.timestamp, eventCfg.moduleConfigs[mi].offset);
                 }
             }
 
@@ -413,14 +418,14 @@ struct EventBuilder2::Private
                               eventIndex);
             }
 
-            spdlog::trace("leaving recordModuleData: eventIndex={}, moduleCount={} -> return true", eventIndex,
-                          moduleCount);
+            spdlog::trace("leaving recordModuleData: eventIndex={}, moduleCount={} -> return true",
+                          eventIndex, moduleCount);
 
             return true;
         }
 
-        spdlog::warn("leaving recordModuleData: eventIndex={}, moduleCount={} -> return false", eventIndex,
-                     moduleCount);
+        spdlog::warn("leaving recordModuleData: eventIndex={}, moduleCount={} -> return false",
+                     eventIndex, moduleCount);
 
         ++eventCtrs.recordingFailed;
         return false;
@@ -463,15 +468,17 @@ struct EventBuilder2::Private
             if (matchResult.match != WindowMatch::too_new)
             {
                 spdlog::trace("tryFlush: module{}, refTs={}, modTs={}, window={}, match={} -> "
-                             "newest stamp is not far enough in the future, cannot flush yet -> "
-                             "return false",
-                             mi, refTs, modTs, mc.window, (int)matchResult.match);
+                              "newest stamp is not far enough in the future, cannot flush yet -> "
+                              "return false",
+                              mi, refTs, modTs, mc.window, (int)matchResult.match);
                 return false;
             }
         }
 
-        spdlog::trace("tryFlush: refTs={}, all modules have a ts in the future -> flushing at least "
-                     "one event", refTs);
+        spdlog::trace(
+            "tryFlush: refTs={}, all modules have a ts in the future -> flushing at least "
+            "one event",
+            refTs);
 
         // pop the refTs, so we won't encounter it again. Loop because multiple modules might yield
         // the exact same refTs.
@@ -494,8 +501,8 @@ struct EventBuilder2::Private
                 if (matchResult.match == WindowMatch::too_old)
                 {
                     spdlog::trace("  tryFlush: mi={}, refTs={}, modTs={}, window={}, too_old -> "
-                                 "discard event",
-                                 mi, refTs, modTs, moduleConfig.window);
+                                  "discard event",
+                                  mi, refTs, modTs, moduleConfig.window);
                     ++eventCtrs.discardsAge[mi];
                     --eventCtrs.currentEvents[mi];
                     eventCtrs.currentMem[mi] -= moduleDatas.front().data.size() * sizeof(u32);
@@ -522,7 +529,7 @@ struct EventBuilder2::Private
             outputModuleStorage_[mi].hasDynamic = moduleConfig.hasDynamic;
             outputModuleStorage_[mi].data.resize(moduleConfig.prefixSize);
             std::fill(std::begin(outputModuleStorage_[mi].data),
-                        std::end(outputModuleStorage_[mi].data), 0);
+                      std::end(outputModuleStorage_[mi].data), 0);
 
             while (!moduleDatas.empty())
             {
@@ -535,8 +542,8 @@ struct EventBuilder2::Private
                 if (matchResult.match == WindowMatch::in_window)
                 {
                     spdlog::trace("  tryFlush: mi={}, refTs={}, modTs={}, dt={}, window={}, "
-                                 "in_window -> add to out event",
-                                 mi, refTs, modTs, dt, moduleConfig.window);
+                                  "in_window -> add to out event",
+                                  mi, refTs, modTs, dt, moduleConfig.window);
                     // Move data to the output buffer. Needed for the linear ModuleData array.
                     outputModuleStorage_[mi] = std::move(moduleDatas.front());
                     moduleDatas.pop_front();
@@ -547,9 +554,10 @@ struct EventBuilder2::Private
                 }
                 else if (matchResult.match == WindowMatch::too_new)
                 {
-                    spdlog::trace("  tryFlush: mi={}, refTs={}, modTs={}, dt={}, window={}, too_new "
-                                 "-> leave in buffer",
-                                 mi, refTs, modTs, dt, moduleConfig.window);
+                    spdlog::trace(
+                        "  tryFlush: mi={}, refTs={}, modTs={}, dt={}, window={}, too_new "
+                        "-> leave in buffer",
+                        mi, refTs, modTs, dt, moduleConfig.window);
                     break;
                 }
             }
@@ -684,8 +692,8 @@ EventBuilder2::EventBuilder2(const EventBuilderConfig &cfg, Callbacks callbacks,
                          ctrs.currentMem, ctrs.maxEvents, ctrs.maxMem);
     }
 
-    // Create dtHistograms
-    #if 0
+// Create dtHistograms
+#if 0
     for (size_t ei = 0; ei < cfg.eventConfigs.size(); ++ei)
     {
         auto &ec = cfg.eventConfigs.at(ei);
@@ -711,7 +719,7 @@ EventBuilder2::EventBuilder2(const EventBuilderConfig &cfg, Callbacks callbacks,
             }
         }
     }
-    #endif
+#endif
 }
 
 EventBuilder2::EventBuilder2(const EventBuilderConfig &cfg, void *userContext)
@@ -809,8 +817,7 @@ std::string EventBuilder2::debugDump() const
             std::advance(stampsEnd, stampsToPrint);
             std::vector<std::string> stamps;
             std::transform(stampsBegin, stampsEnd, std::back_inserter(stamps),
-                           [](const ModuleStorage &md)
-                           {
+                           [](const ModuleStorage &md) {
                                return md.timestamp.has_value()
                                           ? std::to_string(md.timestamp.value())
                                           : "no ts";
