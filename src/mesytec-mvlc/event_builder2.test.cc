@@ -168,6 +168,7 @@ TEST(EventBuilder2, OneModule)
     std::vector<ModuleDataStorage> moduleTestData;
 
     ModuleConfig moduleConfig;
+    moduleConfig.name = "mod0";
     moduleConfig.tsExtractor = simple_timestamp_extractor;
     moduleConfig.window = 20;
     moduleConfig.offset = 0; // offset does not matter with only one module
@@ -261,12 +262,14 @@ TEST(EventBuilder2, OneModule)
 TEST(EventBuilder2, TwoModules)
 {
     ModuleConfig mod0;
+    mod0.name = "mod0";
     mod0.tsExtractor = simple_timestamp_extractor;
     mod0.window = 20;
     mod0.offset = 0;
     mod0.prefixSize = 1;
 
     ModuleConfig mod1;
+    mod1.name = "mod1";
     mod1.tsExtractor = simple_timestamp_extractor;
     mod1.window = 20;
     mod1.offset = 0;
@@ -346,12 +349,14 @@ TEST(EventBuilder2, TwoModules)
 TEST(EventBuilder2, TwoModulesOneIsSlow)
 {
     ModuleConfig mod0;
+    mod0.name = "mod0";
     mod0.tsExtractor = simple_timestamp_extractor;
     mod0.window = 20;
     mod0.offset = 0;
     mod0.prefixSize = 1;
 
     ModuleConfig mod1;
+    mod0.name = "mod1";
     mod1.tsExtractor = simple_timestamp_extractor;
     mod1.window = 20;
     mod1.offset = 0;
@@ -449,5 +454,29 @@ TEST(EventBuilder2, VectorAtIsWeird)
         ASSERT_EQ(vv1.at(0).size(), 2);
         ASSERT_EQ(vv1.at(1).size(), 2);
         ASSERT_EQ(vv1.at(2).size(), 2);
+    }
+}
+
+TEST(EventBuilder2, MakeCombinations)
+{
+    std::vector<ModuleConfig> mcs;
+
+    for (auto mi=0; mi<5; ++mi)
+    {
+        ModuleConfig mc;
+        mc.name = fmt::format("mod{}", mi);
+        mcs.push_back(mc);
+    }
+}
+
+TEST(EventBuilder2, CreateHistograms)
+{
+    EventConfig ec;
+
+    for (auto mi=0; mi<5; ++mi)
+    {
+        ModuleConfig mc;
+        mc.name = fmt::format("mod{}", mi);
+        ec.moduleConfigs.push_back(mc);
     }
 }

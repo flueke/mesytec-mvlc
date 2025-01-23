@@ -133,6 +133,18 @@ struct MESYTEC_MVLC_EXPORT BuilderCounters
     std::vector<EventCounters> eventCounters;
 };
 
+struct MESYTEC_MVLC_EXPORT Histo
+{
+  std::string title;
+  double xMin;
+  double xMax;
+  std::vector<size_t> bins;
+  size_t underflows;
+  size_t overflows;
+};
+
+bool fill(Histo &histo, double x);
+
 class MESYTEC_MVLC_EXPORT EventBuilder2
 {
   public:
@@ -156,7 +168,10 @@ class MESYTEC_MVLC_EXPORT EventBuilder2
     // std::string debugDumpConfig() const;
 
     bool isEnabledForAnyEvent() const;
+
+    // Thread-safe. May be called during a run.
     BuilderCounters getCounters() const;
+    std::vector<std::vector<Histo>> getAllDtHistograms() const;
 
   private:
     struct Private;

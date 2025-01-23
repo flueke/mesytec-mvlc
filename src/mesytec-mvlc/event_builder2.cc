@@ -47,9 +47,9 @@ u32 add_offset_to_timestamp(u32 ts, s32 offset)
     return (ts + offset) & TimestampMax; // Adjust and wrap around within 30-bit range
 }
 
-WindowMatchResult timestamp_match(s64 tsMain, s64 tsModule, u32 windowWidth)
+s64 timestamp_difference(s64 ts0, s64 ts1)
 {
-    s64 diff = tsMain - tsModule;
+    s64 diff = ts0 - ts1;
 
     if (std::abs(diff) > TimestampHalf)
     {
@@ -59,6 +59,13 @@ WindowMatchResult timestamp_match(s64 tsMain, s64 tsModule, u32 windowWidth)
         else
             diff -= TimestampMax;
     }
+
+    return diff;
+}
+
+WindowMatchResult timestamp_match(s64 tsMain, s64 tsModule, u32 windowWidth)
+{
+    s64 diff = timestamp_difference(tsMain, tsModule);
 
     if (std::abs(diff) > windowWidth * 0.5)
     {
@@ -121,8 +128,11 @@ struct PerEventData
     std::deque<TimestampType> allTimestamps;
     // Module data and extracted timestamps are stored here.
     std::vector<std::deque<ModuleStorage>> moduleDatas;
+    // delta timestamp histograms
+    std::vector<Histo> dtHistograms;
 };
 
+// Records module data and unmodified timestamps.
 inline bool record_module_data(const ModuleData *moduleDataList, unsigned moduleCount,
                                const std::vector<ModuleConfig> &cfgs,
                                std::vector<std::deque<ModuleStorage>> &dest,
@@ -150,11 +160,7 @@ inline bool record_module_data(const ModuleData *moduleDataList, unsigned module
         if (mdata.data.size == 0)
             ++counters.emptyInputs[mi];
 
-        if (ts.has_value())
-        {
-            *ts = add_offset_to_timestamp(*ts, mcfg.offset);
-        }
-        else if (!mcfg.ignored && mdata.data.size > 0)
+        if (!mcfg.ignored && !ts.has_value() && mdata.data.size > 0)
         {
             ++counters.stampFailed[mi];
             spdlog::trace(
@@ -200,6 +206,30 @@ std::string dump_counters(const EventCounters &counters)
     return oss.str();
 }
 
+bool fill(Histo &histo, double x)
+{
+    if (x < histo.xMin)
+    {
+        ++histo.underflows;
+    }
+    else if (x >= histo.xMax)
+    {
+        ++histo.overflows;
+    }
+    else
+    {
+        size_t bin = static_cast<size_t>((x - histo.xMin) / (histo.xMax - histo.xMin) * histo.bins.size());
+        assert(bin < histo.bins.size());
+        if (bin < histo.bins.size())
+        {
+            ++histo.bins[bin];
+            return true;
+        }
+    }
+
+    return false;
+}
+
 struct EventBuilder2::Private
 {
     EventBuilderConfig cfg_;
@@ -210,8 +240,8 @@ struct EventBuilder2::Private
     std::vector<ModuleData> outputModuleData_;
     std::vector<ModuleStorage> outputModuleStorage_;
 
+    mvlc::TicketMutex mutex_;
     BuilderCounters counters_;
-    mvlc::TicketMutex countersMutex_;
 
     bool checkConsistency(int eventIndex, const ModuleData *moduleDataList, unsigned moduleCount)
     {
@@ -292,11 +322,48 @@ struct EventBuilder2::Private
             return true;
         }
 
+        // Record incoming module data and extracted timestamps.
         // If it returns false none of the ModuleStorages haven been modified.
-        // Otherwise all of them have a new entry.
+        // Otherwise all of them have a new entry even if no timestamp could be extracted.
         if (record_module_data(moduleDataList, moduleCount, eventCfg.moduleConfigs,
                                eventData.moduleDatas, eventCtrs))
         {
+            // The back of each 'moduleDatas' queue now contains the newest data+timestamp.
+
+            #if 0
+            auto &histos = eventData.dtHistograms;
+            auto itHistos = std::begin(histos);
+
+            for (unsigned mi = 0; mi < moduleCount; ++mi)
+            {
+                for (unsigned mi2 = 0; mi2 < moduleCount; ++mi2)
+                {
+                    assert(itHistos != std::end(histos));
+
+                    auto &md = eventData.moduleDatas[mi].back();
+                    auto &md2 = eventData.moduleDatas[mi2].back();
+
+                    if (md.timestamp.has_value() && md2.timestamp.has_value())
+                    {
+                        s64 dt = timestamp_difference(md.timestamp.value(), md2.timestamp.value());
+                        fill(*itHistos, dt);
+                    }
+
+                    ++itHistos;
+                }
+            }
+            #endif
+
+            // Apply offsets to the timestamps.
+            for (unsigned mi = 0; mi < moduleCount; ++mi)
+            {
+                auto &ms = eventData.moduleDatas[mi].back();
+                if (ms.timestamp.has_value())
+                {
+                    *ms.timestamp = add_offset_to_timestamp(*ms.timestamp, eventCfg.moduleConfigs[mi].offset);
+                }
+            }
+
             // The filler stamp is used for modules that do not yield a valid
             // stamp. Makes flushing easier and keeps non-stamped modules together
             // with their sister modules on output.
@@ -606,6 +673,7 @@ EventBuilder2::EventBuilder2(const EventBuilderConfig &cfg, Callbacks callbacks,
     d->perEventData_.resize(cfg.eventConfigs.size());
     d->counters_.eventCounters.resize(cfg.eventConfigs.size());
 
+    // Initialize counters
     for (size_t ei = 0; ei < cfg.eventConfigs.size(); ++ei)
     {
         auto &ec = cfg.eventConfigs.at(ei);
@@ -615,6 +683,35 @@ EventBuilder2::EventBuilder2(const EventBuilderConfig &cfg, Callbacks callbacks,
                          ctrs.emptyInputs, ctrs.discardsAge, ctrs.stampFailed, ctrs.currentEvents,
                          ctrs.currentMem, ctrs.maxEvents, ctrs.maxMem);
     }
+
+    // Create dtHistograms
+    #if 0
+    for (size_t ei = 0; ei < cfg.eventConfigs.size(); ++ei)
+    {
+        auto &ec = cfg.eventConfigs.at(ei);
+        auto &ed = d->perEventData_.at(ei);
+
+        if (!ec.enabled)
+            continue;
+
+        for (size_t mi=0; mi<ec.moduleConfigs.size(); ++mi)
+        {
+            auto &mc1 = ec.moduleConfigs[mi];
+            for (size_t mi2=0; mi2<ec.moduleConfigs.size(); ++mi2)
+            {
+                auto &mc2 = ec.moduleConfigs[mi2];
+                Histo histo{};
+                // TODO: make the histo parameters configurable with reasonable default values.
+                // 1 timestamp clock tick == 62.5 ns
+                histo.xMin = -32;
+                histo.xMax = +32;
+                histo.bins = std::vector<size_t>(histo.xMax - histo.xMin, 0);
+                histo.title = fmt::format("dt({}, {})", mc1.name, mc2.name);
+                ed.dtHistograms.emplace_back(std::move(histo));
+            }
+        }
+    }
+    #endif
 }
 
 EventBuilder2::EventBuilder2(const EventBuilderConfig &cfg, void *userContext)
@@ -637,7 +734,7 @@ void EventBuilder2::setCallbacks(const Callbacks &callbacks) { d->callbacks_ = c
 bool EventBuilder2::recordModuleData(int eventIndex, const ModuleData *moduleDataList,
                                      unsigned moduleCount)
 {
-    std::unique_lock<mvlc::TicketMutex> guard(d->countersMutex_);
+    std::unique_lock<mvlc::TicketMutex> guard(d->mutex_);
     if (0 > eventIndex || static_cast<size_t>(eventIndex) >= d->perEventData_.size())
     {
         // TODO: count EventIndexOutOfRange
@@ -650,13 +747,13 @@ bool EventBuilder2::recordModuleData(int eventIndex, const ModuleData *moduleDat
 
 void EventBuilder2::handleSystemEvent(const u32 *header, u32 size)
 {
-    std::unique_lock<mvlc::TicketMutex> guard(d->countersMutex_);
+    std::unique_lock<mvlc::TicketMutex> guard(d->mutex_);
     d->callbacks_.systemEvent(d->userContext_, d->cfg_.outputCrateIndex, header, size);
 }
 
 size_t EventBuilder2::flush(bool force)
 {
-    std::unique_lock<mvlc::TicketMutex> guard(d->countersMutex_);
+    std::unique_lock<mvlc::TicketMutex> guard(d->mutex_);
     size_t flushed = 0;
 
     if (force)
@@ -686,7 +783,7 @@ size_t EventBuilder2::flush(bool force)
 
 std::string EventBuilder2::debugDump() const
 {
-    std::unique_lock<mvlc::TicketMutex> guard(d->countersMutex_);
+    std::unique_lock<mvlc::TicketMutex> guard(d->mutex_);
     std::string result;
 
     for (size_t ei = 0; ei < d->perEventData_.size(); ++ei)
@@ -739,8 +836,21 @@ bool EventBuilder2::isEnabledForAnyEvent() const
 
 BuilderCounters EventBuilder2::getCounters() const
 {
-    std::unique_lock<mvlc::TicketMutex> guard(d->countersMutex_);
+    std::unique_lock<mvlc::TicketMutex> guard(d->mutex_);
     return d->counters_;
+}
+
+std::vector<std::vector<Histo>> EventBuilder2::getAllDtHistograms() const
+{
+    std::unique_lock<mvlc::TicketMutex> guard(d->mutex_);
+    std::vector<std::vector<Histo>> result;
+
+    for (const auto &ed: d->perEventData_)
+    {
+        result.emplace_back(ed.dtHistograms);
+    }
+
+    return result;
 }
 
 } // namespace mesytec::mvlc::event_builder2
