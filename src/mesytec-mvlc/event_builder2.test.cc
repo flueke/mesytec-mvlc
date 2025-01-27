@@ -1,7 +1,6 @@
 #include "event_builder2.hpp"
 #include <gtest/gtest.h>
 #include <spdlog/spdlog.h>
-#include <unordered_set>
 #include <vector>
 
 using namespace mesytec::mvlc;
@@ -459,16 +458,8 @@ TEST(EventBuilder2, VectorAtIsWeird)
     }
 }
 
-// source: https://stackoverflow.com/a/15161034
-struct pair_hash
-{
-    inline std::size_t operator()(const std::pair<size_t, size_t> &v) const
-    {
-        return v.first * 31 + v.second;
-    }
-};
 
-TEST(EventBuilder2, MakeCombinations)
+TEST(EventBuilder2, CreateHistograms)
 {
     std::vector<ModuleConfig> mcs;
 
@@ -479,39 +470,15 @@ TEST(EventBuilder2, MakeCombinations)
         mcs.push_back(mc);
     }
 
-    std::vector<std::pair<ModuleConfig, ModuleConfig>> combinations;
-    std::unordered_set<std::pair<size_t, size_t>, pair_hash> seen;
+    auto deltaHistos = create_dt_histograms(mcs, { 64, -32, 32 });
 
-    for (size_t i = 0; i < mcs.size(); ++i)
+    ASSERT_EQ(deltaHistos.size(), 21);
+
+    for (const auto &dtHisto: deltaHistos)
     {
-        for (size_t j = 0; j < mcs.size(); ++j)
-        {
-            if (i != j && seen.find({j, i}) == seen.end())
-            {
-                combinations.push_back({mcs[i], mcs[j]});
-                seen.insert({i, j});
-                seen.insert({j, i});
-            }
-        }
-    }
-
-    spdlog::info("Module count: {}, Combination count: {}", mcs.size(), combinations.size());
-
-    size_t i=0;
-    for (const auto &p: combinations)
-    {
-        spdlog::info("Index: {}, Combination: {} - {}", i++, p.first.name, p.second.name);
-    }
-}
-
-TEST(EventBuilder2, CreateHistograms)
-{
-    EventConfig ec;
-
-    for (auto mi = 0; mi < 5; ++mi)
-    {
-        ModuleConfig mc;
-        mc.name = fmt::format("mod{}", mi);
-        ec.moduleConfigs.push_back(mc);
+        ASSERT_EQ(dtHisto.histo.binning.binCount, 64u);
+        ASSERT_EQ(dtHisto.histo.binning.minValue, -32);
+        ASSERT_EQ(dtHisto.histo.binning.maxValue, 32);
+        ASSERT_EQ(dtHisto.histo.bins.size(), 64u);
     }
 }

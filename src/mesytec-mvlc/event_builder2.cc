@@ -1,6 +1,8 @@
 #include "event_builder2.hpp"
 
 #include <deque>
+#include <unordered_set>
+
 #include <mesytec-mvlc/util/ticketmutex.h>
 #include <spdlog/spdlog.h>
 
@@ -128,8 +130,8 @@ struct PerEventData
     std::deque<TimestampType> allTimestamps;
     // Module data and extracted timestamps are stored here.
     std::vector<std::deque<ModuleStorage>> moduleDatas;
-    // delta timestamp histograms
-    std::vector<Histo> dtHistograms;
+    // timestamp delta histograms
+    std::vector<ModuleDeltaHisto> dtHistograms;
 };
 
 // Records module data and unmodified timestamps.
@@ -209,19 +211,22 @@ std::string dump_counters(const EventCounters &counters)
 
 bool fill(Histo &histo, double x)
 {
-    if (x < histo.xMin)
+    if (x < histo.binning.minValue)
     {
         ++histo.underflows;
     }
-    else if (x >= histo.xMax)
+    else if (x >= histo.binning.maxValue)
     {
         ++histo.overflows;
     }
     else
     {
-        size_t bin =
-            static_cast<size_t>((x - histo.xMin) / (histo.xMax - histo.xMin) * histo.bins.size());
+        size_t bin = static_cast<size_t>((x - histo.binning.minValue) /
+                                         (histo.binning.maxValue - histo.binning.minValue) *
+                                         histo.bins.size());
+
         assert(bin < histo.bins.size());
+
         if (bin < histo.bins.size())
         {
             ++histo.bins[bin];
@@ -230,6 +235,66 @@ bool fill(Histo &histo, double x)
     }
 
     return false;
+}
+
+// source: https://stackoverflow.com/a/15161034
+struct pair_hash
+{
+    inline std::size_t operator()(const std::pair<size_t, size_t> &v) const
+    {
+        return v.first * 31 + v.second;
+    }
+};
+
+Histo make_histo(const HistoBinning &binning, const std::string &title)
+{
+    Histo histo{};
+    histo.binning = binning;
+    histo.bins.resize(binning.binCount, 0);
+    histo.title = title;
+    return histo;
+}
+
+std::vector<ModuleDeltaHisto> create_dt_histograms(const std::vector<ModuleConfig> &moduleConfigs,
+                                                   const HistoBinning &binConfig)
+{
+    std::vector<ModuleDeltaHisto> result;
+    std::unordered_set<std::pair<size_t, size_t>, pair_hash> seen;
+
+    for (size_t i = 0; i < moduleConfigs.size(); ++i)
+    {
+        for (size_t j = 0; j < moduleConfigs.size(); ++j)
+        {
+            if (i != j && seen.find({j, i}) == seen.end())
+            {
+                seen.insert({i, j});
+                seen.insert({j, i});
+                ModuleDeltaHisto mdh{};
+                mdh.moduleIndexes = {i, j};
+                mdh.histo = make_histo(binConfig, fmt::format("dt({}, {})", moduleConfigs[i].name,
+                                                              moduleConfigs[j].name));
+                result.emplace_back(mdh);
+            }
+        }
+    }
+
+    return result;
+
+    #if 0
+    auto &mc1 = moduleConfigs[mi];
+    for (size_t mi2 = 0; mi2 < ec.moduleConfigs.size(); ++mi2)
+    {
+        auto &mc2 = ec.moduleConfigs[mi2];
+        Histo histo{};
+        // TODO: make the histo parameters configurable with reasonable default values.
+        // 1 timestamp clock tick == 62.5 ns
+        histo.xMin = -32;
+        histo.xMax = +32;
+        histo.bins = std::vector<size_t>(histo.xMax - histo.xMin, 0);
+        histo.title = fmt::format("dt({}, {})", mc1.name, mc2.name);
+        ed.dtHistograms.emplace_back(std::move(histo));
+    }
+    #endif
 }
 
 struct EventBuilder2::Private
@@ -334,25 +399,16 @@ struct EventBuilder2::Private
         {
             // The back of each 'moduleDatas' queue now contains the newest data+timestamp.
 
-            auto &histos = eventData.dtHistograms;
-            auto itHistos = std::begin(histos);
-
-            for (unsigned mi = 0; mi < moduleCount; ++mi)
+            // Fill dt histograms
+            for (auto &dtHisto: eventData.dtHistograms)
             {
-                for (unsigned mi2 = 0; mi2 < moduleCount; ++mi2)
+                auto ts0 = eventData.moduleDatas[dtHisto.moduleIndexes.first].back().timestamp;
+                auto ts1 = eventData.moduleDatas[dtHisto.moduleIndexes.second].back().timestamp;
+
+                if (ts0.has_value() && ts1.has_value())
                 {
-                    assert(itHistos != std::end(histos));
-
-                    auto &md = eventData.moduleDatas[mi].back();
-                    auto &md2 = eventData.moduleDatas[mi2].back();
-
-                    if (md.timestamp.has_value() && md2.timestamp.has_value())
-                    {
-                        s64 dt = timestamp_difference(md.timestamp.value(), md2.timestamp.value());
-                        fill(*itHistos, dt);
-                    }
-
-                    ++itHistos;
+                    s64 dt = timestamp_difference(ts0.value(), ts1.value());
+                    fill(dtHisto.histo, dt);
                 }
             }
 
@@ -690,31 +746,11 @@ EventBuilder2::EventBuilder2(const EventBuilderConfig &cfg, Callbacks callbacks,
                          ctrs.currentMem, ctrs.maxEvents, ctrs.maxMem);
     }
 
-// Create dtHistograms
     for (size_t ei = 0; ei < cfg.eventConfigs.size(); ++ei)
     {
         auto &ec = cfg.eventConfigs.at(ei);
         auto &ed = d->perEventData_.at(ei);
-
-        if (!ec.enabled)
-            continue;
-
-        for (size_t mi=0; mi<ec.moduleConfigs.size(); ++mi)
-        {
-            auto &mc1 = ec.moduleConfigs[mi];
-            for (size_t mi2=0; mi2<ec.moduleConfigs.size(); ++mi2)
-            {
-                auto &mc2 = ec.moduleConfigs[mi2];
-                Histo histo{};
-                // TODO: make the histo parameters configurable with reasonable default values.
-                // 1 timestamp clock tick == 62.5 ns
-                histo.xMin = -32;
-                histo.xMax = +32;
-                histo.bins = std::vector<size_t>(histo.xMax - histo.xMin, 0);
-                histo.title = fmt::format("dt({}, {})", mc1.name, mc2.name);
-                ed.dtHistograms.emplace_back(std::move(histo));
-            }
-        }
+        ed.dtHistograms = create_dt_histograms(ec.moduleConfigs, cfg.dtHistoBinning);
     }
 }
 
@@ -843,10 +879,10 @@ BuilderCounters EventBuilder2::getCounters() const
     return d->counters_;
 }
 
-std::vector<std::vector<Histo>> EventBuilder2::getAllDtHistograms() const
+std::vector<std::vector<ModuleDeltaHisto>> EventBuilder2::getAllDtHistograms() const
 {
     std::unique_lock<mvlc::TicketMutex> guard(d->mutex_);
-    std::vector<std::vector<Histo>> result;
+    std::vector<std::vector<ModuleDeltaHisto>> result;
 
     for (const auto &ed: d->perEventData_)
     {

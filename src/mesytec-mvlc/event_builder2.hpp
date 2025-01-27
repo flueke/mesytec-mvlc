@@ -78,6 +78,25 @@ struct MESYTEC_MVLC_EXPORT EmptyTimestampExtractor
 
 // Configuration ==========
 
+struct MESYTEC_MVLC_EXPORT HistoBinning
+{
+    size_t binCount;
+    double minValue;
+    double maxValue;
+};
+
+struct MESYTEC_MVLC_EXPORT Histo
+{
+    HistoBinning binning;
+    std::string title;
+    std::vector<size_t> bins;
+    size_t underflows;
+    size_t overflows;
+};
+
+bool fill(Histo &histo, double x);
+
+
 struct MESYTEC_MVLC_EXPORT ModuleConfig
 {
     timestamp_extractor tsExtractor;
@@ -101,6 +120,7 @@ struct MESYTEC_MVLC_EXPORT EventBuilderConfig
 {
     std::vector<EventConfig> eventConfigs;
     int outputCrateIndex = 0;
+    HistoBinning dtHistoBinning = { 32, -16, 16 };
 };
 
 // Counters and Stats ==========
@@ -134,17 +154,15 @@ struct MESYTEC_MVLC_EXPORT BuilderCounters
     std::vector<EventCounters> eventCounters;
 };
 
-struct MESYTEC_MVLC_EXPORT Histo
+// For histogramming timestamp deltas between modules.
+struct ModuleDeltaHisto
 {
-    std::string title;
-    double xMin;
-    double xMax;
-    std::vector<size_t> bins;
-    size_t underflows;
-    size_t overflows;
+    std::pair<size_t, size_t> moduleIndexes;
+    Histo histo;
 };
 
-bool fill(Histo &histo, double x);
+std::vector<ModuleDeltaHisto> MESYTEC_MVLC_EXPORT
+create_dt_histograms(const std::vector<ModuleConfig> &moduleConfigs, const HistoBinning &binConfig);
 
 class MESYTEC_MVLC_EXPORT EventBuilder2
 {
@@ -172,7 +190,7 @@ class MESYTEC_MVLC_EXPORT EventBuilder2
 
     // Thread-safe. May be called during a run.
     BuilderCounters getCounters() const;
-    std::vector<std::vector<Histo>> getAllDtHistograms() const;
+    std::vector<std::vector<ModuleDeltaHisto>> getAllDtHistograms() const;
 
   private:
     struct Private;
