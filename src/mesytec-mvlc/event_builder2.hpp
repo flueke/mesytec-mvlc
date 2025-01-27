@@ -1,6 +1,7 @@
 #ifndef BC399B1E_8B8A_42B2_8AD4_CB28FCE98B32
 #define BC399B1E_8B8A_42B2_8AD4_CB28FCE98B32
 
+#include <numeric>
 #include <optional>
 
 #include <mesytec-mvlc/mesytec-mvlc_export.h>
@@ -95,7 +96,10 @@ struct MESYTEC_MVLC_EXPORT Histo
 };
 
 bool fill(Histo &histo, double x);
-
+inline size_t counts(const Histo &histo)
+{
+    return std::accumulate(histo.bins.begin(), histo.bins.end(), static_cast<size_t>(0u));
+}
 
 struct MESYTEC_MVLC_EXPORT ModuleConfig
 {
@@ -190,7 +194,8 @@ class MESYTEC_MVLC_EXPORT EventBuilder2
 
     // Thread-safe. May be called during a run.
     BuilderCounters getCounters() const;
-    std::vector<std::vector<ModuleDeltaHisto>> getAllDtHistograms() const;
+    std::vector<std::vector<ModuleDeltaHisto>> getDtHistograms() const;
+    std::vector<ModuleDeltaHisto> getDtHistograms(int eventIndex) const;
 
   private:
     struct Private;

@@ -279,22 +279,6 @@ std::vector<ModuleDeltaHisto> create_dt_histograms(const std::vector<ModuleConfi
     }
 
     return result;
-
-    #if 0
-    auto &mc1 = moduleConfigs[mi];
-    for (size_t mi2 = 0; mi2 < ec.moduleConfigs.size(); ++mi2)
-    {
-        auto &mc2 = ec.moduleConfigs[mi2];
-        Histo histo{};
-        // TODO: make the histo parameters configurable with reasonable default values.
-        // 1 timestamp clock tick == 62.5 ns
-        histo.xMin = -32;
-        histo.xMax = +32;
-        histo.bins = std::vector<size_t>(histo.xMax - histo.xMin, 0);
-        histo.title = fmt::format("dt({}, {})", mc1.name, mc2.name);
-        ed.dtHistograms.emplace_back(std::move(histo));
-    }
-    #endif
 }
 
 struct EventBuilder2::Private
@@ -505,6 +489,7 @@ struct EventBuilder2::Private
 
         const auto moduleCount = eventCfg.moduleConfigs.size();
         const auto refTs = eventData.allTimestamps.front();
+        bool haveData = false;
 
         // check if the latest timestamps of all modules are "in the future",
         // e.g. too new to be in the match window of the current reference
@@ -517,6 +502,7 @@ struct EventBuilder2::Private
             if (eventData.moduleDatas.at(mi).empty())
                 continue;
 
+            haveData = true;
             auto modTs = eventData.moduleDatas.at(mi).back().timestamp.value();
             auto matchResult = timestamp_match(refTs, modTs, mc.window);
             if (matchResult.match != WindowMatch::too_new)
@@ -528,6 +514,9 @@ struct EventBuilder2::Private
                 return false;
             }
         }
+
+        if (!haveData)
+            return false;
 
         spdlog::trace(
             "tryFlush: refTs={}, all modules have a ts in the future -> flushing at least "
@@ -684,6 +673,7 @@ struct EventBuilder2::Private
                 eventCtrs.currentMem[mi] -= outputModuleStorage_[mi].data.size() * sizeof(u32);
                 haveData = true;
             }
+
             if (haveData)
             {
                 callbacks_.eventData(userContext_, cfg_.outputCrateIndex, eventIndex,
@@ -879,7 +869,7 @@ BuilderCounters EventBuilder2::getCounters() const
     return d->counters_;
 }
 
-std::vector<std::vector<ModuleDeltaHisto>> EventBuilder2::getAllDtHistograms() const
+std::vector<std::vector<ModuleDeltaHisto>> EventBuilder2::getDtHistograms() const
 {
     std::unique_lock<mvlc::TicketMutex> guard(d->mutex_);
     std::vector<std::vector<ModuleDeltaHisto>> result;
@@ -887,6 +877,19 @@ std::vector<std::vector<ModuleDeltaHisto>> EventBuilder2::getAllDtHistograms() c
     for (const auto &ed: d->perEventData_)
     {
         result.emplace_back(ed.dtHistograms);
+    }
+
+    return result;
+}
+
+std::vector<ModuleDeltaHisto> EventBuilder2::getDtHistograms(int eventIndex) const
+{
+    std::unique_lock<mvlc::TicketMutex> guard(d->mutex_);
+    std::vector<ModuleDeltaHisto> result;
+
+    if (0 <= eventIndex && static_cast<size_t>(eventIndex) < d->perEventData_.size())
+    {
+        result = d->perEventData_.at(eventIndex).dtHistograms;
     }
 
     return result;
