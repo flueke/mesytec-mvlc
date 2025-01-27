@@ -130,8 +130,6 @@ struct PerEventData
     std::deque<TimestampType> allTimestamps;
     // Module data and extracted timestamps are stored here.
     std::vector<std::deque<ModuleStorage>> moduleDatas;
-    // timestamp delta histograms
-    std::vector<ModuleDeltaHisto> dtHistograms;
 };
 
 // Records module data and unmodified timestamps.
@@ -384,7 +382,7 @@ struct EventBuilder2::Private
             // The back of each 'moduleDatas' queue now contains the newest data+timestamp.
 
             // Fill dt histograms
-            for (auto &dtHisto: eventData.dtHistograms)
+            for (auto &dtHisto: eventCtrs.dtHistograms)
             {
                 auto ts0 = eventData.moduleDatas[dtHisto.moduleIndexes.first].back().timestamp;
                 auto ts1 = eventData.moduleDatas[dtHisto.moduleIndexes.second].back().timestamp;
@@ -624,10 +622,9 @@ struct EventBuilder2::Private
                       fmt::join(debugStamps, ", "));
 
         outputModuleData_.resize(moduleCount);
+
         for (size_t mi = 0; mi < moduleCount; ++mi)
         {
-            auto &mcfg = eventCfg.moduleConfigs.at(mi);
-
             if (!size_consistency_check(outputModuleStorage_[mi]))
             {
                 spdlog::error("  tryFlush: mi={}, size_consistency_check failed", mi);
@@ -734,13 +731,8 @@ EventBuilder2::EventBuilder2(const EventBuilderConfig &cfg, Callbacks callbacks,
         resize_and_clear(ec.moduleConfigs.size(), ed.moduleDatas, ctrs.inputHits, ctrs.outputHits,
                          ctrs.emptyInputs, ctrs.discardsAge, ctrs.stampFailed, ctrs.currentEvents,
                          ctrs.currentMem, ctrs.maxEvents, ctrs.maxMem);
-    }
 
-    for (size_t ei = 0; ei < cfg.eventConfigs.size(); ++ei)
-    {
-        auto &ec = cfg.eventConfigs.at(ei);
-        auto &ed = d->perEventData_.at(ei);
-        ed.dtHistograms = create_dt_histograms(ec.moduleConfigs, cfg.dtHistoBinning);
+        ctrs.dtHistograms = create_dt_histograms(ec.moduleConfigs, cfg.dtHistoBinning);
     }
 }
 
@@ -871,12 +863,12 @@ BuilderCounters EventBuilder2::getCounters() const
 
 std::vector<std::vector<ModuleDeltaHisto>> EventBuilder2::getDtHistograms() const
 {
-    std::unique_lock<mvlc::TicketMutex> guard(d->mutex_);
+    const auto counters = getCounters();
     std::vector<std::vector<ModuleDeltaHisto>> result;
 
-    for (const auto &ed: d->perEventData_)
+    for (const auto &eventCtrs: counters.eventCounters)
     {
-        result.emplace_back(ed.dtHistograms);
+        result.emplace_back(eventCtrs.dtHistograms);
     }
 
     return result;
@@ -884,12 +876,12 @@ std::vector<std::vector<ModuleDeltaHisto>> EventBuilder2::getDtHistograms() cons
 
 std::vector<ModuleDeltaHisto> EventBuilder2::getDtHistograms(int eventIndex) const
 {
-    std::unique_lock<mvlc::TicketMutex> guard(d->mutex_);
+    const auto counters = getCounters();
     std::vector<ModuleDeltaHisto> result;
 
-    if (0 <= eventIndex && static_cast<size_t>(eventIndex) < d->perEventData_.size())
+    if (0 <= eventIndex && static_cast<size_t>(eventIndex) < counters.eventCounters.size())
     {
-        result = d->perEventData_.at(eventIndex).dtHistograms;
+        result = counters.eventCounters.at(eventIndex).dtHistograms;
     }
 
     return result;

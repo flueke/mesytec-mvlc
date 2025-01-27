@@ -77,7 +77,7 @@ struct MESYTEC_MVLC_EXPORT EmptyTimestampExtractor
     std::optional<u32> operator()(const u32 *, size_t) { return {}; }
 };
 
-// Configuration ==========
+// Timestamp delta histogramming =======================
 
 struct MESYTEC_MVLC_EXPORT HistoBinning
 {
@@ -100,6 +100,15 @@ inline size_t counts(const Histo &histo)
 {
     return std::accumulate(histo.bins.begin(), histo.bins.end(), static_cast<size_t>(0u));
 }
+
+// For histogramming timestamp deltas between modules.
+struct ModuleDeltaHisto
+{
+    std::pair<size_t, size_t> moduleIndexes;
+    Histo histo;
+};
+
+// Configuration ==========
 
 struct MESYTEC_MVLC_EXPORT ModuleConfig
 {
@@ -138,7 +147,7 @@ struct MESYTEC_MVLC_EXPORT EventCounters
     std::vector<size_t> discardsAge; // number of event discarded due to stamp age
     std::vector<size_t> stampFailed; // number of failed stamp extractions
 
-    // these can be determinted from the contents of the data buffers
+    // these can be determined from the contents of the data buffers
     std::vector<size_t> currentEvents; // current events in the buffer
     std::vector<size_t> currentMem;    // current buffer memory usage
 
@@ -149,6 +158,10 @@ struct MESYTEC_MVLC_EXPORT EventCounters
 
     // non-module specific
     size_t recordingFailed = 0;
+
+    // List of all dt histograms for this event. One histo for each module pair.
+    // No duplicates.
+    std::vector<ModuleDeltaHisto> dtHistograms;
 };
 
 std::string MESYTEC_MVLC_EXPORT dump_counters(const EventCounters &counters);
@@ -156,13 +169,6 @@ std::string MESYTEC_MVLC_EXPORT dump_counters(const EventCounters &counters);
 struct MESYTEC_MVLC_EXPORT BuilderCounters
 {
     std::vector<EventCounters> eventCounters;
-};
-
-// For histogramming timestamp deltas between modules.
-struct ModuleDeltaHisto
-{
-    std::pair<size_t, size_t> moduleIndexes;
-    Histo histo;
 };
 
 std::vector<ModuleDeltaHisto> MESYTEC_MVLC_EXPORT
