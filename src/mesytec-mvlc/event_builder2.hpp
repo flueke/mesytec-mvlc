@@ -133,6 +133,8 @@ struct MESYTEC_MVLC_EXPORT EventBuilderConfig
 {
     std::vector<EventConfig> eventConfigs;
     int outputCrateIndex = 0;
+
+    // Binning info for all dt histograms.
     HistoBinning dtHistoBinning = { 32, -16, 16 };
 };
 
@@ -161,7 +163,8 @@ struct MESYTEC_MVLC_EXPORT EventCounters
 
     // List of all dt histograms for this event. One histo for each module pair.
     // No duplicates.
-    std::vector<ModuleDeltaHisto> dtHistograms;
+    std::vector<ModuleDeltaHisto> dtInputHistos;
+    std::vector<ModuleDeltaHisto> dtOutputHistos;
 };
 
 std::string MESYTEC_MVLC_EXPORT dump_counters(const EventCounters &counters);
@@ -169,6 +172,11 @@ std::string MESYTEC_MVLC_EXPORT dump_counters(const EventCounters &counters);
 struct MESYTEC_MVLC_EXPORT BuilderCounters
 {
     std::vector<EventCounters> eventCounters;
+
+    std::vector<std::vector<ModuleDeltaHisto>> getInputDtHistograms() const;
+    std::vector<ModuleDeltaHisto> getInputDtHistograms(int eventIndex) const;
+    std::vector<std::vector<ModuleDeltaHisto>> getOutputDtHistograms() const;
+    std::vector<ModuleDeltaHisto> getOutputDtHistograms(int eventIndex) const;
 };
 
 std::vector<ModuleDeltaHisto> MESYTEC_MVLC_EXPORT
@@ -200,8 +208,6 @@ class MESYTEC_MVLC_EXPORT EventBuilder2
 
     // Thread-safe. May be called during a run.
     BuilderCounters getCounters() const;
-    std::vector<std::vector<ModuleDeltaHisto>> getDtHistograms() const;
-    std::vector<ModuleDeltaHisto> getDtHistograms(int eventIndex) const;
 
   private:
     struct Private;

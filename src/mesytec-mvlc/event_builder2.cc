@@ -381,8 +381,8 @@ struct EventBuilder2::Private
         {
             // The back of each 'moduleDatas' queue now contains the newest data+timestamp.
 
-            // Fill dt histograms
-            for (auto &dtHisto: eventCtrs.dtHistograms)
+            // Fill input side dt histograms
+            for (auto &dtHisto: eventCtrs.dtInputHistos)
             {
                 auto ts0 = eventData.moduleDatas[dtHisto.moduleIndexes.first].back().timestamp;
                 auto ts1 = eventData.moduleDatas[dtHisto.moduleIndexes.second].back().timestamp;
@@ -604,6 +604,20 @@ struct EventBuilder2::Private
             }
         }
 
+        // Fill output side dt histograms.
+        for (auto &dtHisto: eventCtrs.dtOutputHistos)
+        {
+            auto ts0 = outputModuleStorage_[dtHisto.moduleIndexes.first].timestamp;
+            auto ts1 = outputModuleStorage_[dtHisto.moduleIndexes.second].timestamp;
+
+            if (ts0.has_value() && ts1.has_value())
+            {
+                s64 dt = timestamp_difference(ts0.value(), ts1.value());
+                fill(dtHisto.histo, dt);
+            }
+        }
+
+        // printf debug stuff. TODO: remove this at some point
         std::vector<std::string> debugStamps;
         for (size_t mi = 0; mi < moduleCount; ++mi)
         {
@@ -722,7 +736,7 @@ EventBuilder2::EventBuilder2(const EventBuilderConfig &cfg, Callbacks callbacks,
     d->perEventData_.resize(cfg.eventConfigs.size());
     d->counters_.eventCounters.resize(cfg.eventConfigs.size());
 
-    // Initialize counters
+    // Initialize counters and create histograms
     for (size_t ei = 0; ei < cfg.eventConfigs.size(); ++ei)
     {
         auto &ec = cfg.eventConfigs.at(ei);
@@ -732,7 +746,8 @@ EventBuilder2::EventBuilder2(const EventBuilderConfig &cfg, Callbacks callbacks,
                          ctrs.emptyInputs, ctrs.discardsAge, ctrs.stampFailed, ctrs.currentEvents,
                          ctrs.currentMem, ctrs.maxEvents, ctrs.maxMem);
 
-        ctrs.dtHistograms = create_dt_histograms(ec.moduleConfigs, cfg.dtHistoBinning);
+        ctrs.dtInputHistos  = create_dt_histograms(ec.moduleConfigs, cfg.dtHistoBinning);
+        ctrs.dtOutputHistos = create_dt_histograms(ec.moduleConfigs, cfg.dtHistoBinning);
     }
 }
 
@@ -861,27 +876,49 @@ BuilderCounters EventBuilder2::getCounters() const
     return d->counters_;
 }
 
-std::vector<std::vector<ModuleDeltaHisto>> EventBuilder2::getDtHistograms() const
+std::vector<std::vector<ModuleDeltaHisto>> BuilderCounters::getInputDtHistograms() const
 {
-    const auto counters = getCounters();
     std::vector<std::vector<ModuleDeltaHisto>> result;
 
-    for (const auto &eventCtrs: counters.eventCounters)
+    for (const auto &eventCtrs: eventCounters)
     {
-        result.emplace_back(eventCtrs.dtHistograms);
+        result.emplace_back(eventCtrs.dtInputHistos);
     }
 
     return result;
 }
 
-std::vector<ModuleDeltaHisto> EventBuilder2::getDtHistograms(int eventIndex) const
+std::vector<ModuleDeltaHisto> BuilderCounters::getInputDtHistograms(int eventIndex) const
 {
-    const auto counters = getCounters();
     std::vector<ModuleDeltaHisto> result;
 
-    if (0 <= eventIndex && static_cast<size_t>(eventIndex) < counters.eventCounters.size())
+    if (0 <= eventIndex && static_cast<size_t>(eventIndex) < eventCounters.size())
     {
-        result = counters.eventCounters.at(eventIndex).dtHistograms;
+        result = eventCounters.at(eventIndex).dtInputHistos;
+    }
+
+    return result;
+}
+
+std::vector<std::vector<ModuleDeltaHisto>> BuilderCounters::getOutputDtHistograms() const
+{
+    std::vector<std::vector<ModuleDeltaHisto>> result;
+
+    for (const auto &eventCtrs: eventCounters)
+    {
+        result.emplace_back(eventCtrs.dtOutputHistos);
+    }
+
+    return result;
+}
+
+std::vector<ModuleDeltaHisto> BuilderCounters::getOutputDtHistograms(int eventIndex) const
+{
+    std::vector<ModuleDeltaHisto> result;
+
+    if (0 <= eventIndex && static_cast<size_t>(eventIndex) < eventCounters.size())
+    {
+        result = eventCounters.at(eventIndex).dtOutputHistos;
     }
 
     return result;

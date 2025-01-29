@@ -208,8 +208,8 @@ TEST(EventBuilder2, OneModule)
 
     EventBuilder2 eb(cfg, {eventDataCallback, systemEventCallback});
 
-    ASSERT_EQ(eb.getDtHistograms().size(), 1u);
-    ASSERT_EQ(eb.getDtHistograms().at(0).size(), 0u);
+    ASSERT_EQ(eb.getCounters().getInputDtHistograms().size(), 1u);
+    ASSERT_EQ(eb.getCounters().getInputDtHistograms().at(0).size(), 0u);
 
     ASSERT_EQ(eb.flush(), 0);
     ASSERT_EQ(dataCallbackCount, 0);
@@ -310,8 +310,8 @@ TEST(EventBuilder2, TwoModules)
 
     EventBuilder2 eb(cfg, {eventDataCallback, systemEventCallback});
 
-    ASSERT_EQ(eb.getDtHistograms().size(), 1u);
-    ASSERT_EQ(eb.getDtHistograms().at(0).size(), 1u);
+    ASSERT_EQ(eb.getCounters().getInputDtHistograms().size(), 1u);
+    ASSERT_EQ(eb.getCounters().getInputDtHistograms().at(0).size(), 1u);
 
     ASSERT_EQ(eb.flush(), 0);
     ASSERT_EQ(dataCallbackCount, 0);
@@ -323,42 +323,42 @@ TEST(EventBuilder2, TwoModules)
 
     ASSERT_EQ(eb.flush(), 0);
     ASSERT_EQ(dataCallbackCount, 0);
-    ASSERT_EQ(eb.getDtHistograms(0).size(), 1u);
-    ASSERT_EQ(counts(eb.getDtHistograms(0).at(0).histo), 1u);
+    ASSERT_EQ(eb.getCounters().getInputDtHistograms(0).size(), 1u);
+    ASSERT_EQ(counts(eb.getCounters().getInputDtHistograms(0).at(0).histo), 1u);
     // fmt::print(eb.debugDump());
 
     moduleTestData = {{{5}}, {{5}}};
     eb.recordModuleData(0, to_module_data_list(moduleTestData).data(), moduleTestData.size());
     ASSERT_EQ(eb.flush(), 0);
     ASSERT_EQ(dataCallbackCount, 0);
-    ASSERT_EQ(counts(eb.getDtHistograms(0).at(0).histo), 2u);
+    ASSERT_EQ(counts(eb.getCounters().getInputDtHistograms(0).at(0).histo), 2u);
 
     moduleTestData = {{{10}}, {{10}}};
     eb.recordModuleData(0, to_module_data_list(moduleTestData).data(), moduleTestData.size());
     ASSERT_EQ(eb.flush(), 0);
     ASSERT_EQ(dataCallbackCount, 0);
-    ASSERT_EQ(counts(eb.getDtHistograms(0).at(0).histo), 3u);
+    ASSERT_EQ(counts(eb.getCounters().getInputDtHistograms(0).at(0).histo), 3u);
 
     moduleTestData = {{{11}}, {{11}}};
     eb.recordModuleData(0, to_module_data_list(moduleTestData).data(), moduleTestData.size());
     // fmt::print(eb.debugDump());
     ASSERT_EQ(eb.flush(), 1);
     ASSERT_EQ(dataCallbackCount, 1);
-    ASSERT_EQ(counts(eb.getDtHistograms(0).at(0).histo), 4u);
+    ASSERT_EQ(counts(eb.getCounters().getInputDtHistograms(0).at(0).histo), 4u);
 
     // remaining stamps are 5, 10, 11. Need 5 + 10 + 1 to yield
     moduleTestData = {{{15}}, {{15}}};
     eb.recordModuleData(0, to_module_data_list(moduleTestData).data(), moduleTestData.size());
     ASSERT_EQ(eb.flush(), 0);
     ASSERT_EQ(dataCallbackCount, 1);
-    ASSERT_EQ(counts(eb.getDtHistograms(0).at(0).histo), 5u);
+    ASSERT_EQ(counts(eb.getCounters().getInputDtHistograms(0).at(0).histo), 5u);
 
     // remaining stamps are 5, 10, 11, 15. Need 5 + 10 + 1 to yield
     moduleTestData = {{{16}}, {{16}}};
     eb.recordModuleData(0, to_module_data_list(moduleTestData).data(), moduleTestData.size());
     ASSERT_EQ(eb.flush(), 1);
     ASSERT_EQ(dataCallbackCount, 2);
-    ASSERT_EQ(counts(eb.getDtHistograms(0).at(0).histo), 6u);
+    ASSERT_EQ(counts(eb.getCounters().getInputDtHistograms(0).at(0).histo), 6u);
 
     // fmt::print(eb.debugDump());
     //  remaining stamps are 10, 11, 15, 16. Force flush now
