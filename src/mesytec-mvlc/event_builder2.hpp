@@ -131,11 +131,15 @@ struct MESYTEC_MVLC_EXPORT EventConfig
 
 struct MESYTEC_MVLC_EXPORT EventBuilderConfig
 {
+    static const unsigned DefaultHistoBins = 32;
+    static const int DefaultHistoMin = -16;
+    static const int DefaultHistoMax = 16;
+
     std::vector<EventConfig> eventConfigs;
     int outputCrateIndex = 0;
 
     // Binning info for all dt histograms.
-    HistoBinning dtHistoBinning = { 32, -16, 16 };
+    HistoBinning dtHistoBinning = { DefaultHistoBins, DefaultHistoMin, DefaultHistoMax };
 };
 
 // Counters and Stats ==========
