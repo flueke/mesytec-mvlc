@@ -127,6 +127,7 @@ struct MESYTEC_MVLC_EXPORT EventConfig
 {
     std::vector<ModuleConfig> moduleConfigs;
     bool enabled; // true if event building is enabled for this event
+    std::string name;
 };
 
 struct MESYTEC_MVLC_EXPORT EventBuilderConfig
@@ -152,6 +153,7 @@ struct MESYTEC_MVLC_EXPORT EventCounters
     std::vector<size_t> emptyInputs;
     std::vector<size_t> discardsAge; // number of event discarded due to stamp age
     std::vector<size_t> stampFailed; // number of failed stamp extractions
+    std::vector<std::string> moduleNames;
 
     // these can be determined from the contents of the data buffers
     std::vector<size_t> currentEvents; // current events in the buffer
@@ -169,6 +171,8 @@ struct MESYTEC_MVLC_EXPORT EventCounters
     // No duplicates.
     std::vector<ModuleDeltaHisto> dtInputHistos;
     std::vector<ModuleDeltaHisto> dtOutputHistos;
+
+    std::string eventName;
 };
 
 std::string MESYTEC_MVLC_EXPORT dump_counters(const EventCounters &counters);

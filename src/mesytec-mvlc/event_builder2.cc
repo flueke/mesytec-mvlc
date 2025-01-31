@@ -191,6 +191,7 @@ std::string dump_counters(const EventCounters &counters)
                    std::begin(counters.discardsAge), std::begin(sumOutputsDiscards),
                    std::plus<size_t>());
 
+    oss << fmt::format("modules:            {}\n", fmt::join(counters.moduleNames, ", "));
     oss << fmt::format("inputHits:          {}\n", fmt::join(counters.inputHits, ", "));
     oss << fmt::format("discardsAge:        {}\n", fmt::join(counters.discardsAge, ", "));
     oss << fmt::format("outputHits:         {}\n", fmt::join(counters.outputHits, ", "));
@@ -361,6 +362,7 @@ struct EventBuilder2::Private
 
         if (!eventCfg.enabled)
         {
+            // Passthrough - no need to record. Invoke output callback immediately.
             callbacks_.eventData(userContext_, cfg_.outputCrateIndex, eventIndex, moduleDataList,
                                  moduleCount);
 
@@ -744,10 +746,14 @@ EventBuilder2::EventBuilder2(const EventBuilderConfig &cfg, Callbacks callbacks,
         auto &ctrs = d->counters_.eventCounters.at(ei);
         resize_and_clear(ec.moduleConfigs.size(), ed.moduleDatas, ctrs.inputHits, ctrs.outputHits,
                          ctrs.emptyInputs, ctrs.discardsAge, ctrs.stampFailed, ctrs.currentEvents,
-                         ctrs.currentMem, ctrs.maxEvents, ctrs.maxMem);
+                         ctrs.currentMem, ctrs.maxEvents, ctrs.maxMem, ctrs.moduleNames);
+
+        for (size_t mi = 0; mi < ec.moduleConfigs.size(); ++mi)
+            ctrs.moduleNames[mi] = ec.moduleConfigs.at(mi).name;
 
         ctrs.dtInputHistos  = create_dt_histograms(ec.moduleConfigs, cfg.dtHistoBinning);
         ctrs.dtOutputHistos = create_dt_histograms(ec.moduleConfigs, cfg.dtHistoBinning);
+        ctrs.eventName = ec.name;
     }
 }
 
