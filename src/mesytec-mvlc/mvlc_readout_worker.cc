@@ -1172,14 +1172,6 @@ std::error_code ReadoutWorker::Private::startReadout()
             logger->info("setup_readout_triggers() done");
         }
 
-        if ((ec = enable_daq_mode(mvlc)))
-        {
-            logger->error("Error enabling MVLC DAQ mode: {}", ec.message());
-            throw ec; // "goto fail"
-        }
-
-        logger->info("enable_daq_mode done");
-
         if (!mcstDaqStart.empty())
         {
             logger->info("Running MCST DAQ start commands ({} commands to run)", mcstDaqStart.commandCount());
@@ -1208,6 +1200,15 @@ std::error_code ReadoutWorker::Private::startReadout()
                 logger->info("Done with MCST DAQ start commands");
             }
         }
+
+        if ((ec = enable_daq_mode(mvlc)))
+        {
+            logger->error("Error enabling MVLC DAQ mode: {}", ec.message());
+            throw ec; // "goto fail"
+        }
+
+        logger->info("enable_daq_mode done");
+
     }
     catch (const std::error_code &)
     {
