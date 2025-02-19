@@ -37,13 +37,19 @@ typedef enum _StdinCommands  {
 struct ParsedCommand {
     StdinCommands s_command;
     std::string   s_stringarg;
-    int         s_intarg;
+    int           s_intarg;
     std::string   s_error;
 ParsedCommand()  :
     s_command(INVALID) {}
 
 };
 
+/**
+ *  @param[in] s - string to test.
+ *  @return bool - true if s only consists of whitespace.
+ */
+bool
+isBlank(const std::string& s);
 /**
  * parseCommand:
  *  Take a command line and parse it into a ParsedCommand

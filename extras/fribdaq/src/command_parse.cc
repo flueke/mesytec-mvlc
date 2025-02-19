@@ -53,7 +53,7 @@ trim(std::string& str) {
     return result;
 }
 /*  True if the parameter is a string that is only whitespace */
-static bool
+bool
 isBlank(const std::string& str) {
     return std::all_of(str.begin(), str.end(), isspace);
 }
