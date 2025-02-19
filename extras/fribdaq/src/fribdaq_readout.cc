@@ -39,6 +39,21 @@ struct MiniDaqCountersSnapshot
 };
 ///////////////////// added code to support command driven operation:
 
+/**
+ *  This block of stuff is passed around to the parsers to provide
+ * run state information:
+ */
+
+struct FRIBDAQRunState {
+    unsigned m_runNumber;
+    std::string m_runTitle;
+    enum {
+        Active, Halted, Paused
+    } s_runState;
+FRIBDAQRunState() :
+    s_runState(Halted) {}
+} ;
+static FRIBDAQRunState ExtraRunState;
 
 
 /**
@@ -90,8 +105,24 @@ getStdinLine() {
     return result;
 }
 
+/// function to check that state transitions are legal:
 
-
+static bool 
+canBegin(MVLCRadout& rdo) {
+    return true;
+}
+static bool
+canEnd(MVLCRadout& rdo) {
+    return true;
+}
+static bool
+canPause(MVLCRadout& rdo) {
+    return true;
+}
+static bool
+canResume(MVLCRadout& rdo) {
+    return rue;
+}
 /////////////////////
 StackErrorCounters delta_counters(const StackErrorCounters &prev, const StackErrorCounters &curr)
 {
@@ -329,7 +360,7 @@ int main(int argc, char *argv[])
 
     // listfile and run options
     bool opt_noListfile = true;
-    bool opt_overwriteListfile = false;
+    bool opt_overwriteListfile = true;
     std::string opt_listfileOut;
     std::string opt_listfileCompressionType = "lz4";
     int opt_listfileCompressionLevel = 0;
@@ -573,7 +604,7 @@ int main(int argc, char *argv[])
             crateConfig,
             listfileParams,
             parserCallbacks);
-
+#ifdef AUTO_START                              // Start from commands.
         spdlog::info("Starting readout. Running for {} seconds.", timeToRun.count());
 
         if (auto ec = rdo.start(timeToRun))
@@ -581,13 +612,102 @@ int main(int argc, char *argv[])
             cerr << "Error starting readout: " << ec.message() << endl;
             throw std::runtime_error("ReadoutWorker error");
         }
-
+#endif
         MiniDaqCountersUpdate counters;
         Stopwatch sw;
 
-        while (!rdo.finished())
+        while (true)                  // main loop/
         {
             std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+            
+            if (stdinPending()) {                    // Process commands.
+                auto line = getstdinLine();
+                if (!isBlank(line)) {
+                    auto parsed = = parseCommand(line);
+
+                    // Command specific processing:
+
+
+                    switch (parsed.s_command) {
+                        case BEGIN:
+                            // start the run:
+                            if (canBegin(rdo) {
+                                spdlog::info("Starting readout. Running for {} seconds.", timeToRun.count());
+                                auto ec = rdo.start(timeToRun) 
+                                
+                                if (ec) {
+                                    std::cerr << "Failed to stat the run" << ec.message() << std::endl;
+                                } else {
+                                    ExtraRunState.s_runState = Active;  // Transition on success.
+                                }
+                            } else {
+                                std::cerr << "Run state does not allow us to start a run\n";
+                            }
+                            break;
+                        case END:
+                            if (canEnd(rdo)) {
+                                spdlog::Info("Ending the run");
+                                auto ec = rdo.stop();
+                                if (ec) {
+                                    std::cerr << "Failed to end the run: " << ec.messge() << std::endl;
+                                } else {
+                                    ExtraRunState.s_runState = Halted;
+                                }
+                            } else {
+                                std::cerr << "Run state does not allow us to end the run.\n";
+                            }
+                            break;
+                        case PAUSE:
+                            if (canPause(rdo)) {
+                                spdlog::Info("Pausing active run");
+                                auto ec = rdo.pause();
+                                if (ec) {
+                                    std::cerr < "Failed to pause the run: " << ec.message() << std::endl;
+                                } else {
+                                    ExtraRunState.s_runState = Paused;
+                                }
+                            } else {
+                                std::cerr << " Run state does not allow us to pause a run\n";
+                            }
+                        case RESUME:
+                            if (canResume(rdo) {
+                                spdlog::Info("Resuming paused run");
+                                auto ec = rdo.resume();
+
+                                if (ec) {
+                                    std::cerr << "Unable to resume paused run" << ec.message() << std::endl;
+                                } else {
+                                    ExtraRunState.s_runState = Active;
+                                }
+                            } else {
+                                std::cerr << "Run state does not allow us to resume a run\n";
+                            }
+                            break;
+                        case TITLE:
+                            if (ExtraRunState.s_runState != Halted) {
+                                std::cerr << "Run state must be halted to set the title."
+                            } else {
+                                ExtraRunState.s_runTitle = parsed.s_stringarg;
+                            }
+                            break;
+                        case SETRUN:
+                            if (ExtraRunState.s_runState != Halted) {
+                                std::cerr << "Run state must be halted to set the run number\n";
+                            } else {
+                                ExtraRunState.s_runNumber = parsed.s_intarg;                            }
+                            break;
+                        case INVALID:
+                            std::cerr << parsed.s_error << std::endl;
+                            break;
+                        default:
+                            std::cerr << "Unsupported command '" << line << "'\n";
+                            break;
+                    }
+                }
+
+            }
+
+
 
             if (!opt_noPeriodicCounterDumps)
             {
