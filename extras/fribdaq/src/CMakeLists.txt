@@ -24,6 +24,15 @@ else ()
         PRIVATE spdlog::spdlog
     )    
     install(TARGETS fribdaq-readout)
+
+    # Tests:
+
+    add_executable(parse_test parse_test.cc command_parse.cc)
+    target_link_libraries(parse_test
+            PRIVATE gtest
+            PRIVATE gtest_main
+    )
+    add_test(NAME parse_test COMMAND parse_test)
 endif ()
 
 
