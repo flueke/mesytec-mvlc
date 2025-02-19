@@ -1,3 +1,9 @@
+// Note FRIBDAQ is linux only so:
+
+#if defined(__WIN32) || defined (__OSX__)
+#error fribdaq_readout can only be built on linux targets.
+#endif
+
 #include <chrono>
 #include <exception>
 #include <iostream>
@@ -5,7 +11,13 @@
 #include <thread>
 #include <vector>
 #include <fstream>
-
+#include <algorithm>
+#include <sys/select.h>
+#include <errno.h>
+#include <string.h>
+#include <unistd.h>
+#include <cstdlib>
+#include "command_parse.h"
 #ifdef __WIN32
 #include <stdlib.h> // system()
 #endif
@@ -25,7 +37,62 @@ struct MiniDaqCountersSnapshot
     ReadoutWorker::Counters readoutWorkerCounters;
     readout_parser::ReadoutParserCounters parserCounters;
 };
+///////////////////// added code to support command driven operation:
 
+
+
+/**
+ *  return true if stdin is readable:
+ */
+static bool stdinPending() {
+    fd_set empty;
+    fd_set has_stdin;
+    FD_ZERO(&has_stdin);
+    FD_SET(STDIN_FILENO, &has_stdin);
+
+    timeval immediately = {tv_sec: 0, tv_usec: 0};
+
+    int status = select(STDIN_FILENO, &has_stdin, &empty, &empty, &immediately);
+
+    // errors are ok if errno is EINTR
+
+    if (status < 0) {
+        if (errno == EINTR) {
+            // just a signal.
+            return false;
+        } else {
+            // a real error probably my programming error so fatal:
+
+            std::cerr << "Check for stdin readable failed: " << strerror(errno) << std::endl;
+            std::exit(EXIT_FAILURE);
+
+        }
+    } else if (status ==  0) {
+        // no fds:
+        return false;
+    } else {
+        // Don't think I need to check has_stdin but I will anyway:
+
+        return FD_ISSET(STDIN_FILENO, &has_stdin);
+    }
+}
+/**
+ * return a line of input from std::cin
+ * 
+ * @return std::string
+ * @note this will block until a line is available. so maybe best to check stdinPending 
+ *     before calling if that's not desireable.
+ */
+std::string
+getStdinLine() {
+    std::string result;
+    std::getline(std::cin, result);
+    return result;
+}
+
+
+
+/////////////////////
 StackErrorCounters delta_counters(const StackErrorCounters &prev, const StackErrorCounters &curr)
 {
     StackErrorCounters result;
@@ -261,7 +328,7 @@ int main(int argc, char *argv[])
     std::string opt_mvlcUSBSerial;
 
     // listfile and run options
-    bool opt_noListfile = false;
+    bool opt_noListfile = true;
     bool opt_overwriteListfile = false;
     std::string opt_listfileOut;
     std::string opt_listfileCompressionType = "lz4";
@@ -329,9 +396,10 @@ int main(int argc, char *argv[])
         // positional args
         | lyra::arg(opt_crateConfig, "crateConfig")
             ("crate config yaml file").required()
-
+#ifdef LIMIT_RUN_TIME                        // Unlimited run length.
         | lyra::arg(opt_secondsToRun, "secondsToRun")
             ("duration the DAQ should run in seconds").optional()
+#endif
         ;
 
     auto cliParseResult = cli.parse({ argc, argv });
