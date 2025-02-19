@@ -7,9 +7,17 @@ set(NSCLDAQ_LIB ${NSCLDAQ_ROOT}/lib CACHE STRING "${NSCLDAQ_ROOT}/lib")
 # 
 
 if (NSCLDAQ_ROOT STREQUAL "_")    # not defined.
-    set(exclusion_patterns PATTERN fribdaq-readout EXCLUDE)
+    
 else ()
-    add_executable(fribdaq-readout fribdaq_readout.cc)
+    add_executable(fribdaq-readout 
+    fribdaq_readout.cc
+    command_parse.cc
+    )
+    target_include_directories(
+        fribdaq-readout PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}
+        ${NSCLDAQ_INC}
+    )
     target_link_libraries(fribdaq-readout
         PRIVATE mesytec-mvlc
         PRIVATE BFG::Lyra
