@@ -22,16 +22,36 @@
 #include <ctype.h>
 #include <map>
 
+
 // Map between command words and enum
 static std::map<std::string, StdinCommands> commandMap = {
-    {"BEGIN", BEGIN}, 
-    {"END", END}, 
-    {"PAUSE", PAUSE}, 
-    {"RESUME", RESUME},
-    {"TITLE", TITLE},  // Remainder of line is a title. 
-    {"SETRUN", SETRUN} // Remainder of line is a + integer run number.
+    {"BEGIN", BEGIN}, {"begin", BEGIN},
+    {"END", END}, {"end", END},
+    {"PAUSE", PAUSE}, {"pause", PAUSE},
+    {"RESUME", RESUME}, {"resume", RESUME},
+    {"TITLE", TITLE},  {"title", TITLE},  // Remainder of line is a title. 
+    {"SETRUN", SETRUN}, {"setrun", SETRUN} // Remainder of line is a + integer run number.
 };
 
+/* trim leading/trailing whitespace from a string: */
+static std::string
+trim(std::string& str) {
+    std::string result(str);  
+    
+    // Trim the front:
+
+    result.erase(result.begin(), std::find_if(result.begin(), result.end(), [](unsigned char ch) {
+        return !std::isspace(ch);
+    }));
+
+    // Trim from end:
+
+    result.erase(std::find_if(result.rbegin(), result.rend(), [](unsigned char ch) {
+        return !std::isspace(ch);
+    }).base(), result.end());
+
+    return result;
+}
 /*  True if the parameter is a string that is only whitespace */
 static bool
 isBlank(const std::string& str) {
@@ -69,27 +89,40 @@ parseCommand(const std::string& line) {
         break;
     case TITLE:                        // Remainder is the arg.
         parsed.s_stringarg = remainder;
-        break;
-    case SETRUN:                      // Remainder is a postitive integer.
-        if (!words >> parsed.s_intarg) {
+        if (isBlank(remainder)) {
             parsed.s_command = INVALID;
-            parsed.s_error = "SETRUN needs a run number";
+            parsed.s_error = "TITLE needs a title string tail";
         } else {
-            // Run must be > 0:
-
-            if (parsed.s_intarg <= 0) {
+            parsed.s_stringarg = trim(remainder);
+        }
+        break;
+    case SETRUN:  {                    // Remainder is a postitive integer.
+            
+            std::stringstream tail(remainder);
+            remainder = "";        // Since getline and end won't fill this.
+            tail >> parsed.s_intarg;
+            if (tail.bad() || tail.fail()) {
                 parsed.s_command = INVALID;
-                parsed.s_error = "SETRUN's run number must be > 0";
+                parsed.s_error = "SETRUN needs a run number";
             } else {
-                // The remainder now must be empty:
+                // Run must be > 0:
 
-                getline(words, remainder);
-                if (!isBlank(remainder)) {
+                if (parsed.s_intarg <= 0) {
                     parsed.s_command = INVALID;
-                    parsed.s_error = "Unexpected characters following the command keyword";
+                    parsed.s_error = "SETRUN's run number must be > 0";
+                } else {
+                    // The remainder now must be empty:
+
+                    getline(tail, remainder);
+                    
+                    if (!isBlank(remainder)) {
+                        parsed.s_command = INVALID;
+                        parsed.s_error = "Unexpected characters following the command keyword";
+                    }
                 }
             }
         }
+        break;
     default:                                      // Error to land here:
         parsed.s_command = INVALID;
         parsed.s_error = "The command parser has an error and took a case it should not have";
