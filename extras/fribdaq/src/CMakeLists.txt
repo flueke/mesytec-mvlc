@@ -12,6 +12,7 @@ else ()
     add_executable(fribdaq-readout 
     fribdaq_readout.cc
     command_parse.cc
+    username.cc
     )
     target_include_directories(
         fribdaq-readout PRIVATE

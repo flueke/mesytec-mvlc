@@ -18,6 +18,7 @@
 #include <unistd.h>
 #include <cstdlib>
 #include "command_parse.h"
+#include "username.h"
 #ifdef __WIN32
 #include <stdlib.h> // system()
 #endif
@@ -416,6 +417,7 @@ int main(int argc, char *argv[])
     bool opt_logTrace = false;
     bool opt_initOnly = false;
     bool opt_ignoreInitErrors = false;
+    std::string opt_ringBufferName = getUsername();
 
     auto cli
         = lyra::help(opt_showHelp)
@@ -461,11 +463,11 @@ int main(int argc, char *argv[])
 
         | lyra::opt(opt_ignoreInitErrors)
             ["--ignore-vme-init-errors"]("ignore VME errors during the DAQ init sequence")
-
+        | lyra::opt(opt_ringBufferName, "ring")["--ring"]("ring buffer name")
         // logging
         | lyra::opt(opt_logDebug)["--debug"]("enable debug logging")
         | lyra::opt(opt_logTrace)["--trace"]("enable trace logging")
-
+        
         // positional args
         | lyra::arg(opt_crateConfig, "crateConfig")
             ("crate config yaml file").required()
@@ -473,6 +475,7 @@ int main(int argc, char *argv[])
         | lyra::arg(opt_secondsToRun, "secondsToRun")
             ("duration the DAQ should run in seconds").optional()
 #endif
+        
         ;
 
     auto cliParseResult = cli.parse({ argc, argv });
