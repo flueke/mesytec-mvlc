@@ -19,6 +19,8 @@
 #include <cstdlib>
 #include "command_parse.h"
 #include "username.h"
+#include <CRingBuffer.h>
+#include <Exception.h>
 #ifdef __WIN32
 #include <stdlib.h> // system()
 #endif
@@ -53,8 +55,10 @@ struct FRIBDAQRunState {
     unsigned s_runNumber;
     std::string s_runTitle;
     FRIBState s_runState;
+    CRingBuffer* s_pRing;
 FRIBDAQRunState() :
-    s_runState(Halted) {}
+    s_runState(Halted), s_pRing(nullptr) {}
+    
 } ;
 static FRIBDAQRunState ExtraRunState;
 
@@ -583,6 +587,16 @@ int main(int argc, char *argv[])
 
         //cout << "Connected to MVLC " << mvlc.connectionInfo() << endl;
 
+        // Connect to the output ringbuffer NSCL/FRIBDAQ.
+
+        try {
+            ExtraRunState.s_pRing = CRingBuffer::createAndProduce(opt_ringBufferName);
+        } catch (CException& e) {
+            std::cerr 
+                << "Unable to attach to the ringbuffer " << opt_ringBufferName << " " << e.ReasonText()
+                << std::endl;
+                std::exit(EXIT_FAILURE);
+        }
         //
         // Listfile setup
         //

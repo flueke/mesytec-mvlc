@@ -1,7 +1,6 @@
 
 set(NSCLDAQ_ROOT "_"  CACHE STRING "_")
-set(NSCLDAQ_INC ${NSCLDAQ_ROOT}/include CACHE STRING "${NSCLDAQ_ROOT}/include")
-set(NSCLDAQ_LIB ${NSCLDAQ_ROOT}/lib CACHE STRING "${NSCLDAQ_ROOT}/lib")
+
 
 # Only build any of this stuff if NSCLDAQ_ROOT has been defined.
 # 
@@ -9,6 +8,7 @@ set(NSCLDAQ_LIB ${NSCLDAQ_ROOT}/lib CACHE STRING "${NSCLDAQ_ROOT}/lib")
 if (NSCLDAQ_ROOT STREQUAL "_")    # not defined.
     
 else ()
+    
     add_executable(fribdaq-readout 
     fribdaq_readout.cc
     command_parse.cc
@@ -17,12 +17,15 @@ else ()
     target_include_directories(
         fribdaq-readout PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}
-        ${NSCLDAQ_INC}
+        ${NSCLDAQ_ROOT}/include
     )
     target_link_libraries(fribdaq-readout
         PRIVATE mesytec-mvlc
         PRIVATE BFG::Lyra
         PRIVATE spdlog::spdlog
+        PRIVATE ${NSCLDAQ_ROOT}/lib/libdaqshm.so
+        PRIVATE ${NSCLDAQ_ROOT}/lib/libDataFlow.so
+        PRIVATE ${NSCLDAQ_ROOT}/lib/libException.so
     )    
     install(TARGETS fribdaq-readout)
 
