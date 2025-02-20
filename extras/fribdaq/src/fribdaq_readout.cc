@@ -109,21 +109,61 @@ getStdinLine() {
 
 /// function to check that state transitions are legal:
 
+/** canBegin
+ * We can begine a run if the following conditions obtain:
+ * - The state in FRIBDAQRunState is Halted 
+ * - the Readout is finished - that is the workers have all
+ * rundown.
+ *    @param rdo - references the readout object.
+ *    @return bool - true if the run can be begun.
+ */
 static bool 
 canBegin(MVLCReadout& rdo) {
-    return true;
+    return (
+        ExtraRunState.s_runState == Halted &&
+        rdo.finished()
+    ); 
 }
+/**
+ * canEnd
+ *   We can end a run if the following conditions hold
+ *    - We are paused and the readout is finished.
+ *    - We are Active.
+ * @param rdo - the MVLCREadout object (referenced)
+ * @return bool - true if it's legal to end the run.
+ */
 static bool
 canEnd(MVLCReadout& rdo) {
-    return true;
+    return (
+        ExtraRunState.s_runState == Active ||
+        ((ExtraRunState.s_runState == Paused) && rdo.finished())
+    );
 }
+/**
+ * canPause
+ *     Determine if it is legal to pause the run.
+ * The run must be active for this to be legal:
+ * @param rdo - Readout object (unused for this but makes the calls the same).
+ * @return bool - true if the run can be paused.
+ */
 static bool
 canPause(MVLCReadout& rdo) {
-    return true;
+    return ExtraRunState.s_runState == Active;
 }
+/**
+ * canResume
+ *    Determine if resuming a run is legal.
+ * This is the case if we are Paused and finished.
+ * 
+ * @param rdo - the readout object.
+ * @return bool -True if legal.
+ */
 static bool
 canResume(MVLCReadout& rdo) {
-    return true;
+    return (
+        (ExtraRunState.s_runState == Paused)
+        && rdo.finished()
+    );
 }
 /////////////////////
 StackErrorCounters delta_counters(const StackErrorCounters &prev, const StackErrorCounters &curr)
