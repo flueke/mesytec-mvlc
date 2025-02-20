@@ -44,12 +44,14 @@ struct MiniDaqCountersSnapshot
  * run state information:
  */
 
+ typedef enum {
+    Active, Halted, Paused
+} FRIBState;
+
 struct FRIBDAQRunState {
-    unsigned m_runNumber;
-    std::string m_runTitle;
-    enum {
-        Active, Halted, Paused
-    } s_runState;
+    unsigned s_runNumber;
+    std::string s_runTitle;
+    FRIBState s_runState;
 FRIBDAQRunState() :
     s_runState(Halted) {}
 } ;
@@ -108,20 +110,20 @@ getStdinLine() {
 /// function to check that state transitions are legal:
 
 static bool 
-canBegin(MVLCRadout& rdo) {
+canBegin(MVLCReadout& rdo) {
     return true;
 }
 static bool
-canEnd(MVLCRadout& rdo) {
+canEnd(MVLCReadout& rdo) {
     return true;
 }
 static bool
-canPause(MVLCRadout& rdo) {
+canPause(MVLCReadout& rdo) {
     return true;
 }
 static bool
-canResume(MVLCRadout& rdo) {
-    return rue;
+canResume(MVLCReadout& rdo) {
+    return true;
 }
 /////////////////////
 StackErrorCounters delta_counters(const StackErrorCounters &prev, const StackErrorCounters &curr)
@@ -621,9 +623,9 @@ int main(int argc, char *argv[])
             std::this_thread::sleep_for(std::chrono::milliseconds(1000));
             
             if (stdinPending()) {                    // Process commands.
-                auto line = getstdinLine();
+                auto line = getStdinLine();
                 if (!isBlank(line)) {
-                    auto parsed = = parseCommand(line);
+                    auto parsed = parseCommand(line);
 
                     // Command specific processing:
 
@@ -631,9 +633,9 @@ int main(int argc, char *argv[])
                     switch (parsed.s_command) {
                         case BEGIN:
                             // start the run:
-                            if (canBegin(rdo) {
+                            if (canBegin(rdo)) {
                                 spdlog::info("Starting readout. Running for {} seconds.", timeToRun.count());
-                                auto ec = rdo.start(timeToRun) 
+                                auto ec = rdo.start(timeToRun);
                                 
                                 if (ec) {
                                     std::cerr << "Failed to stat the run" << ec.message() << std::endl;
@@ -646,10 +648,10 @@ int main(int argc, char *argv[])
                             break;
                         case END:
                             if (canEnd(rdo)) {
-                                spdlog::Info("Ending the run");
+                                spdlog::info("Ending the run");
                                 auto ec = rdo.stop();
                                 if (ec) {
-                                    std::cerr << "Failed to end the run: " << ec.messge() << std::endl;
+                                    std::cerr << "Failed to end the run: " << ec.message() << std::endl;
                                 } else {
                                     ExtraRunState.s_runState = Halted;
                                 }
@@ -659,10 +661,10 @@ int main(int argc, char *argv[])
                             break;
                         case PAUSE:
                             if (canPause(rdo)) {
-                                spdlog::Info("Pausing active run");
+                                spdlog::info("Pausing active run");
                                 auto ec = rdo.pause();
                                 if (ec) {
-                                    std::cerr < "Failed to pause the run: " << ec.message() << std::endl;
+                                    std::cerr << "Failed to pause the run: " << ec.message() << std::endl;
                                 } else {
                                     ExtraRunState.s_runState = Paused;
                                 }
@@ -670,8 +672,8 @@ int main(int argc, char *argv[])
                                 std::cerr << " Run state does not allow us to pause a run\n";
                             }
                         case RESUME:
-                            if (canResume(rdo) {
-                                spdlog::Info("Resuming paused run");
+                            if (canResume(rdo)) {
+                                spdlog::info("Resuming paused run");
                                 auto ec = rdo.resume();
 
                                 if (ec) {
@@ -685,7 +687,7 @@ int main(int argc, char *argv[])
                             break;
                         case TITLE:
                             if (ExtraRunState.s_runState != Halted) {
-                                std::cerr << "Run state must be halted to set the title."
+                                std::cerr << "Run state must be halted to set the title.";
                             } else {
                                 ExtraRunState.s_runTitle = parsed.s_stringarg;
                             }
