@@ -18,6 +18,7 @@
 #include <unistd.h>
 #include <cstdlib>
 #include "command_parse.h"
+#include "parser_callbacks.h"
 #include "username.h"
 #include <CRingBuffer.h>
 #include <Exception.h>
@@ -42,24 +43,7 @@ struct MiniDaqCountersSnapshot
 };
 ///////////////////// added code to support command driven operation:
 
-/**
- *  This block of stuff is passed around to the parsers to provide
- * run state information:
- */
 
- typedef enum {
-    Active, Halted, Paused
-} FRIBState;
-
-struct FRIBDAQRunState {
-    unsigned s_runNumber;
-    std::string s_runTitle;
-    FRIBState s_runState;
-    CRingBuffer* s_pRing;
-FRIBDAQRunState() :
-    s_runState(Halted), s_pRing(nullptr) {}
-    
-} ;
 static FRIBDAQRunState ExtraRunState;
 
 
