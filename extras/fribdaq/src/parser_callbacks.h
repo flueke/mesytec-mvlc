@@ -41,8 +41,16 @@ struct FRIBDAQRunState {
     std::string s_runTitle;
     FRIBState s_runState;
     CRingBuffer* s_pRing;
-FRIBDAQRunState() :
-    s_runState(Halted), s_pRing(nullptr) {}
+    // THe statistics get initialized by begin run state changes.
+    unsigned     s_events;     // Number of accepted events.
+    unsigned     s_runtime;    // Run offset.
+    unsigned     s_lastScalerStopTime;
+    unsigned     s_divisor;    // Offset divisor. 
+FRIBDAQRunState() : 
+    s_runNumber(0),            // If never set.
+    s_runState(Halted), s_pRing(nullptr),
+    s_divisor(1000)           // Timing in milliseconds
+    {}
     
 };
  
@@ -62,7 +70,7 @@ FRIBDAQRunState() :
 void stack_callback(
     void* cd, 
     int crate, int stack, 
-    mesytec::mvlc::readout_parser::ModuleData* pModuleDataList,
+    const mesytec::mvlc::readout_parser::ModuleData* pModuleDataList,
     unsigned moduleCount
 );
 

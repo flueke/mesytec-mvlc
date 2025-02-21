@@ -602,41 +602,13 @@ int main(int argc, char *argv[])
         };
 
         //
-        // readout parser callbacks
+        // readout parser callbacks - This is where we interface with FRIB/NSCLDAQ.
         //
 
         readout_parser::ReadoutParserCallbacks parserCallbacks;
 
-        parserCallbacks.eventData = [opt_printReadoutData] (
-            void *, int crateId, int eventIndex, const readout_parser::ModuleData *moduleDataList, unsigned moduleCount)
-        {
-            if (opt_printReadoutData)
-            {
-                for (u32 moduleIndex = 0; moduleIndex < moduleCount; ++moduleIndex)
-                {
-                    auto &moduleData = moduleDataList[moduleIndex];
-
-                    if (moduleData.data.size)
-                        util::log_buffer(
-                            std::cout, basic_string_view<u32>(moduleData.data.data, moduleData.data.size),
-                            fmt::format("module data: crateId={} eventIndex={}, moduleIndex={}", crateId, eventIndex, moduleIndex));
-                }
-            }
-        };
-
-        parserCallbacks.systemEvent = [opt_printReadoutData] (
-            void *, int crateId, const u32 *header, u32 size)
-        {
-            if (opt_printReadoutData)
-            {
-                std::cout
-                    << "SystemEvent: type=" << system_event_type_to_string(
-                        system_event::extract_subtype(*header))
-                    << ", size=" << size << ", bytes=" << (size * sizeof(u32))
-                    << endl;
-                fmt::print("system event: crateId={}, header={:08x}", crateId, *header);
-            }
-        };
+        parserCallbacks.eventData = stack_callback;
+        parserCallbacks.systemEvent = system_event_callback;
 
         //
         // readout object
@@ -661,8 +633,13 @@ int main(int argc, char *argv[])
 
         while (true)                  // main loop/
         {
-            std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-            
+            std::this_thread::sleep_for(std::chrono::milliseconds(1000));   // one second.
+            // If we are active, count a second:
+
+            if (ExtraRunState.s_runState == Active) {
+                ExtraRunState. s_runtime += 1000;                          // one second has passed.
+            }
+
             if (stdinPending()) {                    // Process commands.
                 auto line = getStdinLine();
                 if (!isBlank(line)) {
@@ -747,6 +724,7 @@ int main(int argc, char *argv[])
                             break;
                     }
                 }
+                
 
             }
 

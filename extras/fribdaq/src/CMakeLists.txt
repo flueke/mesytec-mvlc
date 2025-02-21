@@ -13,6 +13,7 @@ else ()
     fribdaq_readout.cc
     command_parse.cc
     username.cc
+    parser_callbacks.cc
     )
     target_include_directories(
         fribdaq-readout PRIVATE
@@ -23,6 +24,8 @@ else ()
         PRIVATE mesytec-mvlc
         PRIVATE BFG::Lyra
         PRIVATE spdlog::spdlog
+        PRIVATE ${NSCLDAQ_ROOT}/lib/libdataformat.so
+        PRIVATE ${NSCLDAQ_ROOT}/lib/liburl.so
         PRIVATE ${NSCLDAQ_ROOT}/lib/libdaqshm.so
         PRIVATE ${NSCLDAQ_ROOT}/lib/libDataFlow.so
         PRIVATE ${NSCLDAQ_ROOT}/lib/libException.so
