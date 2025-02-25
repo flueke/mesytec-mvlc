@@ -75,6 +75,14 @@ StackCommandBuilder MESYTEC_MVLC_EXPORT stack_command_builder_from_yaml_file(con
 std::string MESYTEC_MVLC_EXPORT to_json(const CrateConfig &crateConfig);
 CrateConfig MESYTEC_MVLC_EXPORT crate_config_from_json(const std::string &json);
 
+// Wrapper around the from_yaml/from_json functions.
+// - data contains the raw YAML or JSON data.
+// - format is either "yaml" or "json".
+// Throws on error
+CrateConfig MESYTEC_MVLC_EXPORT crate_config_from_data(const std::string &data, const std::string &format);
+CrateConfig MESYTEC_MVLC_EXPORT crate_config_from_file(const std::string &filename);
+
+// StackCommandBuilder serialization
 std::string MESYTEC_MVLC_EXPORT to_json(const StackCommandBuilder &sb);
 StackCommandBuilder MESYTEC_MVLC_EXPORT stack_command_builder_from_json(const std::string &json);
 
