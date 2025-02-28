@@ -108,6 +108,7 @@ class MESYTEC_MVLC_EXPORT Impl: public MVLCBasicInterface, public MVLC_ETH_Inter
 
         // Returns the host/IP string given to the constructor.
         std::string getHost() const { return m_host; }
+        std::string getRemoteAddress() const { return getHost(); }
 
         sockaddr_in getCmdSockAddress() const { return m_cmdAddr; }
         sockaddr_in getDataSockAddress() const { return m_dataAddr; }
@@ -166,6 +167,10 @@ class MESYTEC_MVLC_EXPORT Impl: public MVLCBasicInterface, public MVLC_ETH_Inter
 // Given the previous and current packet numbers returns the number of lost
 // packets in-between, taking overflow into account.
 s32 MESYTEC_MVLC_EXPORT calc_packet_loss(u16 lastPacketNumber, u16 packetNumber);
+
+// Sends an EthDelay (0x0207) command packet through the given socket.
+// No response data; the MVLC delay port is write only.
+std::error_code send_delay_command(int delaySock, u16 delay_us);
 
 }
 

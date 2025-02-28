@@ -562,7 +562,7 @@ std::pair<std::error_code, size_t> readout_usb(
 
     const size_t bytesToRead = usb::USBStreamPipeReadSize;
     size_t totalBytesTransferred = 0;
-    size_t readCycles = 0;
+    [[maybe_unused]] size_t readCycles = 0;
     std::error_code ec;
 
     while (dest.size() >= bytesToRead && sw.get_elapsed() < timeout)

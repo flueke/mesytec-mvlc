@@ -7,6 +7,7 @@
 #include <mesytec-mvlc/mesytec-mvlc.h>
 #include <mesytec-mvlc/mvlc_impl_eth.h>
 #include <mesytec-mvlc/mvlc_impl_usb.h>
+#include <mesytec-mvlc/util/udp_sockets.h>
 #include <yaml-cpp/yaml.h>
 #include <yaml-cpp/emittermanip.h>
 
@@ -1138,6 +1139,72 @@ usage: mvlc-cli show_usb_devices [--all-devices]
     .exec = show_usb_devices,
 };
 
+// Note: This does not connect an MVLC instance as that class does way too much
+// work for this use case and the InUse detection would get in our way. Instead
+// the MVLC instance is created to get the remote host address and then a socket
+// for sending data to the MVLC eth delay port is created and used.
+DEF_EXEC_FUNC(send_eth_delay_command)
+{
+    spdlog::trace("entered send_eth_delay_command()");
+
+    auto &parser = ctx.parser;
+    trace_log_parser_info(parser, "send_eth_delay_command");
+
+    auto delay = parse_unsigned<u16>(parser[2]);
+
+    if(!delay)
+    {
+        std::cerr << "Error: invalid delay value given\n";
+        return 1;
+    }
+
+    auto mvlc = make_mvlc_from_standard_params(parser);
+
+    if (!mvlc)
+        return 1;
+
+    auto ethImpl = dynamic_cast<eth::Impl *>(mvlc.getImpl());
+
+    if (!ethImpl)
+    {
+        std::cerr << "Error: send_eth_delay command requires an ETH connection\n";
+        return 1;
+    }
+
+    std::error_code ec;
+    auto remote = ethImpl->getRemoteAddress();
+    int sock = eth::connect_udp_socket(remote, eth::DelayPort, &ec);
+
+    if (ec || sock < 0)
+    {
+        std::cerr << fmt::format("Error: could not connect to remote address '{}': {}\n",
+            remote, ec.message());
+        return 1;
+    }
+
+    if (auto ec = eth::send_delay_command(sock, delay.value()))
+    {
+        std::cerr << fmt::format("Error: could not send EthDelay command: {}\n", ec.message());
+        return 1;
+    }
+
+    std::cout << fmt::format("Sent EthDelay command to {} with delay {} µs\n", remote, delay.value());
+    return 0;
+}
+
+static const Command SendEthDelayCommand
+{
+    .name = "send_eth_delay",
+    .description = "Send an EthDelay command to the MVLC",
+    .help = R"~(
+usage: mvlc-cli [--mvlc <url/ip>] send_eth_delay <delay_µs>
+
+    Send an EthDelay command to the MVLC with the given delay in microseconds.
+    Delay is a 16-bit value, max is 65535 µs.
+)~",
+    .exec = send_eth_delay_command,
+};
+
 int main(int argc, char *argv[])
 {
     std::string generalHelp = R"~(
@@ -1231,6 +1298,7 @@ MVLC connection URIs:
     ctx.commands.insert(VmeWriteCommand);
     ctx.commands.insert(DumpRegistersCommand);
     ctx.commands.insert(ShowUsbDevicesCommand);
+    ctx.commands.insert(SendEthDelayCommand);
     ctx.parser = parser;
 
     // mvlc-cli                 // show generalHelp

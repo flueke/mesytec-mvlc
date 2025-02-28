@@ -44,17 +44,6 @@
 
 using namespace mesytec::mvlc;
 
-namespace
-{
-
-static const unsigned DefaultWriteTimeout_ms = 500;
-static const unsigned DefaultReadTimeout_ms  = 500;
-
-// Amount of receive buffer space requested from the OS for both the command
-// and data sockets. It's not considered an error if less buffer space is
-// granted.
-static const int DesiredSocketReceiveBufferSize = 1024 * 1024 * 10;
-
 /* Ethernet throttling implementation:
  * The MVLC now has a new 'delay pipe' on port 0x8002. It accepts delay
  * commands only and doesn't send any responses. Delay commands carry a 16-bit
@@ -75,22 +64,22 @@ static const int DesiredSocketReceiveBufferSize = 1024 * 1024 * 10;
  * fill level.
  */
 
-std::error_code send_delay_command(int delaySock, u16 delay_us)
+namespace mesytec::mvlc::eth
 {
-    u32 cmd = static_cast<u32>(super_commands::SuperCommandType::EthDelay) << super_commands::SuperCmdShift;
-    cmd |= delay_us;
+std::error_code send_delay_command(int delaySock, u16 delay_us);
+}
 
-    size_t bytesTransferred = 0;
-    auto ec = eth::write_to_socket(delaySock, reinterpret_cast<const u8 *>(&cmd), sizeof(cmd), bytesTransferred);
+namespace
+{
+    using namespace mesytec::mvlc::eth;
 
-    if (ec)
-        return ec;
+static const unsigned DefaultWriteTimeout_ms = 500;
+static const unsigned DefaultReadTimeout_ms  = 500;
 
-    if (bytesTransferred != sizeof(cmd))
-        return make_error_code(MVLCErrorCode::ShortWrite);
-
-    return {};
-};
+// Amount of receive buffer space requested from the OS for both the command
+// and data sockets. It's not considered an error if less buffer space is
+// granted.
+static const int DesiredSocketReceiveBufferSize = 1024 * 1024 * 10;
 
 // This code increases the delay value by powers of two. The max value is 64k
 // so we need 16 steps to reach the maximum.
@@ -497,12 +486,25 @@ void mvlc_eth_throttler(
 
 } // end anon namespace
 
-namespace mesytec
+namespace mesytec::mvlc::eth
 {
-namespace mvlc
+
+std::error_code send_delay_command(int delaySock, u16 delay_us)
 {
-namespace eth
-{
+    u32 cmd = static_cast<u32>(super_commands::SuperCommandType::EthDelay) << super_commands::SuperCmdShift;
+    cmd |= delay_us;
+
+    size_t bytesTransferred = 0;
+    auto ec = eth::write_to_socket(delaySock, reinterpret_cast<const u8 *>(&cmd), sizeof(cmd), bytesTransferred);
+
+    if (ec)
+        return ec;
+
+    if (bytesTransferred != sizeof(cmd))
+        return make_error_code(MVLCErrorCode::ShortWrite);
+
+    return {};
+};
 
 Impl::Impl(const std::string &host)
     : m_host(host)
@@ -1242,6 +1244,4 @@ s32 calc_packet_loss(u16 lastPacketNumber, u16 packetNumber)
     return diff - 1;
 }
 
-} // end namespace eth
-} // end namespace mvlc
-} // end namespace mesytec
+}
