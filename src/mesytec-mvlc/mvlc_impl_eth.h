@@ -170,7 +170,7 @@ s32 MESYTEC_MVLC_EXPORT calc_packet_loss(u16 lastPacketNumber, u16 packetNumber)
 
 // Sends an EthDelay (0x0207) command packet through the given socket.
 // No response data; the MVLC delay port is write only.
-std::error_code send_delay_command(int delaySock, u16 delay_us);
+std::error_code MESYTEC_MVLC_EXPORT send_delay_command(int delaySock, u16 delay_us);
 
 }
 
