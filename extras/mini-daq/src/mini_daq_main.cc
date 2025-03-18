@@ -35,13 +35,13 @@ StackErrorCounters delta_counters(const StackErrorCounters &prev, const StackErr
                    std::begin(result.stackErrors),
                    util::delta_map<ErrorInfoCounts>);
 
-    result.nonErrorFrames = calc_delta0(curr.nonErrorFrames, prev.nonErrorFrames);
-    result.nonErrorHeaderCounts = delta_map(prev.nonErrorHeaderCounts, curr.nonErrorHeaderCounts);
+    result.nonErrorFrames = util::calc_delta0(curr.nonErrorFrames, prev.nonErrorFrames);
+    result.nonErrorHeaderCounts = util::delta_map(prev.nonErrorHeaderCounts, curr.nonErrorHeaderCounts);
 
     return result;
 }
 
-#define CALC_DELTA0(member) result.member = calc_delta0(curr.member, prev.member)
+#define CALC_DELTA0(member) result.member = util::calc_delta0(curr.member, prev.member)
 
 ReadoutWorker::Counters delta_counters(const ReadoutWorker::Counters &prev, const ReadoutWorker::Counters &curr)
 {
@@ -59,7 +59,7 @@ ReadoutWorker::Counters delta_counters(const ReadoutWorker::Counters &prev, cons
     std::transform(std::begin(prev.stackHits), std::end(prev.stackHits),
                    std::begin(curr.stackHits),
                    std::begin(result.stackHits),
-                   calc_delta0<size_t>);
+                   util::calc_delta0<size_t>);
 
     // TODO eth::PipeStats
     // TODO ListfileWriterCounters
@@ -506,7 +506,7 @@ int main(int argc, char *argv[])
         }
 
         MiniDaqCountersUpdate counters;
-        Stopwatch sw;
+        util::Stopwatch sw;
 
         while (!rdo.finished())
         {
