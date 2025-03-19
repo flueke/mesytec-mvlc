@@ -1009,6 +1009,7 @@ void ReadoutWorker::Private::loop(std::promise<std::error_code> promise)
                     terminateReadout();
                     listfile::ReadoutBufferWriteHandle wh(*getOutputBuffer());
                     listfile_write_timestamp_section(wh, crateId, system_event::subtype::Pause);
+                    flushCurrentOutputBuffer();
                     setState(State::Paused);
                     logger->debug("MVLC readout paused");
                 }
@@ -1018,6 +1019,7 @@ void ReadoutWorker::Private::loop(std::promise<std::error_code> promise)
                     startReadout();
                     listfile::ReadoutBufferWriteHandle wh(*getOutputBuffer());
                     listfile_write_timestamp_section(wh, crateId, system_event::subtype::Resume);
+                    flushCurrentOutputBuffer();
                     setState(State::Running);
                     logger->debug("MVLC readout resumed");
                 }
