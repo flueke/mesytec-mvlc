@@ -124,8 +124,8 @@ canBegin(MVLCReadout& rdo) {
 static bool
 canEnd(MVLCReadout& rdo) {
     return (
-        ExtraRunState.s_runState == Active ||
-        ((ExtraRunState.s_runState == Paused) && rdo.finished())
+        (ExtraRunState.s_runState == Active) ||
+        (ExtraRunState.s_runState == Paused)
     );
 }
 /**
