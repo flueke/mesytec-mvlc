@@ -58,7 +58,7 @@ static bool stdinPending() {
 
     timeval immediately = {tv_sec: 0, tv_usec: 0};
 
-    int status = select(STDIN_FILENO, &has_stdin, &empty, &empty, &immediately);
+    int status = select(STDIN_FILENO + 1, &has_stdin, &empty, &empty, &immediately);
 
     // errors are ok if errno is EINTR
 
@@ -728,9 +728,9 @@ int main(int argc, char *argv[])
 
             }
 
+            // If the run is active, dump the counters.
 
-
-            if (!opt_noPeriodicCounterDumps)
+            if (!opt_noPeriodicCounterDumps && (ExtraRunState.s_runState == Active)) 
             {
                 dump_counters(
                     cout,
