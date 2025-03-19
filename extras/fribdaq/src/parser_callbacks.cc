@@ -35,8 +35,8 @@
 
 
 
-static const int STACK_EVENT(1);
-static const int STACK_SCALER(2);
+static const int STACK_EVENT(0);
+static const int STACK_SCALER(1);
 static bool bad_stack_warning_given(false);
 
 ////////////////////////////// private utilities ////////////////////////////////////////
