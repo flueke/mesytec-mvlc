@@ -149,10 +149,9 @@ canPause(MVLCReadout& rdo) {
  */
 static bool
 canResume(MVLCReadout& rdo) {
-    return (
-        (ExtraRunState.s_runState == Paused)
-        && rdo.finished()
-    );
+    return 
+        (ExtraRunState.s_runState == Paused);
+    
 }
 /////////////////////
 StackErrorCounters delta_counters(const StackErrorCounters &prev, const StackErrorCounters &curr)
