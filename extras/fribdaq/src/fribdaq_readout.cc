@@ -618,7 +618,9 @@ int main(int argc, char *argv[])
             mvlc,
             crateConfig,
             listfileParams,
-            parserCallbacks);
+            parserCallbacks,
+            &ExtraRunState
+        );
 #ifdef AUTO_START                              // Start from commands.
         spdlog::info("Starting readout. Running for {} seconds.", timeToRun.count());
 
