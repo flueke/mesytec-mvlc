@@ -1,13 +1,12 @@
 #include <mesytec-mvlc/mesytec-mvlc.h>
 #include <argh.h>
-#include <signal.h>
 #include <system_error>
 
 using namespace mesytec::mvlc;
 
 int main(int argc, char *argv[])
 {
-    setup_signal_handlers();
+    util::setup_signal_handlers();
 
     spdlog::set_level(spdlog::level::info);
     mesytec::mvlc::set_global_log_level(spdlog::level::info);
@@ -70,7 +69,7 @@ int main(int argc, char *argv[])
         size_t cycleNumber = 0;
         size_t lastCycleNumber = 0;
 
-        while (!signal_received())
+        while (!util::signal_received())
         {
             auto initResults = init_readout(mvlc, crateConfig, {});
 

@@ -140,7 +140,8 @@ struct ReadoutParserCallbacks
     // Parameters are:
     // - userContext as passed to make_readout_parser()
     // - crateIndex as passed to make_readout_parser(), starts from 0
-    // - eventIndex starting from 0
+    // - eventIndex starting from 0. This is the originating readout stack
+    //   number - 1 (stack 0 is used for interactive commands).
     // - moduleDataList: pointer to ModuleData structures
     // - number of ModuleData structures stored in moduleDataList
 

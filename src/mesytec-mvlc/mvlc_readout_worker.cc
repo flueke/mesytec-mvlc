@@ -562,7 +562,7 @@ std::pair<std::error_code, size_t> readout_usb(
 
     const size_t bytesToRead = usb::USBStreamPipeReadSize;
     size_t totalBytesTransferred = 0;
-    size_t readCycles = 0;
+    [[maybe_unused]] size_t readCycles = 0;
     std::error_code ec;
 
     while (dest.size() >= bytesToRead && sw.get_elapsed() < timeout)
@@ -1009,6 +1009,7 @@ void ReadoutWorker::Private::loop(std::promise<std::error_code> promise)
                     terminateReadout();
                     listfile::ReadoutBufferWriteHandle wh(*getOutputBuffer());
                     listfile_write_timestamp_section(wh, crateId, system_event::subtype::Pause);
+                    flushCurrentOutputBuffer();
                     setState(State::Paused);
                     logger->debug("MVLC readout paused");
                 }
@@ -1018,6 +1019,7 @@ void ReadoutWorker::Private::loop(std::promise<std::error_code> promise)
                     startReadout();
                     listfile::ReadoutBufferWriteHandle wh(*getOutputBuffer());
                     listfile_write_timestamp_section(wh, crateId, system_event::subtype::Resume);
+                    flushCurrentOutputBuffer();
                     setState(State::Running);
                     logger->debug("MVLC readout resumed");
                 }
@@ -1706,6 +1708,11 @@ std::future<std::error_code> ReadoutWorker::start(const std::chrono::seconds &ti
 
     d->setState(State::Starting);
     d->runDurationPlugin_->setTimeToRun(timeToRun);
+
+    // If start() is called multiple times on this instance the readoutThread
+    // will still run, so join it here to avoid getting terminated.
+    if (d->readoutThread.joinable())
+        d->readoutThread.join();
 
     d->readoutThread = std::thread(&Private::loop, d.get(), std::move(promise));
 

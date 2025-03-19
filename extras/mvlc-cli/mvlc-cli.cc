@@ -7,6 +7,7 @@
 #include <mesytec-mvlc/mesytec-mvlc.h>
 #include <mesytec-mvlc/mvlc_impl_eth.h>
 #include <mesytec-mvlc/mvlc_impl_usb.h>
+#include <mesytec-mvlc/util/udp_sockets.h>
 #include <yaml-cpp/yaml.h>
 #include <yaml-cpp/emittermanip.h>
 
@@ -54,6 +55,7 @@ using Exec = std::function<DEF_EXEC_FUNC()>;
 struct Command
 {
   std::string name ;
+  std::string description;
   std::string help;
   Exec exec;
 };
@@ -80,7 +82,7 @@ DEF_EXEC_FUNC(help_command)
     spdlog::trace("entered help_command()");
     trace_log_parser_info(ctx.parser, "help_command");
 
-    if (ctx.parser["-a"] || ctx.parser["--all"])
+    if (ctx.parser["-a"] || ctx.parser["--all"] || ctx.parser[2].empty())
     {
         if (!ctx.parser[2].empty())
         {
@@ -112,7 +114,8 @@ DEF_EXEC_FUNC(help_command)
 static const Command HelpCommand =
 {
     .name = "help",
-    .help = R"~(This is the help text for the 'help' command
+    .description = "Print general help or help for a specific command",
+    .help = R"~(Print general help or help for a specific command.
 )~",
     .exec = help_command,
 };
@@ -124,7 +127,7 @@ DEF_EXEC_FUNC(list_commands_command)
 
     for (const auto &cmd: ctx.commands)
     {
-        std::cout << cmd.name << "\n";
+        std::cout << fmt::format("{} - {}\n", cmd.name, cmd.description);
     }
 
     return 0;
@@ -133,6 +136,7 @@ DEF_EXEC_FUNC(list_commands_command)
 static const Command ListCmdsCommand =
 {
     .name = "list-commands",
+    .description = "List all registered commands",
     .help = R"~(Meta command to list all registered commands.
 )~",
     .exec = list_commands_command,
@@ -157,6 +161,7 @@ DEF_EXEC_FUNC(mvlc_version_command)
 static const Command MvlcVersionCommand =
 {
     .name = "version",
+    .description = "Print MVLC hardware and firmware revisions",
     .help = R"~(print MVLC hardware and firmware revisions
 )~",
     .exec = mvlc_version_command,
@@ -277,11 +282,11 @@ DEF_EXEC_FUNC(mvlc_stack_info_command)
 static const Command MvlcStackInfoCommand =
 {
     .name = "stack_info",
+    .description = "Read and print command stack info and contents",
     .help = unindent(
-//R"~(usage: mvlc-cli stack_info [--raw] [--yaml] [<stackId>]
 R"~(usage: mvlc-cli stack_info [<stackId>]
 
-    Read and print command stack info and contents. If no stackId is given all event readout
+    Read and print command stack info and contents. If no stackId is given all command
     stacks (stack0..15) are read.
 
 options:
@@ -437,6 +442,7 @@ DEF_EXEC_FUNC(scanbus_command)
 static const Command ScanbusCommand
 {
     .name = "scanbus",
+    .description = "Scan the VME bus for mesytec VME modules",
     .help = unindent(R"~(
 usage: mvlc-cli scanbus [--scan-begin=<addr>] [--scan-end=<addr>] [--probe-register=<addr>]
                         [--probe-amod=<amod>] [--probe-datawidth=<datawidth>]
@@ -503,6 +509,7 @@ DEF_EXEC_FUNC(mvlc_set_id_command)
 static const Command MvlcSetIdCommand
 {
     .name = "set_id",
+    .description = "Set the MVLC controller id (aka crate id)",
     .help = unindent(
 R"~(usage: mvlc-cli set_id <ctrlId>
 
@@ -557,6 +564,7 @@ DEF_EXEC_FUNC(register_read_command)
 static const Command RegisterReadCommand
 {
     .name = "register_read",
+    .description = "Read one of the internal MVLC registers",
     .help = R"~(
 usage: mvlc-cli register_read <address>
 
@@ -624,6 +632,7 @@ DEF_EXEC_FUNC(register_write_command)
 static const Command RegisterWriteCommand
 {
     .name = "register_write",
+    .description = "Write one of the internal MVLC registers",
     .help = R"~(
 usage: mvlc-cli register_write <address> <value>
 
@@ -737,6 +746,7 @@ DEF_EXEC_FUNC(vme_read_command)
 static const Command VmeReadCommand
 {
     .name = "vme_read",
+    .description = "Perform a single value vme read",
     .help = R"~(
 usage: mvlc-cli vme_read [--amod=0x09] [--datawidth=16] <address>
 
@@ -857,6 +867,7 @@ DEF_EXEC_FUNC(vme_write_command)
 static const Command VmeWriteCommand
 {
     .name = "vme_write",
+    .description = "Perform a single value vme write",
     .help = R"~(
 usage: mvlc-cli vme_write [--amod=0x09] [--datawidth=16] <address> <value>
 
@@ -1075,98 +1086,14 @@ DEF_EXEC_FUNC(dump_registers_command)
 static const Command DumpRegistersCommand
 {
     .name = "dump_registers",
+    .description = "Read and print internal MVLC registers",
     .help = R"~(
 usage: mvlc-cli dump_registers [--yaml]
 
-    Read and print interal MVLC registers. Use --yaml to get YAML formatted data
+    Read and print internal MVLC registers. Use --yaml to get YAML formatted data
     instead of a human-readable table.
 )~",
     .exec = dump_registers_command,
-};
-
-DEF_EXEC_FUNC(crateconfig_from_mvlc)
-{
-    spdlog::trace("entered crateconfig_from_mvlc()");
-    trace_log_parser_info(ctx.parser, "crateconfig_from_mvlc");
-
-    auto [mvlc, ec] = make_and_connect_default_mvlc(ctx.parser);
-
-    if (!mvlc || ec)
-        return 1;
-
-    const auto StackCount = mvlc.getStackCount();
-    // First is stack1, stack0 is reserved for direct command execution.
-    std::vector<StackInfo> stackInfos;
-
-    for (unsigned stackId=1; stackId < StackCount; ++stackId)
-    {
-        auto [stackInfo, ec] = read_stack_info(mvlc, stackId);
-        stackInfos.emplace_back(std::move(stackInfo));
-
-        if (ec && ec != make_error_code(MVLCErrorCode::InvalidStackHeader))
-        {
-            std::cout << fmt::format("Error reading stack info for stack#{}: {}\n", stackId, ec.message());
-            return 1;
-        }
-    }
-
-    u32 crateId = 0;
-    if (auto ec = mvlc.readRegister(registers::controller_id, crateId))
-    {
-        std::cerr << fmt::format("Error reading controller id: {}\n", ec.message());
-        return 1;
-    }
-
-    CrateConfig crateConfig;
-    crateConfig.connectionType = mvlc.connectionType();
-    crateConfig.crateId = crateId;
-
-    // FIXME: add getHost() and other info to the interfaces. It's weird to
-    // downcast to Impl here. Or put a getConnectionInfo() into MVLC and make it
-    // compatible with CrateConfig.
-    if (auto eth = dynamic_cast<eth::Impl *>(mvlc.getImpl()))
-    {
-        crateConfig.ethHost = eth->getHost();
-        u32 jumbosEnabled = 0;
-        if (auto ec = mvlc.readRegister(registers::jumbo_frame_enable, jumbosEnabled))
-        {
-            std::cerr << fmt::format("Error reading jumbo frame enable register: {}\n", ec.message());
-            return 1;
-        }
-        crateConfig.ethJumboEnable = jumbosEnabled;
-    }
-    else if (auto usb = dynamic_cast<usb::Impl *>(mvlc.getImpl()))
-    {
-        auto devInfo = usb->getDeviceInfo();
-        crateConfig.usbIndex = devInfo.index;
-        crateConfig.usbSerial = devInfo.serial;
-    }
-
-    for (const auto &stackInfo: stackInfos)
-    {
-        crateConfig.triggers.push_back(stackInfo.triggerValue);
-        crateConfig.stacks.emplace_back(stack_builder_from_buffer(stackInfo.contents));
-    }
-
-    std::cout << to_yaml(crateConfig);
-
-    return 0;
-}
-
-static const Command CrateConfigFromMvlcCommand
-{
-    .name = "crateconfig_from_mvlc",
-    .help = R"~(
-usage: mvlc-cli crateconfig_from_mvlc
-
-    Read stack contents and trigger values from the MVLC to create and print a CrateConfig.
-    Note: the resulting CrateConfig is missing the Trigger / IO setup as that can't be read
-    back and the VME module init commands used to start the DAQ.
-
-    The remaining information in the resulting CrateConfig is still useful for
-    debugging.
-)~",
-    .exec = crateconfig_from_mvlc,
 };
 
 DEF_EXEC_FUNC(show_usb_devices)
@@ -1200,6 +1127,7 @@ DEF_EXEC_FUNC(show_usb_devices)
 static const Command ShowUsbDevicesCommand
 {
     .name = "show_usb_devices",
+    .description = "List MVLC_USB devices present in the system",
     .help = R"~(
 usage: mvlc-cli show_usb_devices [--all-devices]
 
@@ -1209,6 +1137,72 @@ usage: mvlc-cli show_usb_devices [--all-devices]
     listed.
 )~",
     .exec = show_usb_devices,
+};
+
+// Note: This does not connect an MVLC instance as that class does way too much
+// work for this use case and the InUse detection would get in our way. Instead
+// the MVLC instance is created to get the remote host address and then a socket
+// for sending data to the MVLC eth delay port is created and used.
+DEF_EXEC_FUNC(send_eth_delay_command)
+{
+    spdlog::trace("entered send_eth_delay_command()");
+
+    auto &parser = ctx.parser;
+    trace_log_parser_info(parser, "send_eth_delay_command");
+
+    auto delay = parse_unsigned<u16>(parser[2]);
+
+    if(!delay)
+    {
+        std::cerr << "Error: invalid delay value given\n";
+        return 1;
+    }
+
+    auto mvlc = make_mvlc_from_standard_params(parser);
+
+    if (!mvlc)
+        return 1;
+
+    auto ethImpl = dynamic_cast<eth::Impl *>(mvlc.getImpl());
+
+    if (!ethImpl)
+    {
+        std::cerr << "Error: send_eth_delay command requires an ETH connection\n";
+        return 1;
+    }
+
+    std::error_code ec;
+    auto remote = ethImpl->getRemoteAddress();
+    int sock = eth::connect_udp_socket(remote, eth::DelayPort, &ec);
+
+    if (ec || sock < 0)
+    {
+        std::cerr << fmt::format("Error: could not connect to remote address '{}': {}\n",
+            remote, ec.message());
+        return 1;
+    }
+
+    if (auto ec = eth::send_delay_command(sock, delay.value()))
+    {
+        std::cerr << fmt::format("Error: could not send EthDelay command: {}\n", ec.message());
+        return 1;
+    }
+
+    std::cout << fmt::format("Sent EthDelay command to {} with delay {} µs\n", remote, delay.value());
+    return 0;
+}
+
+static const Command SendEthDelayCommand
+{
+    .name = "send_eth_delay",
+    .description = "Send an EthDelay command to the MVLC",
+    .help = R"~(
+usage: mvlc-cli [--mvlc <url/ip>] send_eth_delay <delay_µs>
+
+    Send an EthDelay command to the MVLC with the given delay in microseconds.
+    Delay is a 16-bit value, max is 65535 µs.
+)~",
+    .exec = send_eth_delay_command,
 };
 
 int main(int argc, char *argv[])
@@ -1303,8 +1297,8 @@ MVLC connection URIs:
     ctx.commands.insert(VmeReadCommand);
     ctx.commands.insert(VmeWriteCommand);
     ctx.commands.insert(DumpRegistersCommand);
-    ctx.commands.insert(CrateConfigFromMvlcCommand);
     ctx.commands.insert(ShowUsbDevicesCommand);
+    ctx.commands.insert(SendEthDelayCommand);
     ctx.parser = parser;
 
     // mvlc-cli                 // show generalHelp

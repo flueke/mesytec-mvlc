@@ -2,6 +2,7 @@
 
 #include <cassert>
 #include <fstream>
+#include <nlohmann/json.hpp>
 
 #include "util/fmt.h"
 #include "util/string_util.h"
@@ -329,6 +330,39 @@ StackCommandBuilder stack_command_builder_from_yaml_file(
     std::ifstream input(filename);
     input.exceptions(std::ios::failbit | std::ios::badbit);
     return stack_command_builder_from_yaml(input);
+}
+
+CrateConfig crate_config_from_data(const std::string &data, const std::string &format_)
+{
+    auto format = util::str_tolower(format_);
+
+    if (format == "yaml")
+        return crate_config_from_yaml(data);
+
+    if (format == "json")
+        return crate_config_from_json(data);
+
+    throw std::runtime_error(fmt::format("unexpected format '{}', want 'json' or 'yaml'.", format));
+}
+
+CrateConfig crate_config_from_file(const std::string &filename)
+{
+    std::filesystem::path fp(filename);
+
+    if (fp.extension() == ".json")
+    {
+        std::ifstream input(filename);
+        input.exceptions(std::ios::failbit | std::ios::badbit);
+        auto json = nlohmann::json::parse(input);
+        return crate_config_from_json(json.dump());
+    }
+    else if (fp.extension() == ".yaml")
+    {
+        return crate_config_from_yaml_file(filename);
+    }
+
+    throw std::runtime_error(fmt::format("unexpected file extension '{}', want '.json' or '.yaml'.",
+         fp.extension().string()));
 }
 
 namespace detail

@@ -35,13 +35,13 @@ StackErrorCounters delta_counters(const StackErrorCounters &prev, const StackErr
                    std::begin(result.stackErrors),
                    util::delta_map<ErrorInfoCounts>);
 
-    result.nonErrorFrames = calc_delta0(curr.nonErrorFrames, prev.nonErrorFrames);
-    result.nonErrorHeaderCounts = delta_map(prev.nonErrorHeaderCounts, curr.nonErrorHeaderCounts);
+    result.nonErrorFrames = util::calc_delta0(curr.nonErrorFrames, prev.nonErrorFrames);
+    result.nonErrorHeaderCounts = util::delta_map(prev.nonErrorHeaderCounts, curr.nonErrorHeaderCounts);
 
     return result;
 }
 
-#define CALC_DELTA0(member) result.member = calc_delta0(curr.member, prev.member)
+#define CALC_DELTA0(member) result.member = util::calc_delta0(curr.member, prev.member)
 
 ReadoutWorker::Counters delta_counters(const ReadoutWorker::Counters &prev, const ReadoutWorker::Counters &curr)
 {
@@ -59,7 +59,7 @@ ReadoutWorker::Counters delta_counters(const ReadoutWorker::Counters &prev, cons
     std::transform(std::begin(prev.stackHits), std::end(prev.stackHits),
                    std::begin(curr.stackHits),
                    std::begin(result.stackHits),
-                   calc_delta0<size_t>);
+                   util::calc_delta0<size_t>);
 
     // TODO eth::PipeStats
     // TODO ListfileWriterCounters
@@ -328,7 +328,7 @@ int main(int argc, char *argv[])
 
         // positional args
         | lyra::arg(opt_crateConfig, "crateConfig")
-            ("crate config yaml file").required()
+            ("crate config YAML or JSON file").required()
 
         | lyra::arg(opt_secondsToRun, "secondsToRun")
             ("duration the DAQ should run in seconds").optional()
@@ -365,15 +365,6 @@ int main(int argc, char *argv[])
     if (opt_logTrace)
         set_global_log_level(spdlog::level::trace);
 
-
-    std::ifstream inConfig(opt_crateConfig);
-
-    if (!inConfig.is_open())
-    {
-        cerr << "Error opening crate config " << argv[1] << " for reading." << endl;
-        return 1;
-    }
-
     try
     {
         auto timeToRun = std::chrono::seconds(opt_secondsToRun);
@@ -382,11 +373,11 @@ int main(int argc, char *argv[])
 
         try
         {
-            crateConfig = crate_config_from_yaml(inConfig);
+            crateConfig = crate_config_from_file(opt_crateConfig);
         }
         catch (const std::runtime_error &e)
         {
-            cerr << "Error parsing CrateConfig: " << e.what() << endl;
+            cerr << fmt::format("Error loading CrateConfig from '{}': {}\n", opt_crateConfig, e.what());
             return 1;
         }
 
@@ -515,7 +506,7 @@ int main(int argc, char *argv[])
         }
 
         MiniDaqCountersUpdate counters;
-        Stopwatch sw;
+        util::Stopwatch sw;
 
         while (!rdo.finished())
         {
