@@ -49,7 +49,7 @@ struct FRIBDAQRunState {
 FRIBDAQRunState() : 
     s_runNumber(0),            // If never set.
     s_runState(Halted), s_pRing(nullptr),
-    s_divisor(1000)           // Timing in milliseconds
+    s_divisor(1)           // Timing in seconds.
     {}
     
 };

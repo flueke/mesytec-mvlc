@@ -639,7 +639,7 @@ int main(int argc, char *argv[])
             // If we are active, count a second:
 
             if (ExtraRunState.s_runState == Active) {
-                ExtraRunState. s_runtime += 1000;                          // one second has passed.
+                ExtraRunState. s_runtime += 1;                          // one second has passed.
             }
 
             if (stdinPending()) {                    // Process commands.
@@ -691,6 +691,7 @@ int main(int argc, char *argv[])
                             } else {
                                 std::cerr << " Run state does not allow us to pause a run\n";
                             }
+                            break;
                         case RESUME:
                             if (canResume(rdo)) {
                                 spdlog::info("Resuming paused run");
