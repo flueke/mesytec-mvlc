@@ -1707,6 +1707,11 @@ std::future<std::error_code> ReadoutWorker::start(const std::chrono::seconds &ti
     d->setState(State::Starting);
     d->runDurationPlugin_->setTimeToRun(timeToRun);
 
+    // If start() is called multiple times on this instance the readoutThread
+    // will still run, so join it here to avoid getting terminated.
+    if (d->readoutThread.joinable())
+        d->readoutThread.join();
+
     d->readoutThread = std::thread(&Private::loop, d.get(), std::move(promise));
 
     return f;
