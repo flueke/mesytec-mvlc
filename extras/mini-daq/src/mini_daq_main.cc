@@ -478,12 +478,10 @@ int main(int argc, char *argv[])
         {
             if (opt_printReadoutData)
             {
-                std::cout
-                    << "SystemEvent: type=" << system_event_type_to_string(
-                        system_event::extract_subtype(*header))
-                    << ", size=" << size << ", bytes=" << (size * sizeof(u32))
-                    << endl;
-                fmt::print("system event: crateId={}, header={:08x}", crateId, *header);
+                fmt::print("SystemEvent: crateId={}, header=0x{:08x}, type={}, size={}, bytes={}\n",
+                     crateId, *header, system_event_type_to_string(system_event::extract_subtype(*header)),
+                        size, size * sizeof(u32)
+                );
             }
         };
 
