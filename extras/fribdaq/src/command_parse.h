@@ -24,7 +24,7 @@
  * 
  */
 typedef enum _StdinCommands  {
-    BEGIN, END, PAUSE, RESUME, TITLE, SETRUN, INVALID
+    BEGIN, END, PAUSE, RESUME, TITLE, SETRUN, INVALID, EXIT
 } StdinCommands;
 
 /**

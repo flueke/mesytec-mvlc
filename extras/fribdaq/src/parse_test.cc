@@ -95,6 +95,13 @@
     ASSERT_EQ(result2.s_command, RESUME);
  }
 
+ TEST(command_Parse, EXIT) {
+   std::string line1("EXIT");
+   std::string line2("EXIT");
+   
+   ASSERT_EQ(parseCommand(line1).s_command, EXIT);
+   ASSERT_EQ(parseCommand(line2).s_command, EXIT);
+ }
  // Title must have a tail and that will be the s_stringarg
 
  TEST(command_parse, TITLE_NO_TAIL) {

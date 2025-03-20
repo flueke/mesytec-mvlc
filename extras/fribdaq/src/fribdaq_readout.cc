@@ -631,8 +631,8 @@ int main(int argc, char *argv[])
 #endif
         MiniDaqCountersUpdate counters;
         Stopwatch sw;
-
-        while (true)                  // main loop/
+        bool running = true;
+        while (running)                  // main loop/
         {
             std::this_thread::sleep_for(std::chrono::milliseconds(1000));   // one second.
             // If we are active, count a second:
@@ -717,6 +717,19 @@ int main(int argc, char *argv[])
                                 std::cerr << "Run state must be halted to set the run number\n";
                             } else {
                                 ExtraRunState.s_runNumber = parsed.s_intarg;                            }
+                            break;
+                        case EXIT:
+                            if (ExtraRunState.s_runState != Halted) {
+                                // force  the end run if we're not halted
+                                spdlog::info("Forcing end run due to exit");
+                                rdo.stop();
+                                // Wait for it to finish:
+
+                                while (!rdo.finished()) {
+                                    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+                                }
+                            }
+                            running = false;    // Allow the loop to exit.;
                             break;
                         case INVALID:
                             std::cerr << parsed.s_error << std::endl;

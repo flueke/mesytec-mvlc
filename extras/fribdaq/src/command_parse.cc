@@ -26,6 +26,7 @@
 // Map between command words and enum
 static std::map<std::string, StdinCommands> commandMap = {
     {"BEGIN", BEGIN}, {"begin", BEGIN},
+    {"EXIT", EXIT},
     {"END", END}, {"end", END},
     {"PAUSE", PAUSE}, {"pause", PAUSE},
     {"RESUME", RESUME}, {"resume", RESUME},
@@ -82,6 +83,7 @@ parseCommand(const std::string& line) {
     case END:                           // These should have at most a whitespace remainder:
     case PAUSE:
     case RESUME:
+    case EXIT:
         if (!isBlank(remainder)) {
             parsed.s_command = INVALID;
             parsed.s_error = "Unexpected characters following the command keyword";
