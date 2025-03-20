@@ -457,12 +457,7 @@ int main(int argc, char *argv[])
         
         // positional args
         | lyra::arg(opt_crateConfig, "crateConfig")
-            ("crate config yaml file").required()
-#ifdef LIMIT_RUN_TIME                        // Unlimited run length.
-        | lyra::arg(opt_secondsToRun, "secondsToRun")
-            ("duration the DAQ should run in seconds").optional()
-#endif
-        
+            ("crate config yaml file").required()        
         ;
 
     auto cliParseResult = cli.parse({ argc, argv });
@@ -620,15 +615,7 @@ int main(int argc, char *argv[])
             parserCallbacks,
             &ExtraRunState
         );
-#ifdef AUTO_START                              // Start from commands.
-        spdlog::info("Starting readout. Running for {} seconds.", timeToRun.count());
 
-        if (auto ec = rdo.start(timeToRun))
-        {
-            cerr << "Error starting readout: " << ec.message() << endl;
-            throw std::runtime_error("ReadoutWorker error");
-        }
-#endif
         MiniDaqCountersUpdate counters;
         Stopwatch sw;
         bool running = true;
