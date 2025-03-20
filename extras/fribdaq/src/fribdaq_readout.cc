@@ -501,7 +501,7 @@ int main(int argc, char *argv[])
 
     if (!inConfig.is_open())
     {
-        cerr << "Error opening crate config " << argv[1] << " for reading." << endl;
+        cerr << "Error opening crate config " << opt_crateConfig << " for reading." << endl;
         return 1;
     }
 
