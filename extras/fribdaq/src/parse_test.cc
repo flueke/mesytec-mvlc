@@ -97,7 +97,7 @@
 
  TEST(command_Parse, EXIT) {
    std::string line1("EXIT");
-   std::string line2("EXIT");
+   std::string line2("exit");
    
    ASSERT_EQ(parseCommand(line1).s_command, EXIT);
    ASSERT_EQ(parseCommand(line2).s_command, EXIT);

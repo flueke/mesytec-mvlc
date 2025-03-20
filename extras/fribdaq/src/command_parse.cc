@@ -26,7 +26,7 @@
 // Map between command words and enum
 static std::map<std::string, StdinCommands> commandMap = {
     {"BEGIN", BEGIN}, {"begin", BEGIN},
-    {"EXIT", EXIT},
+    {"EXIT", EXIT}, {"exit", EXIT},
     {"END", END}, {"end", END},
     {"PAUSE", PAUSE}, {"pause", PAUSE},
     {"RESUME", RESUME}, {"resume", RESUME},
