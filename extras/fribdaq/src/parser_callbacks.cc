@@ -206,18 +206,22 @@ void system_event_callback(
 
     // We only care about the run state transitions:
     uint16_t itemType;
+    int barriertype(0);
 
     // Chose the right type of item:
 
 
     switch (mesytec::mvlc::system_event::extract_subtype(*header))
     {
+        
         case mesytec::mvlc::system_event::subtype::BeginRun:
             itemType = BEGIN_RUN;
             reset_statistics(context);
+            barriertype = 0;
             break;
         case mesytec::mvlc::system_event::subtype::EndRun:
             itemType= END_RUN;
+            barriertype = 1;
             break;
         case mesytec::mvlc::system_event::subtype::Pause:
             itemType = PAUSE_RUN;
@@ -233,9 +237,14 @@ void system_event_callback(
     CDataFormatItem fmtItem;
     fmtItem.commitToRing(*context->s_pRing);
 
-    CRingStateChangeItem item(
-        0xffffffff, 0, 0, 
-        itemType, context->s_runNumber, context->s_runtime, time(nullptr), context->s_runTitle, context->s_divisor
-    );
+    // Note that the constructor for the state change item
+    // only allows a divisor for most of NSCLDAQ if the contruction includes
+    // a body header.
+    
+    CRingStateChangeItem item( 
+        0xffffffff, context->s_sourceid, barriertype, 
+        itemType, context->s_runNumber, context->s_runtime, 
+        time(nullptr), context->s_runTitle, context->s_divisor);
+    
     item.commitToRing(*context->s_pRing);
 }
