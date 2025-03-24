@@ -22,6 +22,9 @@
 #include "username.h"
 #include <CRingBuffer.h>
 #include <Exception.h>
+#include <stdexcept>
+#include <sstream>
+#include <dlfcn.h>
 #ifdef __WIN32
 #include <stdlib.h> // system()
 #endif
@@ -43,7 +46,7 @@ struct MiniDaqCountersSnapshot
 };
 ///////////////////// added code to support command driven operation:
 
-
+static const char* timestampFunctionName = "extract_timestamp";
 static FRIBDAQRunState ExtraRunState;
 
 
@@ -96,7 +99,7 @@ getStdinLine() {
     return result;
 }
 
-/// function to check that state transitions are legal:
+/// functions to check that state transitions are legal:
 
 /** canBegin
  * We can begine a run if the following conditions obtain:
@@ -152,6 +155,52 @@ canResume(MVLCReadout& rdo) {
     return 
         (ExtraRunState.s_runState == Paused);
     
+}
+/**
+ * loadTimestampExtrctor
+ *   Loads a shared object that contains a function named 'extract_timestamp' that better be a 
+ * TimestampExtractor and returns a pointer to that funciton.  
+ * 
+ * tims
+ *    @param  libName - the path to a shared object that contains the timestamp extractor.
+ *    @return TimestampExtractor (see parser_callbacks.h).
+ *    @throw  std::runtime_error - The dll could not be opened (e.g. not found).
+ *    @throw std::logic_error - the dll does not have an extract_timestamp function that could be located.
+ */
+TimestampExtractor
+loadTimestampExtractor(const std::string libName) {
+
+    // Open the shared lib:
+    void* dlhandle = dlopen(libName.c_str(), RTLD_NOW |  RTLD_NODELETE);
+    void* extractor(nullptr);
+    if (!dlopen) {
+        const char* reason = dlerror();
+        std::stringstream  message;
+        message << "Could not load the timestamp extraction library: " 
+            << libName << " : " << reason << std::endl;
+        std::string m(message.str());
+
+        throw std::runtime_error(m);
+    }
+    // So we can close it on error.
+    try {
+        extractor = dlsym(dlhandle, timestampFunctionName );
+        if (!extractor) {
+            const char* reason = dlerror();
+            std::stringstream message;
+            message << "Unable to locate  " << timestampFunctionName
+                << " in " << libName << " : " << reason;
+            std::string m(message.str());
+            throw std::logic_error(m);
+        }
+        
+    } 
+    catch(...) {
+        dlclose(dlhandle);
+        throw;
+    }
+    dlclose(dlhandle);
+    return reinterpret_cast<TimestampExtractor>(extractor);
 }
 /////////////////////
 StackErrorCounters delta_counters(const StackErrorCounters &prev, const StackErrorCounters &curr)
@@ -404,7 +453,9 @@ int main(int argc, char *argv[])
     bool opt_logTrace = false;
     bool opt_initOnly = false;
     bool opt_ignoreInitErrors = false;
+    std::string opt_timestampdll;
     std::string opt_ringBufferName = getUsername();
+    unsigned opt_sourceid = 0; 
 
     auto cli
         = lyra::help(opt_showHelp)
@@ -451,6 +502,8 @@ int main(int argc, char *argv[])
         | lyra::opt(opt_ignoreInitErrors)
             ["--ignore-vme-init-errors"]("ignore VME errors during the DAQ init sequence")
         | lyra::opt(opt_ringBufferName, "ring")["--ring"]("ring buffer name")
+        | lyra::opt(opt_sourceid, "sourceid")["--sourceid"]("Event builder source id")
+        | lyra::opt(opt_timestampdll, "dll")["--timestamp-library"]("Time stamp shared library file")
         // logging
         | lyra::opt(opt_logDebug)["--debug"]("enable debug logging")
         | lyra::opt(opt_logTrace)["--trace"]("enable trace logging")
@@ -473,8 +526,10 @@ int main(int argc, char *argv[])
         cout << cli << endl;
 
         cout
-            << "The mini-daq utility is a command-line program for running a"
-            << " MVLC based DAQ." << endl << endl
+            << "The frib-readout utility is a command-line program for running a"
+            << " MVLC based readout in FRIB/NSCLDAQ." 
+            << endl  << " It is based on minidaq by Florian Lueke with thanks."
+            << endl << endl
             << "Configuration data has to be supplied in a YAML 'CrateConfig' file." << endl
             << "Such a config file can be generated from an mvme setup using the" << endl
             << "'File -> Export VME Config' menu entry in mvme." << endl << endl
@@ -565,6 +620,8 @@ int main(int argc, char *argv[])
 
         //cout << "Connected to MVLC " << mvlc.connectionInfo() << endl;
 
+        // FRIB/NSCLDAQ options:
+
         // Connect to the output ringbuffer NSCL/FRIBDAQ.
 
         try {
@@ -574,6 +631,17 @@ int main(int argc, char *argv[])
                 << "Unable to attach to the ringbuffer " << opt_ringBufferName << " " << e.ReasonText()
                 << std::endl;
                 std::exit(EXIT_FAILURE);
+        }
+        ExtraRunState.s_sourceid = opt_sourceid;
+        if (opt_timestampdll != "") {
+            try {
+                ExtraRunState.s_tsExtractor = loadTimestampExtractor(opt_timestampdll);
+            }
+            catch(std::exception& e) {
+                std:: cerr << "Unable to find the extract_timestamp function in the shared object " << std::endl;
+                std::cerr << opt_timestampdll << " : " << e.what() << std::endl;
+                std::exit(EXIT_FAILURE);
+            }
         }
         //
         // Listfile setup

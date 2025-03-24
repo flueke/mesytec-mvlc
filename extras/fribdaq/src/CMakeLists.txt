@@ -31,7 +31,7 @@ else ()
         PRIVATE ${NSCLDAQ_ROOT}/lib/libException.so
     )  
     target_link_options(fribdaq-readout PRIVATE
-        -Wl,-rpath=${NSCLDAQ_ROOT}/lib
+        -ldl -Wl,-rpath=${NSCLDAQ_ROOT}/lib
     )  
     install(TARGETS fribdaq-readout)
 
