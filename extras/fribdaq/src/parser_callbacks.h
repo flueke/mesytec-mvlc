@@ -19,6 +19,7 @@
  #define PARSER_CALLBACKS_H
 
  #include <mesytec-mvlc/mvlc_readout_parser.h>
+ #include <stdint.h>
 
 
  // Forward type definitions:
@@ -34,7 +35,11 @@
     Active, Halted, Paused
 } FRIBState;
 
+/** 
+ * This is a prototype for a timestamp extractor:  If provided, it 
+ */ 
 
+typedef uint64_t (*TimestampExtractor)(unsigned, const mesytec::mvlc::readout_parser::ModuleData*);
 
 struct FRIBDAQRunState {
     unsigned s_runNumber;
@@ -46,10 +51,15 @@ struct FRIBDAQRunState {
     unsigned     s_runtime;    // Run offset.
     unsigned     s_lastScalerStopTime;
     unsigned     s_divisor;    // Offset divisor. 
+    int          s_sourceid;   // Source id for event built case. -1 if not.
+    TimestampExtractor s_tsExtractor;
+    
 FRIBDAQRunState() : 
     s_runNumber(0),            // If never set.
     s_runState(Halted), s_pRing(nullptr),
-    s_divisor(1000)           // Timing in seconds.
+    s_divisor(1000),          // Timing in seconds.
+    s_sourceid(0),
+    s_tsExtractor(nullptr)
     {}
     
 };
