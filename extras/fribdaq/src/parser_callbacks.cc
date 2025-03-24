@@ -113,8 +113,22 @@ submit_event(
         eventSize += pModuleDataList[i].data.size * sizeof(uint32_t);
     }
     // Make the empty event and fill it.
+    // The type of physics event we create will depend on s_tsExtractor in the context.
+    // if not null, it wil be consulted to get  a timestamp and the
+    // physics event  item will be created with a source id and a timestamp.
+    //
 
-    CPhysicsEventItem event;
+    std::unique_ptr<CPhysicsEventItem> pEvent;
+    if (context->s_tsExtractor) {
+        pEvent.reset(new CPhysicsEventItem(
+            context->s_tsExtractor(moduleCount, pModuleDataList), context->s_sourceid, 0,
+            eventSize + 100
+        ));
+    } else {
+        pEvent.reset(new CPhysicsEventItem(eventSize + 100));
+    }
+    CPhysicsEventItem& event(*pEvent);   
+
     for ( int i  = 0; i < moduleCount; i++) {
         uint32_t* pCursor = reinterpret_cast<uint32_t*>(event.getBodyCursor());
         auto size = pModuleDataList->data.size;
