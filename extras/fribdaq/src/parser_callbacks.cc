@@ -242,7 +242,7 @@ void system_event_callback(
     // a body header.
     
     CRingStateChangeItem item( 
-        0xffffffff, context->s_sourceid, barriertype, 
+        0xffffffffffffffff, context->s_sourceid, barriertype, 
         itemType, context->s_runNumber, context->s_runtime, 
         time(nullptr), context->s_runTitle, context->s_divisor);
     
