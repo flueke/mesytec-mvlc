@@ -74,6 +74,15 @@ std::error_code MVLCReadout::start(const std::chrono::seconds &timeToRun,
     if (d->initResults.ec)
         return d->initResults.ec;
 
+    for (const auto &cmdResult: d->initResults.init)
+    {
+        if (cmdResult.ec)
+        {
+            std::cerr << fmt::format("  Error during DAQ init sequence: cmd={}, ec={}\n",
+                to_string(cmdResult.cmd), cmdResult.ec.message());
+        }
+    }
+
     if (d->lfh)
         listfile::listfile_write_preamble(*d->lfh, d->crateConfig);
 
