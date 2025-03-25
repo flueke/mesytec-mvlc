@@ -41,6 +41,7 @@
 
 typedef uint64_t (*TimestampExtractor)(unsigned, const mesytec::mvlc::readout_parser::ModuleData*);
 
+
 struct FRIBDAQRunState {
     unsigned s_runNumber;
     std::string s_runTitle;
