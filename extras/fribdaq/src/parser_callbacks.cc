@@ -77,7 +77,7 @@ submit_scaler(
     // For now use a source-id of zero.  We'll need to add that to the context and set it up from parameters:
 
     CRingScalerItem item (
-        0xffffffffffffffff, 0, 0,
+        0xffffffffffffffff, context->s_sourceid, 0,
         context->s_lastScalerStopTime, context->s_runtime, time(nullptr), 
         scalers, context->s_divisor
     );
