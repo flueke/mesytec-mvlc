@@ -117,6 +117,11 @@ bool MVLCReadout::finished()
             && d->readoutWorker->snoopQueues()->filledBufferQueue().empty());
 }
 
+ReadoutInitResults MVLCReadout::getInitResults() const
+{
+    return d->initResults;
+}
+
 ReadoutWorker::State MVLCReadout::workerState() const
 {
     return d->readoutWorker->state();
