@@ -173,11 +173,12 @@ loadTimestampExtractor(const std::string libName) {
     // Open the shared lib:
     void* dlhandle = dlopen(libName.c_str(), RTLD_NOW |  RTLD_NODELETE);
     void* extractor(nullptr);
-    if (!dlopen) {
+    if (!dlhandle) {
         const char* reason = dlerror();
         std::stringstream  message;
         message << "Could not load the timestamp extraction library: " 
             << libName << " : " << reason << std::endl;
+        message << "You might need a more complete path e.g. ./";
         std::string m(message.str());
 
         throw std::runtime_error(m);
