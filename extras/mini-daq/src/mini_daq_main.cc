@@ -497,10 +497,22 @@ int main(int argc, char *argv[])
 
         spdlog::info("Starting readout. Running for {} seconds.", timeToRun.count());
 
-        if (auto ec = rdo.start(timeToRun))
+        if (auto ec = rdo.start(timeToRun, initOptions))
         {
             cerr << "Error starting readout: " << ec.message() << endl;
-            throw std::runtime_error("ReadoutWorker error");
+
+            auto initResults = rdo.getInitResults();
+
+            for (const auto &cmdResult: initResults.init)
+            {
+                if (cmdResult.ec)
+                {
+                    std::cerr << fmt::format("  Error during DAQ init sequence: cmd={}, ec={}\n",
+                        to_string(cmdResult.cmd), cmdResult.ec.message());
+                }
+            }
+
+            throw std::runtime_error("DAQ startup start error");
         }
 
         MiniDaqCountersUpdate counters;
