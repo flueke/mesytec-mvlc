@@ -868,17 +868,6 @@ void ReadoutWorker::setMcstDaqStopCommands(const StackCommandBuilder &commands)
     d->mcstDaqStop = commands;
 }
 
-void ReadoutWorker::setMcstMaxTries(unsigned maxTries)
-{
-    if (maxTries)
-        d->mcstMaxTries = maxTries;
-}
-
-unsigned ReadoutWorker::getMcstMaxTries() const
-{
-    return d->mcstMaxTries;
-}
-
 void ReadoutWorker::Private::loop(std::promise<std::error_code> promise)
 {
 #ifdef __linux__
