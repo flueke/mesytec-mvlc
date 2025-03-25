@@ -35,6 +35,14 @@ else ()
     )  
     install(TARGETS fribdaq-readout)
 
+    # parser_callbacks.h must be installed.
+    # We'll put it in ${CMAKE_INSTALL_INCLUDEDIR}/fribdaq
+
+    set_target_properties(fribdaq-readout PROPERTIES PUBLIC_HEADER parser_callbacks.h)
+    install(TARGETS fribdaq-readout
+        PUBLIC_HEADER DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/fribdaq"
+    )
+
     # Tests:
 
     add_executable(parse_test parse_test.cc command_parse.cc)
