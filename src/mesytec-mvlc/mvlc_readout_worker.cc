@@ -868,17 +868,6 @@ void ReadoutWorker::setMcstDaqStopCommands(const StackCommandBuilder &commands)
     d->mcstDaqStop = commands;
 }
 
-void ReadoutWorker::setMcstMaxTries(unsigned maxTries)
-{
-    if (maxTries)
-        d->mcstMaxTries = maxTries;
-}
-
-unsigned ReadoutWorker::getMcstMaxTries() const
-{
-    return d->mcstMaxTries;
-}
-
 void ReadoutWorker::Private::loop(std::promise<std::error_code> promise)
 {
 #ifdef __linux__
@@ -1177,10 +1166,12 @@ std::error_code ReadoutWorker::Private::startReadout()
         if (!mcstDaqStart.empty())
         {
             logger->info("Running MCST DAQ start commands ({} commands to run)", mcstDaqStart.commandCount());
-            auto mcstResults = run_commands(mvlc, mcstDaqStart);
+            auto mcstResults = run_commands(mvlc, mcstDaqStart, { .continueOnVMEError=true });
+
             for (const auto &result: mcstResults)
             {
-                logger->info("  {}: {}", to_string(result.cmd), result.ec.message());
+                if (!result.ec)
+                    logger->info("  {}: {}", to_string(result.cmd), result.ec.message());
             }
 
             ec = get_first_error(mcstResults);
@@ -1192,10 +1183,15 @@ std::error_code ReadoutWorker::Private::startReadout()
             }
             else if (ec)
             {
-                auto res = get_first_error_result(mcstResults);
-                logger->error("Error running MCST DAQ start command '{}': {}",
-                            to_string(res.cmd), res.ec.message());
-                throw ec; // "goto fail"
+                for (const auto &res: mcstResults)
+                {
+                    if (res.ec)
+                    {
+                        logger->warn("Error running MCST DAQ start command '{}': {}",
+                                to_string(res.cmd), res.ec.message());
+                    }
+                }
+                // Do not throw, treat MCST errors as warnings.
             }
             else
             {
@@ -1284,7 +1280,8 @@ std::error_code ReadoutWorker::Private::terminateReadout()
         if (!mcstDaqStop.empty())
         {
             logger->info("Running MCST DAQ stop commands ({} command to run)", mcstDaqStop.commandCount());
-            auto mcstResults = run_commands(mvlc, mcstDaqStop);
+            auto mcstResults = run_commands(mvlc, mcstDaqStart, { .continueOnVMEError=true });
+
             for (const auto &result: mcstResults)
             {
                 logger->info("  {}: {}", to_string(result.cmd), result.ec.message());
@@ -1298,10 +1295,15 @@ std::error_code ReadoutWorker::Private::terminateReadout()
             }
             else if (ec)
             {
-                auto res = get_first_error_result(mcstResults);
-                logger->error("Error running MCST DAQ stop command '{}': {}",
-                            to_string(res.cmd), res.ec.message());
-                throw ec; // "goto fail"
+                for (const auto &res: mcstResults)
+                {
+                    if (res.ec)
+                    {
+                        logger->warn("Error running MCST DAQ stop command '{}': {}",
+                                to_string(res.cmd), res.ec.message());
+                    }
+                }
+                // Do not throw, treat MCST errors as warnings.
             }
             else
             {

@@ -127,8 +127,17 @@ int main(int argc, char *argv[])
         return 1;
     }
 
+    util::Stopwatch swReport;
     while (!replay.finished())
+    {
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        if (swReport.get_interval() > std::chrono::seconds(1))
+        {
+            cout << "---- readout parser stats ----" << endl;
+            readout_parser::print_counters(cout, replay.parserCounters());
+            swReport.interval();
+        }
+    }
 
     //
     // replay stats
@@ -161,7 +170,7 @@ int main(int argc, char *argv[])
         auto counters = replay.parserCounters();
 
         cout << endl;
-        cout << "---- readout parser stats ----" << endl;
+        cout << "---- final readout parser stats ----" << endl;
         readout_parser::print_counters(cout, counters);
     }
 

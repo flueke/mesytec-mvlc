@@ -53,6 +53,7 @@ class MESYTEC_MVLC_EXPORT MVLCReadout
         std::error_code resume();
 
         bool finished();
+        ReadoutInitResults getInitResults() const; // Call this to get details if start() returned an error.
 
         ReadoutWorker::State workerState() const;
         WaitableProtected<ReadoutWorker::State> &waitableState();

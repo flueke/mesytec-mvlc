@@ -478,12 +478,10 @@ int main(int argc, char *argv[])
         {
             if (opt_printReadoutData)
             {
-                std::cout
-                    << "SystemEvent: type=" << system_event_type_to_string(
-                        system_event::extract_subtype(*header))
-                    << ", size=" << size << ", bytes=" << (size * sizeof(u32))
-                    << endl;
-                fmt::print("system event: crateId={}, header={:08x}", crateId, *header);
+                fmt::print("SystemEvent: crateId={}, header=0x{:08x}, type={}, size={}, bytes={}\n",
+                     crateId, *header, system_event_type_to_string(system_event::extract_subtype(*header)),
+                        size, size * sizeof(u32)
+                );
             }
         };
 
@@ -499,10 +497,22 @@ int main(int argc, char *argv[])
 
         spdlog::info("Starting readout. Running for {} seconds.", timeToRun.count());
 
-        if (auto ec = rdo.start(timeToRun))
+        if (auto ec = rdo.start(timeToRun, initOptions))
         {
             cerr << "Error starting readout: " << ec.message() << endl;
-            throw std::runtime_error("ReadoutWorker error");
+
+            auto initResults = rdo.getInitResults();
+
+            for (const auto &cmdResult: initResults.init)
+            {
+                if (cmdResult.ec)
+                {
+                    std::cerr << fmt::format("  Error during DAQ init sequence: cmd={}, ec={}\n",
+                        to_string(cmdResult.cmd), cmdResult.ec.message());
+                }
+            }
+
+            throw std::runtime_error("DAQ startup start error");
         }
 
         MiniDaqCountersUpdate counters;
