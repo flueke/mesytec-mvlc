@@ -182,7 +182,7 @@ class ReadoutHelper
 };
 
 void handle_event_data(void *userContext, int crateIndex, int eventIndex,
-                       const ModuleData *moduleDataList, unsigned moduleCount)
+                       const readout_parser::ModuleData *moduleDataList, unsigned moduleCount)
 {
     spdlog::info("handle_event_data: {} {}", fmt::ptr(moduleDataList), moduleCount);
     for (unsigned mi=0; mi<moduleCount; ++mi)

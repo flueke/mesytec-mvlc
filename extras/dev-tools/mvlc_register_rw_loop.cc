@@ -165,14 +165,14 @@ int main(int argc, char *argv[])
     u16 registerAddress = 0x600E; // fw revision register. no effect when written to
     if (parser("--register-address") >> str)
     {
-        if (auto val = parse_unsigned<u16>(str))
+        if (auto val = util::parse_unsigned<u16>(str))
             registerAddress = *val;
     }
 
     u32 registerValue = 1;
     if (parser("--register-value") >> str)
     {
-        if (auto val = parse_unsigned<u32>(str))
+        if (auto val = util::parse_unsigned<u32>(str))
             registerValue = *val;
     }
 

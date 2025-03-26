@@ -35,13 +35,13 @@ StackErrorCounters delta_counters(const StackErrorCounters &prev, const StackErr
                    std::begin(result.stackErrors),
                    util::delta_map<ErrorInfoCounts>);
 
-    result.nonErrorFrames = calc_delta0(curr.nonErrorFrames, prev.nonErrorFrames);
-    result.nonErrorHeaderCounts = delta_map(prev.nonErrorHeaderCounts, curr.nonErrorHeaderCounts);
+    result.nonErrorFrames = util::calc_delta0(curr.nonErrorFrames, prev.nonErrorFrames);
+    result.nonErrorHeaderCounts = util::delta_map(prev.nonErrorHeaderCounts, curr.nonErrorHeaderCounts);
 
     return result;
 }
 
-#define CALC_DELTA0(member) result.member = calc_delta0(curr.member, prev.member)
+#define CALC_DELTA0(member) result.member = util::calc_delta0(curr.member, prev.member)
 
 ReadoutWorker::Counters delta_counters(const ReadoutWorker::Counters &prev, const ReadoutWorker::Counters &curr)
 {
@@ -59,7 +59,7 @@ ReadoutWorker::Counters delta_counters(const ReadoutWorker::Counters &prev, cons
     std::transform(std::begin(prev.stackHits), std::end(prev.stackHits),
                    std::begin(curr.stackHits),
                    std::begin(result.stackHits),
-                   calc_delta0<size_t>);
+                   util::calc_delta0<size_t>);
 
     // TODO eth::PipeStats
     // TODO ListfileWriterCounters
@@ -478,12 +478,10 @@ int main(int argc, char *argv[])
         {
             if (opt_printReadoutData)
             {
-                std::cout
-                    << "SystemEvent: type=" << system_event_type_to_string(
-                        system_event::extract_subtype(*header))
-                    << ", size=" << size << ", bytes=" << (size * sizeof(u32))
-                    << endl;
-                fmt::print("system event: crateId={}, header={:08x}", crateId, *header);
+                fmt::print("SystemEvent: crateId={}, header=0x{:08x}, type={}, size={}, bytes={}\n",
+                     crateId, *header, system_event_type_to_string(system_event::extract_subtype(*header)),
+                        size, size * sizeof(u32)
+                );
             }
         };
 
@@ -499,14 +497,26 @@ int main(int argc, char *argv[])
 
         spdlog::info("Starting readout. Running for {} seconds.", timeToRun.count());
 
-        if (auto ec = rdo.start(timeToRun))
+        if (auto ec = rdo.start(timeToRun, initOptions))
         {
             cerr << "Error starting readout: " << ec.message() << endl;
-            throw std::runtime_error("ReadoutWorker error");
+
+            auto initResults = rdo.getInitResults();
+
+            for (const auto &cmdResult: initResults.init)
+            {
+                if (cmdResult.ec)
+                {
+                    std::cerr << fmt::format("  Error during DAQ init sequence: cmd={}, ec={}\n",
+                        to_string(cmdResult.cmd), cmdResult.ec.message());
+                }
+            }
+
+            throw std::runtime_error("DAQ startup start error");
         }
 
         MiniDaqCountersUpdate counters;
-        Stopwatch sw;
+        util::Stopwatch sw;
 
         while (!rdo.finished())
         {

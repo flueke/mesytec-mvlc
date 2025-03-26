@@ -96,6 +96,10 @@ std::string decode_frame_header(u32 header)
         case frame_headers::SystemEvent:
             ss << "SystemEvent (len=" << headerInfo.len;
             break;
+
+        case frame_headers::SystemEvent2:
+            ss << "SystemEvent2 (len=" << headerInfo.len;
+            break;
     }
 
     switch (static_cast<frame_headers::FrameTypes>(headerInfo.type))
