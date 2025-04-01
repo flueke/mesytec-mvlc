@@ -30,6 +30,7 @@
 #include "util/logging.h"
 #include "util/string_util.h"
 #include "util/string_view.hpp"
+#include "mvlc_buffer_validators.h"
 #include "mvlc_eth_interface.h"
 
 using namespace mesytec::mvlc;
@@ -100,6 +101,10 @@ std::string decode_frame_header(u32 header)
         case frame_headers::SystemEvent2:
             ss << "SystemEvent2 (len=" << headerInfo.len;
             break;
+
+        default:
+            ss << "<unknown frame type>";
+            break;
     }
 
     switch (static_cast<frame_headers::FrameTypes>(headerInfo.type))
@@ -138,17 +143,20 @@ std::string decode_frame_header(u32 header)
             break;
     }
 
-    if (static_cast<frame_headers::FrameTypes>(headerInfo.type) != frame_headers::SystemEvent)
+    if (is_known_frame_header(header))
     {
-        u8 frameFlags = (header >> frame_headers::FrameFlagsShift) & frame_headers::FrameFlagsMask;
-        ss << ", frameFlags=" << format_frame_flags(frameFlags) << ")";
-    }
-    else
-    {
-        if ((header >> system_event::ContinueShift) & system_event::ContinueMask)
-            ss << ", frameFlags=Continue" << ")";
+        if (static_cast<frame_headers::FrameTypes>(headerInfo.type) != frame_headers::SystemEvent)
+        {
+            u8 frameFlags = (header >> frame_headers::FrameFlagsShift) & frame_headers::FrameFlagsMask;
+            ss << ", frameFlags=" << format_frame_flags(frameFlags) << ")";
+        }
         else
-            ss << ", frameFlags=none" << ")";
+        {
+            if ((header >> system_event::ContinueShift) & system_event::ContinueMask)
+                ss << ", frameFlags=Continue" << ")";
+            else
+                ss << ", frameFlags=none" << ")";
+        }
     }
 
     return ss.str();

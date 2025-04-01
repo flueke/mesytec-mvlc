@@ -57,6 +57,7 @@ inline bool is_known_frame_header(u32 header)
             || type == frame_headers::StackError
             || type == frame_headers::StackContinuation
             || type == frame_headers::SystemEvent
+            || type == frame_headers::SystemEvent2
             );
 }
 
