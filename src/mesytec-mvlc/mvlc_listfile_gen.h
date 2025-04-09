@@ -26,6 +26,14 @@ void MESYTEC_MVLC_EXPORT write_event_data(
     const readout_parser::ModuleData *moduleDataList, unsigned moduleCount,
     u32 frameMaxWords = frame_headers::LengthMask);
 
+// Similar to the above but just copies raw data into the event buffer. No
+// special handling for block frames or anything else.
+// TODO: add this to the tests
+void MESYTEC_MVLC_EXPORT write_event_data(
+    ReadoutBuffer &dest, int crateIndex, int eventIndex,
+    const u32 *data, size_t size,
+    u32 frameMaxWords = frame_headers::LengthMask);
+
 // The header argument must point to a buffer of size 'size', starting with a
 // system event header. The header is reused in case the data has to be split
 // into multiple frames.

@@ -318,6 +318,39 @@ void write_event_data(
         close_cur_stack_frame(gs);
 }
 
+void write_event_data(
+    ReadoutBuffer &dest, int crateIndex, int eventIndex,
+    const u32 *data, size_t size,
+    u32 frameMaxWords)
+{
+    assert(frameMaxWords > 1);
+    assert(crateIndex <= frame_headers::CtrlIdMask);
+    // +1 because the standard readout stack for event 0 is stack 1
+    assert(eventIndex + 1 <= frame_headers::StackNumMask);
+
+    if (frameMaxWords <= 1)
+        return;
+
+    GenState gs =
+    {
+        .dest = &dest,
+        .frameMaxWords = frameMaxWords,
+        .crateIndex = crateIndex,
+        .eventIndex = eventIndex,
+        .stackFrameState = {},
+        .blockFrameState = {},
+    };
+
+    dest.setType(ConnectionType::USB);
+    start_new_stack_frame(gs);
+
+    for (size_t i=0; i<size; ++i)
+        push_data_word(gs, data[i]);
+
+    if (has_open_stack_frame(gs))
+        close_cur_stack_frame(gs);
+}
+
 void write_system_event(
     ReadoutBuffer &dest, int crateIndex, const u32 *systemEventHeader, u32 size,
     u32 frameMaxWords)
