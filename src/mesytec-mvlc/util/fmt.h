@@ -2,6 +2,7 @@
 #define __MESYTEC_MVLC_FMT_H__
 
 #include <spdlog/fmt/fmt.h>
+#include <spdlog/fmt/bundled/ostream.h>
 
 template <typename First, typename Second> struct fmt::formatter<std::pair<First, Second>>: formatter<string_view>
 {
