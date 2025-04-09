@@ -22,6 +22,7 @@
 #define __MESYTEC_MVLC_MVME_MVLC_UTIL_H__
 
 #include <iomanip>
+#include <optional>
 #include <vector>
 
 #include "mesytec-mvlc/mesytec-mvlc_export.h"
@@ -97,6 +98,12 @@ std::string MESYTEC_MVLC_EXPORT trigger_type_to_string(const u8 &tt);
 std::string MESYTEC_MVLC_EXPORT trigger_subtype_to_string(const u8 &st);
 
 std::string MESYTEC_MVLC_EXPORT trigger_to_string(const stacks::Trigger &trigger);
+
+// Returns the VME IRQ value or nothing if the trigger is IRQ based. VME IRQ
+// values are in the range [1, 7]. The MVLC has additional IRQs 8-16 which may
+// also be returned by this function.
+std::optional<int> MESYTEC_MVLC_EXPORT get_trigger_irq_value(const stacks::Trigger &trigger);
+std::optional<int> MESYTEC_MVLC_EXPORT get_trigger_irq_value(const u16 triggerValue);
 
 size_t MESYTEC_MVLC_EXPORT fixup_buffer_mvlc_usb(const u8 *buf, size_t bufUsed, std::vector<u8> &tmpBuf);
 size_t MESYTEC_MVLC_EXPORT fixup_buffer_mvlc_eth(const u8 *buf, size_t bufUsed, std::vector<u8> &tmpBuf);

@@ -130,6 +130,7 @@ std::string decode_frame_header(u32 header)
             break;
 
         case frame_headers::SystemEvent:
+        case frame_headers::SystemEvent2:
             {
                 u16 subType = (header >> system_event::SubtypeShift) & system_event::SubtypeMask;
                 u16 ctrlId = (header >> system_event::CtrlIdShift) & system_event::CtrlIdMask;
@@ -271,6 +272,22 @@ std::string trigger_to_string(const stacks::Trigger &trigger)
     }
 
     return result;
+}
+
+std::optional<int> MESYTEC_MVLC_EXPORT get_trigger_irq_value(const stacks::Trigger &trigger)
+{
+    if (trigger.type == stacks::TriggerType::IRQNoIACK
+        || trigger.type == stacks::TriggerType::IRQWithIACK)
+    {
+        return trigger.subtype + 1;
+    }
+
+    return {};
+}
+
+std::optional<int> MESYTEC_MVLC_EXPORT get_trigger_irq_value(const u16 triggerValue)
+{
+    return get_trigger_irq_value(stacks::Trigger{.value=triggerValue});
 }
 
 // Follows the framing structure inside the buffer until an incomplete frame
