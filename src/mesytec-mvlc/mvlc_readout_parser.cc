@@ -1160,6 +1160,7 @@ ParseResult parse_readout_buffer_eth(
 
     basic_string_view<u32> input(buffer, bufferWords);
     std::vector<basic_string_view<u32>> packetViews;
+    ParseResult result = {}; // final result from parsing as much of the buffer as possible
 
     try
     {
@@ -1318,6 +1319,16 @@ ParseResult parse_readout_buffer_eth(
                              packetWords);
                 }
 
+                // Update the outer result that is being returned at the end of
+                // the function.
+                if (result == ParseResult::Ok)
+                {
+                    if (pr != ParseResult::Ok)
+                        result = pr;
+                    else if (exceptionSeen)
+                        result = ParseResult::UnhandledException;
+                }
+
                 continue;
             }
 
@@ -1362,7 +1373,7 @@ ParseResult parse_readout_buffer_eth(
     logger->trace("end parsing ETH buffer {}, size={} bytes, unused bytes={}",
               bufferNumber, bufferBytes, unusedBytes);
 
-    return {};
+    return result;
 }
 
 ParseResult parse_readout_buffer_usb(
