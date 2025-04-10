@@ -58,6 +58,25 @@ struct MESYTEC_MVLC_EXPORT CrateConfig
 
     bool operator==(const CrateConfig &o) const;
     inline bool operator!=(const CrateConfig &o) const { return !(*this == o); }
+
+    // Returns the name of the event at the given index. Throws if eventIndex is out of range.
+    std::string getEventName(int eventIndex) const;
+
+    // Returns a copy of the readout stack for the given eventIndex. Throws if
+    // eventIndex is ouf of range.
+    StackCommandBuilder getEventReadoutStack(int eventIndex) const;
+
+    // Returns the name of the module at the given event and module indexes.
+    // Throws if any index is out of range.
+    std::string getModuleName(int eventIndex, int moduleIndex) const;
+
+    // Returns the group of commands used to readout the module at the given
+    // event and module indexes. Throws if any index is out of range.
+    StackCommandBuilder::Group getModuleReadoutCommands(int eventIndex, int moduleIndex) const;
+
+    // Returns the number of readout events defined in this CrateConfig.
+    size_t getNumberOfEvents() const;
+    size_t getNumberOfModules(int eventIndex) const;
 };
 
 // Cratecconfig serialization to/from YAML

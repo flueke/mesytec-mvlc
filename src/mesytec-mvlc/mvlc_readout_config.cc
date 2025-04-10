@@ -61,6 +61,36 @@ bool CrateConfig::operator==(const CrateConfig &o) const
         ;
 }
 
+std::string CrateConfig::getEventName(int eventIndex) const
+{
+    return stacks.at(eventIndex).getName();
+}
+
+StackCommandBuilder CrateConfig::getEventReadoutStack(int eventIndex) const
+{
+    return stacks.at(eventIndex);
+}
+
+std::string CrateConfig::getModuleName(int eventIndex, int moduleIndex) const
+{
+    return stacks.at(eventIndex).getGroup(moduleIndex).getName();
+}
+
+StackCommandBuilder::Group CrateConfig::getModuleReadoutCommands(int eventIndex, int moduleIndex) const
+{
+    return stacks.at(eventIndex).getGroup(moduleIndex);
+}
+
+size_t CrateConfig::getNumberOfEvents() const
+{
+    return stacks.size();
+}
+
+size_t CrateConfig::getNumberOfModules(int eventIndex) const
+{
+    return stacks.at(eventIndex).getGroupCount();
+}
+
 namespace
 {
 

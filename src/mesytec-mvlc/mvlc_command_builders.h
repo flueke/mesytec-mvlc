@@ -229,6 +229,7 @@ class MESYTEC_MVLC_EXPORT StackCommandBuilder
 
             bool empty() const { return commands.empty(); }
             size_t size() const { return commands.size(); }
+            std::string getName() const { return name; }
         };
 
         StackCommandBuilder() {}
