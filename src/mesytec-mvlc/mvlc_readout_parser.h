@@ -129,6 +129,28 @@ inline DataBlock suffix_span(const ModuleData &md)
     return { md.data.data + md.prefixSize + md.dynamicSize, md.suffixSize };
 }
 
+using DataView = std::basic_string_view<u32>;
+
+inline DataView data_view(const ModuleData &md)
+{
+    return DataView(md.data.data, md.data.size);
+}
+
+inline DataView prefix_view(const ModuleData &md)
+{
+    return DataView(md.data.data, md.prefixSize);
+}
+
+inline DataView dynamic_view(const ModuleData &md)
+{
+    return DataView(md.data.data + md.prefixSize, md.dynamicSize);
+}
+
+inline DataView suffix_view(const ModuleData &md)
+{
+    return DataView(md.data.data + md.prefixSize + md.dynamicSize, md.suffixSize);
+}
+
 // Callbacks invoked by the parser once a full event has been parsed and assembled.
 struct ReadoutParserCallbacks
 {
