@@ -33,6 +33,8 @@ struct MVLCReadout::Private
     std::unique_ptr<ReadoutWorker> readoutWorker;
 
     ReadoutInitResults initResults;
+    ReadoutInitCallback initCallback;
+    void *initUserContext = nullptr;
 
     Private()
         : parserCounters()
@@ -69,7 +71,8 @@ std::error_code MVLCReadout::start(const std::chrono::seconds &timeToRun,
                                    const CommandExecOptions initSequenceOptions)
 
 {
-    d->initResults = init_readout(d->mvlc, d->crateConfig, initSequenceOptions);
+    d->initResults = init_readout(d->mvlc, d->crateConfig, initSequenceOptions, d->initCallback,
+                                  d->initUserContext);
 
     if (d->initResults.ec)
         return d->initResults.ec;
@@ -124,6 +127,12 @@ bool MVLCReadout::finished()
 {
     return (d->readoutWorker->state() == ReadoutWorker::State::Idle
             && d->readoutWorker->snoopQueues()->filledBufferQueue().empty());
+}
+
+void MVLCReadout::setInitCallback(const ReadoutInitCallback &callback, void *userContext)
+{
+    d->initCallback = callback;
+    d->initUserContext = userContext;
 }
 
 ReadoutInitResults MVLCReadout::getInitResults() const

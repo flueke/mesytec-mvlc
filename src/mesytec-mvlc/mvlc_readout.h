@@ -53,8 +53,14 @@ class MESYTEC_MVLC_EXPORT MVLCReadout
         std::error_code resume();
 
         bool finished();
-        ReadoutInitResults getInitResults() const; // Call this to get details if start() returned an error.
 
+        // Set the callback passed to and invoked by init_readout() when start() is called.
+        void setInitCallback(const ReadoutInitCallback &callback, void *userContext = nullptr);
+
+        // Call this to get details in case start() returned an error.
+        ReadoutInitResults getInitResults() const;
+
+        // Access to the state and counters of the internal components.
         ReadoutWorker::State workerState() const;
         WaitableProtected<ReadoutWorker::State> &waitableState();
         ReadoutWorker::Counters workerCounters();
