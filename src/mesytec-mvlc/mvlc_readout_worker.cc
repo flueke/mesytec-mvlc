@@ -95,11 +95,33 @@ namespace mvlc
 
 ReadoutInitResults MESYTEC_MVLC_EXPORT init_readout(
     MVLC &mvlc, const CrateConfig &crateConfig,
-    const CommandExecOptions stackExecOptions)
+    const CommandExecOptions stackExecOptions,
+    ReadoutInitCallback callback, void *callbackUserContext)
 {
     auto logger = get_logger("init_readout");
-
     ReadoutInitResults ret;
+
+    auto maybe_invoke_callback = [&] (const std::string &stage)
+    {
+        if (callback)
+        {
+            logger->debug("init_readout(crateId={}): invoking user callback with stage='{}'",
+                crateConfig.crateId, stage);
+
+            try
+            {
+                if (auto ec = callback(callbackUserContext, stage, mvlc, crateConfig, stackExecOptions))
+                {
+                    ret.ec = ec;
+                    logger->error("init_readout(crateId={}): Error returned from the user callback function in stage '{}': {}",
+                        stage, ec.message());
+                }
+            } catch (const std::exception &e)
+            {
+                ret.ex = std::current_exception();
+            }
+        }
+    };
 
     // Reset to a clean state
     logger->info("begin disable_daq_mode_and_triggers");
@@ -131,6 +153,8 @@ ReadoutInitResults MESYTEC_MVLC_EXPORT init_readout(
         }
     }
 
+    maybe_invoke_callback("init_registers");
+
     // MVLC Trigger/IO,
     {
         ret.triggerIo = run_commands(
@@ -150,6 +174,8 @@ ReadoutInitResults MESYTEC_MVLC_EXPORT init_readout(
         }
     }
 
+    maybe_invoke_callback("init_trigger_io");
+
     // DAQ init commands
     {
         ret.init = run_commands(
@@ -165,6 +191,8 @@ ReadoutInitResults MESYTEC_MVLC_EXPORT init_readout(
         }
     }
 
+    maybe_invoke_callback("init_modules");
+
     // upload readout stacks
     {
         ret.ec = setup_readout_stacks(mvlc, crateConfig.stacks);
@@ -176,6 +204,8 @@ ReadoutInitResults MESYTEC_MVLC_EXPORT init_readout(
         }
     }
 
+    maybe_invoke_callback("upload_readout_stacks");
+
     // setup readout stack triggers
     {
         ret.ec = setup_readout_triggers(mvlc, crateConfig.triggers);
@@ -186,6 +216,9 @@ ReadoutInitResults MESYTEC_MVLC_EXPORT init_readout(
             return ret;
         }
     }
+
+    maybe_invoke_callback("setup_readout_triggers");
+
 
     // [enable/disable eth jumbo frames]
     if (mvlc.connectionType() == ConnectionType::ETH)

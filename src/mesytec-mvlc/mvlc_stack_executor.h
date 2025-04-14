@@ -43,7 +43,7 @@ struct MESYTEC_MVLC_EXPORT CommandExecOptions
     // Set to true to ignore any SoftwareDelay commands.
     bool ignoreDelays = false;
 
-    // If disabled command execution will be aborted when a VME bus error is
+    // If disabled command execution will be aborted when a VME error is
     // encountered.
     bool continueOnVMEError = false;
 };

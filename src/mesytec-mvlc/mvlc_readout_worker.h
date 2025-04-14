@@ -21,9 +21,29 @@ namespace mesytec
 namespace mvlc
 {
 
+// Callback function type for hooking into the init_readout() sequence.
+// Parameters:
+// - userContext: the context pointer passed to init_readout()
+// - initStage: one of 'init_registers', 'init_trigger_io', 'init_modules',
+//   'upload_readout_stacks', 'setup_readout_triggers'
+// - The other parameters are the same as passed to init_readout().
+//
+// init_readout() will invoke this function once for each stage _after_ the
+// hardcoded step has been performed, e.g. 'init_modules' will be called after
+// the crateConfig.initCommands have been run.
+using ReadoutInitCallback = std::function<std::error_code (
+    void *userContext, const std::string &initStage,
+    MVLC &mvlc, const CrateConfig &crateConfig,
+    const CommandExecOptions &execOptions)>;
+
+// Results from running the MVLC daq init sequence.
+// 'ec' and 'ex' contain the last error_code/exception that occured. Detailled
+// command results are stored in the 'init' and 'triggerIo' vectors.
+// TODO: maybe refactor the vectors to a map of (stage_name -> vector of results).
 struct MESYTEC_MVLC_EXPORT ReadoutInitResults
 {
     std::error_code ec;
+    std::exception_ptr ex;
     std::vector<CommandExecResult> init;
     std::vector<CommandExecResult> triggerIo;
 };
@@ -45,7 +65,9 @@ struct MESYTEC_MVLC_EXPORT ReadoutInitResults
 //   triggers and produce readout data.
 ReadoutInitResults MESYTEC_MVLC_EXPORT init_readout(
     MVLC &mvlc, const CrateConfig &crateConfig,
-    const CommandExecOptions stackExecOptions = {});
+    const CommandExecOptions stackExecOptions = {},
+    ReadoutInitCallback callback = nullptr,
+    void *callbackUserContext = nullptr);
 
 // FIXME: the USB version of the readout can potentially run into the issue
 // where a readout frame is larger than the supplied dest buffer. In this case
@@ -54,6 +76,7 @@ ReadoutInitResults MESYTEC_MVLC_EXPORT init_readout(
 // larger buffer.
 std::pair<std::error_code, size_t> MESYTEC_MVLC_EXPORT
     readout(MVLC &mvlc, ReadoutBuffer &tmpBuffer, util::span<u8> dest, std::chrono::milliseconds timeout);
+
 util::span<u8> MESYTEC_MVLC_EXPORT fixup_usb_buffer(util::span<u8> input, ReadoutBuffer &tmpBuffer);
 
 struct MESYTEC_MVLC_EXPORT ListfileWriterCounters
