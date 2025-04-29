@@ -25,9 +25,10 @@
 * `esst_rate`: numeric rate value. 0=160mb, 1=276mb, 2=320mb.
 * The `swapped` variants swap the two 32-bit words in each 64-bit word.
 * The `mem` variants do increment the read address. Non-`mem` means FIFO mode.
-* `transfers` is an unsigned 16-bit value, so the max transfer count for block reads is 0xffff.
-* 'late' means to read out on the trailing edge of the DTACK signal instead of at the leading edge.
-  Required for some modules, e.g. TRIVA.
+* `transfers` is an unsigned 16-bit value, so the max transfer count for block
+  reads is 0xffff.
+* `late` means to read out on the trailing edge of the DTACK signal instead of
+  at the leading edge. Required for some modules, e.g. TRIVA.
 
 ## The stack accumulator
 
@@ -50,10 +51,30 @@ In combination with **read_to_accu** and **mask_shift_accu** this can be used to
 read a transfer count from a module to create a fake block transfer.
 
 **signal_accu** creates an MVLC internal IRQ signal using the current accu
-*value. This can be used to dispatch
-from one stack to another: read a value from a module into the accu, optionally
-**mask_shift_accu** it to exctract a trigger/IRQ number, then call
-***signal_accu** to dispatch to the actual handler stack.
+value. This can be used to dispatch from one stack to another: read a value from
+a module into the accu, optionally **mask_shift_accu** it to exctract a
+trigger/IRQ number, then call **signal_accu** to dispatch to the actual handler
+stack.
+
+### mask_shift_accu
+
+The **mask_shift_accu** operation is applied at the time the accumulator value
+needs to be evaluated, for example when a **vme_read** instruction is processed.
+This means **mask_shift_accu** can be set before the actual read to accu. Also
+multiple **mask_shift_accu** commands do not modify the accu but instead the
+last command applies it's mask and rotation to the accu at evaluation time.
+
+### compare_loop_accu
+
+This command needs to follow a **read_to_accu** or **set_accu** command.
+Compares the current accu value against the static compare value. If the
+comparison fails loops back to the previous read instruction. Otherwise
+continues executing the next command.
+
+Comparators: 0: equals, 1: less than, 2: greater than.
+
+If the comparison fails loop will terminate after ~5µs and the **timeout** flag
+will be set in the resulting **0xF3 StackFrame**
 
 # VME block read command mappings
 
