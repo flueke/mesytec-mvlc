@@ -73,8 +73,14 @@ continues executing the next command.
 
 Comparators: 0: equals, 1: less than, 2: greater than.
 
-If the comparison fails loop will terminate after ~5µs and the **timeout** flag
-will be set in the resulting **0xF3 StackFrame**
+If the comparison fails the loop will terminate after 64k cycles and the
+**timeout** flag will be set in the resulting **0xF3 StackFrame**.
+
+Note: FW0045 an earlier produce an error word (0xff...) in case
+**compare_loop_accu** does not return. This will be removed in a future firmware
+revision so that the output structure remains the same independent of the
+comparison result.
+
 
 # VME block read command mappings
 
