@@ -6,9 +6,8 @@ This directory supplies an optional program, fribdaq-readout that is based on mi
  -DNSCLDAQ_ROOT=nscldaqroot
 ```
 
-where ```nscldaqroot``` is the top level directory of the FRIB/NSCLDAQ installation you want this to link against.  The softare was tested with FRIB/NSCLDAQ version ```12.1-007```, however it should operate with any version at ```11.0``` or above.
-
-when the full mvlc support software is built, the installation ```bin``` directory will include the program ```fribdaq-readout```
+where ```nscldaqroot``` is the top level directory of the FRIB/NSCLDAQ installation you want this to link against.  The softare was tested with FRIB/NSCLDAQ version ```12.2```,  that is the minimum NSCLDAQ version it
+can be built with.
 
 
 ### Using fribdaq-readout

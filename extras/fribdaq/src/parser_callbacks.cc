@@ -41,6 +41,32 @@ static bool bad_stack_warning_given(false);
 
 ////////////////////////////// private utilities ////////////////////////////////////////
 /**
+ * emit_statistics
+ *    Emit a CPhysicsEventCountItem for the current statistics.
+ * Note that if there's a timstamp extractor we use a timetamps of 0xffffffffffffffff
+ * which asks the event builder to supply a timestamp.
+ * 
+ * @param context - pointer to the run context.  This supplies the ring buffer, the
+ *      statistics, offset and all of the stuff we need.
+ */
+static void
+emit_statistics(FRIBDAQRunState* context) {
+    std::unique_ptr<CRingPhysicsEventCountItem> item;  // Ensure deletion.
+    if (context->s_tsExtractor) {
+        item.reset(new CRingPhysicsEventCountItem(
+            0xffffffffffffffff, context->s_sourceid, 0,
+            context->s_events, context->s_runtime, time(nullptr), context->s_divisor
+        ));
+    } else {
+        item.reset(new CRingPhysicsEventCountItem(
+            context->s_events, context->s_runtime, time(nullptr)
+        ));
+        item->setTimeDivisor(context->s_divisor);
+    }
+    item->commitToRing(*context->s_pRing);
+
+}
+/**
  *  submit_scaler
  * 
  *    Called to submit scaler data.  The assumption is that the payload for all
@@ -179,6 +205,7 @@ stack_callback(
             submit_event(context, pModuleDataList, moduleCount);
             break;
         case STACK_SCALER:
+            emit_statistics(context);
             submit_scaler(context, pModuleDataList, moduleCount);
             break;
         default:
@@ -222,9 +249,11 @@ void system_event_callback(
         case mesytec::mvlc::system_event::subtype::EndRun:
             itemType= END_RUN;
             barriertype = 1;
+            emit_statistics(context);
             break;
         case mesytec::mvlc::system_event::subtype::Pause:
             itemType = PAUSE_RUN;
+            emit_statistics(context);
             break;
         case mesytec::mvlc::system_event::subtype::Resume:
             itemType = RESUME_RUN;  
