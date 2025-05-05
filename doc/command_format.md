@@ -77,9 +77,9 @@ If the comparison fails the loop will terminate after 64k cycles and the
 **timeout** flag will be set in the resulting **0xF3 StackFrame**.
 
 Note: FW0045 an earlier produce an error word (0xff...) in case
-**compare_loop_accu** does not return. This will be removed in a future firmware
-revision so that the output structure remains the same independent of the
-comparison result.
+**compare_loop_accu** does not succeed. This will be removed in a future
+firmware revision so that the output structure does not depend on the comparison
+result.
 
 
 # VME block read command mappings
