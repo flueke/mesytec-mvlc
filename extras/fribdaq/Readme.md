@@ -9,6 +9,14 @@ This directory supplies an optional program, fribdaq-readout that is based on mi
 where ```nscldaqroot``` is the top level directory of the FRIB/NSCLDAQ installation you want this to link against.  The softare was tested with FRIB/NSCLDAQ version ```12.2```,  that is the minimum NSCLDAQ version it
 can be built with.
 
+#### Prerequisite packages.
+Building the fribdaq-readout program also requires the Tcl development package.
+
+*  For Debian based distributions  this is called tcl-dev
+*  I believe for RHEL and Fedora systems this is called tcl-devel.
+
+If you are using the FRIB containerized environment this will have been installed in the container image.
+
 
 ### Using fribdaq-readout
 
