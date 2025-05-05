@@ -71,7 +71,7 @@ Compares the current accu value against the static compare value. If the
 comparison fails loops back to the previous read instruction. Otherwise
 continues executing the next command.
 
-Comparators: 0: equals, 1: less than, 2: greater than.
+Comparators: 0: *equals*, 1: *less than*, 2: *greater than*.
 
 If the comparison fails the loop will terminate after 64k cycles and the
 **timeout** flag will be set in the resulting **0xF3 StackFrame**.
