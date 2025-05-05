@@ -19,6 +19,7 @@
 #include <cstdlib>
 #include "command_parse.h"
 #include "parser_callbacks.h"
+#include "StateUtils.h"
 #include "username.h"
 #include <CRingBuffer.h>
 #include <Exception.h>
@@ -99,63 +100,7 @@ getStdinLine() {
     return result;
 }
 
-/// functions to check that state transitions are legal:
 
-/** canBegin
- * We can begine a run if the following conditions obtain:
- * - The state in FRIBDAQRunState is Halted 
- * - the Readout is finished - that is the workers have all
- * rundown.
- *    @param rdo - references the readout object.
- *    @return bool - true if the run can be begun.
- */
-static bool 
-canBegin(MVLCReadout& rdo) {
-    return (
-        ExtraRunState.s_runState == Halted &&
-        rdo.finished()
-    ); 
-}
-/**
- * canEnd
- *   We can end a run if the following conditions hold
- *    - We are paused and the readout is finished.
- *    - We are Active.
- * @param rdo - the MVLCREadout object (referenced)
- * @return bool - true if it's legal to end the run.
- */
-static bool
-canEnd(MVLCReadout& rdo) {
-    return (
-        (ExtraRunState.s_runState == Active) ||
-        (ExtraRunState.s_runState == Paused)
-    );
-}
-/**
- * canPause
- *     Determine if it is legal to pause the run.
- * The run must be active for this to be legal:
- * @param rdo - Readout object (unused for this but makes the calls the same).
- * @return bool - true if the run can be paused.
- */
-static bool
-canPause(MVLCReadout& rdo) {
-    return ExtraRunState.s_runState == Active;
-}
-/**
- * canResume
- *    Determine if resuming a run is legal.
- * This is the case if we are Paused and finished.
- * 
- * @param rdo - the readout object.
- * @return bool -True if legal.
- */
-static bool
-canResume(MVLCReadout& rdo) {
-    return 
-        (ExtraRunState.s_runState == Paused);
-    
-}
 /**
  * loadTimestampExtrctor
  *   Loads a shared object that contains a function named 'extract_timestamp' that better be a 
@@ -708,7 +653,7 @@ int main(int argc, char *argv[])
                     switch (parsed.s_command) {
                         case BEGIN:
                             // start the run:
-                            if (canBegin(rdo)) {
+                            if (canBegin(rdo, ExtraRunState)) {
                                 spdlog::info("Starting readout. Running for {} seconds.", timeToRun.count());
                                 auto ec = rdo.start(timeToRun);
                                 
@@ -722,7 +667,7 @@ int main(int argc, char *argv[])
                             }
                             break;
                         case END:
-                            if (canEnd(rdo)) {
+                            if (canEnd(ExtraRunState)) {
                                 spdlog::info("Ending the run");
                                 auto ec = rdo.stop();
                                 if (ec) {
@@ -735,7 +680,7 @@ int main(int argc, char *argv[])
                             }
                             break;
                         case PAUSE:
-                            if (canPause(rdo)) {
+                            if (canPause(ExtraRunState)) {
                                 spdlog::info("Pausing active run");
                                 auto ec = rdo.pause();
                                 if (ec) {
@@ -748,7 +693,7 @@ int main(int argc, char *argv[])
                             }
                             break;
                         case RESUME:
-                            if (canResume(rdo)) {
+                            if (canResume(ExtraRunState)) {
                                 spdlog::info("Resuming paused run");
                                 auto ec = rdo.resume();
 

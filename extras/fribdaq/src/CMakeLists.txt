@@ -19,6 +19,7 @@ else ()
     username.cc
     parser_callbacks.cc
     ReadoutCommand.cc
+    StateUtils.cc
     )
     target_include_directories(
         fribdaq-readout PRIVATE
