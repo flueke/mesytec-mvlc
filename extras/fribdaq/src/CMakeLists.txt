@@ -8,7 +8,11 @@ set(NSCLDAQ_ROOT "_"  CACHE STRING "_")
 if (NSCLDAQ_ROOT STREQUAL "_")    # not defined.
     
 else ()
-    
+    find_package(TCL REQUIRED)
+
+    if (NOT ${TCL_FOUND})
+        message(FATAL_ERROR, "TCl headers and libraries must be installed")
+    endif()
     add_executable(fribdaq-readout 
     fribdaq_readout.cc
     command_parse.cc
@@ -19,6 +23,7 @@ else ()
         fribdaq-readout PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}
         ${NSCLDAQ_ROOT}/include
+        ${TCL_INCLUDE_PATH}
     )
     target_link_libraries(fribdaq-readout
         PRIVATE mesytec-mvlc
@@ -28,10 +33,12 @@ else ()
         PRIVATE ${NSCLDAQ_ROOT}/lib/liburl.so
         PRIVATE ${NSCLDAQ_ROOT}/lib/libdaqshm.so
         PRIVATE ${NSCLDAQ_ROOT}/lib/libDataFlow.so
+        PRIVATE ${NSCLDAQ_ROOT}/lib/libtclPlus.so
         PRIVATE ${NSCLDAQ_ROOT}/lib/libException.so
+        PRIVATE ${TCL_LIBRARY}
     )  
     target_link_options(fribdaq-readout PRIVATE
-        -ldl -Wl,-rpath=${NSCLDAQ_ROOT}/lib
+        -ldl -Wl,-rpath=${NSCLDAQ_ROOT}/lib -lm
     )  
     install(TARGETS fribdaq-readout)
 
