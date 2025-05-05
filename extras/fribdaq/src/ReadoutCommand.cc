@@ -14,7 +14,7 @@
  * 
  * @note - this file is private to fribdaq's readout and won't be installed.
  */
-#include "ReadoutCommmand.h"
+#include "ReadoutCommand.h"
 
 using mesytec::mvlc::MVLCReadout;
 
@@ -29,7 +29,7 @@ using mesytec::mvlc::MVLCReadout;
  */
 ReadoutCommand::ReadoutCommand(
     CTCLInterpreter& interp, const char* command, 
-    FRIBDAQRunState& pState, MVLCReadout& pReadout
+    FRIBDAQRunState* pState, MVLCReadout* pReadout
 ) :
     CTCLObjectProcessor(interp, command, TCLPLUS::kfTRUE),
     m_pRunState(pState), m_pReadout(pReadout)

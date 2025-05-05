@@ -45,7 +45,7 @@ protected:
 public:
     ReadoutCommand(
         CTCLInterpreter& interp, const char* command, 
-        FRIBDAQRunState& pState, mesytect::mvlc::MVLCREadout& pREadout
+        FRIBDAQRunState* pState, mesytec::mvlc::MVLCReadout* pReadout
     );
     virtual ~ReadoutCommand();
 
