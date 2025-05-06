@@ -41,9 +41,6 @@ private:
 public:
     int operator()(CTCLInterpreter& interp, std::vector<CTCLObject>& objv);
 
-    // utilities:
-private:
-    static const char* getVar(CTCLInterpreter& interp, const char* name);
 };
 
 

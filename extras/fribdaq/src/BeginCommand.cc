@@ -17,7 +17,6 @@
 #include "BeginCommand.h"
 #include <TCLInterpreter.h>
 #include <TCLObject.h>
-#include <TCLVariable.h>
 #include <tcl.h>
 #include <mesytec-mvlc/mesytec-mvlc.h>
 #include <chrono>
@@ -96,6 +95,8 @@ BeginCommand::operator()(CTCLInterpreter& interp, std::vector<CTCLObject>& objv)
             interp.setResult(ec.message());
             return TCL_ERROR;                                      // Readout object failed to start run.
         }
+        m_pRunState->s_runState = Active;
+        setVar(interp, "state", "Active");
         interp.setResult("");    // In case a variabl get set result.
     } else {
         // Begin with invalid state.
@@ -108,21 +109,3 @@ BeginCommand::operator()(CTCLInterpreter& interp, std::vector<CTCLObject>& objv)
 }
 
 
-/////////////////////////////////// Private utils ////////////////////////////////////////
-
-
-/**
- * getVar
- *    Get the value of a global variable in the interpreter.
- * 
- * @param interp - references the interp holding the var.
- * @param name   - name of the variable.
- * @return const char* - Pointer to the string repreentation of the variable value.
- * @retval nullptr - if there is no such variable.
- */
-const char*
-BeginCommand::getVar(CTCLInterpreter& interp, const char* name) {
-    CTCLVariable var(name, TCLPLUS::kfFALSE);
-    var.Bind(interp);
-    return var.Get();
-}

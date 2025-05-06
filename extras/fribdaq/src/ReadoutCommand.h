@@ -56,6 +56,12 @@ private:
     ReadoutCommand& operator=(const ReadoutCommand&); // assignment
     int operator==(ReadoutCommand&);                  // equality compare.
     int operator!=(ReadoutCommand&);                  // inequality compare.
+
+    //utiltlies
+
+protected:
+    static const char* getVar(CTCLInterpreter& interp, const char* name);
+    static void setVar(CTCLInterpreter& interp, const char* name, const char* value);
 };
 
  #endif

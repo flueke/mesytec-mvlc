@@ -15,6 +15,7 @@
  * @note - this file is private to fribdaq's readout and won't be installed.
  */
 #include "ReadoutCommand.h"
+#include <TCLVariable.h>
 
 using mesytec::mvlc::MVLCReadout;
 
@@ -39,3 +40,37 @@ ReadoutCommand::ReadoutCommand(
  * destructor
  */
 ReadoutCommand::~ReadoutCommand() {}
+
+
+/////////////////////////////////// Private utils ////////////////////////////////////////
+
+
+/**
+ * getVar
+ *    Get the value of a global variable in the interpreter.
+ * 
+ * @param interp - references the interp holding the var.
+ * @param name   - name of the variable.
+ * @return const char* - Pointer to the string repreentation of the variable value.
+ * @retval nullptr - if there is no such variable.
+ */
+const char*
+ReadoutCommand::getVar(CTCLInterpreter& interp, const char* name) {
+    CTCLVariable var(name, TCLPLUS::kfFALSE);
+    var.Bind(interp);
+    return var.Get();
+}
+/**
+ * setVar
+ *    Set the value of a Tcl variable.
+ * 
+ * @param interp - inteprreter the variable is in.
+ * @param name - name of the variable.
+ * @param value  - New variable value.
+ */
+void
+ReadoutCommand::setVar(CTCLInterpreter& interp, const char* name, const char* value) {
+    CTCLVariable var(name, TCLPLUS::kfFALSE);
+    var.Bind(interp);
+    var.Set(nullptr, value);
+}
