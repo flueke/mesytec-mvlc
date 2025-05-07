@@ -17,5 +17,36 @@
 #ifndef MVLC_ENDRUNCOMMAND_H
 #define MVLC_ENDRUNCOMMAND_H
 
+#include "ReadoutCommand.h"
 
+
+/**
+ *  @class EndCommand
+ *      This class implements the Tcl command that ends a run
+ * The command name is ```end``` and does not take any parameters.
+ * For implementation details, see the operator() implementation comments.
+ */
+class EndCommand : public ReadoutCommand {
+    // Exported canonicals:
+
+public:
+    EndCommand(
+        CTCLInterpreter& interp, 
+        FRIBDAQRunState* pState, mesytec::mvlc::MVLCReadout* pReadout 
+    );
+    virtual ~EndCommand();
+
+    // Canonicals that are not allowed.
+
+private:
+    EndCommand(const EndCommand& );
+    EndCommand& operator=(const EndCommand);
+    int operator==(const EndCommand&);
+    int operator!=(const EndCommand&);
+
+    // Virtual member overrides:
+
+    virtual int operator()(CTCLInterpreter& interp, std::vector<CTCLObject>& objv);
+    
+};
 #endif

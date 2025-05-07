@@ -101,7 +101,7 @@ BeginCommand::operator()(CTCLInterpreter& interp, std::vector<CTCLObject>& objv)
     } else {
         // Begin with invalid state.
 
-        interp.setResult("Run canot be started at this time");
+        interp.setResult("Run canot be started when in this state");
         return TCL_ERROR;
     }
     return TCL_OK;
