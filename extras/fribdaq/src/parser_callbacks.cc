@@ -157,10 +157,12 @@ submit_event(
 
     for ( int i  = 0; i < moduleCount; i++) {
         uint32_t* pCursor = reinterpret_cast<uint32_t*>(event.getBodyCursor());
-        auto size = pModuleDataList->data.size;
-        memcpy(pCursor, pModuleDataList->data.data, size * sizeof(uint32_t));
-        pCursor += size;
-        event.setBodyCursor(pCursor);
+        auto size = pModuleDataList[i].data.size;
+	if (size > 0) {		// In case memcpy is ill behaved for size==0.
+	    memcpy(pCursor, pModuleDataList[i].data.data, size * sizeof(uint32_t));
+	    pCursor += size;
+	    event.setBodyCursor(pCursor);
+	}
     }
     event.updateSize();
 
