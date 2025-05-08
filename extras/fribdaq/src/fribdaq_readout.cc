@@ -40,6 +40,7 @@
 #include "ResumeCommand.h"
 #include <TCLInterpreter.h>
 #include <TCLLiveEventLoop.h>
+#include <TCLVariable.h>
 #include <tcl.h>
 
 
@@ -643,7 +644,6 @@ int main(int argc, char *argv[])
         );
 
         MiniDaqCountersUpdate counters;
-        Stopwatch sw;
         
 
         // FIll in the struct the exit handler needs:
@@ -656,6 +656,19 @@ int main(int argc, char *argv[])
         //
         CTCLInterpreter interp;                       // The interpreter that will run things
         Tcl_CreateExitHandler(exit_cleanup, &exitinfo);
+
+        // Initialize the run and title and state variables:
+
+        CTCLVariable title("title", TCLPLUS::kfFALSE); title.Bind(interp);
+        title.Set(ExtraRunState.s_runTitle.c_str());
+
+        CTCLVariable run("run", TCLPLUS::kfFALSE); run.Bind(interp);
+        run.Set("0");                // yes there's an assumption there.
+
+        CTCLVariable state("state", TCLPLUS::kfFALSE); state.Bind(interp);
+        state.Set("idle");
+
+        // Add the commands:
 
         BeginCommand begin(interp, &ExtraRunState, &rdo);     // Register the begin command.
         EndCommand end(interp, &ExtraRunState, &rdo);
