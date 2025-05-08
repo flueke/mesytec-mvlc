@@ -27,7 +27,7 @@
  */
 class ResumeCommand : public ReadoutCommand {
     // Exported canonicals:
-
+public:
     ResumeCommand(
         CTCLInterpreter& interp, 
         FRIBDAQRunState* pState, mesytec::mvlc::MVLCReadout* pReadout

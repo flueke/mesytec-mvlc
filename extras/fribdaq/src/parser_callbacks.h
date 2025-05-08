@@ -57,7 +57,9 @@ struct FRIBDAQRunState {
     
 FRIBDAQRunState() : 
     s_runNumber(0),            // If never set.
-    s_runState(Halted), s_pRing(nullptr),
+    s_runTitle("Change the title please"),
+    s_runState(Halted), 
+    s_pRing(nullptr),
     s_divisor(1000),          // Timing in seconds.
     s_sourceid(0),
     s_tsExtractor(nullptr)

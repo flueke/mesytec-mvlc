@@ -33,6 +33,15 @@
 #include <mesytec-mvlc/mesytec-mvlc.h>
 #include <lyra/lyra.hpp>
 
+/* Issue #5 - better command handling - use Tcl event driven input interpreter */
+#include "BeginCommand.h"
+#include "EndCommand.h"
+#include "PauseCommand.h"
+#include "ResumeCommand.h"
+#include <TCLInterpreter.h>
+#include <TCLLiveEventLoop.h>
+
+
 using std::cout;
 using std::cerr;
 using std::endl;
@@ -633,6 +642,18 @@ int main(int argc, char *argv[])
         MiniDaqCountersUpdate counters;
         Stopwatch sw;
         bool running = true;
+
+        // Let's set up the Tcl interpreter and live event loop.
+        //
+        CTCLInterpreter interp;                       // The interpreter that will run things.
+        BeginCommand begin(interp, &ExtraRunState, &rdo);     // Register the begin command.
+        EndCommand end(interp, &ExtraRunState, &rdo);
+        PauseCommand pause(interp, &ExtraRunState, &rdo);
+        ResumeCommand resume(interp, &ExtraRunState, &rdo);
+        CTCLLiveEventLoop* pEventLoop = CTCLLiveEventLoop::getInstance();
+        pEventLoop->start();             // TODO: Catch the exit and do the cleanup.
+
+
         while (running)                  // main loop/
         {
             std::this_thread::sleep_for(std::chrono::milliseconds(1000));   // one second.
