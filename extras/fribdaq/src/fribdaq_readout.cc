@@ -662,7 +662,7 @@ int main(int argc, char *argv[])
         PauseCommand pause(interp, &ExtraRunState, &rdo);
         ResumeCommand resume(interp, &ExtraRunState, &rdo);
         CTCLLiveEventLoop* pEventLoop = CTCLLiveEventLoop::getInstance();
-        pEventLoop->start();             // TODO: Catch the exit and do the cleanup.
+        pEventLoop->start(&interp);             // TODO: Catch the exit and do the cleanup.
 
 
         
