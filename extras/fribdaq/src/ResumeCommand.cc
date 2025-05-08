@@ -71,7 +71,7 @@ ResumeCommand::operator()(CTCLInterpreter& interp, std::vector<CTCLObject>& objv
             return TCL_ERROR;
         } else {                             // Success.
             m_pRunState->s_runState = Active;
-            setVar(interp, "state", "Active");
+            setVar(interp, "state", "active");
             
         }
     } else {

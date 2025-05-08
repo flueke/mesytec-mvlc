@@ -62,7 +62,7 @@ EndCommand::operator()(CTCLInterpreter& interp, std::vector<CTCLObject>& objv) {
             interp.setResult(ec.message());
             return TCL_ERROR;
         } else {
-            setVar(interp, "state", "Halted");
+            setVar(interp, "state", "idle");
             m_pRunState->s_runState = Halted;
         }
     } else {

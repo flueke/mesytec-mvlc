@@ -96,7 +96,7 @@ BeginCommand::operator()(CTCLInterpreter& interp, std::vector<CTCLObject>& objv)
             return TCL_ERROR;                                      // Readout object failed to start run.
         }
         m_pRunState->s_runState = Active;
-        setVar(interp, "state", "Active");
+        setVar(interp, "state", "active");
         interp.setResult("");    // In case a variabl get set result.
     } else {
         // Begin with invalid state.

@@ -72,7 +72,7 @@ PauseCommand::operator()(CTCLInterpreter& interp, std::vector<CTCLObject>& objv)
             interp.setResult(ec.message());
             return TCL_ERROR;                     // Readout would not pause.
         } else {
-            setVar(interp, "state", "Paused");
+            setVar(interp, "state", "paused");
             m_pRunState->s_runState = Paused;
         }
     } else {
