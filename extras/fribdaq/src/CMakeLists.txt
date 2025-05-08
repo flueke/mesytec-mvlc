@@ -15,7 +15,6 @@ else ()
     endif()
     add_executable(fribdaq-readout 
     fribdaq_readout.cc
-    command_parse.cc
     username.cc
     parser_callbacks.cc
     ReadoutCommand.cc

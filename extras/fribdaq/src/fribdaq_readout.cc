@@ -40,6 +40,7 @@
 #include "ResumeCommand.h"
 #include <TCLInterpreter.h>
 #include <TCLLiveEventLoop.h>
+#include <tcl.h>
 
 
 using std::cout;
@@ -61,54 +62,10 @@ static FRIBDAQRunState ExtraRunState;
 
 
 /**
- *  return true if stdin is readable:
- */
-static bool stdinPending() {
-    fd_set empty;
-    fd_set has_stdin;
-    FD_ZERO(&has_stdin);
-    FD_SET(STDIN_FILENO, &has_stdin);
-
-    timeval immediately = {tv_sec: 0, tv_usec: 0};
-
-    int status = select(STDIN_FILENO + 1, &has_stdin, &empty, &empty, &immediately);
-
-    // errors are ok if errno is EINTR
-
-    if (status < 0) {
-        if (errno == EINTR) {
-            // just a signal.
-            return false;
-        } else {
-            // a real error probably my programming error so fatal:
-
-            std::cerr << "Check for stdin readable failed: " << strerror(errno) << std::endl;
-            std::exit(EXIT_FAILURE);
-
-        }
-    } else if (status ==  0) {
-        // no fds:
-        return false;
-    } else {
-        // Don't think I need to check has_stdin but I will anyway:
-
-        return FD_ISSET(STDIN_FILENO, &has_stdin);
-    }
-}
-/**
- * return a line of input from std::cin
+ * This struct is passed to the exti handler.  It needs all that stuff to 
+ * clean up prior to the actual exit.alignas
  * 
- * @return std::string
- * @note this will block until a line is available. so maybe best to check stdinPending 
- *     before calling if that's not desireable.
  */
-std::string
-getStdinLine() {
-    std::string result;
-    std::getline(std::cin, result);
-    return result;
-}
-
 
 /**
  * loadTimestampExtrctor
@@ -157,6 +114,7 @@ loadTimestampExtractor(const std::string libName) {
     dlclose(dlhandle);
     return reinterpret_cast<TimestampExtractor>(extractor);
 }
+
 /////////////////////
 StackErrorCounters delta_counters(const StackErrorCounters &prev, const StackErrorCounters &curr)
 {
@@ -219,7 +177,12 @@ struct MiniDaqCountersUpdate
     MiniDaqCountersSnapshot curr;
     std::chrono::milliseconds dt;
 };
+struct ExitInfo {
+    MVLCReadout*  s_readout;
+    MVLC*         s_mvlc;
+    CrateConfig*  s_config;
 
+} exitinfo;
 void dump_counters2(
     std::ostream &out,
     const MiniDaqCountersSnapshot &prev,
@@ -383,7 +346,47 @@ void dump_counters(
         readout_parser::print_counters(cout, parserCounters);
     }
 }
+/**
+ *  exit_cleanup 
+ *     This  code is, presumably, called as Tcl is exiting.  It gives us the chance
+ * to do the post main loop cleanup that had been done after the while main loop in minidaq.
+ * 
+ * @param data - actually a pointer to an ExitInfo
+ */
+void exit_cleanup(ClientData data) {
+    ExitInfo* pInfo = reinterpret_cast<ExitInfo*>(data);
 
+    // some more casts because I'm lazy:
+
+    MVLC& mvlc = *pInfo->s_mvlc;
+    CrateConfig& crateConfig = *pInfo->s_config;
+    MVLCReadout& rdo = *pInfo->s_readout;
+
+    mvlc.disconnect();
+
+
+    auto cmdPipeCounters = mvlc.getCmdPipeCounters();
+
+    spdlog::debug("CmdPipeCounters:\n"
+                  "    reads={}, bytesRead={}, timeouts={}, invalidHeaders={}, wordsSkipped={}\n"
+                  "    errorBuffers={}, superBuffer={}, stackBuffers={}, dsoBuffers={}\n"
+                  "    shortSupers={}, superFormatErrors={}, superRefMismatches={}, stackRefMismatches={}",
+
+                  cmdPipeCounters.reads,
+                  cmdPipeCounters.bytesRead,
+                  cmdPipeCounters.timeouts,
+                  cmdPipeCounters.invalidHeaders,
+                  cmdPipeCounters.wordsSkipped,
+                  cmdPipeCounters.errorBuffers,
+                  cmdPipeCounters.superBuffers,
+                  cmdPipeCounters.stackBuffers,
+                  cmdPipeCounters.dsoBuffers,
+
+                  cmdPipeCounters.shortSuperBuffers,
+                  cmdPipeCounters.superFormatErrors,
+                  cmdPipeCounters.superRefMismatches,
+                  cmdPipeCounters.stackRefMismatches);
+}
 int main(int argc, char *argv[])
 {
     // MVLC connection overrides
@@ -641,11 +644,19 @@ int main(int argc, char *argv[])
 
         MiniDaqCountersUpdate counters;
         Stopwatch sw;
-        bool running = true;
+        
+
+        // FIll in the struct the exit handler needs:
+
+        exitinfo.s_readout = &rdo;
+        exitinfo.s_mvlc    = &mvlc;
+        exitinfo.s_config  = &crateConfig;
 
         // Let's set up the Tcl interpreter and live event loop.
         //
-        CTCLInterpreter interp;                       // The interpreter that will run things.
+        CTCLInterpreter interp;                       // The interpreter that will run things
+        Tcl_CreateExitHandler(exit_cleanup, &exitinfo);
+
         BeginCommand begin(interp, &ExtraRunState, &rdo);     // Register the begin command.
         EndCommand end(interp, &ExtraRunState, &rdo);
         PauseCommand pause(interp, &ExtraRunState, &rdo);
@@ -654,170 +665,9 @@ int main(int argc, char *argv[])
         pEventLoop->start();             // TODO: Catch the exit and do the cleanup.
 
 
-        while (running)                  // main loop/
-        {
-            std::this_thread::sleep_for(std::chrono::milliseconds(1000));   // one second.
-            // If we are active, count a second:
+        
 
-            if (ExtraRunState.s_runState == Active) {
-                ExtraRunState. s_runtime += 1000;                          // one second has passed.
-            }
-
-            if (stdinPending()) {                    // Process commands.
-                auto line = getStdinLine();
-                if (!isBlank(line)) {
-                    auto parsed = parseCommand(line);
-
-                    // Command specific processing:
-
-
-                    switch (parsed.s_command) {
-                        case BEGIN:
-                            // start the run:
-                            if (canBegin(rdo, ExtraRunState)) {
-                                spdlog::info("Starting readout. Running for {} seconds.", timeToRun.count());
-                                auto ec = rdo.start(timeToRun);
-                                
-                                if (ec) {
-                                    std::cerr << "Failed to stat the run" << ec.message() << std::endl;
-                                } else {
-                                    ExtraRunState.s_runState = Active;  // Transition on success.
-                                }
-                            } else {
-                                std::cerr << "Run state does not allow us to start a run\n";
-                            }
-                            break;
-                        case END:
-                            if (canEnd(ExtraRunState)) {
-                                spdlog::info("Ending the run");
-                                auto ec = rdo.stop();
-                                if (ec) {
-                                    std::cerr << "Failed to end the run: " << ec.message() << std::endl;
-                                } else {
-                                    ExtraRunState.s_runState = Halted;
-                                }
-                            } else {
-                                std::cerr << "Run state does not allow us to end the run.\n";
-                            }
-                            break;
-                        case PAUSE:
-                            if (canPause(ExtraRunState)) {
-                                spdlog::info("Pausing active run");
-                                auto ec = rdo.pause();
-                                if (ec) {
-                                    std::cerr << "Failed to pause the run: " << ec.message() << std::endl;
-                                } else {
-                                    ExtraRunState.s_runState = Paused;
-                                }
-                            } else {
-                                std::cerr << " Run state does not allow us to pause a run\n";
-                            }
-                            break;
-                        case RESUME:
-                            if (canResume(ExtraRunState)) {
-                                spdlog::info("Resuming paused run");
-                                auto ec = rdo.resume();
-
-                                if (ec) {
-                                    std::cerr << "Unable to resume paused run" << ec.message() << std::endl;
-                                } else {
-                                    ExtraRunState.s_runState = Active;
-                                }
-                            } else {
-                                std::cerr << "Run state does not allow us to resume a run\n";
-                            }
-                            break;
-                        case TITLE:
-                            if (ExtraRunState.s_runState != Halted) {
-                                std::cerr << "Run state must be halted to set the title.";
-                            } else {
-                                ExtraRunState.s_runTitle = parsed.s_stringarg;
-                            }
-                            break;
-                        case SETRUN:
-                            if (ExtraRunState.s_runState != Halted) {
-                                std::cerr << "Run state must be halted to set the run number\n";
-                            } else {
-                                ExtraRunState.s_runNumber = parsed.s_intarg;                            }
-                            break;
-                        case EXIT:
-                            if (ExtraRunState.s_runState != Halted) {
-                                // force  the end run if we're not halted
-                                spdlog::info("Forcing end run due to exit");
-                                rdo.stop();
-                                // Wait for it to finish:
-
-                                while (!rdo.finished()) {
-                                    std::this_thread::sleep_for(std::chrono::milliseconds(100));
-                                }
-                            }
-                            running = false;    // Allow the loop to exit.;
-                            break;
-                        case INVALID:
-                            std::cerr << parsed.s_error << std::endl;
-                            break;
-                        default:
-                            std::cerr << "Unsupported command '" << line << "'\n";
-                            break;
-                    }
-                }
-                
-
-            }
-
-            // If the run is active, dump the counters.
-
-            if (!opt_noPeriodicCounterDumps && (ExtraRunState.s_runState == Active)) 
-            {
-                dump_counters(
-                    cout,
-                    crateConfig.connectionType,
-                    mvlc.getStackErrorCounters(),
-                    rdo.workerCounters(),
-                    rdo.parserCounters());
-
-                update_counters(counters, rdo, std::chrono::duration_cast<std::chrono::milliseconds>(sw.interval()));
-                dump_counters2(cout, counters.prev, counters.curr, counters.dt);
-
-            }
-        }
-
-        mvlc.disconnect();
-
-        cout << endl << "Final stats dump:" << endl;
-
-        dump_counters(
-            cout,
-            crateConfig.connectionType,
-            mvlc.getStackErrorCounters(),
-            rdo.workerCounters(),
-            rdo.parserCounters());
-
-        update_counters(counters, rdo, std::chrono::duration_cast<std::chrono::milliseconds>(sw.interval()));
-        dump_counters2(cout, counters.prev, counters.curr, counters.dt);
-
-
-        auto cmdPipeCounters = mvlc.getCmdPipeCounters();
-
-        spdlog::debug("CmdPipeCounters:\n"
-                      "    reads={}, bytesRead={}, timeouts={}, invalidHeaders={}, wordsSkipped={}\n"
-                      "    errorBuffers={}, superBuffer={}, stackBuffers={}, dsoBuffers={}\n"
-                      "    shortSupers={}, superFormatErrors={}, superRefMismatches={}, stackRefMismatches={}",
-
-                      cmdPipeCounters.reads,
-                      cmdPipeCounters.bytesRead,
-                      cmdPipeCounters.timeouts,
-                      cmdPipeCounters.invalidHeaders,
-                      cmdPipeCounters.wordsSkipped,
-                      cmdPipeCounters.errorBuffers,
-                      cmdPipeCounters.superBuffers,
-                      cmdPipeCounters.stackBuffers,
-                      cmdPipeCounters.dsoBuffers,
-
-                      cmdPipeCounters.shortSuperBuffers,
-                      cmdPipeCounters.superFormatErrors,
-                      cmdPipeCounters.superRefMismatches,
-                      cmdPipeCounters.stackRefMismatches);
+       
 
         return 0;
     }
