@@ -19,7 +19,7 @@
 
 // A note:  We could use the unified format library but then we'd need to 
 // generate a ring item factory for a _specific_ FRIB/NSCLDAQ version but
-// we know that what we want to make are ring items for the version of
+// we know that what we want to make are ring items ::for the version of
 // the software we were built against; so using that set is the best - I think.
 // Note that CDataFormatItems only came into being in NSCLDAQ-11.0.
 
@@ -32,6 +32,7 @@
 #include <iostream>
 #include <vector>
 #include <time.h>
+#include <chrono>
 
 
 
@@ -39,7 +40,19 @@ static const int STACK_EVENT(0);
 static const int STACK_SCALER(1);
 static bool bad_stack_warning_given(false);
 
+
 ////////////////////////////// private utilities ////////////////////////////////////////
+
+/** get_milliseconds
+ * 
+ * @return unsigned int - the number of milliseconds into the run we are.
+ */
+static unsigned int get_milliseconds(FRIBDAQRunState* state) {
+    auto now = state->s_timing.get_interval();
+    auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now);
+    return ms.count();
+}
+
 /**
  * emit_statistics
  *    Emit a CPhysicsEventCountItem for the current statistics.
@@ -55,11 +68,11 @@ emit_statistics(FRIBDAQRunState* context) {
     if (context->s_tsExtractor) {
         item.reset(new CRingPhysicsEventCountItem(
             0xffffffffffffffff, context->s_sourceid, 0,
-            context->s_events, context->s_runtime, time(nullptr), context->s_divisor
+            context->s_events, get_milliseconds(context), time(nullptr), context->s_divisor
         ));
     } else {
         item.reset(new CRingPhysicsEventCountItem(
-            context->s_events, context->s_runtime, time(nullptr)
+            context->s_events, get_milliseconds(context), time(nullptr)
         ));
         item->setTimeDivisor(context->s_divisor);
     }
@@ -102,9 +115,10 @@ submit_scaler(
     }
     // For now use a source-id of zero.  We'll need to add that to the context and set it up from parameters:
 
+    auto stop_time = get_milliseconds(context);
     CRingScalerItem item (
         0xffffffffffffffff, context->s_sourceid, 0,
-        context->s_lastScalerStopTime, context->s_runtime, time(nullptr), 
+        context->s_lastScalerStopTime, stop_time, time(nullptr), 
         scalers, context->s_divisor
     );
     
@@ -112,7 +126,7 @@ submit_scaler(
 
     // Start/stop book keeping>
 
-    context->s_lastScalerStopTime = context->s_runtime;    // Start of next interval
+    context->s_lastScalerStopTime = stop_time;    // Start of next interval
 
 
 }
@@ -167,7 +181,13 @@ submit_event(
     event.updateSize();
 
     event.commitToRing(*(context->s_pRing));
+
+    // Update the statistics counters
+
     context->s_events++;                            // Update statistics.
+    context->s_bytes += eventSize;
+    context->s_cumulative_events++;
+    context->s_cumulative_bytes += eventSize;
 
 }
 
@@ -180,7 +200,9 @@ submit_event(
 static void
 reset_statistics(  FRIBDAQRunState* context )  {
     context->s_events = 0;
+    context->s_bytes = 0;
     context->s_lastScalerStopTime = 0;
+    context->s_timing.start();
 }
 ////////////////////////////// Public entries ///////////////////////////////////
 /**
@@ -274,7 +296,7 @@ void system_event_callback(
     
     CRingStateChangeItem item( 
         0xffffffffffffffff, context->s_sourceid, barriertype, 
-        itemType, context->s_runNumber, context->s_runtime, 
+        itemType, context->s_runNumber, get_milliseconds(context), 
         time(nullptr), context->s_runTitle, context->s_divisor);
     
     item.commitToRing(*context->s_pRing);

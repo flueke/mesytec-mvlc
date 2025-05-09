@@ -19,6 +19,7 @@
  #define PARSER_CALLBACKS_H
 
  #include <mesytec-mvlc/mvlc_readout_parser.h>
+ #include <mesytec-mvlc/util/stopwatch.h>
  #include <stdint.h>
 
 
@@ -56,9 +57,12 @@ struct FRIBDAQRunState {
     FRIBState s_runState;
     CRingBuffer* s_pRing;
     // THe statistics get initialized by begin run state changes.
-    unsigned     s_events;     // Number of accepted events.
-    unsigned     s_runtime;    // Run offset.
-    unsigned     s_lastScalerStopTime;
+    unsigned     s_events;     // Number of accepted events this run.
+    unsigned long    s_bytes;      // Event data bytes this run. COuld be TB.
+    unsigned     s_cumulative_events; // total events over all time.  
+    unsigned long    s_cumulative_bytes;  // total event bytes over all time. Couldb e TB
+    mesytec::mvlc::util::Stopwatch     s_timing;    // Run offset.
+    unsigned     s_lastScalerStopTime;              // ms.
     unsigned     s_divisor;    // Offset divisor. 
     int          s_sourceid;   // Source id for event built case. -1 if not.
     TimestampExtractor s_tsExtractor;
@@ -72,6 +76,8 @@ FRIBDAQRunState() :
     s_runTitle("Change the title please"),
     s_runState(Halted), 
     s_pRing(nullptr),
+    s_events(0), s_bytes(0), 
+    s_cumulative_events(0), s_cumulative_bytes(0),
     s_divisor(1000),          // Timing in seconds.
     s_sourceid(0),
     s_tsExtractor(nullptr),
