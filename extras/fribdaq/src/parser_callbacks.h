@@ -26,6 +26,14 @@
 
  class CRingBuffer;
 
+ namespace mesytec {
+    namespace mvlc {
+        class MVLC;
+        class MVLCReadout;
+        struct CrateConfig;
+    }
+ }
+
  /**
  *  This block of stuff is passed around to the parsers to provide
  * run state information:
@@ -54,6 +62,10 @@ struct FRIBDAQRunState {
     unsigned     s_divisor;    // Offset divisor. 
     int          s_sourceid;   // Source id for event built case. -1 if not.
     TimestampExtractor s_tsExtractor;
+    mesytec::mvlc::MVLC*        s_interface;  // Pointer to the MVLC interface object.
+    mesytec::mvlc::CrateConfig* s_config;     // Current configuration pointer.
+    mesytec::mvlc::MVLCReadout* s_readout;    // The reaodut object.
+
     
 FRIBDAQRunState() : 
     s_runNumber(0),            // If never set.
@@ -62,7 +74,9 @@ FRIBDAQRunState() :
     s_pRing(nullptr),
     s_divisor(1000),          // Timing in seconds.
     s_sourceid(0),
-    s_tsExtractor(nullptr)
+    s_tsExtractor(nullptr),
+    s_interface(nullptr),
+    s_config(nullptr)
     {}
     
 };

@@ -653,6 +653,13 @@ int main(int argc, char *argv[])
         exitinfo.s_mvlc    = &mvlc;
         exitinfo.s_config  = &crateConfig;
 
+        // FIll in the interface, config and readout parts of the state:
+        // TODO:  exitinfo could now just be the extra run state.
+        ExtraRunState.s_interface = &mvlc;
+        ExtraRunState.s_config    = &crateConfig;
+        ExtraRunState.s_readout   = &rdo;
+
+
         // Let's set up the Tcl interpreter and live event loop.
         //
         CTCLInterpreter interp;                       // The interpreter that will run things

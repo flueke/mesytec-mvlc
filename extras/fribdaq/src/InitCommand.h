@@ -54,7 +54,7 @@ private:
     // Base class overrides.
 
 public:
-    operator()(CTCLInterpreter& interp, std::vector<CTCLObject>* objv);
+    int operator()(CTCLInterpreter& interp, std::vector<CTCLObject>& objv);
 };
 
 #endif
