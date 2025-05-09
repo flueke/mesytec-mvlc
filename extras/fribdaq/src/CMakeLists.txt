@@ -25,6 +25,7 @@ else ()
     ResumeCommand.cc
     RunStateCommand.cc
     InitCommand.cc
+    StatisticsCommand.cc
     )
     target_include_directories(
         fribdaq-readout PRIVATE
