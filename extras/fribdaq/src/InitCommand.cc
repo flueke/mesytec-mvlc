@@ -63,7 +63,7 @@ InitCommand::~InitCommand() {}
  */
 int
 InitCommand::operator()(CTCLInterpreter& interp, std::vector<CTCLObject>& objv) {
-    if (objv.size() != 0) {
+    if (objv.size() > 1) {
         interp.setResult("init -too many command line parameters");
         return TCL_ERROR;
     }
