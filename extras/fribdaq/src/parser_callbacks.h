@@ -21,6 +21,7 @@
  #include <mesytec-mvlc/mvlc_readout_parser.h>
  #include <mesytec-mvlc/util/stopwatch.h>
  #include <stdint.h>
+ #include <mutex>
 
 
  // Forward type definitions:
@@ -52,6 +53,7 @@ typedef uint64_t (*TimestampExtractor)(unsigned, const mesytec::mvlc::readout_pa
 
 
 struct FRIBDAQRunState {
+    std::mutex s_serializer;
     unsigned s_runNumber;
     std::string s_runTitle;
     FRIBState s_runState;

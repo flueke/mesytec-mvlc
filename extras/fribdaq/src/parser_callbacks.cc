@@ -76,6 +76,7 @@ emit_statistics(FRIBDAQRunState* context) {
         ));
         item->setTimeDivisor(context->s_divisor);
     }
+    std::lock_guard(context->s_serializer);
     item->commitToRing(*context->s_pRing);
 
 }
@@ -121,7 +122,7 @@ submit_scaler(
         context->s_lastScalerStopTime, stop_time, time(nullptr), 
         scalers, context->s_divisor
     );
-    
+    std::lock_guard(context->s_serializer);
     item.commitToRing(*(context->s_pRing));
 
     // Start/stop book keeping>
@@ -179,7 +180,7 @@ submit_event(
 	}
     }
     event.updateSize();
-
+    std::lock_guard(context->s_serializer);
     event.commitToRing(*(context->s_pRing));
 
     // Update the statistics counters
@@ -288,6 +289,7 @@ void system_event_callback(
     // Let's emit a format item prior to all of these...
 
     CDataFormatItem fmtItem;
+    std::lock_guard(context->s_serializer);
     fmtItem.commitToRing(*context->s_pRing);
 
     // Note that the constructor for the state change item
