@@ -39,6 +39,7 @@
 #include "PauseCommand.h"
 #include "ResumeCommand.h"
 #include "RunStateCommand.h"
+#include "InitCommand.h"
 #include <TCLInterpreter.h>
 #include <TCLLiveEventLoop.h>
 #include <TCLVariable.h>
@@ -683,6 +684,7 @@ int main(int argc, char *argv[])
         PauseCommand pause(interp, &ExtraRunState, &rdo);
         ResumeCommand resume(interp, &ExtraRunState, &rdo);
         RunStateCommand runstate(interp);
+	InitCommand init(interp, &ExtraRunState, &rdo);
         CTCLLiveEventLoop* pEventLoop = CTCLLiveEventLoop::getInstance();
         pEventLoop->start(&interp);             // TODO: Catch the exit and do the cleanup.
 
