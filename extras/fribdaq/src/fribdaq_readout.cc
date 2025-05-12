@@ -44,6 +44,7 @@
 #include <TCLInterpreter.h>
 #include <TCLLiveEventLoop.h>
 #include <TCLVariable.h>
+#include <Exception.h>
 #include <tcl.h>
 
 
@@ -692,6 +693,22 @@ int main(int argc, char *argv[])
         RunStateCommand runstate(interp);
 	    InitCommand init(interp, &ExtraRunState, &rdo);
         StatisticsCommand stats(interp, &ExtraRunState, &rdo);
+
+        // Before starting the event loop, run any initialization script.
+
+        if (opt_initscript != "") {
+            try {
+                interp.EvalFile(opt_initscript);
+            } catch (CException & e) {
+                std::stringstream smsg;
+                smsg << "Failed to run initialization script: " << opt_initscript << " : "
+                    << e.ReasonText();
+                return 0;
+            }
+        }
+
+        // Start the Tcl event loop.
+
         CTCLLiveEventLoop* pEventLoop = CTCLLiveEventLoop::getInstance();
         pEventLoop->start(&interp);             // TODO: Catch the exit and do the cleanup.       
 
