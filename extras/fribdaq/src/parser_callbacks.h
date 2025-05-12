@@ -131,5 +131,5 @@ void system_event_callback(
  * @param strings - Vector of strings to put in that item.
  */
 void
-dumpVariables(FRIBDAQRunState& pState, const std::vector<std::string>& strings);
+dumpVariables(FRIBDAQRunState& state, const std::vector<std::string>& strings);
 #endif
