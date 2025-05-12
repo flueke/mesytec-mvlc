@@ -17,7 +17,7 @@
 #ifndef MVLC_RUNVARCOMMAND_H
 #define MVLC_RUNVARCOMMAND_H
 #include "ReadoutCommand.h"
-#included <TCLTimer.h>        // Eventually we'll have a timer class to make/dump buffers.
+#include <TCLTimer.h>        // Eventually we'll have a timer class to make/dump buffers.
 #include <set>
 #include<string>
 
@@ -46,10 +46,14 @@ class RunVarCommand : public ReadoutCommand {
 
     class Dumper : public CTCLTimer {
     private:
-        RunVarCommand m_owner;
+        RunVarCommand& m_owner;
     public:
-        Dumper(RunVarCommand& owner)
-        virtual void operator():
+        Dumper(RunVarCommand& owner);
+        virtual ~Dumper();
+        virtual void operator()();
+    private:
+        void dumpVars();
+        std::string buildScript(CTCLInterpreter* interp, const char* name, const char* value);
     };
     // Class private data.
 private:
@@ -83,7 +87,6 @@ private:
     void remove(CTCLInterpreter& interp, std::vector<CTCLObject>& objv);
     void list(CTCLInterpreter& interp, std::vector<CTCLObject>& objv);
 
-    std::string makeSet(CTCLInterpreter& interp, const char* varname);
 };
 
 
