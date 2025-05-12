@@ -497,6 +497,9 @@ int main(int argc, char *argv[])
             << "'File -> Export VME Config' menu entry in mvme." << endl << endl
             << "Alternatively a CrateConfig object can be generated programmatically and" << endl
             << "written out using the to_yaml() free function."
+            << endl  << "Starting with FRIB/NSCLDAQ-12.2 a tool exists to translate VMUSB" << endl
+            << "config.tcl files to yaml configuration files.  That's probably the normal way" << endl
+            << "Users of this will get their cofigurations."
             << endl;
         return 0;
     }
