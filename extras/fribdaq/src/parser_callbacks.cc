@@ -27,6 +27,7 @@
 #include <CRingScalerItem.h>
 #include <CPhysicsEventItem.h>
 #include <CRingPhysicsEventCountItem.h>
+#include <CRingTextItem.h>
 #include <CDataFormatItem.h>       // Requires NSCLDAQ-11.0 and higher.
 #include <stdint.h>
 #include <iostream>
@@ -302,4 +303,30 @@ void system_event_callback(
         time(nullptr), context->s_runTitle, context->s_divisor);
     
     item.commitToRing(*context->s_pRing);
+}
+
+/**
+ * dumpVariables
+ * 
+ *    Create and commit a MONITORED_VARIABLES CRingTextItem.
+ *    a lock guard is used because this is likely called from the main thread
+ * not the thread the normal parser callbacks runin.alignas
+ * 
+ * @param pState - context (has the ringbuffer and mutex)
+ * @param strings - Strings to put in the ring item.
+ *     
+ */
+void
+dumpVariables(FRIBDAQRunState& state, const std::vector<std::string>& strings) {
+    // Always put in a sid and dummy timestamp:
+
+    CRingTextItem item(
+        MONITORED_VARIABLES, 0xffffffffffffffff, state.s_sourceid, 0,
+        strings, get_milliseconds(&state), time(nullptr), state.s_divisor
+    );
+    std::lock_guard(state.s_serializer);
+    item.commitToRing(*state.s_pRing);
+
+
+
 }

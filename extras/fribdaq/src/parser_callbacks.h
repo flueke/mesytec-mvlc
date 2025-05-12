@@ -22,6 +22,8 @@
  #include <mesytec-mvlc/util/stopwatch.h>
  #include <stdint.h>
  #include <mutex>
+ #include <string>
+ #include <vector>
 
 
  // Forward type definitions:
@@ -122,4 +124,12 @@ void system_event_callback(
     void* cd,
     int crateIndex, const mesytec::mvlc::u32* header, mesytec::mvlc::u32 size
 );
- #endif
+/**
+ * Create and submit a monitoredVariables item:
+ * 
+ * @param context - context pointer.
+ * @param strings - Vector of strings to put in that item.
+ */
+void
+dumpVariables(FRIBDAQRunState& pState, const std::vector<std::string>& strings);
+#endif
