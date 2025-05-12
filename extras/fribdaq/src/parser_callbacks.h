@@ -19,12 +19,24 @@
  #define PARSER_CALLBACKS_H
 
  #include <mesytec-mvlc/mvlc_readout_parser.h>
+ #include <mesytec-mvlc/util/stopwatch.h>
  #include <stdint.h>
+ #include <mutex>
+ #include <string>
+ #include <vector>
 
 
  // Forward type definitions:
 
  class CRingBuffer;
+
+ namespace mesytec {
+    namespace mvlc {
+        class MVLC;
+        class MVLCReadout;
+        struct CrateConfig;
+    }
+ }
 
  /**
  *  This block of stuff is passed around to the parsers to provide
@@ -43,24 +55,38 @@ typedef uint64_t (*TimestampExtractor)(unsigned, const mesytec::mvlc::readout_pa
 
 
 struct FRIBDAQRunState {
+    std::mutex s_serializer;
     unsigned s_runNumber;
     std::string s_runTitle;
     FRIBState s_runState;
     CRingBuffer* s_pRing;
     // THe statistics get initialized by begin run state changes.
-    unsigned     s_events;     // Number of accepted events.
-    unsigned     s_runtime;    // Run offset.
-    unsigned     s_lastScalerStopTime;
+    unsigned     s_events;     // Number of accepted events this run.
+    unsigned long    s_bytes;      // Event data bytes this run. COuld be TB.
+    unsigned     s_cumulative_events; // total events over all time.  
+    unsigned long    s_cumulative_bytes;  // total event bytes over all time. Couldb e TB
+    mesytec::mvlc::util::Stopwatch     s_timing;    // Run offset.
+    unsigned     s_lastScalerStopTime;              // ms.
     unsigned     s_divisor;    // Offset divisor. 
     int          s_sourceid;   // Source id for event built case. -1 if not.
     TimestampExtractor s_tsExtractor;
+    mesytec::mvlc::MVLC*        s_interface;  // Pointer to the MVLC interface object.
+    mesytec::mvlc::CrateConfig* s_config;     // Current configuration pointer.
+    mesytec::mvlc::MVLCReadout* s_readout;    // The reaodut object.
+
     
 FRIBDAQRunState() : 
     s_runNumber(0),            // If never set.
-    s_runState(Halted), s_pRing(nullptr),
+    s_runTitle("Change the title please"),
+    s_runState(Halted), 
+    s_pRing(nullptr),
+    s_events(0), s_bytes(0), 
+    s_cumulative_events(0), s_cumulative_bytes(0),
     s_divisor(1000),          // Timing in seconds.
     s_sourceid(0),
-    s_tsExtractor(nullptr)
+    s_tsExtractor(nullptr),
+    s_interface(nullptr),
+    s_config(nullptr)
     {}
     
 };
@@ -98,4 +124,12 @@ void system_event_callback(
     void* cd,
     int crateIndex, const mesytec::mvlc::u32* header, mesytec::mvlc::u32 size
 );
- #endif
+/**
+ * Create and submit a monitoredVariables item:
+ * 
+ * @param context - context pointer.
+ * @param strings - Vector of strings to put in that item.
+ */
+void
+dumpVariables(FRIBDAQRunState& pState, const std::vector<std::string>& strings);
+#endif
