@@ -418,6 +418,7 @@ int main(int argc, char *argv[])
     std::string opt_timestampdll;
     std::string opt_ringBufferName = getUsername();
     unsigned opt_sourceid = 0; 
+    std::string opt_initscript;   // Tcl init script.
 
     auto cli
         = lyra::help(opt_showHelp)
@@ -466,6 +467,7 @@ int main(int argc, char *argv[])
         | lyra::opt(opt_ringBufferName, "ring")["--ring"]("ring buffer name")
         | lyra::opt(opt_sourceid, "sourceid")["--sourceid"]("Event builder source id")
         | lyra::opt(opt_timestampdll, "dll")["--timestamp-library"]("Time stamp shared library file")
+        | lyra::opt(opt_initscript, "initscript")["--init-script"]("Tcl initialization script")
         // logging
         | lyra::opt(opt_logDebug)["--debug"]("enable debug logging")
         | lyra::opt(opt_logTrace)["--trace"]("enable trace logging")
@@ -497,7 +499,7 @@ int main(int argc, char *argv[])
             << "'File -> Export VME Config' menu entry in mvme." << endl << endl
             << "Alternatively a CrateConfig object can be generated programmatically and" << endl
             << "written out using the to_yaml() free function."
-            << endl  << "Starting with FRIB/NSCLDAQ-12.2 a tool exists to translate VMUSB" << endl
+            << endl  << "Starting with FRIB/NSCLDAQ-12.2 a tool exists (mvlcgenerate) to translate VMUSB" << endl
             << "config.tcl files to yaml configuration files.  That's probably the normal way" << endl
             << "Users of this will get their cofigurations."
             << endl;
