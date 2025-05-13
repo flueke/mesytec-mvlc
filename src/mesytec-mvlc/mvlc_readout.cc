@@ -164,7 +164,17 @@ const CrateConfig &MVLCReadout::crateConfig() const
 {
     return d->crateConfig;
 }
-
+/**
+ * setCrateConfiguration
+ *     Provide a new crate configuration  for the readout.
+ * This will be used on the next run to initialize and
+ * to define the readout.alignas
+ * 
+ * @param[in] config - The new crate configuration.
+ */
+void MVLCReadout::setCrateConfig(CrateConfig config) {
+    d->crateConfig = config;
+}
 ReadoutWorker &MVLCReadout::readoutWorker()
 {
     return *d->readoutWorker;
@@ -179,6 +189,8 @@ std::atomic<bool> &MVLCReadout::parserQuit()
 {
     return d->parserQuit;
 }
+
+
 
 namespace
 {
