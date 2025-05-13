@@ -686,7 +686,7 @@ int main(int argc, char *argv[])
 
         // Add the commands:
 
-        BeginCommand begin(interp, &ExtraRunState, &rdo);     // Register the begin command.
+        BeginCommand begin(interp, &ExtraRunState, &rdo, opt_crateConfig);     // Register the begin command.
         EndCommand end(interp, &ExtraRunState, &rdo);
         PauseCommand pause(interp, &ExtraRunState, &rdo);
         ResumeCommand resume(interp, &ExtraRunState, &rdo);
