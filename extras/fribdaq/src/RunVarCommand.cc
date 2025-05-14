@@ -166,14 +166,14 @@ RunVarCommand::operator()(CTCLInterpreter& interp, std::vector<CTCLObject>& objv
 
         // If there are exactly three, words, this is a create.
 
-        if (objv.size() == 3) {
-            create(interp, objv);
-        } else if (subcommand == "create") {
+	if (subcommand == "create") {
             create(interp, objv);
         } else if (subcommand == "delete")  {
             remove(interp, objv);
         } else if (subcommand == "list") {
-            list(interp, objv); 
+            list(interp, objv);
+	} else if (objv.size() == 2) {
+	    create(interp, objv);
         } else {
             interp.setResult("ruvar - invalid subcommand");
             return TCL_ERROR;
@@ -210,19 +210,27 @@ RunVarCommand::operator()(CTCLInterpreter& interp, std::vector<CTCLObject>& objv
 void
 RunVarCommand::create(CTCLInterpreter& interp, std::vector<CTCLObject>& objv) {
 
-    // Teas out the name of the variable.
+    // Tease out the name of the variable.
 
     std::string name = objv[1];
     if (objv.size() > 2) {
         requireExactly(objv, 3);
         name = std::string(objv[2]);
     }
-    CTCLVariable var(name, TCLPLUS::kfFALSE);
-    var.Bind(interp);
+    // If it's already in the set that's an error:
+
+    if (m_names.count(name)) {
+	std::stringstream smsg;
+	smsg << name << " is already a run variable";
+	std::string msg(smsg.str());
+	throw msg;
+    }
+    CTCLVariable var(&interp, name, TCLPLUS::kfFALSE);
     if(!var.Get()) {
         var.Set("");                       // Create if it does not exist.
     }
     m_names.insert(name);                  // Add it to the set.
+    interp.setResult(name);                // what the heck use that.
 }
 /**
  * remove 
