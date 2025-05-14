@@ -39,6 +39,7 @@
 #include "PauseCommand.h"
 #include "ResumeCommand.h"
 #include "RunStateCommand.h"
+#include "RunVarCommand.h"
 #include "InitCommand.h"
 #include "StatisticsCommand.h"
 #include <TCLInterpreter.h>
@@ -691,7 +692,8 @@ int main(int argc, char *argv[])
         PauseCommand pause(interp, &ExtraRunState, &rdo);
         ResumeCommand resume(interp, &ExtraRunState, &rdo);
         RunStateCommand runstate(interp);
-	    InitCommand init(interp, &ExtraRunState, &rdo);
+	InitCommand init(interp, &ExtraRunState, &rdo);
+	RunVarCommand runvar(interp, &ExtraRunState, &rdo);
         StatisticsCommand stats(interp, &ExtraRunState, &rdo);
 
         // Before starting the event loop, run any initialization script.
