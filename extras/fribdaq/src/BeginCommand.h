@@ -18,6 +18,8 @@
 #define MVLC_BEGINCOMMAND_H
 #include "ReadoutCommand.h"
 
+#include <string>
+
 /**
  * @class BeginCommand
  *     This class implements the Tcl command that begins a run.
@@ -25,9 +27,15 @@
  *   See the implementation comments for operator().
  */
 class BeginCommand : public ReadoutCommand {
+private:
+    std::string m_configFileName;
     // exported canonicals:
 public:
-    BeginCommand(CTCLInterpreter& interp, FRIBDAQRunState* pState, mesytec::mvlc::MVLCReadout* pReadout);
+    BeginCommand(
+        CTCLInterpreter& interp, 
+        FRIBDAQRunState* pState, mesytec::mvlc::MVLCReadout* pReadout, 
+        const std::string& configFilename
+    );
     virtual ~BeginCommand();
 
     // Forbidden canonicals:
@@ -40,7 +48,8 @@ private:
     // Interface methods:
 public:
     int operator()(CTCLInterpreter& interp, std::vector<CTCLObject>& objv);
-
+private:
+    void setConfiguration();
 };
 
 

@@ -22,6 +22,8 @@
 #include <chrono>
 #include "parser_callbacks.h"
 #include "StateUtils.h"
+#include <stdexcept>
+#include <sstream>
 
 using mesytec::mvlc::MVLCReadout;
 
@@ -30,11 +32,18 @@ using mesytec::mvlc::MVLCReadout;
  *    @param interp - encapsulated Tcl interpreter on which the command is registered.
  *    @param pState - Pointer to the extended DAQ state struct.
  *    @param pReadout - Pointer to the MVLC Readout object.
+ *    @param configFilename - Path to the yaml config file.
  * 
  * @note we register as the ```begin``` command.
  */
-BeginCommand::BeginCommand(CTCLInterpreter& interp, FRIBDAQRunState* pState, MVLCReadout* pReadout) :
-    ReadoutCommand(interp, "begin", pState, pReadout) {}
+BeginCommand::BeginCommand(
+    CTCLInterpreter& interp, 
+    FRIBDAQRunState* pState, MVLCReadout* pReadout,
+    const std::string& configFilename
+) :
+    ReadoutCommand(interp, "begin", pState, pReadout),
+    m_configFileName(configFilename)
+     {}
 /**
  *  destructor
  *     provide a chain point.
@@ -67,37 +76,46 @@ BeginCommand::operator()(CTCLInterpreter& interp, std::vector<CTCLObject>& objv)
         interp.setResult("Too many command parameters");
         return TCL_ERROR;
     }
+
     if (canBegin(*m_pReadout, *m_pRunState)) {
-    
-        // Set title and runn um if can:
-
-        auto titlesz = getVar(interp, "title");
-        if(titlesz) m_pRunState->s_runTitle = titlesz;
-        auto runsz   = getVar(interp, "run");    // Might not convert to int so:
         try {
-            if (runsz) {
-                CTCLObject run;
-                run.Bind(interp);
-                run = runsz;
-                m_pRunState->s_runNumber = (int)run;     // Converts object -> int rep if possible.
+            setConfiguration();                // Update the configuration.
+            // Set title and runn um if can:
+
+            auto titlesz = getVar(interp, "title");
+            if(titlesz) m_pRunState->s_runTitle = titlesz;
+            auto runsz   = getVar(interp, "run");    // Might not convert to int so:
+            try {
+                if (runsz) {
+                    CTCLObject run;
+                    run.Bind(interp);
+                    run = runsz;
+                    m_pRunState->s_runNumber = (int)run;     // Converts object -> int rep if possible.
+                }
+                
+
             }
-            
+            catch(...) {
+                interp.setResult("***warning*** run number does not convert to an integer");
+            }                            // non fatal exception.
 
+            // Try to start the run:
+
+            auto ec = m_pReadout->start(std::chrono::seconds(0));              // no limit to runtime.
+            if (ec) {
+                interp.setResult(ec.message());
+                return TCL_ERROR;                                      // Readout object failed to start run.
+            }
+            m_pRunState->s_runState = Active;
+            setVar(interp, "state", "active");
+            interp.setResult("");    // In case a variabl get set result.
+        } catch (std::exception& e) {
+            std::stringstream smsg;
+            smsg << "Failed to start the run : " << e.what();
+            std::string message(smsg.str());
+            interp.setResult(message);
+            return TCL_ERROR;
         }
-        catch(...) {
-            interp.setResult("***warning*** run number does not convert to an integer");
-        }                            // non fatal exception.
-
-        // Try to start the run:
-
-        auto ec = m_pReadout->start(std::chrono::seconds(0));              // no limit to runtime.
-        if (ec) {
-            interp.setResult(ec.message());
-            return TCL_ERROR;                                      // Readout object failed to start run.
-        }
-        m_pRunState->s_runState = Active;
-        setVar(interp, "state", "active");
-        interp.setResult("");    // In case a variabl get set result.
     } else {
         // Begin with invalid state.
 
@@ -108,4 +126,25 @@ BeginCommand::operator()(CTCLInterpreter& interp, std::vector<CTCLObject>& objv)
 
 }
 
+///////////////////// private utils.
 
+/**
+ * setConfiguration
+ *     Reprocess the configuration file and set the resulting
+ * configuration in the readout:
+ * 
+ * @throw something derived from std::exception if processing the
+ * configuration failed.
+ */
+void
+BeginCommand::setConfiguration() {
+    // Don't need to worry about scope since the confg is
+    // copied inot the readout.
+
+    mesytec::mvlc::CrateConfig config = 
+         mesytec::mvlc::crate_config_from_yaml(m_configFileName);
+
+    // If that parse failed, we don't get here -it throws std::runtime_error
+
+    m_pReadout->setCrateConfig(config);
+}
