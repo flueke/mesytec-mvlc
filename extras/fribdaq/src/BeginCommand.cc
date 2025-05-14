@@ -142,7 +142,7 @@ BeginCommand::setConfiguration() {
     // copied inot the readout.
 
     mesytec::mvlc::CrateConfig config = 
-         mesytec::mvlc::crate_config_from_yaml(m_configFileName);
+         mesytec::mvlc::crate_config_from_yaml_file(m_configFileName);
 
     // If that parse failed, we don't get here -it throws std::runtime_error
 
