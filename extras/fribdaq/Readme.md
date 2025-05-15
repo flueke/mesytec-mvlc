@@ -20,14 +20,15 @@ If you are using the FRIB containerized environment this will have been installe
 
 ### Using fribdaq-readout
 
-```fribdaq-readout``` supports the options supported by minidaq
+```fribdaq-readout``` supports a reduced set of the minidaq options.  Several options that don't make
+sense in the context of the FRIB/NSCLDAQ environment have been removed.
 (use --help to list the full option set and short form documentation)  with the added options:
 
 * ```--ring ringname```  selects the name of the ring buffer to which the data should be written.  This is a ring name not a URI, as only local ringbuffers can be written to.  If the option is not provided, this defaults to the name of the logged in user.
 * ```--sourceid id``` When used in a larger system that builds events from several sources using the FRIB/NSCLDAQ event builder, this specifies the unique integer source id  that will be used to identify fragments from this data source.   If not provided, this defaults to 0.
 * ```--timestamp-library``` When used with a larger system that builds events from several sources using the FRIB/NSCLDAQ event builder, this specifies a shared library file which includes code to extract timestamps from the raw event data.   If not provided, the body headers required to build events will not be included in the ```PHYSCIS_EVENT``` items.
 
-Following all options on the command line, a single positional parameter provides the name of a .yaml configuration file that was either exported from ```mdaq``` or produced using the FRIBDA/NSCLDAQ configuration tools (to be included in versions 12.2 of FRIB/NSCLDAQ).
+Following all options on the command line, a single positional parameter provides the name of a .yaml configuration file that was either exported from ```mdaq``` or produced using the FRIBDA/NSCLDAQ configuration tools mvlcgenerate in FRIB/NSCLDAQ version 12.2 and later.
 
 ####  fribdaq-readout commands
 

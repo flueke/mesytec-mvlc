@@ -438,38 +438,22 @@ int main(int argc, char *argv[])
         | lyra::opt(opt_mvlcUSBSerial, "serial")
             ["--mvlc-usb-serial"] ("connect to the mvlc with the given usb serial number (overrides CrateConfig)")
 
-        // listfile
-        | lyra::opt(opt_noListfile)
-            ["--no-listfile"] ("do not write readout data to a listfile (data will not be recorded)")
-
-        | lyra::opt(opt_overwriteListfile)
-            ["--overwrite-listfile"] ("overwrite an existing listfile")
-
-        | lyra::opt(opt_listfileOut, "listfileName")
-            ["--listfile"] ("filename of the output listfile (e.g. run001.zip)")
-
-        | lyra::opt(opt_listfileCompressionType, "type")
-            ["--listfile-compression-type"].choices("zip", "lz4") ("'zip' or 'lz4'")
-
-        | lyra::opt(opt_listfileCompressionLevel, "level")
-            ["--listfile-compression-level"] ("compression level to use (for zip 0 means no compression)")
-
+        // listfile options removed.
+        
         // logging
-        | lyra::opt(opt_printReadoutData)
-            ["--print-readout-data"]("log each word of readout data (very verbose!)")
-
-        | lyra::opt(opt_noPeriodicCounterDumps)
-            ["--no-periodic-counter-dumps"]("do not periodcally print readout and parser counters to stdout")
-
         | lyra::opt(opt_initOnly)
             ["--init-only"]("run the DAQ init sequence and exit")
 
         | lyra::opt(opt_ignoreInitErrors)
             ["--ignore-vme-init-errors"]("ignore VME errors during the DAQ init sequence")
+
+        // FRIBDAQ Speciic options.
+
         | lyra::opt(opt_ringBufferName, "ring")["--ring"]("ring buffer name")
         | lyra::opt(opt_sourceid, "sourceid")["--sourceid"]("Event builder source id")
         | lyra::opt(opt_timestampdll, "dll")["--timestamp-library"]("Time stamp shared library file")
         | lyra::opt(opt_initscript, "initscript")["--init-script"]("Tcl initialization script")
+        
         // logging
         | lyra::opt(opt_logDebug)["--debug"]("enable debug logging")
         | lyra::opt(opt_logTrace)["--trace"]("enable trace logging")
@@ -613,22 +597,17 @@ int main(int argc, char *argv[])
             }
         }
         //
-        // Listfile setup
+        // Listfile setup : Never writing it.
         //
-        if (opt_listfileOut.empty())
-            opt_listfileOut = util::basename(opt_crateConfig) + ".zip";
+       
 
         ListfileParams listfileParams =
         {
-            .writeListfile = !opt_noListfile,
-            .filepath = opt_listfileOut,
-            .overwrite = opt_overwriteListfile,
-
-            .compression = (opt_listfileCompressionType == "lz4"
-                            ? ListfileParams::Compression::LZ4
-                            : ListfileParams::Compression::ZIP),
-
-            .compressionLevel = opt_listfileCompressionLevel,
+            .writeListfile = false,
+            .filepath = "",
+            .overwrite = false,
+            .compression = ListfileParams::Compression::LZ4,
+            .compressionLevel = 0,
 
         };
 
@@ -643,7 +622,8 @@ int main(int argc, char *argv[])
 
         //
         // readout object
-        //
+
+        
 
         auto rdo = make_mvlc_readout(
             mvlc,
