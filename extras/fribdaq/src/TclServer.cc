@@ -210,7 +210,7 @@ ControlServer::~ControlServer() {
  */
 void
 ControlServer::OnConnection(
-    Tcl_Channel client, char* host, int clientPort
+    Tcl_Channel client, const char* host, int clientPort
 ) {
     spdlog::info("Connection to control server from host: {} on port {}", host, clientPort);
 

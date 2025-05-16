@@ -41,6 +41,7 @@
 #include "RunStateCommand.h"
 #include "RunVarCommand.h"
 #include "InitCommand.h"
+#include "TclServer.h"
 #include "StatisticsCommand.h"
 #include <TCLInterpreter.h>
 #include <TCLLiveEventLoop.h>
@@ -421,6 +422,8 @@ int main(int argc, char *argv[])
     std::string opt_ringBufferName = getUsername();
     unsigned opt_sourceid = 0; 
     std::string opt_initscript;   // Tcl init script.
+    int opt_controlServerPort = -1;
+    std::string opt_controlInitScript ="";
 
     auto cli
         = lyra::help(opt_showHelp)
@@ -453,7 +456,8 @@ int main(int argc, char *argv[])
         | lyra::opt(opt_sourceid, "sourceid")["--sourceid"]("Event builder source id")
         | lyra::opt(opt_timestampdll, "dll")["--timestamp-library"]("Time stamp shared library file")
         | lyra::opt(opt_initscript, "initscript")["--init-script"]("Tcl initialization script")
-        
+        | lyra::opt(opt_controlServerPort, "controlport")["--control-server"]("Slow controls server port")
+        | lyra::opt(opt_controlInitScript, "ctlinitscript")["--ctlconfig"]("Control server initliazation script")
         // logging
         | lyra::opt(opt_logDebug)["--debug"]("enable debug logging")
         | lyra::opt(opt_logTrace)["--trace"]("enable trace logging")
@@ -687,6 +691,15 @@ int main(int argc, char *argv[])
                     << e.ReasonText();
                 return 0;
             }
+        }
+        // If a control server port has been specified, start the server:
+
+        if (opt_controlServerPort > 0) {
+            if (opt_controlInitScript == "") {
+                std::cerr << "If you specify --control-server you must also specify --ctlconfig to configure the server\n";
+                return -1;
+            }
+            ControlServer::start(interp, mvlc, opt_controlInitScript.c_str(), opt_controlServerPort);
         }
 
         // Start the Tcl event loop.

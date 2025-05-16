@@ -94,7 +94,7 @@ public:
     // Private utilities:
 
 private:
-    void OnConnection(Tcl_Channel client, char* host, int clientPort);
+    void OnConnection(Tcl_Channel client, const char* host, int clientPort);
     void OnInput(InputClientData& info);
 
     void addCommands();                                // Create the interpreter commands.
