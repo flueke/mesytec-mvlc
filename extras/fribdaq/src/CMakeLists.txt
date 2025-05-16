@@ -27,6 +27,7 @@ else ()
     InitCommand.cc
     StatisticsCommand.cc
     RunVarCommand.cc
+    TclServer.cc
     )
     target_include_directories(
         fribdaq-readout PRIVATE
