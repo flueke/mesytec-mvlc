@@ -245,7 +245,7 @@ void
 ControlServer::OnInput(InputClientData& info) {
     // Set non-blocking mode for the duration of the read:
 
-    Tcl_SetChannelOption(info.m_pInterp, info.m_channel, "blocking", "0");
+    Tcl_SetChannelOption(info.m_pInterp, info.m_channel, "-blocking", "0");
 
     // The read:
 
@@ -255,7 +255,7 @@ ControlServer::OnInput(InputClientData& info) {
 
     // Turn blocking back on right away.
 
-    Tcl_SetChannelOption(info.m_pInterp, info.m_channel, "blocking", "1");
+    Tcl_SetChannelOption(info.m_pInterp, info.m_channel, "-blocking", "1");
 
     // Errors - log and shutdown the client:
     // TODO:   Adding the host and port to the client data will make better 
@@ -384,7 +384,7 @@ ControlServer::processClientRequest(InputClientData& info) {
     if (!success) {
         sresponse << "ERROR - ";
     }
-    sresponse << m_Interp.GetResultString();
+    sresponse << m_Interp.GetResultString() << std::endl;
     std::string response(sresponse.str());
     Tcl_WriteChars(info.m_channel, response.c_str(), -1);
 }
