@@ -28,6 +28,7 @@ else ()
     StatisticsCommand.cc
     RunVarCommand.cc
     TclServer.cc
+    SlowControlsDriver.cc
     )
     target_include_directories(
         fribdaq-readout PRIVATE
@@ -45,6 +46,7 @@ else ()
         PRIVATE ${NSCLDAQ_ROOT}/lib/libDataFlow.so
         PRIVATE ${NSCLDAQ_ROOT}/lib/libtclPlus.so
         PRIVATE ${NSCLDAQ_ROOT}/lib/libException.so
+        PRIVATE ${NSCLDAQ_ROOT}/lib/libConfigurableObject.so
         PRIVATE ${TCL_LIBRARY}
     )  
     target_link_options(fribdaq-readout PRIVATE
