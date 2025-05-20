@@ -42,7 +42,7 @@ public:
      * @return  
      *     SlowControlsDriver* - pointer to the new driver ready to be configured.
      */
-    virtual SlowCOntrolsDriver* create(mesytec::mvlc::MVLC* controller) = 0;
+    virtual SlowControlsDriver* create(mesytec::mvlc::MVLC* controller) = 0;
 };
 
 /**
@@ -50,22 +50,22 @@ public:
  *    See the note about this in SlowControlsModuleCommand below.
  */
 class SlowControlsFactory {
-private::
+private:
     std::map<std::string, SlowControlsCreator*> m_creators;
-    static SlowControlsFactory m_pInstance;
+    static SlowControlsFactory* m_pInstance;
 
     // All canonicals are private therefore with only contruction/destruction implemented
 private:
     SlowControlsFactory();
     ~SlowControlsFactory();
 
-    SlowControlsFactory(constSlowControlsFactory&);
+    SlowControlsFactory(const SlowControlsFactory&);
     SlowControlsFactory& operator=(const SlowControlsFactory&);
     int operator==(const SlowControlsFactory&);
     int operator!=(const SlowControlsFactory&);
 
 public:
-    static SlowControlsFactory::getInstance();
+    static SlowControlsFactory* getInstance();
 
     SlowControlsCreator* find(const std::string& typeName);
     void addCreator(std::string typeName, SlowControlsCreator* creator);
@@ -87,8 +87,11 @@ private:
 public:
     static SlowControlsModuleIndex* getInstance();
 
+    void add(
+        const std::string& name, const std::string& type, SlowControlsDriver* pDriver
+    );                                                   // add a driver to the dict.
     SlowControlsModule* find(const std::string& name);   // Modules and their type.
-    SlowControlsDriver* findDriver(const std::string& name) // when we don't care about the types.
+    SlowControlsDriver* findDriver(const std::string& name); // when we don't care about the types.
     std::vector<std::pair<std::string, std::string>> list() const;  // list of name/type pairs.
 
 
@@ -114,22 +117,22 @@ public:
  * rest of the slow controls subsystem.
  * 
  */
-class SlowControlsModuleCommand {
+class SlowControlsModuleCommand : public CTCLObjectProcessor {
     
 private:
     mesytec::mvlc::MVLC*  m_pController;          // talk to the VME through this.
     
     // Canonicals:
 public:
-    SlowControlsModuleComand(CTCLInterpreter& interp, mesytec::mvlc::MVLC* controller);
+    SlowControlsModuleCommand(CTCLInterpreter& interp, mesytec::mvlc::MVLC* controller);
     virtual ~SlowControlsModuleCommand();
 
     // Forbidden canonicals:
 private:
-    SlowControlsModuleComand(const SlowControlsModuleComand&);
-    SlowControlsModuleComand& operator=(const SlowControlsModuleComand&);
-    int operator==(const SlowControlsModuleComand&);
-    int operator!=(const SlowControlsModuleComand&);
+    SlowControlsModuleCommand(const SlowControlsModuleCommand&);
+    SlowControlsModuleCommand& operator=(const SlowControlsModuleCommand&);
+    int operator==(const SlowControlsModuleCommand&);
+    int operator!=(const SlowControlsModuleCommand&);
 
     // Virtual overrides:
 public:
