@@ -44,6 +44,7 @@ inline std::vector<u32> scan_vme_bus_for_candidates_stacksize(
 
 struct VMEModuleInfo
 {
+    u32 address;
     u32 hwId;
     u32 fwId;
 
