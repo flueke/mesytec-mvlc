@@ -16,12 +16,14 @@
  */
 
 #include "TclServer.h"
+#include "SlowControlsModuleCommand.h"
 #include <TCLInterpreter.h>
 #include <mesytec-mvlc/mesytec-mvlc.h>
 #include <stdexcept>
 #include <Exception.h>
 #include <sstream>
 #include <string.h>
+
 
 using mesytec::mvlc::MVLC;
 
@@ -290,7 +292,7 @@ ControlServer::OnInput(InputClientData& info) {
  */
 void
 ControlServer::addCommands() {
-    // TODO:  Write and add the commands.
+    new SlowControlsModuleCommand(m_Interp, &m_Controller);
 }
 
 /**
