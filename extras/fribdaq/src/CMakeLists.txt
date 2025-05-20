@@ -30,6 +30,7 @@ else ()
     TclServer.cc
     SlowControlsDriver.cc
     SlowControlsModuleCommand.cc
+    SlowControlsSetCommand.cc
     )
     target_include_directories(
         fribdaq-readout PRIVATE
