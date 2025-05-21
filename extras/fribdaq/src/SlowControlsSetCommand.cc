@@ -49,11 +49,12 @@ SlowControlsSetCommand::~SlowControlsSetCommand() {}
  * 
  * @param interp - interpreter executing the command.
  * @param objv   - encapsulated command parameters.
+ * @return int   - TCL_ERROR on failure, TCL_OK on success.
  */
 int
 SlowControlsSetCommand::operator()(CTCLInterpreter& interp, std::vector<CTCLObject>& objv) {
     bindAll(interp, objv);
-    requireExactly(objv, 4, "Set command - incorrect number of command parameters");
+    requireExactly(objv, 4, "ERROR Set command - incorrect number of command parameters");
 
     std::string moduleName = objv[1];
     std::string paramName  = objv[2];
@@ -62,7 +63,7 @@ SlowControlsSetCommand::operator()(CTCLInterpreter& interp, std::vector<CTCLObje
     auto pDriver = SlowControlsModuleIndex::getInstance()->findDriver(moduleName);
     if (!pDriver) {
         std::stringstream sResult;
-        sResult << "There is no slow controls module named: " << moduleName;
+        sResult << "ERROR - There is no slow controls module named: " << moduleName;
         std::string result = sResult.str();
 
         interp.setResult(result);
