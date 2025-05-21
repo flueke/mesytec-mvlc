@@ -19,6 +19,7 @@
 #include "SlowControlsModuleCommand.h"
 #include "SlowControlsSetCommand.h"
 #include "SlowControlsGetCommand.h"
+#include "SlowControlsUpdateCommand.h"
 #include <TCLInterpreter.h>
 #include <mesytec-mvlc/mesytec-mvlc.h>
 #include <stdexcept>
@@ -297,6 +298,7 @@ ControlServer::addCommands() {
     new SlowControlsModuleCommand(m_Interp, &m_Controller);
     new SlowControlsSetCommand(m_Interp);
     new SlowControlsGetCommand(m_Interp);
+    new SlowControlsUpdateCommand(m_Interp);
 }
 
 /**
