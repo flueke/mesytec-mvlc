@@ -35,7 +35,7 @@ namespace XXUSB {
  * 
  * To use this, you'll need to derive a concrete class from this that:
  * - Gets its configuration from its associated Module command handler.
- * - Implements concrete  Set and Get operations.
+ * - Implements concrete  Set, Get and Update operations.
  * - If the device supports monitoring, it can implement the getMonitor operation
  * to return currently monitored data.
  * 
@@ -90,6 +90,7 @@ public:
 public:
     virtual std::string Set(const char* pv, const char* value) = 0;
     virtual std::string Get(const char* pv) = 0;
+    virtual void Update() = 0;
     virtual void reconfigure();
     virtual std::string getMonitor();
 };

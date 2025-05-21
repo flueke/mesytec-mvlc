@@ -32,6 +32,7 @@ else ()
     SlowControlsModuleCommand.cc
     SlowControlsSetCommand.cc
     SlowControlsGetCommand.cc
+    SlowControlsUpdateCommand.cc
     )
     target_include_directories(
         fribdaq-readout PRIVATE
