@@ -152,11 +152,3 @@ SlowControlsTestDriver::AddDictItem(
     Tcl_DictObjPut(pInterp, dict, keyobj, vobj);
 }
 
-class RegisterTestCreator {
-public:
-    RegisterTestCreator() {
-        SlowControlsFactory::getInstance()->addCreator("test", new SlowControlsTestCreator);
-    }
-};
-
-static RegisterTestCreator reg;

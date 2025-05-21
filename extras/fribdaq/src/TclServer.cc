@@ -21,6 +21,8 @@
 #include "SlowControlsGetCommand.h"
 #include "SlowControlsUpdateCommand.h"
 #include "SlowControlsMonCommand.h"
+
+#include "SlowControlsTestDevice.h"
 #include <TCLInterpreter.h>
 #include <mesytec-mvlc/mesytec-mvlc.h>
 #include <stdexcept>
@@ -184,6 +186,7 @@ ControlServer::ControlServer(
 ) : m_Interp(slave), m_Controller(controller),  m_servicePort(port)
 {
     addCommands();
+    defineDrivers();
 
     // Run the configuratilon script - errors result in exceptions that bubble back:
 
@@ -302,7 +305,14 @@ ControlServer::addCommands() {
     new SlowControlsUpdateCommand(m_Interp);
     new SlowControlsMonCommand(m_Interp);
 }
-
+/**
+ * defineDrivers
+ *  define the built in drivers.
+ */
+void
+ControlServer::defineDrivers() {
+    SlowControlsFactory::getInstance()->addCreator("test", new SlowControlsTestCreator);
+}
 /**
  * setupServer
  *    Open a TCPserver with our connection handler in s_servicePort.

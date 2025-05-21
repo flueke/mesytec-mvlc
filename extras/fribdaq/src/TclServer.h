@@ -98,6 +98,7 @@ private:
     void OnInput(InputClientData& info);
 
     void addCommands();                                // Create the interpreter commands.
+    void defineDrivers();                              // Register device creators.
     void setupServer();                                // Set up the TclServer listener and connection handlers.
     void shutdownServer();                              // Turn off the listener.
     static void shutdownClient(InputClientData& info);        // Shutdown a client connection.  
