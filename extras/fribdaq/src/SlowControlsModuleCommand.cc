@@ -86,6 +86,7 @@ SlowControlsFactory::addCreator(std::string typeName, SlowControlsCreator* creat
         auto msg(smsg.str());
         throw std::logic_error(msg);
     }
+    m_creators.emplace(typeName, creator);
 }
 /**
  * types
