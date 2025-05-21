@@ -31,6 +31,7 @@ else ()
     SlowControlsDriver.cc
     SlowControlsModuleCommand.cc
     SlowControlsSetCommand.cc
+    SlowControlsGetCommand.cc
     )
     target_include_directories(
         fribdaq-readout PRIVATE
