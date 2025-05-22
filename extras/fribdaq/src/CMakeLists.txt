@@ -36,6 +36,7 @@ else ()
     SlowControlsMonCommand.cc
     SlowControlsTestDevice.cc
     CGDG.cc
+    CV812.cc
     )
     target_include_directories(
         fribdaq-readout PRIVATE
