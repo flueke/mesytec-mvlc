@@ -125,7 +125,20 @@ private:
 
 };
 
+/**
+ * @class V812Creator 
+ *   register in the SlowControlsFactory with "v812" as the key and 
+ * we've got it in the Module types list.
+ */
+class V812Creator : public SlowControlsCreator {
+public:
+  SlowControlsDriver* create(mesytec::mvlc::MVLC* controller);
+  class Register {    // Instantiate to register.
+  public:
+    Register();
 
+  };
+};
 
 
 #endif

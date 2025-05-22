@@ -31,7 +31,7 @@
 using namespace std;
 using mesytec::mvlc::VMEDataWidth;
 using mesytec::mvlc::MVLC;
-
+using XXUSB::CConfigurableObject;
 // Register offsets:
 
 #ifdef Const
@@ -728,3 +728,21 @@ CV812::majorityToRegister(int value)
   return result;
 }
 
+
+/////////////////////// The creator and registration:
+
+SlowControlsDriver* 
+V812Creator::create(MVLC* controller) {
+  SlowControlsDriver* driver = new CV812(controller);
+  auto config = driver->getConfiguration();
+  config->addIntegerParameter("-base");
+  config->addParameter("-file", nullptr, nullptr);
+
+  return driver;
+}
+
+V812Creator::Register::Register() {
+  SlowControlsFactory::getInstance()->addCreator("v812", new V812Creator);
+}
+
+static V812Creator::Register autoreg;
