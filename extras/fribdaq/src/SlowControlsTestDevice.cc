@@ -39,6 +39,12 @@ using mesytec::mvlc::MVLC;
     return result;
  }
 
+SlowControlsTestCreator::Register::Register() {
+    SlowControlsFactory::getInstance()->addCreator("test", new SlowControlsTestCreator);
+}
+
+static SlowControlsTestCreator::Register autoregister;    // Auto register our creator.
+
  ///////////////////////// Implement the test driver:
 
  /** constructor

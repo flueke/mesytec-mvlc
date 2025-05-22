@@ -66,4 +66,8 @@ private:
 class SlowControlsTestCreator : public SlowControlsCreator {
 public:
     virtual SlowControlsDriver* create(mesytec::mvlc::MVLC* controller);
+    class Register {
+    public: 
+        Register();
+    };
 };
