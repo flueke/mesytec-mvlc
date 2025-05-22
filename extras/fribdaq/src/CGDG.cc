@@ -14,24 +14,28 @@
 	     East Lansing, MI 48824-1321
 */
 
-#include <config.h>
-#include "CGDG.h"
-#include "CControlModule.h"
-#include "CVMUSB.h"
-#include "CVMUSBReadoutList.h"	// for the AM codes.
 
+#include "CGDG.h"
+#include <mesytec-mvlc/mesytec-mvlc.h>
+#include <XXUSBConfigurableObject.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <sstream>
 
 
 using namespace std;
 
-// MDD8 register etc. definitions.
+using mesytec::mvlc::VMEDataWidth;
+using mesytec::mvlc::MVLC;
 
+// MDD8 register etc. definitions.
+#ifdef CONST
+#undef CONST
+#endif
 #define CONST(name) static const uint32_t name = 
 
-static const uint8_t  am (CVMUSBReadoutList::a24UserData); // Address modifier.
+static const uint8_t am (0x39); // Address modifier: A24 unpriv data.
 CONST(Firmware)     0x00;
 CONST(GlobalReg)    0x04;
 CONST(AuxReg)       0x08;
@@ -126,90 +130,38 @@ CONST(SEL_4)        24;
   Construction is pretty much a no-op as the configuration is 
   handled at attach time.
 */
-CGDG::CGDG() :
-  CControlHardware(),
-  m_pConfiguration(0)
+CGDG::CGDG(MVLC* mvlc) :
+  SlowControlsDriver(mvlc)
 {
   for (int i=0; i < 8; i++) {
     m_delays[i] = m_widths[i] = 0; // Testing.
   }
 }
+
 /*!
-  Same for copy construction.. however this is done by clone just for
-  regularity.
-*/
-CGDG::CGDG(const CGDG& rhs)  : 
-  CControlHardware(rhs)
-{
-}
-/*!
-   Destruction is also a no-op.
+   Destruction is  a no-op.
 */
 CGDG::~CGDG()
 {
 }
-/*!
-   Assignment is a clone:
-*/
-CGDG&
-CGDG::operator=(const CGDG& rhs) 
-{
-  if (this != &rhs) {
-    CControlHardware::operator=(rhs);
-  }
-  return *this;
-}
-/*!
-   All GDG's with the same configuration are equivalent.
-*/
-int
-CGDG::operator==(const CGDG& rhs) const
-{
-  return CControlHardware::operator==(rhs);
-}
-int
-CGDG::operator!=(const CGDG& rhs) const
-{
-  return CControlHardware::operator!=(rhs);
-}
+
+
 //////////////////////////////////////////////////////////////////////////
 
-/*!
-    onAttach is called when the module is attached to a configuration.
-    The configuration is set up with the following
-    configuration values:
-    - base  - Module base address.
-*/
-void
-CGDG::onAttach(CControlModule& configuration)
-{
-  m_pConfiguration = &configuration;
-  configuration.addParameter("-base", XXUSB::CConfigurableObject::isInteger, NULL, 
-			     string("0"));
-
-}
-/*!
-  Initialization just calls update:
-*/
-void
-CGDG::Initialize(CVMUSB& vme)
-{
-  Update(vme);
-}
 /*!
    Update - This updates any internal state about the module that we would
    keep.  It may be, for example that for speed sake we'll cache all the
    module parameters and return them on a get... until one has been changed.
    Update ensures that the internal state is coherent with the module
    hardware state.
-   \param vme : CVMUSB&
-      Vme controller used to talk with the module.
+   
    \return std::string
-   \retval "OK" on success.
+   
 */
-string
-CGDG::Update(CVMUSB& vme)
+void
+CGDG::Update()
 {
+  auto& vme(*m_pVme);                // Hoping to decrease the changes.
   uint32_t baseAddress = base();
   
   // We are going to ensure that the module is set to be
@@ -221,10 +173,8 @@ CGDG::Update(CVMUSB& vme)
   // So that this doesn't take all day we'll do this as an immediate
   // list:
 
-  unique_ptr<CVMUSBReadoutList> pOps(vme.createReadoutList());
-  CVMUSBReadoutList& ops = *pOps;
-  ops.addWrite32(baseAddress+FGGConfig,
-		 am, 
+  
+  vme.vmeWrite(baseAddress+FGGConfig,
 		 (CONFIG_DGG << CONFIG_1)    |
 		 (CONFIG_DGG << CONFIG_2)    |
 		 (CONFIG_DGG << CONFIG_3)    |
@@ -232,31 +182,27 @@ CGDG::Update(CVMUSB& vme)
 		 (CONFIG_DGG << CONFIG_5)    |
 		 (CONFIG_DGG << CONFIG_6)    |
 		 (CONFIG_DGG << CONFIG_7)    |
-		 (CONFIG_DGG << CONFIG_8)); //  All channels are simple GDGs.
-  ops.addWrite32(baseAddress+FGGTrigSel1,      //  Set consecutive nim inputs
-		 am,                           // as consecutive gate channel
+		 (CONFIG_DGG << CONFIG_8), am, VMEDataWidth::D32); //  All channels are simple GDGs.
+  vme.vmeWrite(baseAddress+FGGTrigSel1,      //  Set consecutive nim input                          // as consecutive gate channel
 		 (SEL_NIM1 << SEL_1)         | // triggers...
 		 (SEL_NIM2 << SEL_2)         |
 		 (SEL_NIM3 << SEL_3)         |
-		 (SEL_NIM4 << SEL_4));
-  ops.addWrite32(baseAddress+FGGTrigSel2, 
-		am,
+		 (SEL_NIM4 << SEL_4), am, VMEDataWidth::D32);
+  vme.vmeWrite(baseAddress+FGGTrigSel2, 
 		(SEL_NIM5   << SEL_1)        |
 		(SEL_NIM6   << SEL_2)        |
 		(SEL_NIM7   << SEL_3)        |
-		(SEL_NIM8   << SEL_4));        // ...<
-  ops.addWrite32(baseAddress+NIMOSel1,
-		 am,
+		(SEL_NIM8   << SEL_4), am, VMEDataWidth::D32);        // ...<
+  vme.vmeWrite(baseAddress+NIMOSel1,
  		 (SEL_Gate1 << SEL_1)         | // Output selections...
 		 (SEL_Gate2 << SEL_2)         |
 		 (SEL_Gate3 << SEL_3)         |
-		 (SEL_Gate4 << SEL_4)); 
-  ops.addWrite32(baseAddress+NIMOSel2,
-		 am,
+		 (SEL_Gate4 << SEL_4), am, VMEDataWidth::D32); 
+  vme.vmeWrite(baseAddress+NIMOSel2,
  		 (SEL_Gate5 << SEL_1)         | 
 		 (SEL_Gate6 << SEL_2)         |
 		 (SEL_Gate7 << SEL_3)         |
-		 (SEL_Gate8 << SEL_4)); 
+		 (SEL_Gate8 << SEL_4), am, VMEDataWidth::D32); 
 
   // Read the delays and gates.
 
@@ -264,26 +210,14 @@ CGDG::Update(CVMUSB& vme)
   uint32_t gateOffset  = Gate0;
 
   for (int i=0; i < 8; i++) {
-    ops.addRead32(base() + delayOffset, am);
-    ops.addRead32(base() + gateOffset, am);
+    vme.vmeRead(base() + delayOffset, (m_delays[i]), am, VMEDataWidth::D32);
+    vme.vmeRead(base() + gateOffset, (m_widths[i]), am, VMEDataWidth::D32);
+    
     delayOffset += 8;
     gateOffset  += 8;
   }
-  // Do the operation and distribute the data to the members:
 
-  uint32_t inputData[16];	// Data buffer for the list.
-  size_t   readSize;
-  int status = vme.executeList(ops, inputData, sizeof(inputData), &readSize);
-  if (status < 0) {
-    return string("ERROR - Could not execute Update List");
-  }
   
-  for (int i=0; i < 8; i++) {
-    m_delays[i] = inputData[i*2];   // delays are the evens.
-    m_widths[i] = inputData[1+i*2]; // widths are the odds.
-  }
-
-  return string("OK");
 }
 /*!
   set a parameter value. All values must be integers, and the parameters
@@ -291,12 +225,9 @@ CGDG::Update(CVMUSB& vme)
   - delay[0-nchan-1]
   - width[0-nchan-1].
 
-  \param vme  : CVMUSB&
-     VME controller that connects to the VME crate this module is in.
-  \param parameter : std::string
-     Name of the parameter to modify.
-  \param value     : std::string
-     integer value to set the parameter to.
+  
+  \param parameter    Name of the parameter to modify.
+  \param value        integer value to set the parameter to.
 
   \return std::string
   \retval ERROR - some text   - a problem was detected.
@@ -304,7 +235,7 @@ CGDG::Update(CVMUSB& vme)
 
 */
 string
-CGDG::Set(CVMUSB& vme, string parameter, string value)
+CGDG::Set(const char* parameter, const char* value)
 {
 
   unsigned int channelNumber;
@@ -312,17 +243,17 @@ CGDG::Set(CVMUSB& vme, string parameter, string value)
 
   // First decode the value as a uint32_t:
 
-  if(sscanf(value.c_str(), "%i", &parameterValue) <= 0) {
+  if(sscanf(value, "%i", &parameterValue) <= 0) {
     return string("ERROR - Value is not an integer and must be");
   }                       // May need to add range checking.
 
   // See if the parameter is a width:n:
 
-  if (sscanf(parameter.c_str(), " width%u", &channelNumber) == 1) {
-    return setWidth(vme, channelNumber, parameterValue);
+  if (sscanf(parameter, " width%u", &channelNumber) == 1) {
+    return setWidth(channelNumber, parameterValue);
   }
-  else if(sscanf(parameter.c_str(), " delay%u", &channelNumber) == 1) {
-    return setDelay(vme, channelNumber, parameterValue);
+  else if(sscanf(parameter, " delay%u", &channelNumber) == 1) {
+    return setDelay(channelNumber, parameterValue);
   }
   else {
     return string("ERROR - parameter specifier invalid");
@@ -331,10 +262,8 @@ CGDG::Set(CVMUSB& vme, string parameter, string value)
 }
 /*!
    Get a parameter value and return it to the caller
-   \param vme : CVMUSB&
-       reference to the VME controller that talks to the device.
-   \param parameter : std::string
-       Name of the paramter to retrieve.  Must be of the form
+   
+   \param parameter Name of the paramter to retrieve.  Must be of the form
        - delay%u  To get a delay value. 
        - width%u  To get a width value.
    \return std::string
@@ -342,49 +271,47 @@ CGDG::Set(CVMUSB& vme, string parameter, string value)
    \retval some unsigned integer Reports the value read.
 */
 string
-CGDG::Get(CVMUSB& vme, string parameter)
+CGDG::Get(const char* parameter)
 {
   unsigned int channelNumber;
   
-  if(sscanf(parameter.c_str(), " width%u", &channelNumber) == 1) {
-    return getWidth(vme, channelNumber);
+  if(sscanf(parameter, " width%u", &channelNumber) == 1) {
+    return getWidth(channelNumber);
   }
-  else if (sscanf(parameter.c_str(), " delay%u", &channelNumber) == 1) {
-    return getDelay(vme, channelNumber);
+  else if (sscanf(parameter, " delay%u", &channelNumber) == 1) {
+    return getDelay(channelNumber);
   }
   else {
     return string("ERROR - parameter specifier invalid");
   }
 }
      
-/*!
-    Clone oursevles... a no op at this point
-*/
-CControlHardware*
-CGDG::clone() const
-{
-  return (new CGDG(*this));
+/**
+ * reconfigure 
+ *     The configuration (the base) has changed.  This requires us to update the
+ * device:
+ */
+void
+CGDG::reconfigure() {
+  Update();
 }
 
 ////////////////////////////////////////////////////////////////////////////
 
 /*
    Retrieve the value of the base parameter.
-   Note that if there is no configuration, we return 0 (uninitialized value).
+   Note there will always be a configuration and
+   nowadays we don't need to turn the -base into an integer.
 
 */
 uint32_t 
 CGDG::base()
 {
-  if (m_pConfiguration) {
-    string strBase = m_pConfiguration->cget("-base");
-    unsigned long base;
-    base = strtoul(strBase.c_str(), NULL, 0);
-    return static_cast<uint32_t>(base);
-  } 
-  else {
-    return static_cast<uint32_t>(0);
-  }
+  auto pConfiguration = getConfiguration();
+
+  return pConfiguration->getIntegerParameter("-base");
+  
+  
 }
 /*
     Set the delay of one of the channels.
@@ -396,16 +323,21 @@ CGDG::base()
        Stringified value set or an error.
 */
 string
-CGDG::setDelay(CVMUSB& vme, unsigned int channel, unsigned int value)
+CGDG::setDelay(unsigned int channel, unsigned int value)
 {
+  auto& vme(*m_pVme);                   // Reduce chances for an error.
   if (channel > 7) {
     return string ("ERROR - invalid channel");
   }
   else {
     m_delays[channel] = value;
-    int status = vme.vmeWrite32(base() + Delay0 + channel*8, am, value);
-    if (status != 0) {
-      return string("ERROR - Failed on Vme write32");
+    auto status = vme.vmeWrite(base() + Delay0 + channel*8, value, am, VMEDataWidth::D32);
+    if (status) {
+      stringstream smsg;
+      smsg << "Error - Failed on vme write 32 for delay " << channel 
+        << " : " << status.message();
+      std::string msg(smsg.str());
+      return msg;
     } else {
       return string("OK");
     }
@@ -421,16 +353,21 @@ CGDG::setDelay(CVMUSB& vme, unsigned int channel, unsigned int value)
        Stringified value set or an error.
 */
 string
-CGDG::setWidth(CVMUSB& vme, unsigned int channel, unsigned int value)
+CGDG::setWidth(unsigned int channel, unsigned int value)
 {
+  auto& vme(*m_pVme);
   if (channel > 7) {
     return string("ERROR - invalid channel");
   }
   else {
     m_widths[channel] = value;
-    int status = vme.vmeWrite32(base() + Gate0 + channel*8, am, value);
-    if (status != 0) {
-      return string("ERROR - Failed on VME write32");
+    auto status = vme.vmeWrite(base() + Gate0 + channel*8, value, am, VMEDataWidth::D32);
+    if (status) {
+      stringstream smsg;
+      smsg << "ERROR - Failed VME write32 for width " << channel 
+        << " : " << status.message();
+      string msg(smsg.str());
+      return msg;
     } else {
       return string("OK");
     }
@@ -448,16 +385,21 @@ CGDG::setWidth(CVMUSB& vme, unsigned int channel, unsigned int value)
     stringified value or an error message.
 */
 string
-CGDG::getDelay(CVMUSB& vme, unsigned int channel)
+CGDG::getDelay(unsigned int channel)
 {
+  auto& vme(*m_pVme);
   if (channel > 7) {
     return string("ERROR - invalid channel");
   }
   else {
-    int status = vme.vmeRead32(base() + Delay0 + channel*8, am,
-			       &(m_delays[channel]));
-    if (status != 0) {
-      return string("ERROR - vme read 32 failed");
+    auto status = vme.vmeRead(base() + Delay0 + channel*8, (m_delays[channel]), am, VMEDataWidth::D32);
+			       
+    if (status) {
+      stringstream smsg;
+      smsg << "ERROR - Vme read 32 failed for delay: " << channel
+        << " : " << status.message();
+      std::string message(smsg.str());
+      return message;
     }
     char msg[100];
     sprintf(msg, "%d", m_delays[channel]);
@@ -473,19 +415,45 @@ CGDG::getDelay(CVMUSB& vme, unsigned int channel)
     stringified value or an error message.
 */
 string
-CGDG::getWidth(CVMUSB& vme, unsigned int channel)
+CGDG::getWidth(unsigned int channel)
 {
+  auto& vme(*m_pVme);
   if (channel > 7) {
     return string("ERROR - invalid channel");
   }
   else {
-    int status = vme.vmeRead32(base() + Gate0 + channel*8, am,
-			       &(m_widths[channel]));
-    if (status != 0) {
-      return string("ERROR - vme read 32 failed");
+    auto status = vme.vmeRead(base() + Gate0 + channel*8,
+			       (m_widths[channel]), am, VMEDataWidth::D32);
+    if (status) {
+      stringstream smsg;
+      smsg << "Error - vme reaVMEDataWidth::D32 failed for width " << channel <<
+        " : " << status.message();
+      string message(smsg.str());
+      return message;
+      
     }
     char msg[100];
     sprintf(msg, "%d", m_widths[channel]);
     return string(msg);
   }
 }
+/////////////////////////////////// GDGD Creator
+
+/** create - create and supply the configurable parameters for a GDG */
+
+SlowControlsDriver* GDGCreator::create(MVLC* controller) {
+ SlowControlsDriver* pResult = new CGDG(controller);
+ auto pConfig = pResult->getConfiguration();
+ pConfig->addIntegerParameter("-base"); 
+
+ return pResult;
+}
+
+/** Register as "jtecgdg" */
+
+GDGCreator::Register::Register() {
+  SlowControlsFactory::getInstance()->addCreator("jtecgdg", new GDGCreator);
+}
+
+
+static GDGCreator::Register registrar;    // try again for auto registration.

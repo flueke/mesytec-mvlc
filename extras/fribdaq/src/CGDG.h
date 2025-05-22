@@ -1,6 +1,6 @@
 /*
     This software is Copyright by the Board of Trustees of Michigan
-    State University (c) Copyright 2005.
+    State University (c) Copyright 2025.
 
     You may use this software under the terms of the GNU public license
     (GPL).  The terms of this license are described at:
@@ -14,29 +14,21 @@
 	     East Lansing, MI 48824-1321
 */
 
-#ifndef __CGDG_H
-#define __CGDG_H
-#ifndef __CCONTROLHARDWARE_H
-#include "CControlHardware.h"
-#endif
-
-#ifndef __STL_STRING
+#ifndef MVLC_CGDG_H
+#define MVLC_CGDG_H
+#include "SlowControlsDriver.h"
+#include "SlowControlsModuleCommand.h"
 #include <string>
-#ifndef __STL_STRING
-#define __STL_STRING
-#endif
-#endif
-
-#ifndef __CRT_STDINT_H
 #include <stdint.h>
-#ifndef __CRT_STDINT_H
-#define __CRT_STDINT_H
-#endif
-#endif
 
-
-#include <CControlModule.h>
-class CVMUSB;
+namespace mesytect {
+  namespace mvlc {
+    class MVLC;
+  }
+}
+namespace XXUSB {
+  class CConfigurableObject;
+}
 
 
 /*!
@@ -48,11 +40,14 @@ class CVMUSB;
    The configuration parameters are just:
    - base  - The base address of the module. We assume that address modifiers
              will be extended user data.
+
+  We don't support monitoring.
 */
-class CGDG : public CControlHardware
+class CGDG : public SlowControlsDriver
 {
 private:
-  CControlModule*      m_pConfiguration;
+
+  mesytec::mvlc::MVLC*             m_pController;
 
   uint32_t                  m_delays[8];
   uint32_t                  m_widths[8];
@@ -60,9 +55,12 @@ private:
 public:
   // Cannonical operations:
 
-  CGDG();
-  CGDG(const CGDG& rhs);
+  CGDG(mesytec::mvlc::MVLC* vme);
   virtual ~CGDG();
+
+  // forbidden canonicals.
+private:
+  CGDG(const CGDG&);
   CGDG& operator=(const CGDG& rhs);
   int operator==(const CGDG& rhs) const;
   int operator!=(const CGDG& rhs) const;
@@ -70,22 +68,32 @@ public:
   // virtual overrides:
 
 public:
-  virtual void onAttach(CControlModule& configuration);  //!< Create config.
-  virtual void Initialize(CVMUSB& vme);
-  virtual std::string Update(CVMUSB& vme);               //!< Update module.
-  virtual std::string Set(CVMUSB& vme, 
-			  std::string parameter, 
-			  std::string value);            //!< Set parameter value
-  virtual std::string Get(CVMUSB& vme, 
-			  std::string parameter);        //!< Get parameter value.
-  virtual CControlHardware* clone() const;	     //!< Virtual copy constr.
+ 
+  virtual void Update();             
+  virtual std::string Set(const char* parameter, const char* value); 
+  virtual std::string Get(const char* parameter);
+  virtual void reconfigure();
 
 private:
   uint32_t base();
-  std::string setDelay(CVMUSB& vme, unsigned int channel, unsigned int value);
-  std::string setWidth(CVMUSB& vme, unsigned int channel, unsigned int value);
+  std::string setDelay(unsigned int channel, unsigned int value);
+  std::string setWidth(unsigned int channel, unsigned int value);
 
-  std::string getDelay(CVMUSB& vme, unsigned int channel);
-  std::string getWidth(CVMUSB& vme, unsigned int channel);
+  std::string getDelay(unsigned int channel);
+  std::string getWidth(unsigned int channel);
+};
+
+/**
+ *  @class CGDGCreator 
+ *    Creator to register in the Slow controls factory as jtecgdg
+ * with the -base integer parameter.
+ */
+class GDGCreator : SlowControlsCreator {
+public:
+  virtual SlowControlsDriver* create(mesytec::mvlc::MVLC* controller);
+  class Register {
+  public:
+    Register();
+  };
 };
 #endif
