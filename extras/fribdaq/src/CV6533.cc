@@ -1168,3 +1168,20 @@ CV6533::fillMonitoredVariables()
   }
 
 }
+
+///////////////////////////// Implement the creator and auto register:
+
+SlowControlsDriver*
+V6533Creator::create(MVLC* controller) {
+  SlowControlsDriver* result = new CV6533(controller);
+
+  result->getConfiguration()->addIntegerParameter("-base", INITIAL_BASE_VALUE);
+
+  return result;
+}
+
+V6533Creator::Register::Register() {
+  SlowControlsFactory::getInstance()->addCreator("v6533", new V6533Creator);
+}
+
+static V6533Creator::Register registrar;

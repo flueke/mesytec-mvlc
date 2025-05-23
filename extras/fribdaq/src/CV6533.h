@@ -128,6 +128,18 @@ private:
   void fillMonitoredVariables();
 
 };
+/**
+ * @class V6533Creator
+ *    Factory creator class along with support for auto-registration
+ */
+class V6533Creator : public SlowControlsCreator {
+  public:
+    SlowControlsDriver* create(mesytec::mvlc::MVLC* controller);
 
+    class Register {
+      public:
+        Register();
+    };
+};
 
 #endif
