@@ -377,3 +377,32 @@ CMxDCRCBus::throwIfBadStatus(
     throw msg;
   }
 }
+
+////////////////////////////////// Implementation of MxDCBusCreator and auto registration.
+
+/**
+ *  create
+ *     Create a driver instance.
+ * 
+ * @param controller - MVLC controller used by the driver to perform operations.
+ * @return SlowControlsDriver* - pointer to the dynamically instantiate driver.
+ */
+SlowControlsDriver*
+MxDCBusCreator::create(MVLC* controller) {
+  SlowControlsDriver* result = new CMxDCRCBus(controller);
+
+  // Define the configurable parameters:
+
+  result->getConfiguration()->addIntegerParameter("-base", INITIAL_BASE_VALUE);
+
+  return result;
+}
+
+/** Auto registration: */
+
+MxDCBusCreator::Register::Register() {
+  SlowControlsFactory::getInstance()->addCreator("mxdcrcbus", new MxDCBusCreator);
+}
+
+
+static MxDCBusCreator::Register registrar;
