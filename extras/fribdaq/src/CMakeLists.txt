@@ -38,6 +38,7 @@ else ()
     CGDG.cc
     CV812.cc
     CMxDCRCBus.cc
+    CMxDCReset.cc
     )
     target_include_directories(
         fribdaq-readout PRIVATE
