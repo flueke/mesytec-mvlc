@@ -743,6 +743,7 @@ V812Creator::create(MVLC* controller) {
 
 V812Creator::Register::Register() {
   SlowControlsFactory::getInstance()->addCreator("v812", new V812Creator);
+  SlowControlsFactory::getInstance()->addCreator("v895", new V812Creator);
 }
 
 static V812Creator::Register autoreg;
