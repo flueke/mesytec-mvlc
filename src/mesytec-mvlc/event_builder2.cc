@@ -1,6 +1,7 @@
 #include "event_builder2.hpp"
 
 #include <deque>
+#include <sstream>
 #include <unordered_set>
 
 #include <mesytec-mvlc/util/ticketmutex.h>

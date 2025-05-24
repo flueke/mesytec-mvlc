@@ -13,12 +13,12 @@
 #include "util/storage_sizes.h"
 #include "util/string_view.hpp"
 
-#if defined __linux__ or defined __WIN32
+#if defined __linux__ or defined MESYTEC_MVLC_PLATFORM_WINDOWS
 #define MVLC_ENABLE_ETH_THROTTLE 1
 #define MVLC_ETH_THROTTLE_WRITE_DEBUG_FILE 0
 #endif
 
-#ifndef __WIN32
+#ifndef MESYTEC_MVLC_PLATFORM_WINDOWS
     #include <netdb.h>
     #include <sys/stat.h>
     #include <sys/socket.h>
@@ -34,7 +34,7 @@
     #endif
 
     #include <arpa/inet.h>
-#else // __WIN32
+#else // MESYTEC_MVLC_PLATFORM_WINDOWS
     #include <winsock2.h>
     #include <ws2tcpip.h>
     #include <stdio.h>
@@ -89,7 +89,7 @@ struct ReceiveBufferSnapshot
 {
     u32 used = 0u;
     u32 capacity = 0u;
-#ifndef __WIN32
+#ifndef MESYTEC_MVLC_PLATFORM_WINDOWS
     ino_t inode = 0u;
 #endif
 };
@@ -400,7 +400,7 @@ void mvlc_eth_throttler(
 
     logger->debug("mvlc_eth_throttler leaving loop");
 }
-#elif defined(__WIN32)
+#elif defined(MESYTEC_MVLC_PLATFORM_WINDOWS)
 void mvlc_eth_throttler(
     Protected<eth::EthThrottleContext> &ctx,
     Protected<eth::EthThrottleCounters> &counters)
@@ -511,7 +511,7 @@ Impl::Impl(const std::string &host)
     , m_throttleCounters()
     , m_throttleContext()
 {
-#ifdef __WIN32
+#ifdef MESYTEC_MVLC_PLATFORM_WINDOWS
     WORD wVersionRequested;
     WSADATA wsaData;
     wVersionRequested = MAKEWORD(2, 1);
@@ -525,7 +525,7 @@ Impl::~Impl()
 {
     disconnect();
 
-#ifdef __WIN32
+#ifdef MESYTEC_MVLC_PLATFORM_WINDOWS
     WSACleanup();
 #endif
 }
@@ -713,7 +713,7 @@ std::error_code Impl::connect()
     // Set socket receive buffer size
     logger->trace("setting socket receive buffer sizes...");
 
-#ifdef __WIN32
+#ifdef MESYTEC_MVLC_PLATFORM_WINDOWS
     int dataSocketReceiveBufferSize = 0;
 #endif
 
@@ -742,7 +742,7 @@ std::error_code Impl::connect()
                              actualReceiveBufferSize, actualMB);
             }
 
-#ifdef __WIN32
+#ifdef MESYTEC_MVLC_PLATFORM_WINDOWS
             // This is for the eth throttling code
             if (pipe == Pipe::Data)
                 dataSocketReceiveBufferSize = actualReceiveBufferSize;
@@ -794,14 +794,14 @@ std::error_code Impl::connect()
     // Setup the EthThrottleContext
     {
         auto tc = m_throttleContext.access();
-#ifndef __WIN32
+#ifndef MESYTEC_MVLC_PLATFORM_WINDOWS
 
         struct stat sb = {};
 
         if (fstat(m_dataSock, &sb) == 0)
             tc->dataSocketInode = sb.st_ino;
 
-#else // __WIN32
+#else // MESYTEC_MVLC_PLATFORM_WINDOWS
         tc->dataSocket = m_dataSock;
         tc->dataSocketReceiveBufferSize = dataSocketReceiveBufferSize;
 #endif

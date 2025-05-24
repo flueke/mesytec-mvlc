@@ -88,7 +88,7 @@ std::pair<std::error_code, size_t> read_pipe_until_empty(
     return std::make_pair(ec, totalBytesTransferred);
 };
 
-#ifdef __WIN32
+#ifdef MESYTEC_MVLC_PLATFORM_WINDOWS
 std::error_code abort_pipe(void *ftdiHandle, Pipe pipe, mesytec::mvlc::usb::EndpointDirection dir)
 {
     auto logger = get_logger("mvlc_usb");
@@ -125,7 +125,7 @@ namespace mesytec::mvlc::usb
 Impl::Impl()
     : m_connectMode{ConnectMode::First, {}, {}}
 {
-#ifdef __WIN32
+#ifdef MESYTEC_MVLC_PLATFORM_WINDOWS
     m_readBuffers.resize(PipeCount);
 #endif
 }
@@ -133,7 +133,7 @@ Impl::Impl()
 Impl::Impl(unsigned index)
     : m_connectMode{ConnectMode::ByIndex, index, {}}
 {
-#ifdef __WIN32
+#ifdef MESYTEC_MVLC_PLATFORM_WINDOWS
     m_readBuffers.resize(PipeCount);
 #endif
 }
@@ -141,7 +141,7 @@ Impl::Impl(unsigned index)
 Impl::Impl(const std::string &serial)
     : m_connectMode{ConnectMode::BySerial, 0, serial}
 {
-#ifdef __WIN32
+#ifdef MESYTEC_MVLC_PLATFORM_WINDOWS
     m_readBuffers.resize(PipeCount);
 #endif
 }
@@ -271,7 +271,7 @@ std::error_code Impl::connect()
 
     logger->trace("set pipe timeouts done");
 
-#ifdef __WIN32
+#ifdef MESYTEC_MVLC_PLATFORM_WINDOWS
     // clean up the pipes
     for (auto pipe: { Pipe::Command, Pipe::Data })
     {
@@ -287,7 +287,7 @@ std::error_code Impl::connect()
     logger->trace("win32 pipe cleanup done");
 #endif
 
-#ifdef __WIN32
+#ifdef MESYTEC_MVLC_PLATFORM_WINDOWS
 #if USB_WIN_USE_STREAMPIPE
     logger->trace("enabling streaming mode for all read pipes, size={}", USBStreamPipeReadSize);
     // FT_SetStreamPipe(handle, allWritePipes, allReadPipes, pipeID, streamSize)
@@ -320,7 +320,7 @@ std::error_code Impl::connect()
         }
     }
 
-#ifndef __WIN32
+#ifndef MESYTEC_MVLC_PLATFORM_WINDOWS
     // Linux only: after post_connect_cleanup() is done set the command pipes
     // read timeout to 0 which has the effect of only reading from the FTDI
     // library buffer.
@@ -353,7 +353,7 @@ bool Impl::isConnected() const
     return m_handle != nullptr;
 }
 
-#ifdef __WIN32 // windows
+#ifdef MESYTEC_MVLC_PLATFORM_WINDOWS
 std::error_code Impl::write(Pipe pipe, const u8 *buffer, size_t size,
                             size_t &bytesTransferred)
 {
@@ -500,7 +500,7 @@ std::error_code Impl::write(Pipe pipe, const u8 *buffer, size_t size,
 }
 #endif
 
-#ifdef __WIN32 // Impl::read() windows
+#ifdef MESYTEC_MVLC_PLATFORM_WINDOWS
 
 // Update Tue 11/05/2019:
 // The note below was written before trying out overlapped I/O. This might need
@@ -753,7 +753,7 @@ std::error_code Impl::read_unbuffered(Pipe pipe, u8 *buffer, size_t size,
     ULONG transferred = 0; // FT API wants a ULONG* parameter
     std::error_code ec = {};
 
-#ifdef __WIN32
+#ifdef MESYTEC_MVLC_PLATFORM_WINDOWS
 #if !USB_WIN_USE_ASYNC
 
 #if USB_WIN_USE_STREAMPIPE

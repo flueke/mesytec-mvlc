@@ -28,10 +28,10 @@
 #ifndef __MESYTEC_MVLC_MVLC_IMPL_UDP_H__
 #define __MESYTEC_MVLC_MVLC_IMPL_UDP_H__
 
-#ifndef __WIN32
-#include <netinet/ip.h> // sockaddr_in
-#else
+#ifdef MESYTEC_MVLC_PLATFORM_WINDOWS
 #include <winsock2.h>
+#else
+#include <netinet/ip.h> // sockaddr_in
 #endif
 
 #include <array>
@@ -52,7 +52,7 @@ namespace mesytec::mvlc::eth
 
 struct EthThrottleContext
 {
-#ifndef __WIN32
+#ifndef MESYTEC_MVLC_PLATFORM_WINDOWS
     u32 dataSocketInode; // Inode of the socket used for MVLCs data pipe. This is needed
                          // to correctly identify the socket in the netlink response data.
 #else

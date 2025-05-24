@@ -77,26 +77,26 @@ class MESYTEC_MVLC_EXPORT MVLCReadout
         struct Private;
         std::unique_ptr<Private> d;
 
-        friend MVLCReadout make_mvlc_readout(
+        friend MVLCReadout MESYTEC_MVLC_EXPORT make_mvlc_readout(
             const CrateConfig &crateConfig,
             const ListfileParams &listfileParams,
             readout_parser::ReadoutParserCallbacks parserCallbacks,
             void *userContext);
 
-        friend MVLCReadout make_mvlc_readout(
+        friend MVLCReadout MESYTEC_MVLC_EXPORT make_mvlc_readout(
             MVLC &mvlc,
             const CrateConfig &crateConfig,
             const ListfileParams &listfileParams,
             readout_parser::ReadoutParserCallbacks parserCallbacks,
             void *userContext);
 
-        friend MVLCReadout make_mvlc_readout(
+        friend MVLCReadout MESYTEC_MVLC_EXPORT make_mvlc_readout(
             const CrateConfig &crateConfig,
             const std::shared_ptr<listfile::WriteHandle> &listfileWriteHandle,
             readout_parser::ReadoutParserCallbacks parserCallbacks,
             void *userContext);
 
-        friend MVLCReadout make_mvlc_readout(
+        friend MVLCReadout MESYTEC_MVLC_EXPORT make_mvlc_readout(
             MVLC &mvlc,
             const CrateConfig &crateConfig,
             const std::shared_ptr<listfile::WriteHandle> &listfileWriteHandle,

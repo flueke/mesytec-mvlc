@@ -3,7 +3,7 @@
 
 #include <system_error>
 
-#ifndef __WIN32
+#ifndef MESYTEC_MVLC_PLATFORM_WINDOWS
 #include <netinet/ip.h> // sockaddr_in
 #else
 #include <winsock2.h>

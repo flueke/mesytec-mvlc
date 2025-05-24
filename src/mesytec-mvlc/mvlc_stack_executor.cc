@@ -1,8 +1,5 @@
 #include "mvlc_stack_executor.h"
 
-#ifndef __APPLE__
-#include <bits/c++config.h>
-#endif
 #include <spdlog/spdlog.h>
 
 #include "mvlc_constants.h"

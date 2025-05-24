@@ -21,6 +21,7 @@
 #ifndef __MESYTEC_MVLC_MVLC_DIALOG_UTIL_H__
 #define __MESYTEC_MVLC_MVLC_DIALOG_UTIL_H__
 
+#include <algorithm>
 #include <array>
 #include <cstdlib>
 #include <iostream>
