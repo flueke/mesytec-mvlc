@@ -57,9 +57,9 @@ add_subdirectory(nlohmann_json)
 set_target_properties(yaml-cpp PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
 # LZ4
-add_subdirectory(lz4/contrib/cmake_unofficial)
-target_include_directories(lz4_static
-    PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/lz4/lib/>)
+#add_subdirectory(lz4/contrib/cmake_unofficial)
+#target_include_directories(lz4_static
+#    PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/lz4/lib/>)
 
 # Lyra command line parser
 add_subdirectory(Lyra)

@@ -62,8 +62,15 @@ if (MESYTEC_MVLC_PLATFORM_LINUX)
     endif()
 elseif (MESYTEC_MVLC_PLATFORM_WINDOWS)
     message("-- mesytec::mvlc::usb using mvlc_impl_usb_windows.cc")
-    target_compile_definitions(mesytec-mvlc PRIVATE -DNOMINMAX)
+    target_compile_definitions(mesytec-mvlc PUBLIC -DNOMINMAX)
     target_sources(mesytec-mvlc PRIVATE mvlc_impl_usb_windows.cc)
+endif()
+
+if (MESYTEC_MVLC_PLATFORM_LINUX)
+    target_link_libraries(mesytec-mvlc PRIVATE lz4_static)
+else()
+    find_package(LZ4 REQUIRED)
+    target_link_libraries(mesytec-mvlc PRIVATE LZ4::lz4)
 endif()
 
 target_include_directories(mesytec-mvlc
@@ -73,7 +80,6 @@ target_include_directories(mesytec-mvlc
     )
 
 target_link_libraries(mesytec-mvlc
-    PRIVATE lz4_static
     PRIVATE minizip
     PRIVATE yaml-cpp
     PRIVATE nlohmann_json::nlohmann_json
