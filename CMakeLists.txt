@@ -28,7 +28,7 @@ else ()
     message(AUTHOR_WARNING "WARNING: This platform may not be supported: ${CMAKE_SYSTEM_NAME}")
     # blithely hope for POSIX to work
     add_definitions(-DMESYTEC_MVLC_PLATFORM_POSIX)
-    set(NNG_PLATFORM_POSIX ON)
+    set(MESYTEC_MVLC_PLATFORM_POSIX ON)
 endif ()
 
 set(CMAKE_CXX_STANDARD 17)

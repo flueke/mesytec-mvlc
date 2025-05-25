@@ -62,7 +62,7 @@ if (MESYTEC_MVLC_PLATFORM_LINUX)
     endif()
 elseif (MESYTEC_MVLC_PLATFORM_WINDOWS)
     message("-- mesytec::mvlc::usb using mvlc_impl_usb_windows.cc")
-    target_compile_definitions(mesytec-mvlc PUBLIC -DNOMINMAX)
+    target_compile_definitions(mesytec-mvlc PUBLIC -DNOMINMAX -DMESYTEC_MVLC_PLATFORM_WINDOWS)
     target_sources(mesytec-mvlc PRIVATE mvlc_impl_usb_windows.cc)
 endif()
 
