@@ -71,6 +71,9 @@ class MESYTEC_MVLC_EXPORT MVLCReadout
         std::thread &parserThread();
         std::atomic<bool> &parserQuit();
 
+        // Mutators:
+
+        void setCrateConfig(CrateConfig config);
     private:
         MVLCReadout();
 

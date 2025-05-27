@@ -6,9 +6,16 @@ This directory supplies an optional program, fribdaq-readout that is based on mi
  -DNSCLDAQ_ROOT=nscldaqroot
 ```
 
-where ```nscldaqroot``` is the top level directory of the FRIB/NSCLDAQ installation you want this to link against.  The softare was tested with FRIB/NSCLDAQ version ```12.1-007```, however it should operate with any version at ```11.0``` or above.
+where ```nscldaqroot``` is the top level directory of the FRIB/NSCLDAQ installation you want this to link against.  The softare was tested with FRIB/NSCLDAQ version ```12.2```,  that is the minimum NSCLDAQ version it
+can be built with.
 
-when the full mvlc support software is built, the installation ```bin``` directory will include the program ```fribdaq-readout```
+#### Prerequisite packages.
+Building the fribdaq-readout program also requires the Tcl development package.
+
+*  For Debian based distributions  this is called tcl-dev
+*  I believe for RHEL and Fedora systems this is called tcl-devel.
+
+If you are using the FRIB containerized environment this will have been installed in the container image.
 
 
 ### Using fribdaq-readout
@@ -24,17 +31,25 @@ Following all options on the command line, a single positional parameter provide
 
 ####  fribdaq-readout commands
 
-Once the program has been started successfully, it will enter a command processing loop.  This loop recognizes the following, very simple commands, which can be provided in either lower case or upper case (but not [yet] mixed  case):
+The program accepts all of the commands that a FRIB/NSCLDAQ readout framwork does.  It runs a Tcl interpreter as well.  
 
-*  ```SETRUN run-number``` sets the number of the next run. An positive integer *run-number* is the sole parameter of this command.
-This command is only accepted if the run is halted.
-* ```TITLE The title text``` sets the title to be used for the next run.  The remainder of the command line will be used as the title. This command is only accepted if the run is halted.
-* ```BEGIN``` starts taking data (begins a new run).  A data format item and a BEGIN state change item are emitted to the ringbuffer prior to any other data.  This command is only accepte if the run is halted.
-* ```PAUSE``` Pauses an active run.  After  pausing, a format item and a PAUSE state change item are emitted to the ringbuffer.
-* ```RESUME``` Resumes a paused run.  Before resuming, a format item
-and a RESUME state change item are emitted to the ringbuffer.  This command is only accepted if the run is paused.
-* ```END``` Ends a run.  This command is only acceeptd if the run is active or paused.  When the run is ended, a format item and END state change item will be emitted to the ringbuffer.
+Command:
 
+* begin
+* end
+* pause
+* resume
+* runstat
+* init
+
+Special Variables:
+
+* title - has the title that will be assigned to the next run.
+* run   - Has the run number that will be assigned to the next run.
+* state - has the current runstate, one of ```idle```, ```active``` or ```paused```
+
+Note that changes to the title an run variables while the run is not ```idle``` can be made but have no
+effect on the run number and title of the run.
 
 #### Creating setups with mdaq.
 
