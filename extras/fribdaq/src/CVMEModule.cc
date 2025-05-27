@@ -318,3 +318,18 @@ CVMEModule::createOkResponse(const std::vector<uint32_t> readData) {
   return result;
 
 }
+
+///////////////////////// Creator and registration.  We register both as vmusb and vme
+
+SlowControlsDriver* 
+VmeCreator::create(MVLC* controller) {
+  return new CVMEModule(controller);                       // No config params.
+}
+
+
+VmeCreator::Register::Register() {
+  SlowControlsFactory::getInstance()->addCreator("vmusb", new VmeCreator);
+  SlowControlsFactory::getInstance()->addCreator("vme", new VmeCreator);
+}
+
+static VmeCreator::Register registrar;

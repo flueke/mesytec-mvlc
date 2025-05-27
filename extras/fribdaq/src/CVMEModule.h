@@ -113,4 +113,16 @@ public:
   std::string               createOkResponse(const std::vector<uint32_t> readData);
 };
 
+/////////////////////// Creator and autoregister:
+
+class VmeCreator : public SlowControlsCreator {
+public:
+  SlowControlsDriver* create(mesytec::mvlc::MVLC* controller);
+  class Register {
+    public:
+      Register();
+  };
+
+};
+
 #endif
