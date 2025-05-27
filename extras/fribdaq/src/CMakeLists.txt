@@ -40,6 +40,7 @@ else ()
     CMxDCRCBus.cc
     CMxDCReset.cc
     CV6533.cc
+    CVMEModule.cc
     )
     target_include_directories(
         fribdaq-readout PRIVATE
