@@ -24,6 +24,7 @@
 
 #include <TCLInterpreter.h>
 #include <TCLVariable.h>
+#include <tcl.h>
 #include <mesytec-mvlc/mesytec-mvlc.h>
 #include <stdexcept>
 #include <Exception.h>
@@ -204,7 +205,7 @@ ControlServer::ControlServer(
         if (traceback) {
             std::cerr << traceback << std::endl;
         }
-        exit(EXIT_FAILURE);
+        Tcl_Exit(EXIT_FAILURE);
     }
 
     setupServer();                        // Sets m_Listener and enables connection handler.
