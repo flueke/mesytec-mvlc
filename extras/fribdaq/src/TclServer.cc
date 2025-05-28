@@ -23,11 +23,14 @@
 #include "SlowControlsMonCommand.h"
 
 #include <TCLInterpreter.h>
+#include <TCLVariable.h>
 #include <mesytec-mvlc/mesytec-mvlc.h>
 #include <stdexcept>
 #include <Exception.h>
 #include <sstream>
 #include <string.h>
+#include <stdlib.h>   
+#include <iostream>
 
 
 using mesytec::mvlc::MVLC;
@@ -188,7 +191,21 @@ ControlServer::ControlServer(
 
     // Run the configuratilon script - errors result in exceptions that bubble back:
 
-    m_Interp.EvalFile(configscript);
+    try {
+        m_Interp.EvalFile(configscript);
+    }
+    catch (CException& e) {
+        // Script execution error is fatal:
+        std::cerr << "Sourcing slow controls configuration script: "
+            << configscript << " failed: "
+            << std::endl << e.ReasonText() << std::endl;
+        CTCLVariable errorinfo(&m_Interp, "errorInfo", TCLPLUS::kfFALSE);
+        const char* traceback = errorinfo.Get();
+        if (traceback) {
+            std::cerr << traceback << std::endl;
+        }
+        exit(EXIT_FAILURE);
+    }
 
     setupServer();                        // Sets m_Listener and enables connection handler.
 }
