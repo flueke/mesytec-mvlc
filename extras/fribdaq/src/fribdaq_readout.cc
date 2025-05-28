@@ -686,10 +686,17 @@ int main(int argc, char *argv[])
             try {
                 interp.EvalFile(opt_initscript);
             } catch (CException & e) {
-                std::stringstream smsg;
-                smsg << "Failed to run initialization script: " << opt_initscript << " : "
-                    << e.ReasonText();
-                return 0;
+                
+                std::cerr << "Failed to run initialization script: " << opt_initscript << " : "
+                    << e.ReasonText() << std::endl;;
+                // Traceback if possible:
+
+                CTCLVariable emsg(&interp, "errorInfo", TCLPLUS::kfFALSE);
+                const char* traceback = emsg.Get();
+                if (traceback) {
+                    std::cerr << traceback << std::endl;
+                }
+                Tcl_Exit(EXIT_FAILURE);   // so exit handlers are run.
             }
         }
         // If a control server port has been specified, start the server:
