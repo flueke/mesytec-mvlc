@@ -66,13 +66,34 @@ else ()
     )  
     install(TARGETS fribdaq-readout)
 
+    # Slow controls client library:
+
+    add_library(slowControlsClient SHARED
+        CVMEClient.cc
+    )
+    target_include_directories(slowControlsClient PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}
+        ${NSCLDAQ_ROOT}/include
+        ${TCL_INCLUDE_PATH}
+    )
+    target_link_libraries(slowControlsClient 
+        PRIVATE ${NSCLDAQ_ROOT}/lib/libtclPlus.so
+        PRIVATE ${NSCLDAQ_ROOT}/lib/libException.so
+        PRIVATE ${TCL_LIBRARY}
+    )
+    target_link_options(slowControlsClient PRIVATE
+        -Wl,-rpath=${NSCLDAQ_ROOT}/lib -lm
+    )
+    set_target_properties(slowControlsClient PROPERTIES PUBLIC_HEADER CVMEClient.h)
     # parser_callbacks.h must be installed.
     # We'll put it in ${CMAKE_INSTALL_INCLUDEDIR}/fribdaq
 
     set_target_properties(fribdaq-readout PROPERTIES PUBLIC_HEADER parser_callbacks.h)
-    install(TARGETS fribdaq-readout
+    install(TARGETS fribdaq-readout slowControlsClient
         PUBLIC_HEADER DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/fribdaq"
     )
+
+    
 
     # Tests:
 
