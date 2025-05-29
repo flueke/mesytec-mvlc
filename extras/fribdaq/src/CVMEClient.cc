@@ -244,7 +244,7 @@ CVMEClient::transact(const std::string& request) {
     CTCLObject objReadData;
     objReadData.Bind(interp);
 
-    status = Tcl_ReadChars(socket, objReadData.getObject(), INT_MAX, 0);
+    status = Tcl_GetsObj(socket, objReadData.getObject());
     if (status == -1) {
         std::string msg = TclRuntimeMessage();
         Tcl_Close(interp.getInterpreter(), socket);
@@ -253,10 +253,8 @@ CVMEClient::transact(const std::string& request) {
     Tcl_Close(interp.getInterpreter(), socket);
     std::string result = std::string(objReadData);
 
-    // TODO: Detect short reads - missing trailing \n
-    // Remove the trailing \n
-
-    return result.substr(0, result.size()-1);   // just trim off the trailing char.
+    
+    return result;
 }
 /**
  * distributeData
