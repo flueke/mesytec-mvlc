@@ -54,7 +54,7 @@ CVMEClient::addRead(uint32_t addr, uint8_t amod, DataWidth width) {
     // encode the read:
 
     std::stringstream encoder;
-    encoder << std::hex << "r 0x" << amod << " 0x" << addr << " " 
+    encoder << std::hex << "r 0x" << unsigned(amod) << " 0x" << addr << " " 
         << (width == DataWidth::D16) ? "16" : "32";
     std::string encoded(encoder.str());
 
@@ -86,7 +86,7 @@ uint32_t addr, uint8_t amod, uint32_t data, DataWidth width
     // Encode the operation:
 
     std::stringstream encoder;
-    encoder << std::hex << "w 0x" << amod << " 0x" << addr << " 0x" << data
+    encoder << std::hex << "w 0x" << unsigned(amod) << " 0x" << addr << " 0x" << data
         << " " << (width == DataWidth::D16) ? "16" : "32";
 
     std::string encoded(encoder.str());
