@@ -203,7 +203,7 @@ CVMEClient::buildRequest() {
 
     std::string request("Set ");
     request += m_name;
-    request += " ";
+    request += " list ";
     request += std::string(theList);
 
     return request;
@@ -237,9 +237,10 @@ CVMEClient::transact(const std::string& request) {
         Tcl_Close(interp.getInterpreter(), socket);
         throw std::runtime_error(msg);
     }
-    // Set to nonblocking mode and read as many chars as we can:
+    Tcl_Flush(socket);     // Push the data to the server.
+    // Use line buffering so our read completes when the server sends its reply line.:
 
-    Tcl_SetChannelOption(interp, socket, "-blocking", "0");
+    Tcl_SetChannelOption(interp, socket, "-buffering", "line");
     CTCLObject objReadData;
     objReadData.Bind(interp);
 
