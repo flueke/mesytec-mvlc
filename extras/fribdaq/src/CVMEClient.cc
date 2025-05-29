@@ -55,7 +55,7 @@ CVMEClient::addRead(uint32_t addr, uint8_t amod, DataWidth width) {
 
     std::stringstream encoder;
     encoder << std::hex << "r 0x" << unsigned(amod) << " 0x" << addr << " " 
-        << (width == DataWidth::D16) ? "16" : "32";
+	    << ((width == DataWidth::D16) ? "16" : "32");
     std::string encoded(encoder.str());
 
     // Save it and its read index.
@@ -87,7 +87,7 @@ uint32_t addr, uint8_t amod, uint32_t data, DataWidth width
 
     std::stringstream encoder;
     encoder << std::hex << "w 0x" << unsigned(amod) << " 0x" << addr << " 0x" << data
-        << " " << (width == DataWidth::D16) ? "16" : "32";
+	    << " " << ((width == DataWidth::D16) ? "16" : "32");
 
     std::string encoded(encoder.str());
 
@@ -203,8 +203,9 @@ CVMEClient::buildRequest() {
 
     std::string request("Set ");
     request += m_name;
-    request += " list ";
+    request += " list {";
     request += std::string(theList);
+    request += "}";
 
     return request;
 }
@@ -275,7 +276,8 @@ CVMEClient::distributeData(const std::string& reply) {
     objList = reply;
 
     auto words = objList.getListElements();
-    for (auto& word : words) {
+    for (int i =1; i < words.size(); i++) { // skip 'OK'.
+	auto word = words[i];
         word.Bind(interp);
         uint32_t value = int(word);
         result.push_back(value);
