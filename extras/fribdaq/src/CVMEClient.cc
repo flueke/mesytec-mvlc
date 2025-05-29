@@ -1,5 +1,5 @@
 /**
- * @file CVMEClientd.cc
+ * @file CVMEClient.cc
  * @brief Implements the Client side of the vme slow controls driver.
  * @author Ron Fox <fox @ frib dot msu dot edu>
  * 
@@ -178,6 +178,7 @@ void
 CVMEClient::reset() {
     m_operations.clear();
     m_readIndices.clear();
+    m_nextReadIndex = 0;
 }
 
 ///////////////////////// Private utilities

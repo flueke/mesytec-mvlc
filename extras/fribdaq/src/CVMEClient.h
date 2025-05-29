@@ -1,5 +1,5 @@
 /**
- * @file CVMEClientd.h
+ * @file CVMEClient.h
  * @brief Defines the Client side of the vme slow controls driver.
  * @author Ron Fox <fox @ frib dot msu dot edu>
  * 
