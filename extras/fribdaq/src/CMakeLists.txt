@@ -86,6 +86,10 @@ else ()
         -Wl,-rpath=${NSCLDAQ_ROOT}/lib -lm
     )
     set_target_properties(slowControlsClient PROPERTIES PUBLIC_HEADER CVMEClient.h)
+    #
+    # install pkgIndex.tcl into the lib dir:
+    #
+    install(FILES pkgIndex.tcl DESTINATION "${CMAKE_INSTALL_LIBDIR}")
     # parser_callbacks.h must be installed.
     # We'll put it in ${CMAKE_INSTALL_INCLUDEDIR}/fribdaq
 
