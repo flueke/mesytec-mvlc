@@ -70,6 +70,7 @@ else ()
 
     add_library(slowControlsClient SHARED
         CVMEClient.cc
+        TclVMEClient.cc
     )
     target_include_directories(slowControlsClient PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}
