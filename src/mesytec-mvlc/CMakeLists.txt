@@ -66,11 +66,12 @@ elseif (MESYTEC_MVLC_PLATFORM_WINDOWS)
     target_sources(mesytec-mvlc PRIVATE mvlc_impl_usb_windows.cc)
 endif()
 
-if (MESYTEC_MVLC_PLATFORM_LINUX)
-    target_link_libraries(mesytec-mvlc PRIVATE lz4_static)
+if (MESYTEC_MVLC_PLATFORM_WINDOWS)
+    # vcpkg
+    find_package(lz4 CONFIG REQUIRED)
+    target_link_libraries(mesytec-mvlc PRIVATE lz4::lz4)
 else()
-    find_package(LZ4 REQUIRED)
-    target_link_libraries(mesytec-mvlc PRIVATE LZ4::lz4)
+    target_link_libraries(mesytec-mvlc PRIVATE lz4_static)
 endif()
 
 target_include_directories(mesytec-mvlc
