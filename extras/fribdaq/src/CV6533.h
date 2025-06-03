@@ -77,7 +77,7 @@ private:
   // Overrides:
 public:
   
-  virtual void reconfigure();	                     //!< Optional initialization.
+  virtual void reconfigure();	          //!< Optional initialization.
   virtual void Update() ;               //!< Update module.
   virtual std::string Set(
 			  const char* parameter, 
