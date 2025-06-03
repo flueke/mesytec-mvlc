@@ -41,6 +41,7 @@ else ()
     CMxDCReset.cc
     CV6533.cc
     CVMEModule.cc
+    TclVMEWrapper.cc
     )
     target_include_directories(
         fribdaq-readout PRIVATE
