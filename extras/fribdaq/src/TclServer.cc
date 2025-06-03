@@ -21,6 +21,7 @@
 #include "SlowControlsGetCommand.h"
 #include "SlowControlsUpdateCommand.h"
 #include "SlowControlsMonCommand.h"
+#include "TclVMEWrapper.h"
 
 #include <TCLInterpreter.h>
 #include <TCLVariable.h>
@@ -320,6 +321,8 @@ ControlServer::addCommands() {
     new SlowControlsGetCommand(m_Interp);
     new SlowControlsUpdateCommand(m_Interp);
     new SlowControlsMonCommand(m_Interp);
+    new TclVmeWrapper(m_Interp, &m_Controller);
+    new TCLVmeListWrapper(m_Interp, &m_Controller);
 }
 
 /**
