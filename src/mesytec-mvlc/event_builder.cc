@@ -21,7 +21,7 @@ u32 IndexedTimestampFilterExtractor::operator()(const u32 *data, size_t size)
 {
     if (index_ < 0)
     {
-        ssize_t abs = size + index_;
+        s64 abs = size + index_;
 
         if (0 <= abs && static_cast<size_t>(abs) < size && matches(filter_, data[abs]))
             return extract(filterCache_, data[abs]);

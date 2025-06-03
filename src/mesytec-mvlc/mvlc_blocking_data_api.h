@@ -67,25 +67,25 @@ class MESYTEC_MVLC_EXPORT BlockingReadout
         struct Private;
         std::unique_ptr<Private> d;
 
-        friend BlockingReadout make_mvlc_readout_blocking(
+        friend BlockingReadout MESYTEC_MVLC_EXPORT make_mvlc_readout_blocking(
             const CrateConfig &crateConfig,
             const ListfileParams &listfileParams);
 
-        friend BlockingReadout make_mvlc_readout_blocking(
+        friend BlockingReadout MESYTEC_MVLC_EXPORT make_mvlc_readout_blocking(
             MVLC &mvlc,
             const CrateConfig &crateConfig,
             const ListfileParams &listfileParams);
 
-        friend BlockingReadout make_mvlc_readout_blocking(
+        friend BlockingReadout MESYTEC_MVLC_EXPORT make_mvlc_readout_blocking(
             const CrateConfig &crateConfig,
             const std::shared_ptr<listfile::WriteHandle> &listfileWriteHandle);
 
-        friend BlockingReadout make_mvlc_readout_blocking(
+        friend BlockingReadout MESYTEC_MVLC_EXPORT make_mvlc_readout_blocking(
             MVLC &mvlc,
             const CrateConfig &crateConfig,
             const std::shared_ptr<listfile::WriteHandle> &listfileWriteHandle);
 
-        friend EventContainer next_event(BlockingReadout &br);
+        friend EventContainer MESYTEC_MVLC_EXPORT next_event(BlockingReadout &br);
 };
 
 BlockingReadout MESYTEC_MVLC_EXPORT make_mvlc_readout_blocking(
@@ -132,17 +132,17 @@ class MESYTEC_MVLC_EXPORT BlockingReplay
         struct Private;
         std::unique_ptr<Private> d;
 
-        friend BlockingReplay make_mvlc_replay_blocking(
+        friend BlockingReplay MESYTEC_MVLC_EXPORT make_mvlc_replay_blocking(
             const std::string &listfileArchiveName);
 
-        friend BlockingReplay make_mvlc_replay_blocking(
+        friend BlockingReplay MESYTEC_MVLC_EXPORT make_mvlc_replay_blocking(
             const std::string &listfileArchiveName,
             const std::string &listfileArchiveMemberName);
 
-        friend BlockingReplay make_mvlc_replay_blocking(
+        friend BlockingReplay MESYTEC_MVLC_EXPORT make_mvlc_replay_blocking(
             listfile::ReadHandle *lfh);
 
-        friend EventContainer next_event(BlockingReplay &br);
+        friend EventContainer MESYTEC_MVLC_EXPORT next_event(BlockingReplay &br);
 };
 
 BlockingReplay MESYTEC_MVLC_EXPORT make_mvlc_replay_blocking(

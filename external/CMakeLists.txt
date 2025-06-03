@@ -20,20 +20,15 @@ option(MZ_BUILD_UNIT_TEST "Builds minizip unit test project" OFF)
 option(MZ_BUILD_FUZZ_TEST "Builds minizip fuzzer executables" OFF)
 option(MZ_CODE_COVERAGE "Builds with code coverage flags" OFF)
 set(SKIP_INSTALL_ALL ON)
-# The next two lines should allow to build minizip against another zlib
-# (cloudflare and others) than the system one but it didn't work properly for
-# me when I last tried it.
-#set(ZLIB_REPOSITORY "https://github.com/Dead2/zlib-ng" CACHE STRING "")
-#set(ZLIB_TAG "develop" CACHE STRING "")
 
-add_subdirectory(minizip)
+add_subdirectory(minizip-ng-3.0.10)
 
 target_compile_options(minizip
     PRIVATE $<${not-msvc}:-Wno-unused-variable -Wno-unused-but-set-variable>
     PRIVATE $<${not-msvc}:-Wno-unused-parameter -Wno-cast-function-type -Wno-unused-local-typedefs>)
 
 target_include_directories(minizip
-    PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/minizip>)
+    PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/minizip-ng-3.0.10>)
 
 # pybind11
 if (MVLC_ENABLE_PYTHON)
@@ -62,9 +57,9 @@ add_subdirectory(nlohmann_json)
 set_target_properties(yaml-cpp PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
 # LZ4
-add_subdirectory(lz4/contrib/cmake_unofficial)
-target_include_directories(lz4_static
-    PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/lz4/lib/>)
+#add_subdirectory(lz4/contrib/cmake_unofficial)
+#target_include_directories(lz4_static
+#    PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/lz4/lib/>)
 
 # Lyra command line parser
 add_subdirectory(Lyra)

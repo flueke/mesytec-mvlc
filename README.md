@@ -42,7 +42,7 @@ software.
 
 ```sh
 apt-get update && apt-get install -y --no-install-recommends \
-  ca-certificates build-essential git cmake ninja-build zlib1g-dev \
+  ca-certificates build-essential git cmake ninja-build zlib1g-dev lz4-dev \
   libzmq3-dev
 
 mkdir build && cd build

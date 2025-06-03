@@ -62,7 +62,18 @@ if (MESYTEC_MVLC_PLATFORM_LINUX)
     endif()
 elseif (MESYTEC_MVLC_PLATFORM_WINDOWS)
     message("-- mesytec::mvlc::usb using mvlc_impl_usb_windows.cc")
+    target_compile_definitions(mesytec-mvlc PUBLIC -DNOMINMAX -DMESYTEC_MVLC_PLATFORM_WINDOWS)
     target_sources(mesytec-mvlc PRIVATE mvlc_impl_usb_windows.cc)
+endif()
+
+if (MESYTEC_MVLC_PLATFORM_WINDOWS)
+    # vcpkg
+    find_package(lz4 CONFIG REQUIRED)
+    target_link_libraries(mesytec-mvlc PRIVATE lz4::lz4)
+else()
+    find_package(PkgConfig)
+    pkg_search_module(LZ4 REQUIRED LZ4 lz4 liblz4)
+    target_link_libraries(mesytec-mvlc PRIVATE ${LZ4_LIBRARIES})
 endif()
 
 target_include_directories(mesytec-mvlc
@@ -72,7 +83,6 @@ target_include_directories(mesytec-mvlc
     )
 
 target_link_libraries(mesytec-mvlc
-    PRIVATE lz4_static
     PRIVATE minizip
     PRIVATE yaml-cpp
     PRIVATE nlohmann_json::nlohmann_json
@@ -102,7 +112,7 @@ endif()
 set(MVLC_SPDLOG_ACTIVE_LEVEL "SPDLOG_LEVEL_WARN" CACHE STRING "Compile time spdlog level for the library")
 
 target_compile_definitions(mesytec-mvlc PRIVATE SPDLOG_ACTIVE_LEVEL=${MVLC_SPDLOG_ACTIVE_LEVEL})
-target_compile_options(mesytec-mvlc PRIVATE -Wall -Wextra -Wimplicit-fallthrough)
+#target_compile_options(mesytec-mvlc PRIVATE -Wall -Wextra -Wimplicit-fallthrough)
 #target_compile_options(mesytec-mvlc PUBLIC -Wno-dangling-reference) # to silence spdlog warnings with some gcc-14
 target_compile_features(mesytec-mvlc PUBLIC cxx_std_17)
 

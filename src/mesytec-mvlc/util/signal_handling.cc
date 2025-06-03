@@ -11,7 +11,7 @@ namespace
 namespace mesytec::mvlc::util
 {
 
-#ifndef __WIN32
+#ifndef MESYTEC_MVLC_PLATFORM_WINDOWS
 void signal_handler(int signum)
 {
     //std::cerr << "signal " << signum << "\n";

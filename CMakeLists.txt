@@ -1,7 +1,8 @@
 cmake_minimum_required(VERSION 3.18)
 
 project(mesytec-mvlc
-    DESCRIPTION "User space driver library for the Mesytec MVLC VME controller")
+    DESCRIPTION "User space driver library for the Mesytec MVLC VME controller"
+    LANGUAGES C CXX)
 
 # Check if mesytec-mvlc is being used directly or via add_subdirectory
 set(MESYTEC_MVLC_MASTER_PROJECT OFF)
@@ -27,8 +28,11 @@ else ()
     message(AUTHOR_WARNING "WARNING: This platform may not be supported: ${CMAKE_SYSTEM_NAME}")
     # blithely hope for POSIX to work
     add_definitions(-DMESYTEC_MVLC_PLATFORM_POSIX)
-    set(NNG_PLATFORM_POSIX ON)
+    set(MESYTEC_MVLC_PLATFORM_POSIX ON)
 endif ()
+
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 

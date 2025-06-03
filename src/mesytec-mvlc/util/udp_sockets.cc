@@ -1,7 +1,7 @@
 #include "udp_sockets.h"
 #include "logging.h"
 
-#ifndef __WIN32
+#ifndef MESYTEC_MVLC_PLATFORM_WINDOWS
     #include <netdb.h>
     #include <sys/stat.h>
     #include <sys/socket.h>
@@ -17,7 +17,7 @@
     #endif
 
     #include <arpa/inet.h>
-#else // __WIN32
+#else // MESYTEC_MVLC_PLATFORM_WINDOWS
     #include <ws2tcpip.h>
     #include <stdio.h>
     #include <fcntl.h>
@@ -57,7 +57,7 @@ void init_socket_system()
 {
     if (!socketSystemInitialized)
     {
-#ifdef __WIN32
+#ifdef MESYTEC_MVLC_PLATFORM_WINDOWS
         WORD wVersionRequested;
         WSADATA wsaData;
         wVersionRequested = MAKEWORD(2, 1);
@@ -225,7 +225,7 @@ std::error_code lookup(const std::string &host, u16 port, sockaddr_in &dest)
 
     if (rc != 0)
     {
-        #ifdef __WIN32
+        #ifdef MESYTEC_MVLC_PLATFORM_WINDOWS
         spdlog::error("getaddrinfo(): host={}, error={}", host, gai_strerror(rc));
         #endif
         // FIXME (maybe): find a better error code to return here
@@ -250,7 +250,7 @@ std::error_code lookup(const std::string &host, u16 port, sockaddr_in &dest)
     return {};
 }
 
-#ifndef __WIN32
+#ifndef MESYTEC_MVLC_PLATFORM_WINDOWS
 std::error_code set_socket_timeout(int optname, int sock, unsigned ms)
 {
     struct timeval tv = ms_to_timeval(ms);
@@ -289,7 +289,7 @@ std::error_code set_socket_read_timeout(int sock, unsigned ms)
     return set_socket_timeout(SO_RCVTIMEO, sock, ms);
 }
 
-#ifndef __WIN32
+#ifndef MESYTEC_MVLC_PLATFORM_WINDOWS
 std::error_code close_socket(int sock)
 {
     int res = ::close(sock);
@@ -312,7 +312,7 @@ std::error_code close_socket(int sock)
 // non-jumbo ethernet MTU.
 // The send() call should return EMSGSIZE if the payload is too large to be
 // atomically transmitted.
-#ifdef __WIN32
+#ifdef MESYTEC_MVLC_PLATFORM_WINDOWS
 std::error_code write_to_socket(
     int socket, const u8 *buffer, size_t size, size_t &bytesTransferred)//, int timeout_ms)
 {
@@ -322,7 +322,7 @@ std::error_code write_to_socket(
 
     bytesTransferred = 0;
 
-    ssize_t res = ::send(socket, reinterpret_cast<const char *>(buffer), size, 0);
+    s64 res = ::send(socket, reinterpret_cast<const char *>(buffer), size, 0);
 
     if (res == SOCKET_ERROR)
     {
@@ -362,7 +362,7 @@ std::error_code write_to_socket(
 }
 #endif // !__WIN32
 
-#ifdef __WIN32
+#ifdef MESYTEC_MVLC_PLATFORM_WINDOWS
 std::error_code receive_one_packet(int sockfd, u8 *dest, size_t size,
     size_t &bytesTransferred, int timeout_ms, sockaddr_in *src_addr)
 {
@@ -388,7 +388,7 @@ std::error_code receive_one_packet(int sockfd, u8 *dest, size_t size,
     struct sockaddr_in srcAddr;
     int srcAddrSize = sizeof(srcAddr);
 
-    ssize_t res = ::recvfrom(sockfd, reinterpret_cast<char *>(dest), size, 0,
+    s64 res = ::recvfrom(sockfd, reinterpret_cast<char *>(dest), size, 0,
         reinterpret_cast<struct sockaddr *>(&srcAddr), &srcAddrSize);
 
     if (src_addr)
@@ -448,7 +448,7 @@ std::error_code get_socket_receive_buffer_size(
 {
     socklen_t szLen = sizeof(dest);
 
-#ifndef __WIN32
+#ifndef MESYTEC_MVLC_PLATFORM_WINDOWS
     int res = getsockopt(sockfd, SOL_SOCKET, SO_RCVBUF, &dest, &szLen);
 #else
     int res = getsockopt(sockfd, SOL_SOCKET, SO_RCVBUF,
@@ -464,7 +464,7 @@ std::error_code get_socket_receive_buffer_size(
 std::error_code set_socket_receive_buffer_size(
     int sockfd, int desiredBufferSize, int *actualBufferSize)
 {
-    #ifndef __WIN32
+    #ifndef MESYTEC_MVLC_PLATFORM_WINDOWS
             int res = setsockopt(sockfd, SOL_SOCKET, SO_RCVBUF,
                                 &desiredBufferSize,
                                 sizeof(desiredBufferSize));

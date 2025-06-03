@@ -56,18 +56,18 @@ class MESYTEC_MVLC_EXPORT MVLCReplay
         struct Private;
         std::unique_ptr<Private> d;
 
-        friend MVLCReplay make_mvlc_replay(
+        friend MVLCReplay MESYTEC_MVLC_EXPORT make_mvlc_replay(
             const std::string &listfileFilename,
             readout_parser::ReadoutParserCallbacks parserCallbacks,
             void *userContext);
 
-        friend MVLCReplay make_mvlc_replay(
+        friend MVLCReplay MESYTEC_MVLC_EXPORT make_mvlc_replay(
             const std::string &listfileArchiveName,
             const std::string &listfileArchiveMemberName,
             readout_parser::ReadoutParserCallbacks parserCallbacks,
             void *userContext);
 
-        friend MVLCReplay make_mvlc_replay(
+        friend MVLCReplay MESYTEC_MVLC_EXPORT make_mvlc_replay(
             listfile::ReadHandle *lfh,
             readout_parser::ReadoutParserCallbacks parserCallbacks,
             void *userContext);

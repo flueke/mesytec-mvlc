@@ -2,6 +2,7 @@
 #define __MESYTEC_MVLC_MVLC_LISTFILE_H__
 
 #include <algorithm>
+#include <iterator>
 #include <numeric>
 
 #include "mesytec-mvlc/mesytec-mvlc_export.h"
