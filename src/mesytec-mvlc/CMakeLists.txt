@@ -71,7 +71,9 @@ if (MESYTEC_MVLC_PLATFORM_WINDOWS)
     find_package(lz4 CONFIG REQUIRED)
     target_link_libraries(mesytec-mvlc PRIVATE lz4::lz4)
 else()
-    target_link_libraries(mesytec-mvlc PRIVATE lz4_static)
+    find_package(PkgConfig)
+    pkg_search_module(LZ4 REQUIRED LZ4 lz4 liblz4)
+    target_link_libraries(mesytec-mvlc PRIVATE ${LZ4_LIBRARIES})
 endif()
 
 target_include_directories(mesytec-mvlc
