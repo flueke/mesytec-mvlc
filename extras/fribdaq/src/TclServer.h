@@ -91,6 +91,11 @@ public:
     // Trampoline to OnInput
     static void InputHandler(ClientData pData, int mask);
 
+    // Public object methods.
+public:
+    CTCLInterpreter* getInterpreter() {   // Get the slow controls interp.
+        return &m_Interp;
+    }
     // Private utilities:
 
 private:
