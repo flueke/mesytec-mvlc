@@ -30,6 +30,11 @@ if (MVLC_BUILD_DEV_TOOLS)
         PRIVATE BFG::Lyra
         PRIVATE spdlog::spdlog)
 
+    add_executable(decode-mvlc-eth-packets decode_mvlc_eth_packets.cc)
+    target_link_libraries(decode-mvlc-eth-packets
+        PRIVATE mesytec-mvlc
+        PRIVATE BFG::Lyra
+        PRIVATE spdlog::spdlog)
 
     add_executable(mvlc_temp_debug mvlc_temp_debug.cc)
     target_link_libraries(mvlc_temp_debug
