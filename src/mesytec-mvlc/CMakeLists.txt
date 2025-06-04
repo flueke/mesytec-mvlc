@@ -7,6 +7,7 @@ add_library(mesytec-mvlc SHARED
     event_builder.cc
     event_builder2.cc
     firmware_checks.cc
+    mesytec_vme_modules.cc
     mvlc_basic_interface.cc
     mvlc_blocking_data_api.cc
     mvlc.cc
