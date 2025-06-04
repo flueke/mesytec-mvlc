@@ -120,15 +120,23 @@ static const Command HelpCommand =
     .exec = help_command,
 };
 
+inline std::ostream &print_command_list(std::ostream &out, const Commands &commands)
+{
+    out << "Commands:\n";
+    for (const auto &cmd: commands)
+    {
+        out << fmt::format("    {:20} {}\n", cmd.name, cmd.description);
+    }
+
+    return out;
+}
+
 DEF_EXEC_FUNC(list_commands_command)
 {
     spdlog::trace("entered list_commands_command()");
     trace_log_parser_info(ctx.parser, "list_commands_command");
 
-    for (const auto &cmd: ctx.commands)
-    {
-        std::cout << fmt::format("{} - {}\n", cmd.name, cmd.description);
-    }
+    print_command_list(std::cout, ctx.commands);
 
     return 0;
 }
@@ -1233,7 +1241,6 @@ Core Switches:
         Same as list-commands: print a list of available commands.
 
 MVLC connection URIs:
-
     mvlc-cli supports the following URI schemes with --mvlc <uri> to connect to MVLCs:
         usb://                   Use the first USB device
         usb://<serial-string>    USB device matching the given serial number
@@ -1356,7 +1363,8 @@ MVLC connection URIs:
     {
         if (parser["-a"])
             return ListCmdsCommand.exec(ctx, ListCmdsCommand, argc, const_cast<const char **>(argv));
-        std::cout << generalHelp;
+        std::cout << generalHelp << "\n";
+        print_command_list(std::cout, ctx.commands);
         return 0;
     }
 
