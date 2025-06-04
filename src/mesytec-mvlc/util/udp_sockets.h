@@ -20,6 +20,7 @@ namespace mesytec::mvlc::eth
 //
 // Returns the socket on success or -1 on error. If ecp is non-null and an
 // error occurs it will be stored in *ecp.
+// Sets both read and write timeouts to default values (500ms currently).
 int MESYTEC_MVLC_EXPORT connect_udp_socket(const std::string &remoteHost, u16 remotePort, std::error_code *ecp = nullptr);
 
 // Returns an unconnected UDP socket bound to the specified local port or -1 on
