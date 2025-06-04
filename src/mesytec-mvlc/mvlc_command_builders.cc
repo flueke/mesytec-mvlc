@@ -12,17 +12,15 @@
 #include "util/string_util.h"
 #include "vme_constants.h"
 
-namespace mesytec
-{
-namespace mvlc
+namespace mesytec::mvlc
 {
 
-namespace
+bool is_super_command(u32 dataWord)
 {
-
-bool is_super_command(u16 v)
-{
+    using namespace super_commands;
     using SuperCT = SuperCommandType;
+
+    u16 v = (dataWord >> SuperCmdShift) & SuperCmdMask;
 
     return (v == static_cast<u16>(SuperCT::CmdBufferStart)
             || v == static_cast<u16>(SuperCT::CmdBufferEnd)
@@ -33,9 +31,12 @@ bool is_super_command(u16 v)
             || v == static_cast<u16>(SuperCT::WriteReset));
 }
 
-bool is_stack_command(u8 v)
+bool is_stack_command(u32 dataWord)
 {
+    using namespace stack_commands;
     using StackCT = StackCommandType;
+
+    u8 v = (dataWord >> CmdShift) & CmdMask;
 
     return (v == static_cast<u8>(StackCT::StackStart)
             || v == static_cast<u8>(StackCT::StackEnd)
@@ -53,8 +54,6 @@ bool is_stack_command(u8 v)
             || v == static_cast<u8>(StackCT::ReadToAccu)
             || v == static_cast<u8>(StackCT::CompareLoopAccu)
             );
-}
-
 }
 
 //
@@ -1100,7 +1099,7 @@ SuperCommandBuilder super_builder_from_buffer(const std::vector<u32> &buffer)
     {
         u16 sct = (*it >> SuperCmdShift) & SuperCmdMask;
 
-        if (!is_super_command(sct))
+        if (!is_super_command(*it))
             break; // TODO: error
 
         SuperCommand cmd = {};
@@ -1308,7 +1307,7 @@ std::vector<StackCommand> stack_commands_from_buffer(const std::vector<u32> &buf
 
         StackCommand cmd = {};
 
-        if (!is_stack_command(sct))
+        if (!is_stack_command(*it))
         {
             // Create a single value Custom block from unknown stack data.
             cmd.type = StackCT::Custom;
@@ -1466,5 +1465,4 @@ std::vector<SuperCommand> make_stack_upload_commands(
     return super.getCommands();
 }
 
-}
 }

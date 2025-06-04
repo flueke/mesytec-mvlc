@@ -13,9 +13,7 @@
 #include "mvlc_constants.h"
 #include "util/string_view.hpp"
 
-namespace mesytec
-{
-namespace mvlc
+namespace mesytec::mvlc
 {
 
 using namespace nonstd;
@@ -406,7 +404,9 @@ MESYTEC_MVLC_EXPORT std::vector<SuperCommand> make_stack_upload_commands(
 MESYTEC_MVLC_EXPORT std::string accu_comparator_to_string(AccuComparator comp);
 MESYTEC_MVLC_EXPORT AccuComparator accu_comparator_from_string(const std::string &comparator);
 
-}
+bool MESYTEC_MVLC_EXPORT is_super_command(u32 dataWord);
+bool MESYTEC_MVLC_EXPORT is_stack_command(u32 dataWord);
+
 }
 
 #endif /* __MESYTEC_MVLC_MVLC_COMMAND_BUILDERS_H__ */
