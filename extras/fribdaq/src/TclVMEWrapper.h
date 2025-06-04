@@ -120,10 +120,11 @@ public:
  *  - ```clear``` - clear the list.
  *  - ```size```  - Returns the number of operations in the list.
  *  - ```execute``` - execute the list leaving any read data as the result.
- *  - ```addWrite16 address amod data```  - Adds a 16 bit write operation to the list.
- *  - ```addWrite32 address amod data``` -  adds a 32 bit write to the list
- *  - ```addRead16  address amod``` - Adds a 16 bit read to the list.
- *  - ```addRead32  address amod``` - adds a 32 bit read to the list.
+ *  - ```addWrite16``` address amod data```  - Adds a 16 bit write operation to the list.
+ *  - ```addWrite32``` address amod data``` -  adds a 32 bit write to the list
+ *  - ```addRead16```  address amod``` - Adds a 16 bit read to the list.
+ *  - ```addRead32```  address amod``` - adds a 32 bit read to the list.
+ *  - ```tobytes```  result-from-execute - convers to a list of bytes.
  * 
  * List parameters are have the same meaning as for the VME wrapper above.
  * 
@@ -167,12 +168,15 @@ private:
     void addWrite32(CTCLInterpreter& interp, std::vector<CTCLObject>& objv);
     void addRead16(CTCLInterpreter& interp, std::vector<CTCLObject>& objv);
     void addRead32(CTCLInterpreter& interp, std::vector<CTCLObject>& objv);
+    void toBytes(CTCLInterpreter& interp, std::vector<CTCLObject>& objv);
 
     // DRY utilities:
 private:
     void addWrite(std::vector<CTCLObject>& objv, int bits);
     void addRead(std::vector<CTCLObject>& objv, int bits);
     std::string marshallRequest();
+    std::vector<std::string>::iterator findNextRead(std::vector<std::string>::iterator& start);
+    bool isLong(std::vector<std::string>::iterator& pItem);
 
     // we'll use TclVmeWrapper::decodeAmod.
 };

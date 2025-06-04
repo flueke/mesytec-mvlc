@@ -28,6 +28,7 @@
 #include <Exception.h>
 #include <stdexcept>
 #include <sstream>
+#include <algorithm>
 
 using mesytec::mvlc::MVLC;
 using mesytec::mvlc::VMEDataWidth;
@@ -378,6 +379,8 @@ TCLVmeListWrapper::operator()(CTCLInterpreter& interp, std::vector<CTCLObject>& 
             addRead16(interp, objv);
         } else if (sc == "addRead32") {
             addRead32(interp, objv);
+        } else if (sc == "tobytes") {
+            toBytes(interp, objv);
         } else {
             std::stringstream smsg;
             smsg << "vmereadoutlist - " << sc << " is not a valid subcommand";
@@ -494,6 +497,52 @@ TCLVmeListWrapper::addRead32(CTCLInterpreter& interp, std::vector<CTCLObject>& o
     addRead(objv, 32);
 }
 
+/**
+ * toBytes
+ *    executes the tobytes subcommand.  Expects a single extra parameter, the list of data
+ * returned from an execute operation.  This takse that data and converts it into a list of bytes.
+ * This requires processing the list and checking which list items are 16 and which are 32 bit reads
+ * 
+ * @param interp - interpreter that's running the command.
+ * @param objv   - Command words.
+ * @note on success, the result is set with a list of bytes.
+ */
+void
+TCLVmeListWrapper::toBytes(CTCLInterpreter& interp, std::vector<CTCLObject>& objv) {
+    
+    requireExactly(objv, 3, "vmusbreadoutlist tobytes requires only the values from execute");
+    std::vector<CTCLObject> dataList = objv[2].getListElements();
+    bindAll(interp, dataList);
+
+    auto pListItem = m_list.begin();
+    CTCLObject result;
+    result.Bind(interp);
+
+    for (auto d : dataList) {
+        pListItem = findNextRead(pListItem);
+        if(pListItem == m_list.end()) {
+            // Not enough reads in the listt
+
+            throw std::string("vmusbreadoutlist - There are not enough reads for the amount of data you gave me");
+        }
+        int data = d;
+        result += data & 0xff;   // bottom byte.
+        result += (data >> 8) & 0xff; // Full bottom 16 bits.
+        if (isLong(pListItem)) {
+            // ah but it was a 32 bit read so we're not done yet:
+
+            result += (data >> 16) & 0xff;
+            result += (data >> 24) & 0xff;
+        }
+
+        ++pListItem;             // start search with next item.
+    }
+    // iterate over the dat items... find the next read and its width.
+
+    interp.setResult(result);
+}
+
+
 /**  Utilities  */
 
 /**
@@ -568,4 +617,38 @@ TCLVmeListWrapper::marshallRequest() {
         result += s;
     }
     return std::string(result);
+}
+/**
+ *  findNextRead
+ *     Given a starting point in the list, find the next read operation and return an iterator to it.
+ *     We can use find_if for that; witha lambda that wants the first character of the list item to be 
+ *     "r"
+ * 
+ * @param start - iterator saying where to start looking.
+ * @return std::vector<std::string>::iterator - pointer to next read or end() if not found.
+ */
+std::vector<std::string>::iterator
+TCLVmeListWrapper::findNextRead(std::vector<std::string>::iterator& start) {
+    
+    return std::find_if(
+        start, m_list.end(),
+        [](const std::string& v) { 
+            return v[0] == 'r';
+        }
+    );
+}
+/**
+ * isLong
+ *    Returns true if the opeation is a 32 bit operation.  
+ * 
+ * @param pItem -Itertor 'pointing' to the item to check.
+ * @return bool - true if a 32 bit op.
+ */
+bool
+TCLVmeListWrapper::isLong(std::vector<std::string>::iterator& pItem) {
+    // Last 2 chara of the operation are the width:
+
+    std::string op = *pItem;
+    auto swidth= op.substr(op.size() - 3);  // Last two chars.
+    return swidth == "32";
 }
