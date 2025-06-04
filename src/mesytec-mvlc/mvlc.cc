@@ -668,10 +668,24 @@ class CmdApi
         std::error_code stackTransactionImpl(
             u32 stackRef, const StackCommandBuilder &stackBuilder, Dest &stackResponse, unsigned attempt);
 
+        // If set to true the two stack_exec_status registers are checked after
+        // every stack transaction, not just on error. For diagnostics and
+        // debugging purposes only.
+        void setAlwaysCheckStackStatusRegisters(bool alwaysCheck)
+        {
+            alwaysCheckStackStatusRegisters_ = alwaysCheck;
+        }
+
+        bool doAlwaysCheckStackStatusRegisters() const
+        {
+            return alwaysCheckStackStatusRegisters_;
+        }
+
     private:
         static constexpr std::chrono::milliseconds ResultWaitTimeout = std::chrono::milliseconds(2000);
 
         ReaderContext &readerContext_;
+        bool alwaysCheckStackStatusRegisters_ = false;
 };
 
 constexpr std::chrono::milliseconds CmdApi::ResultWaitTimeout;
@@ -754,11 +768,9 @@ std::error_code CmdApi::readStackExecStatusRegisters(u32 &status0, u32 &status1)
 
     if (auto ec = superTransaction(superRef, make_command_buffer(sb), response))
     {
-        logger->warn("readStackExecStatusRegisters: superRef={:#06x}, response={:#010x}", superRef, fmt::join(response, ", "));
+        logger->warn("readStackExecStatusRegisters: superRef={:#06x}, response={:#010x}, ec={}", superRef, fmt::join(response, ", "), ec.message());
         return ec;
     }
-
-    logger->info("readStackExecStatusRegisters: superRef={:#06x}, response={:#010x}", superRef, fmt::join(response, ", "));
 
     assert(response.size() == 6);
 
@@ -770,6 +782,9 @@ std::error_code CmdApi::readStackExecStatusRegisters(u32 &status0, u32 &status1)
     //   0xf1000005,   0x010135f0, 0x01021400,   0xf3001ac8,         0x01021404,   0x00001ac8
     status0 = response[3];
     status1 = response[5];
+
+    logger->debug("readStackExecStatusRegisters: superRef={:#06x}, response={{{:#010x}}}, status0={:#010x}, status1={:#010x}",
+         superRef, fmt::join(response, ", "), status0, status1);
 
     return {};
 }
@@ -845,8 +860,34 @@ std::error_code CmdApi::stackTransaction(
                     stackRef, attempt, status1, ec.message());
                 ++readerContext_.counters.access()->stackExecRequestsLost;
             }
+
+            // Also read the new parse_error_counter register and output it.
+            u32 parseErrorCounter = 0;
+            if ((ec = readRegister(registers::parse_error_counter, parseErrorCounter)))
+            {
+                logger->warn("stackTransaction: stackRef={:#010x}, attempt={} -> {}, failed reading parse_error_counter register", stackRef, attempt, ec.message());
+            }
+            else if (parseErrorCounter > 0 || true)
+            {
+                logger->warn("stackTransaction: stackRef={:#010x}, attempt={} -> parse_error_counter register value = {}", stackRef, attempt, parseErrorCounter);
+            }
         }
     } while (ec && ++attempt < TransactionMaxAttempts);
+
+    if (!ec && doAlwaysCheckStackStatusRegisters())
+    {
+        u32 status0 = 0, status1 = 0;
+
+        if (auto ec = readStackExecStatusRegisters(status0, status1))
+        {
+            logger->warn("stackTransaction: stackRef={:#010x}, attempt={} -> {}, failed reading stack_exec_status registers", stackRef, attempt, ec.message());
+        }
+        else if (status1 != stackRef)
+        {
+            logger->warn("stackTransaction: consistency check failed: stackRef={:#010x}, attempt={}: stack_exec_status1 ({:#010x}) does NOT match stackRef ({:#010x})",
+                 stackRef, attempt, status1, stackRef);
+        }
+    }
 
     logger->log(ec ? spdlog::level::warn : spdlog::level::debug, "stackTransaction: stackRef={:#010x}, attempt={}: returning '{}'",
         stackRef, attempt, ec.message());
@@ -1412,6 +1453,9 @@ struct MVLC::Private
         , hardwareId_(0)
         , firmwareRevision_(0)
     {
+#if 0 // #ifndef NDEBUG // TODO: enable this once the firmware is fixed
+        cmdApi_.setAlwaysCheckStackStatusRegisters(true);
+#endif
     }
 
     ~Private()
