@@ -63,6 +63,28 @@ FRIB/NSCLDAQ setup software will generate appropriate stack configurations with 
 
 Note that if you use mdaq you should remove the MCST sections of the configurations as multiple instances will cause start errors at this time.
 
+### Slow controls server
+
+The program supports the standard FRIB/NSCLDAQ slow contols server protocol with drivers ported from the VMUSBReadout program.  The server is enabled by specifying the ```--controlport``` option which takes a numeric TCP/IP server port number.  When this is supplied you must also provide a ```--ctlinitscript``` which specifies a Tcl script that is executed by the control server on startup to define the driver instances and their configuration.
+
+#### Server requests
+
+Server requests are text strings, that are actually Tcl commands executed by the server in a safe interpreter.
+The commands include:
+
+*  Module - a command ensemble that allows you to create and configure driver instances as well as instrospect the driver instances that have been created, and their configurations
+and the driver types that are supported.
+*  Set  - set the parameter of a device instance.
+*  Get  - get the value of a device instance.
+*  Update - Update knowledge of the device and restore its settings.
+*  mon - Retrieve monitorable parameters.
+
+#### Supported slow controls drivers:
+
+*  test - a test driver intended for use by me.
+*  jtecgdg - the Jtec gate and delay generator.
+*  v812 - The CAEN V812 and V895 discrinmnators.
+
 #### Using fribdaq-readout with the FRIB/NSCLDAQ event builder.
 
 To use the fribdaq-reaout with the FRIB/NSCLDAQ event builder, you must supply code to extract timestamps from the data.   This code is dynamically loaded from a shared object.  The shared library must have a  C bindings entry point named ```extract_timestamp```

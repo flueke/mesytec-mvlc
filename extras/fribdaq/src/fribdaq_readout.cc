@@ -41,6 +41,7 @@
 #include "RunStateCommand.h"
 #include "RunVarCommand.h"
 #include "InitCommand.h"
+#include "TclServer.h"
 #include "StatisticsCommand.h"
 #include <TCLInterpreter.h>
 #include <TCLLiveEventLoop.h>
@@ -421,6 +422,8 @@ int main(int argc, char *argv[])
     std::string opt_ringBufferName = getUsername();
     unsigned opt_sourceid = 0; 
     std::string opt_initscript;   // Tcl init script.
+    int opt_controlServerPort = -1;
+    std::string opt_controlInitScript ="";
 
     auto cli
         = lyra::help(opt_showHelp)
@@ -453,7 +456,8 @@ int main(int argc, char *argv[])
         | lyra::opt(opt_sourceid, "sourceid")["--sourceid"]("Event builder source id")
         | lyra::opt(opt_timestampdll, "dll")["--timestamp-library"]("Time stamp shared library file")
         | lyra::opt(opt_initscript, "initscript")["--init-script"]("Tcl initialization script")
-        
+        | lyra::opt(opt_controlServerPort, "controlport")["--control-server"]("Slow controls server port")
+        | lyra::opt(opt_controlInitScript, "ctlinitscript")["--ctlconfig"]("Control server initliazation script")
         // logging
         | lyra::opt(opt_logDebug)["--debug"]("enable debug logging")
         | lyra::opt(opt_logTrace)["--trace"]("enable trace logging")
@@ -652,6 +656,10 @@ int main(int argc, char *argv[])
         // Let's set up the Tcl interpreter and live event loop.
         //
         CTCLInterpreter interp;                       // The interpreter that will run things
+	int tclinitstat = Tcl_Init(interp.getInterpreter());
+	if (tclinitstat != TCL_OK) {
+	    std::cerr << "Tcl Init call failed \n";
+	}
         Tcl_CreateExitHandler(exit_cleanup, &exitinfo);
 
         // Initialize the run and title and state variables:
@@ -672,8 +680,8 @@ int main(int argc, char *argv[])
         PauseCommand pause(interp, &ExtraRunState, &rdo);
         ResumeCommand resume(interp, &ExtraRunState, &rdo);
         RunStateCommand runstate(interp);
-	InitCommand init(interp, &ExtraRunState, &rdo);
-	RunVarCommand runvar(interp, &ExtraRunState, &rdo);
+        InitCommand init(interp, &ExtraRunState, &rdo);
+        RunVarCommand runvar(interp, &ExtraRunState, &rdo);
         StatisticsCommand stats(interp, &ExtraRunState, &rdo);
 
         // Before starting the event loop, run any initialization script.
@@ -682,11 +690,27 @@ int main(int argc, char *argv[])
             try {
                 interp.EvalFile(opt_initscript);
             } catch (CException & e) {
-                std::stringstream smsg;
-                smsg << "Failed to run initialization script: " << opt_initscript << " : "
-                    << e.ReasonText();
-                return 0;
+                
+                std::cerr << "Failed to run initialization script: " << opt_initscript << " : "
+                    << e.ReasonText() << std::endl;;
+                // Traceback if possible:
+
+                CTCLVariable emsg(&interp, "errorInfo", TCLPLUS::kfFALSE);
+                const char* traceback = emsg.Get();
+                if (traceback) {
+                    std::cerr << traceback << std::endl;
+                }
+                Tcl_Exit(EXIT_FAILURE);   // so exit handlers are run.
             }
+        }
+        // If a control server port has been specified, start the server:
+
+        if (opt_controlServerPort > 0) {
+            if (opt_controlInitScript == "") {
+                std::cerr << "If you specify --control-server you must also specify --ctlconfig to configure the server\n";
+                return -1;
+            }
+            ControlServer::start(interp, mvlc, opt_controlInitScript.c_str(), opt_controlServerPort);
         }
 
         // Start the Tcl event loop.
