@@ -161,8 +161,13 @@ SlowControlsTclDriver::getMonitor() {
     if (baseCommand != "") {
         try {
             requestMonitorList(interp, baseCommand);
-            requestProcessMonitorList(interp, baseCommand);
-            return requestGetMonitorData(interp, baseCommand);
+            if (monitorListSize(interp) > 0) {
+                requestProcessMonitorList(interp, baseCommand);
+                return requestGetMonitorData(interp, baseCommand);
+            } else {
+                return "OK";
+            }
+
         }
         catch (std::string msg) {
             std::stringstream smsg;
@@ -229,11 +234,15 @@ SlowControlsTclDriver::getMonitor() {
     cmd.Bind(interp);
     cmd = "vmusbreadoutlist";
     cmd += "tobytes";
-    cmd += "rawData";
+    cmd += rawData;
     std::string bytes = executeCommand(interp, std::string(cmd));
     if (bytes.substr(0,5) == "ERROR") {
         throw bytes;
     }
+    // Clear the monitor list for next time around:
+
+    executeCommand(interp, "vmusbreadoutlist clear");             // "cant' fail".
+
     // Now we can get the  driver to process the data:
 
     cmd = command;
@@ -262,6 +271,21 @@ SlowControlsTclDriver::getMonitor() {
     fullCommand += "getMonitoredData";
 
     return executeCommand(interp, std::string(fullCommand));
+ }
+ /**
+  * monitorListSize
+  *     @param interp - interpreter to run the vmusbreadoutlist command on.
+  *     @return int - size of current monitor list.
+  */
+ int
+ SlowControlsTclDriver::monitorListSize(CTCLInterpreter& interp) {
+
+    std::string strsize = executeCommand(interp,"vmusbreadoutlist size");
+    std::stringstream s(strsize);
+    int result;
+    s >> result;
+
+    return result;
  }
 
  /**

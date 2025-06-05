@@ -102,6 +102,7 @@ private:
     void requestMonitorList(CTCLInterpreter& interp, std::string cmd);
     void requestProcessMonitorList(CTCLInterpreter& interp,  std::string cmd);
     std::string requestGetMonitorData(CTCLInterpreter& interp, std::string cmd);
+    int monitorListSize(CTCLInterpreter& interp);
 
     // Tiny utilities.
     std::string executeCommand(CTCLInterpreter& interp, std::string cmd);
