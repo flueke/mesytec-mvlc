@@ -42,6 +42,7 @@ else ()
     CV6533.cc
     CVMEModule.cc
     TclVMEWrapper.cc
+    SlowControlsTclDriver.cc
     )
     target_include_directories(
         fribdaq-readout PRIVATE
