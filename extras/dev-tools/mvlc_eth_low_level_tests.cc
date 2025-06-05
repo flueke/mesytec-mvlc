@@ -89,7 +89,6 @@ bool check_packet_consistency(std::basic_string_view<u32> packet,
     return true;
 }
 
-#if 0
 // Fills the outgoing packet with 1 to N reference words and checks the responses.
 int do_send_ref_words_test(int sock, const std::vector<std::string> &args)
 {
@@ -98,16 +97,29 @@ int do_send_ref_words_test(int sock, const std::vector<std::string> &args)
     s32 lastPacketNumber = -1;
     size_t refWordsToSend = 1;
     size_t transactionCount = 0;
+    const auto ReportInterval = std::chrono::milliseconds(500);
+    size_t transactionsInInterval = 0;
 
     if (args.size() > 1)
         refWordsToSend = std::stoul(args[1]);
 
-    spdlog::info("Sending {} reference words", refWordsToSend);
+    // 2 eth headers, 1 0xF100 frame header, N ref words
+    const size_t expectedResponseSize = 2 + 1 + refWordsToSend;
+
+    spdlog::info("Sending {} reference words per packet", refWordsToSend);
+
+    if (expectedResponseSize > 256)
+    {
+        spdlog::error("Expected response size {} exceeds maximum of 256 words. MVLC would truncate.", expectedResponseSize);
+        return 1;
+    }
+
+    util::Stopwatch swReport;
 
     while (true)
     {
         SuperCommandBuilder cmdList;
-        u16 firstRefWord = refWord;
+        u16 firstRefWord = refWord; // the first ref word sent to the mvlc
 
         for (size_t i = 0; i < refWordsToSend; ++i)
             cmdList.addReferenceWord(refWord++);
@@ -119,6 +131,8 @@ int do_send_ref_words_test(int sock, const std::vector<std::string> &args)
             spdlog::error("Error writing to socket: {}", ec.message());
             return 1;
         }
+
+        spdlog::debug("Sent {} bytes, {} words", bytesTransferred, bytesTransferred / sizeof(u32));
 
         response.clear();
         if (auto ec = read_packet(sock, response))
@@ -133,11 +147,93 @@ int do_send_ref_words_test(int sock, const std::vector<std::string> &args)
             return 1;
         }
 
-        spdlog::info("Received {} bytes, {} words: {:#010x}", response.size() * sizeof(u32),
+        spdlog::debug("Received {} bytes, {} words: {:#010x}", response.size() * sizeof(u32),
                      response.size(), fmt::join(response, ", "));
+
+        if (response.size() != expectedResponseSize)
+        {
+            spdlog::error("Unexpected response size: expected {}, got {}", expectedResponseSize,
+                          response.size());
+            return 1;
+        }
+
+        auto ethHeader0 = response[0];
+        auto ethHeader1 = response[1];
+
+        eth::PayloadHeaderInfo headerInfo{ethHeader0, ethHeader1};
+        spdlog::debug("{}", eth::eth_headers_to_string(headerInfo));
+
+        if (!check_packet_consistency(std::basic_string_view<u32>(response.data(), response.size()),
+                                      eth::PacketChannel::Command, 0))
+        {
+            // logging is done in check_packet_consistency()
+            return 1;
+        }
+
+        if (lastPacketNumber < 0)
+        {
+            lastPacketNumber = headerInfo.packetNumber();
+        }
+        else
+        {
+            if (s32 packetLoss = eth::calc_packet_loss(lastPacketNumber, headerInfo.packetNumber());
+                packetLoss > 0)
+            {
+                spdlog::warn("Packet loss detected: {} packets lost between {} and {}", packetLoss,
+                             lastPacketNumber, headerInfo.packetNumber());
+            }
+            lastPacketNumber = headerInfo.packetNumber();
+        }
+
+        // Check payload contents. This code is not ETH specific anymore but works for USB too.
+        // 1 0xF100 frame headers, N reference words
+        std::basic_string_view<u32> payloadView(response.data() + 2, response.size() - 2);
+
+        if (auto ct = get_super_command_type(payloadView[0]);
+            ct != super_commands::SuperCommandType::CmdBufferStart)
+        {
+            spdlog::error("Payload does not start with CmdBufferStart (0xF100) command: {:#010x}",
+                          payloadView[0]);
+            return 1;
+        }
+
+        for (size_t i=0; i<refWordsToSend; ++i)
+        {
+            if (auto ct = get_super_command_type(payloadView[i + 1]);
+                ct != super_commands::SuperCommandType::ReferenceWord)
+            {
+                spdlog::error(
+                    "Expected reference word command (0x0101) at payload[{}], found {:#010x} instead",
+                    i + 1, payloadView[i + 1]);
+                return 1;
+            }
+
+            u16 expectedRefWord = (firstRefWord + i);
+
+            if (auto refResponse = get_super_command_arg(payloadView[i + 1]);
+                refResponse != expectedRefWord)
+            {
+                spdlog::error("Unexpected reference word in response: expected {:#06x}, got {:#06x}",
+                              expectedRefWord, refResponse.value_or(0));
+                return 1;
+            }
+        }
+
+        ++transactionCount;
+        ++transactionsInInterval;
+
+        if (auto elapsed = swReport.get_interval(); elapsed >= ReportInterval)
+        {
+            auto totalElapsedSeconds = std::chrono::duration_cast<std::chrono::duration<double>>(swReport.get_elapsed()).count();
+            auto totaltxPerSecond = transactionCount / totalElapsedSeconds;
+            spdlog::info(
+                "Elapsed: {:.3f} s, Transactions: {}, {:.2f} tx/s",
+                totalElapsedSeconds,
+                transactionCount, totaltxPerSecond);
+            swReport.interval();
+        }
     }
 }
-#endif
 
 // Reads the hardware ID register from the MVLC repeatedly. Allows to specify
 // the number of register reads per outgoing packet. This in turn affects the
@@ -158,6 +254,15 @@ int do_read_registers_test(int sock, const std::vector<std::string> &args)
 
     spdlog::info("Reading {} registers per transaction", registersToRead);
 
+    // 2 eth headers, 1 0xF100 frame header, 1 ref word, N reads and results
+    size_t expectedResponseSize = 2 + 1 + 1 + registersToRead * 2;
+
+    if (expectedResponseSize > 256)
+    {
+        spdlog::error("Expected response size {} exceeds maximum of 256 words. MVLC would truncate.", expectedResponseSize);
+        return 1;
+    }
+
     util::Stopwatch swReport;
 
     while (true)
@@ -177,6 +282,8 @@ int do_read_registers_test(int sock, const std::vector<std::string> &args)
             return 1;
         }
 
+        spdlog::debug("Sent {} bytes, {} words", bytesTransferred, bytesTransferred / sizeof(u32));
+
         response.clear();
         if (auto ec = read_packet(sock, response))
         {
@@ -193,17 +300,12 @@ int do_read_registers_test(int sock, const std::vector<std::string> &args)
         spdlog::debug("Received {} bytes, {} words: {:#010x}", response.size() * sizeof(u32),
                      response.size(), fmt::join(response, ", "));
 
-        // 2 eth headers, 1 0xF100 frame header, 1 ref word, N reads and results
-        size_t expectedResponseSize = 2 + 1 + 1 + registersToRead * 2;
-
         if (response.size() != expectedResponseSize)
         {
             spdlog::error("Unexpected response size: expected {}, got {}", expectedResponseSize,
                           response.size());
             return 1;
         }
-
-        auto responseIter = response.begin();
 
         auto ethHeader0 = response[0];
         auto ethHeader1 = response[1];
@@ -238,7 +340,7 @@ int do_read_registers_test(int sock, const std::vector<std::string> &args)
         // 1 0xF100 frame header, 1 ref word, N*(read and result)
         std::basic_string_view<u32> payloadView(response.data() + 2, response.size() - 2);
 
-        spdlog::debug("Payload: {:#010x}", fmt::join(payloadView, ", "));
+        //spdlog::debug("Payload: {:#010x}", fmt::join(payloadView, ", "));
 
         if (auto ct = get_super_command_type(payloadView[0]);
             ct != super_commands::SuperCommandType::CmdBufferStart)
@@ -264,6 +366,8 @@ int do_read_registers_test(int sock, const std::vector<std::string> &args)
                           refWord, refResponse.value_or(0));
             return 1;
         }
+
+        // TODO: verify the rest of the response. all register reads must be present and the read results must match the mvlc hardware ID.
 
         ++refWord;
         ++transactionCount;
@@ -296,10 +400,23 @@ void add_test(const std::string &name, TestFunction func)
 int main(int argc, char *argv[])
 {
     add_test("read_registers", do_read_registers_test);
-    //add_test("send_ref_words", do_send_ref_words_test);
+    add_test("send_ref_words", do_send_ref_words_test);
 
     argh::parser parser;
     parser.parse(argv);
+
+    if (parser["--trace"])
+    {
+        spdlog::set_level(spdlog::level::trace);
+    }
+    else if (parser["--debug"])
+    {
+        spdlog::set_level(spdlog::level::debug);
+    }
+    else
+    {
+        spdlog::set_level(spdlog::level::info);
+    }
 
     if (parser.pos_args().size() < 3)
     {
