@@ -74,6 +74,15 @@ const unsigned READ_SIZE(256);                              // Size of read buff
         throw std::runtime_error("Failed to create control server slave interpreter");
     }
     CTCLInterpreter* pInterp = new CTCLInterpreter(rawInterp);
+
+    // propagate the auto_path from the master to the slave interpreter so that 
+    // control drivers can be written in snit or itcl.
+
+    CTCLVariable auto_path(&parent, "auto_path", TCLPLUS::kfFALSE);
+    CTCLVariable slave_auto_path(pInterp, "auto_path", TCLPLUS::kfFALSE);
+
+    slave_auto_path.Set(auto_path.Get());
+
     m_pInstance = new ControlServer(
         *pInterp, controller, configScript, port
     );
