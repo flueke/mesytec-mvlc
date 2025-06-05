@@ -656,6 +656,10 @@ int main(int argc, char *argv[])
         // Let's set up the Tcl interpreter and live event loop.
         //
         CTCLInterpreter interp;                       // The interpreter that will run things
+	int tclinitstat = Tcl_Init(interp.getInterpreter());
+	if (tclinitstat != TCL_OK) {
+	    std::cerr << "Tcl Init call failed \n";
+	}
         Tcl_CreateExitHandler(exit_cleanup, &exitinfo);
 
         // Initialize the run and title and state variables:
