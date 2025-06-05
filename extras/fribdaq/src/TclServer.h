@@ -82,7 +82,7 @@ public:
         CTCLInterpreter& parent, mesytec::mvlc::MVLC& controller, 
         const char* configScript, uint16_t port
     );
-    ControlServer* getInstance();                  // not a creational -- just in case wee need an instance ptr.
+    static ControlServer* getInstance();                  // not a creational -- just in case wee need an instance ptr.
     static void stop();                            // Exit -> slave server to stop it.
     
 
