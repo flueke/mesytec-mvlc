@@ -67,9 +67,14 @@ const unsigned READ_SIZE(256);                              // Size of read buff
         throw std::logic_error("Slow controls server is already running");
     }
 
-    // Make the slave, safe interpreter and wrap it into a CTCLInterpreter:
 
-    Tcl_Interp* rawInterp = Tcl_CreateSlave(parent.getInterpreter(), "slow-controls", true);
+    // Make the slave.  I wanted to make the slave a safe interpreter _but_
+    // I could not figure out how to make tcllib packages loadable so that
+    // meant that snit, and itcl - the packages used to write Tcl drivers
+    // could not be loaded....sadly this is a security hole...as
+    // file -delete is exposed. e.g.
+
+    Tcl_Interp* rawInterp = Tcl_CreateSlave(parent.getInterpreter(), "slow-controls", false);
     if (!rawInterp)  {
         throw std::runtime_error("Failed to create control server slave interpreter");
     }
@@ -83,7 +88,7 @@ const unsigned READ_SIZE(256);                              // Size of read buff
 
     slave_auto_path.Set(auto_path.Get());
 
-    m_pInstance = new ControlServer(
+    new ControlServer(
         *pInterp, controller, configScript, port
     );
     
@@ -198,6 +203,12 @@ ControlServer::ControlServer(
     CTCLInterpreter& slave, MVLC& controller, const char* configscript, uint16_t port
 ) : m_Interp(slave), m_Controller(controller),  m_servicePort(port)
 {
+    // Save out instance pointer:
+    // We need to do this early becuse e.g. snit drivers will need to get our
+    // intepreter which depends on m_pInstance being defined (e.g. getInstance
+    // returning something meaningful).
+    
+    m_pInstance = this;   
     addCommands();
 
     // Run the configuratilon script - errors result in exceptions that bubble back:
