@@ -385,5 +385,46 @@ size_t fixup_buffer_mvlc_eth(const u8 *buf, size_t bufUsed, std::vector<u8> &tmp
     return fixup_buffer(buf, bufUsed, tmpBuf, skip_func);
 }
 
+bool is_super_command(u32 dataWord)
+{
+    using namespace super_commands;
+    using SuperCT = SuperCommandType;
+
+    u16 v = (dataWord >> SuperCmdShift) & SuperCmdMask;
+
+    return (v == static_cast<u16>(SuperCT::CmdBufferStart)
+            || v == static_cast<u16>(SuperCT::CmdBufferEnd)
+            || v == static_cast<u16>(SuperCT::ReferenceWord)
+            || v == static_cast<u16>(SuperCT::ReadLocal)
+            || v == static_cast<u16>(SuperCT::ReadLocalBlock)
+            || v == static_cast<u16>(SuperCT::WriteLocal)
+            || v == static_cast<u16>(SuperCT::WriteReset));
+}
+
+bool is_stack_command(u32 dataWord)
+{
+    using namespace stack_commands;
+    using StackCT = StackCommandType;
+
+    u8 v = (dataWord >> CmdShift) & CmdMask;
+
+    return (v == static_cast<u8>(StackCT::StackStart)
+            || v == static_cast<u8>(StackCT::StackEnd)
+            || v == static_cast<u8>(StackCT::VMEWrite)
+            || v == static_cast<u8>(StackCT::VMERead)
+            || v == static_cast<u8>(StackCT::VMEReadSwapped)
+            || v == static_cast<u8>(StackCT::VMEReadMem)
+            || v == static_cast<u8>(StackCT::VMEReadMemSwapped)
+            || v == static_cast<u8>(StackCT::WriteMarker)
+            || v == static_cast<u8>(StackCT::WriteSpecial)
+            || v == static_cast<u8>(StackCT::Wait)
+            || v == static_cast<u8>(StackCT::SignalAccu)
+            || v == static_cast<u8>(StackCT::MaskShiftAccu)
+            || v == static_cast<u8>(StackCT::SetAccu)
+            || v == static_cast<u8>(StackCT::ReadToAccu)
+            || v == static_cast<u8>(StackCT::CompareLoopAccu)
+            );
+}
+
 } // end namespace mvlc
 } // end namespace mesytec

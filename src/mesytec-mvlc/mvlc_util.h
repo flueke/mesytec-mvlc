@@ -50,14 +50,15 @@ inline FrameInfo extract_frame_info(u32 header)
 
     FrameInfo result = {};
 
-    result.type  = (header >> TypeShift) & TypeMask;
-    result.len   = (header >> LengthShift) & LengthMask;
+    result.type = (header >> TypeShift) & TypeMask;
+    result.len = (header >> LengthShift) & LengthMask;
 
     if (result.type == frame_headers::SystemEvent)
     {
         result.ctrl = (header >> system_event::CtrlIdShift) & system_event::CtrlIdMask;
         result.sysEventSubType = (header >> system_event::SubtypeShift) & system_event::SubtypeMask;
-        result.flags = ((header >> system_event::ContinueShift) & system_event::ContinueMask) << frame_flags::shifts::Continue;
+        result.flags = ((header >> system_event::ContinueShift) & system_event::ContinueMask)
+                       << frame_flags::shifts::Continue;
     }
     else
     {
@@ -69,10 +70,7 @@ inline FrameInfo extract_frame_info(u32 header)
     return result;
 }
 
-inline u8 extract_frame_flags(u32 header)
-{
-    return extract_frame_info(header).flags;
-}
+inline u8 extract_frame_flags(u32 header) { return extract_frame_info(header).flags; }
 
 MESYTEC_MVLC_EXPORT std::string decode_frame_header(u32 header);
 MESYTEC_MVLC_EXPORT std::string format_frame_flags(u8 frameFlags);
@@ -82,10 +80,7 @@ inline bool has_error_flag_set(u8 frameFlags)
     return (frameFlags & frame_flags::AllErrorFlags) != 0u;
 }
 
-inline u32 get_frame_length(u32 header)
-{
-    return extract_frame_info(header).len;
-}
+inline u32 get_frame_length(u32 header) { return extract_frame_info(header).len; }
 
 MESYTEC_MVLC_EXPORT const char *get_frame_flag_shift_name(u8 flag);
 
@@ -105,18 +100,63 @@ std::string MESYTEC_MVLC_EXPORT trigger_to_string(const stacks::Trigger &trigger
 std::optional<int> MESYTEC_MVLC_EXPORT get_trigger_irq_value(const stacks::Trigger &trigger);
 std::optional<int> MESYTEC_MVLC_EXPORT get_trigger_irq_value(const u16 triggerValue);
 
-size_t MESYTEC_MVLC_EXPORT fixup_buffer_mvlc_usb(const u8 *buf, size_t bufUsed, std::vector<u8> &tmpBuf);
-size_t MESYTEC_MVLC_EXPORT fixup_buffer_mvlc_eth(const u8 *buf, size_t bufUsed, std::vector<u8> &tmpBuf);
+size_t MESYTEC_MVLC_EXPORT fixup_buffer_mvlc_usb(const u8 *buf, size_t bufUsed,
+                                                 std::vector<u8> &tmpBuf);
+size_t MESYTEC_MVLC_EXPORT fixup_buffer_mvlc_eth(const u8 *buf, size_t bufUsed,
+                                                 std::vector<u8> &tmpBuf);
 
-inline size_t fixup_buffer(
-    ConnectionType bufferType,
-    const u8 *msgBuf, size_t msgUsed,
-    std::vector<u8> &tmpBuf)
+inline size_t fixup_buffer(ConnectionType bufferType, const u8 *msgBuf, size_t msgUsed,
+                           std::vector<u8> &tmpBuf)
 {
     if (bufferType == ConnectionType::ETH)
         return fixup_buffer_mvlc_eth(msgBuf, msgUsed, tmpBuf);
 
     return fixup_buffer_mvlc_usb(msgBuf, msgUsed, tmpBuf);
+}
+
+bool MESYTEC_MVLC_EXPORT is_super_command(u32 dataWord);
+bool MESYTEC_MVLC_EXPORT is_stack_command(u32 dataWord);
+
+inline std::optional<super_commands::SuperCommandType> get_super_command_type(u32 dataWord)
+{
+    if (!is_super_command(dataWord))
+        return std::nullopt;
+
+    return static_cast<super_commands::SuperCommandType>(
+        (dataWord >> super_commands::SuperCmdShift) & super_commands::SuperCmdMask);
+}
+
+inline std::optional<stack_commands::StackCommandType> get_stack_command_type(u32 dataWord)
+{
+    if (!is_stack_command(dataWord))
+        return std::nullopt;
+
+    return static_cast<stack_commands::StackCommandType>(
+        (dataWord >> stack_commands::CmdShift) & stack_commands::CmdMask);
+}
+
+inline std::optional<u16> get_super_command_arg(u32 dataWord)
+{
+    if (!is_super_command(dataWord))
+        return std::nullopt;
+
+    return dataWord & super_commands::SuperCmdArgMask;
+}
+
+inline std::optional<u8> get_stack_command_arg0(u32 dataWord)
+{
+    if (!is_stack_command(dataWord))
+        return std::nullopt;
+
+    return (dataWord >> stack_commands::CmdArg0Shift) & stack_commands::CmdArg0Mask;
+}
+
+inline std::optional<u16> get_stack_command_arg1(u32 dataWord)
+{
+    if (!is_stack_command(dataWord))
+        return std::nullopt;
+
+    return (dataWord >> stack_commands::CmdArg1Shift) & stack_commands::CmdArg1Mask;
 }
 
 } // end namespace mvlc
