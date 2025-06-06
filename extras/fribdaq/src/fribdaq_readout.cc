@@ -17,7 +17,6 @@
 #include <string.h>
 #include <unistd.h>
 #include <cstdlib>
-#include "command_parse.h"
 #include "parser_callbacks.h"
 #include "StateUtils.h"
 #include "username.h"
@@ -41,6 +40,7 @@
 #include "RunStateCommand.h"
 #include "RunVarCommand.h"
 #include "InitCommand.h"
+#include "TclServer.h"
 #include "StatisticsCommand.h"
 #include <TCLInterpreter.h>
 #include <TCLLiveEventLoop.h>
@@ -421,6 +421,8 @@ int main(int argc, char *argv[])
     std::string opt_ringBufferName = getUsername();
     unsigned opt_sourceid = 0; 
     std::string opt_initscript;   // Tcl init script.
+    int opt_controlServerPort = -1;
+    std::string opt_controlInitScript ="";
 
     auto cli
         = lyra::help(opt_showHelp)
@@ -438,38 +440,23 @@ int main(int argc, char *argv[])
         | lyra::opt(opt_mvlcUSBSerial, "serial")
             ["--mvlc-usb-serial"] ("connect to the mvlc with the given usb serial number (overrides CrateConfig)")
 
-        // listfile
-        | lyra::opt(opt_noListfile)
-            ["--no-listfile"] ("do not write readout data to a listfile (data will not be recorded)")
-
-        | lyra::opt(opt_overwriteListfile)
-            ["--overwrite-listfile"] ("overwrite an existing listfile")
-
-        | lyra::opt(opt_listfileOut, "listfileName")
-            ["--listfile"] ("filename of the output listfile (e.g. run001.zip)")
-
-        | lyra::opt(opt_listfileCompressionType, "type")
-            ["--listfile-compression-type"].choices("zip", "lz4") ("'zip' or 'lz4'")
-
-        | lyra::opt(opt_listfileCompressionLevel, "level")
-            ["--listfile-compression-level"] ("compression level to use (for zip 0 means no compression)")
-
+        // listfile options removed.
+        
         // logging
-        | lyra::opt(opt_printReadoutData)
-            ["--print-readout-data"]("log each word of readout data (very verbose!)")
-
-        | lyra::opt(opt_noPeriodicCounterDumps)
-            ["--no-periodic-counter-dumps"]("do not periodcally print readout and parser counters to stdout")
-
         | lyra::opt(opt_initOnly)
             ["--init-only"]("run the DAQ init sequence and exit")
 
         | lyra::opt(opt_ignoreInitErrors)
             ["--ignore-vme-init-errors"]("ignore VME errors during the DAQ init sequence")
+
+        // FRIBDAQ Speciic options.
+
         | lyra::opt(opt_ringBufferName, "ring")["--ring"]("ring buffer name")
         | lyra::opt(opt_sourceid, "sourceid")["--sourceid"]("Event builder source id")
         | lyra::opt(opt_timestampdll, "dll")["--timestamp-library"]("Time stamp shared library file")
         | lyra::opt(opt_initscript, "initscript")["--init-script"]("Tcl initialization script")
+        | lyra::opt(opt_controlServerPort, "controlport")["--control-server"]("Slow controls server port")
+        | lyra::opt(opt_controlInitScript, "ctlinitscript")["--ctlconfig"]("Control server initliazation script")
         // logging
         | lyra::opt(opt_logDebug)["--debug"]("enable debug logging")
         | lyra::opt(opt_logTrace)["--trace"]("enable trace logging")
@@ -613,22 +600,17 @@ int main(int argc, char *argv[])
             }
         }
         //
-        // Listfile setup
+        // Listfile setup : Never writing it.
         //
-        if (opt_listfileOut.empty())
-            opt_listfileOut = util::basename(opt_crateConfig) + ".zip";
+       
 
         ListfileParams listfileParams =
         {
-            .writeListfile = !opt_noListfile,
-            .filepath = opt_listfileOut,
-            .overwrite = opt_overwriteListfile,
-
-            .compression = (opt_listfileCompressionType == "lz4"
-                            ? ListfileParams::Compression::LZ4
-                            : ListfileParams::Compression::ZIP),
-
-            .compressionLevel = opt_listfileCompressionLevel,
+            .writeListfile = false,
+            .filepath = "",
+            .overwrite = false,
+            .compression = ListfileParams::Compression::LZ4,
+            .compressionLevel = 0,
 
         };
 
@@ -643,7 +625,8 @@ int main(int argc, char *argv[])
 
         //
         // readout object
-        //
+
+        
 
         auto rdo = make_mvlc_readout(
             mvlc,
@@ -672,6 +655,10 @@ int main(int argc, char *argv[])
         // Let's set up the Tcl interpreter and live event loop.
         //
         CTCLInterpreter interp;                       // The interpreter that will run things
+	int tclinitstat = Tcl_Init(interp.getInterpreter());
+	if (tclinitstat != TCL_OK) {
+	    std::cerr << "Tcl Init call failed \n";
+	}
         Tcl_CreateExitHandler(exit_cleanup, &exitinfo);
 
         // Initialize the run and title and state variables:
@@ -692,8 +679,8 @@ int main(int argc, char *argv[])
         PauseCommand pause(interp, &ExtraRunState, &rdo);
         ResumeCommand resume(interp, &ExtraRunState, &rdo);
         RunStateCommand runstate(interp);
-	InitCommand init(interp, &ExtraRunState, &rdo);
-	RunVarCommand runvar(interp, &ExtraRunState, &rdo);
+        InitCommand init(interp, &ExtraRunState, &rdo);
+        RunVarCommand runvar(interp, &ExtraRunState, &rdo);
         StatisticsCommand stats(interp, &ExtraRunState, &rdo);
 
         // Before starting the event loop, run any initialization script.
@@ -702,11 +689,27 @@ int main(int argc, char *argv[])
             try {
                 interp.EvalFile(opt_initscript);
             } catch (CException & e) {
-                std::stringstream smsg;
-                smsg << "Failed to run initialization script: " << opt_initscript << " : "
-                    << e.ReasonText();
-                return 0;
+                
+                std::cerr << "Failed to run initialization script: " << opt_initscript << " : "
+                    << e.ReasonText() << std::endl;;
+                // Traceback if possible:
+
+                CTCLVariable emsg(&interp, "errorInfo", TCLPLUS::kfFALSE);
+                const char* traceback = emsg.Get();
+                if (traceback) {
+                    std::cerr << traceback << std::endl;
+                }
+                Tcl_Exit(EXIT_FAILURE);   // so exit handlers are run.
             }
+        }
+        // If a control server port has been specified, start the server:
+
+        if (opt_controlServerPort > 0) {
+            if (opt_controlInitScript == "") {
+                std::cerr << "If you specify --control-server you must also specify --ctlconfig to configure the server\n";
+                return -1;
+            }
+            ControlServer::start(interp, mvlc, opt_controlInitScript.c_str(), opt_controlServerPort);
         }
 
         // Start the Tcl event loop.
