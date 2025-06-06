@@ -28,12 +28,6 @@
 #ifndef __MESYTEC_MVLC_MVLC_IMPL_UDP_H__
 #define __MESYTEC_MVLC_MVLC_IMPL_UDP_H__
 
-#ifdef MESYTEC_MVLC_PLATFORM_WINDOWS
-#include <winsock2.h>
-#else
-#include <netinet/ip.h> // sockaddr_in
-#endif
-
 #include <array>
 #include <fstream>
 #include <string>
@@ -107,61 +101,25 @@ class MESYTEC_MVLC_EXPORT Impl: public MVLCBasicInterface, public MVLC_ETH_Inter
         u32 getDataAddress() const;
 
         // Returns the host/IP string given to the constructor.
-        std::string getHost() const { return m_host; }
+        std::string getHost() const;
         std::string getRemoteAddress() const { return getHost(); }
 
+        #if 0
         sockaddr_in getCmdSockAddress() const { return m_cmdAddr; }
         sockaddr_in getDataSockAddress() const { return m_dataAddr; }
         sockaddr_in getDelaySockAddress() const { return m_delayAddr; }
+        #endif
 
-        void setDisableTriggersOnConnect(bool b) override
-        {
-            m_disableTriggersOnConnect = b;
-        }
-
-        bool disableTriggersOnConnect() const override
-        {
-            return m_disableTriggersOnConnect;
-        }
+        void setDisableTriggersOnConnect(bool b) override;
+        bool disableTriggersOnConnect() const override;
 
         EthThrottleCounters getThrottleCounters() const override;
 
-        int getSocket(Pipe pipe) { return pipe == Pipe::Command ? m_cmdSock : m_dataSock; }
+        int getSocket(Pipe pipe);
 
     private:
-
-        std::string m_host;
-        int m_cmdSock = -1;
-        int m_dataSock = -1;
-        int m_delaySock = -1;
-        struct sockaddr_in m_cmdAddr = {};
-        struct sockaddr_in m_dataAddr = {};
-        struct sockaddr_in m_delayAddr = {};
-
-        // Used internally for buffering in read()
-        struct ReceiveBuffer
-        {
-            std::array<u8, JumboFrameMaxSize> buffer;
-            u8 *start = nullptr; // start of unconsumed payload data
-            u8 *end = nullptr; // end of packet data
-
-            u32 header0() { return reinterpret_cast<u32 *>(buffer.data())[0]; }
-            u32 header1() { return reinterpret_cast<u32 *>(buffer.data())[1]; }
-
-            // number of bytes available
-            size_t available() { return end - start; }
-            void reset() { start = end = nullptr; }
-        };
-
-        std::array<ReceiveBuffer, PipeCount> m_receiveBuffers;
-        std::array<PipeStats, PipeCount> m_pipeStats;
-        std::array<PacketChannelStats, NumPacketChannels> m_packetChannelStats;
-        std::array<s32, NumPacketChannels> m_lastPacketNumbers;
-        bool m_disableTriggersOnConnect = false;
-        mutable TicketMutex m_statsMutex;
-        mutable Protected<EthThrottleCounters> m_throttleCounters;
-        Protected<EthThrottleContext> m_throttleContext;
-        std::thread m_throttleThread;
+        struct Private;
+        std::unique_ptr<Private> d;
 };
 
 // Given the previous and current packet numbers returns the number of lost

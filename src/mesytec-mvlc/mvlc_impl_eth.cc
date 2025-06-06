@@ -506,10 +506,53 @@ std::error_code send_delay_command(int delaySock, u16 delay_us)
     return {};
 };
 
+struct Impl::Private
+{
+    Impl *q = nullptr;
+    std::string m_host;
+    int m_cmdSock = -1;
+    int m_dataSock = -1;
+    int m_delaySock = -1;
+    struct sockaddr_in m_cmdAddr = {};
+    struct sockaddr_in m_dataAddr = {};
+    struct sockaddr_in m_delayAddr = {};
+
+    // Used internally for buffering in read()
+    struct ReceiveBuffer
+    {
+        std::array<u8, JumboFrameMaxSize> buffer;
+        u8 *start = nullptr; // start of unconsumed payload data
+        u8 *end = nullptr; // end of packet data
+
+        u32 header0() { return reinterpret_cast<u32 *>(buffer.data())[0]; }
+        u32 header1() { return reinterpret_cast<u32 *>(buffer.data())[1]; }
+
+        // number of bytes available
+        size_t available() { return end - start; }
+        void reset() { start = end = nullptr; }
+    };
+
+    std::array<ReceiveBuffer, PipeCount> m_receiveBuffers;
+    std::array<PipeStats, PipeCount> m_pipeStats;
+    std::array<PacketChannelStats, NumPacketChannels> m_packetChannelStats;
+    std::array<s32, NumPacketChannels> m_lastPacketNumbers;
+    bool m_disableTriggersOnConnect = false;
+    mutable TicketMutex m_statsMutex;
+    mutable Protected<EthThrottleCounters> m_throttleCounters;
+    Protected<EthThrottleContext> m_throttleContext;
+    std::thread m_throttleThread;
+
+    Private(Impl *impl, const std::string &host)
+        : q(impl)
+        , m_host(host)
+        , m_throttleCounters()
+        , m_throttleContext()
+    {
+    }
+};
+
 Impl::Impl(const std::string &host)
-    : m_host(host)
-    , m_throttleCounters()
-    , m_throttleContext()
+    : d(std::make_unique<Private>(this, host))
 {
 #ifdef MESYTEC_MVLC_PLATFORM_WINDOWS
     WORD wVersionRequested;
@@ -556,45 +599,45 @@ std::error_code Impl::connect()
 
     auto close_sockets = [this] ()
     {
-        if (m_cmdSock >= 0)
-            close_socket(m_cmdSock);
-        if (m_dataSock >= 0)
-            close_socket(m_dataSock);
-        if (m_delaySock >= 0)
-            close_socket(m_delaySock);
+        if (d->m_cmdSock >= 0)
+            close_socket(d->m_cmdSock);
+        if (d->m_dataSock >= 0)
+            close_socket(d->m_dataSock);
+        if (d->m_delaySock >= 0)
+            close_socket(d->m_delaySock);
 
-        m_cmdSock = -1;
-        m_dataSock = -1;
-        m_delaySock = -1;
+        d->m_cmdSock = -1;
+        d->m_dataSock = -1;
+        d->m_delaySock = -1;
     };
 
     if (isConnected())
         return make_error_code(MVLCErrorCode::IsConnected);
 
-    m_cmdSock = -1;
-    m_dataSock = -1;
-    m_delaySock = -1;
+    d->m_cmdSock = -1;
+    d->m_dataSock = -1;
+    d->m_delaySock = -1;
 
     resetPipeAndChannelStats();
 
-    logger->trace("looking up host {}...", m_host.c_str());
+    logger->trace("looking up host {}...", d->m_host.c_str());
 
-    if (auto ec = lookup(m_host, CommandPort, m_cmdAddr))
+    if (auto ec = lookup(d->m_host, CommandPort, d->m_cmdAddr))
     {
         logger->error("host lookup failed for host {}: {}",
-                  m_host.c_str(), ec.message().c_str());
+                  d->m_host.c_str(), ec.message().c_str());
         return ec;
     }
 
-    assert(m_cmdAddr.sin_port == htons(CommandPort));
+    assert(d->m_cmdAddr.sin_port == htons(CommandPort));
 
     // Copy address and replace the port with DataPort
-    m_dataAddr = m_cmdAddr;
-    m_dataAddr.sin_port = htons(DataPort);
+    d->m_dataAddr = d->m_cmdAddr;
+    d->m_dataAddr.sin_port = htons(DataPort);
 
     // Same for the delay port.
-    m_delayAddr = m_cmdAddr;
-    m_delayAddr.sin_port = htons(DelayPort);
+    d->m_delayAddr = d->m_cmdAddr;
+    d->m_delayAddr.sin_port = htons(DelayPort);
 
     // Lookup succeeded and we now have three remote addresses, one for the
     // command, one for the data pipe and one for the delay port.
@@ -603,18 +646,18 @@ std::error_code Impl::connect()
 
     logger->trace("creating sockets...");
 
-    m_cmdSock = socket(AF_INET, SOCK_DGRAM, 0);
+    d->m_cmdSock = socket(AF_INET, SOCK_DGRAM, 0);
 
-    if (m_cmdSock < 0)
+    if (d->m_cmdSock < 0)
     {
         auto ec = std::error_code(errno, std::system_category());
         logger->error("socket() failed for command pipe: {}", ec.message().c_str());
         return ec;
     }
 
-    m_dataSock = socket(AF_INET, SOCK_DGRAM, 0);
+    d->m_dataSock = socket(AF_INET, SOCK_DGRAM, 0);
 
-    if (m_dataSock < 0)
+    if (d->m_dataSock < 0)
     {
         auto ec = std::error_code(errno, std::system_category());
         logger->error("socket() failed for data pipe: {}", ec.message().c_str());
@@ -622,9 +665,9 @@ std::error_code Impl::connect()
         return ec;
     }
 
-    m_delaySock = socket(AF_INET, SOCK_DGRAM, 0);
+    d->m_delaySock = socket(AF_INET, SOCK_DGRAM, 0);
 
-    if (m_delaySock < 0)
+    if (d->m_delaySock < 0)
     {
         auto ec = std::error_code(errno, std::system_category());
         logger->error("socket() failed for delay port: {}", ec.message().c_str());
@@ -632,7 +675,7 @@ std::error_code Impl::connect()
         return ec;
     }
 
-    assert(m_cmdSock >= 0 && m_dataSock >= 0 && m_delaySock >= 0);
+    assert(d->m_cmdSock >= 0 && d->m_dataSock >= 0 && d->m_delaySock >= 0);
 
     logger->trace("binding sockets...");
 
@@ -641,7 +684,7 @@ std::error_code Impl::connect()
         localAddr.sin_family = AF_INET;
         localAddr.sin_addr.s_addr = INADDR_ANY;
 
-        for (auto sock: { m_cmdSock, m_dataSock, m_delaySock })
+        for (auto sock: { d->m_cmdSock, d->m_dataSock, d->m_delaySock })
         {
             if (::bind(sock, reinterpret_cast<struct sockaddr *>(&localAddr),
                        sizeof(localAddr)))
@@ -656,8 +699,8 @@ std::error_code Impl::connect()
 
     // Call connect on the sockets so that we receive only datagrams
     // originating from the MVLC.
-    if (::connect(m_cmdSock, reinterpret_cast<struct sockaddr *>(&m_cmdAddr),
-                            sizeof(m_cmdAddr)))
+    if (::connect(d->m_cmdSock, reinterpret_cast<struct sockaddr *>(&d->m_cmdAddr),
+                            sizeof(d->m_cmdAddr)))
     {
         auto ec = std::error_code(errno, std::system_category());
         logger->error("connect() failed for command socket: {}", ec.message().c_str());
@@ -665,8 +708,8 @@ std::error_code Impl::connect()
         return ec;
     }
 
-    if (::connect(m_dataSock, reinterpret_cast<struct sockaddr *>(&m_dataAddr),
-                            sizeof(m_dataAddr)))
+    if (::connect(d->m_dataSock, reinterpret_cast<struct sockaddr *>(&d->m_dataAddr),
+                            sizeof(d->m_dataAddr)))
     {
         auto ec = std::error_code(errno, std::system_category());
         logger->error("connect() failed for data socket: {}", ec.message().c_str());
@@ -674,8 +717,8 @@ std::error_code Impl::connect()
         return ec;
     }
 
-    if (::connect(m_delaySock, reinterpret_cast<struct sockaddr *>(&m_delayAddr),
-                            sizeof(m_delayAddr)))
+    if (::connect(d->m_delaySock, reinterpret_cast<struct sockaddr *>(&d->m_delayAddr),
+                            sizeof(d->m_delayAddr)))
     {
         auto ec = std::error_code(errno, std::system_category());
         logger->error("connect() failed for delay socket: {}", ec.message().c_str());
@@ -704,7 +747,7 @@ std::error_code Impl::connect()
     }
 
     // Set the write timeout for the delay socket
-    if (auto ec = set_socket_write_timeout(m_delaySock, DefaultWriteTimeout_ms))
+    if (auto ec = set_socket_write_timeout(d->m_delaySock, DefaultWriteTimeout_ms))
     {
         logger->error("set_socket_write_timeout failed: {}", ec.message().c_str());
         return ec;
@@ -750,7 +793,7 @@ std::error_code Impl::connect()
         }
     }
 
-    assert(m_cmdSock >= 0 && m_dataSock >= 0 && m_delaySock >= 0);
+    assert(d->m_cmdSock >= 0 && d->m_dataSock >= 0 && d->m_delaySock >= 0);
 
     {
         MVLCDialog_internal dlg(this);
@@ -789,37 +832,37 @@ std::error_code Impl::connect()
 
     logger->trace("ETH connect sequence finished");
 
-    assert(m_cmdSock >= 0 && m_dataSock >= 0 && m_delaySock >= 0);
+    assert(d->m_cmdSock >= 0 && d->m_dataSock >= 0 && d->m_delaySock >= 0);
 
     // Setup the EthThrottleContext
     {
-        auto tc = m_throttleContext.access();
+        auto tc = d->m_throttleContext.access();
 #ifndef MESYTEC_MVLC_PLATFORM_WINDOWS
 
         struct stat sb = {};
 
-        if (fstat(m_dataSock, &sb) == 0)
+        if (fstat(d->m_dataSock, &sb) == 0)
             tc->dataSocketInode = sb.st_ino;
 
 #else // MESYTEC_MVLC_PLATFORM_WINDOWS
-        tc->dataSocket = m_dataSock;
+        tc->dataSocket = d->m_dataSock;
         tc->dataSocketReceiveBufferSize = dataSocketReceiveBufferSize;
 #endif
 
-        tc->delaySocket = m_delaySock;
+        tc->delaySocket = d->m_delaySock;
         tc->quit = false;
 #if MVLC_ETH_THROTTLE_WRITE_DEBUG_FILE
         tc->debugOut = std::ofstream("mvlc-eth-throttle-debug.txt");
 #endif
     }
 
-    m_throttleCounters.access().ref() = {};
+    d->m_throttleCounters.access().ref() = {};
 
 #if MVLC_ENABLE_ETH_THROTTLE
-    m_throttleThread = std::thread(
+    d->m_throttleThread = std::thread(
         mvlc_eth_throttler,
-        std::ref(m_throttleContext),
-        std::ref(m_throttleCounters));
+        std::ref(d->m_throttleContext),
+        std::ref(d->m_throttleCounters));
 #endif
 
     spdlog::trace("end {}", __PRETTY_FUNCTION__);
@@ -832,23 +875,23 @@ std::error_code Impl::disconnect()
     if (!isConnected())
         return make_error_code(MVLCErrorCode::IsDisconnected);
 
-    m_throttleContext.access()->quit = true;
+    d->m_throttleContext.access()->quit = true;
 
-    if (m_throttleThread.joinable())
-        m_throttleThread.join();
+    if (d->m_throttleThread.joinable())
+        d->m_throttleThread.join();
 
-    close_socket(m_cmdSock);
-    close_socket(m_dataSock);
-    close_socket(m_delaySock);
-    m_cmdSock = -1;
-    m_dataSock = -1;
-    m_delaySock = -1;
+    close_socket(d->m_cmdSock);
+    close_socket(d->m_dataSock);
+    close_socket(d->m_delaySock);
+    d->m_cmdSock = -1;
+    d->m_dataSock = -1;
+    d->m_delaySock = -1;
     return {};
 }
 
 bool Impl::isConnected() const
 {
-    return m_cmdSock >= 0 && m_dataSock >= 0 && m_delaySock >= 0;
+    return d->m_cmdSock >= 0 && d->m_dataSock >= 0 && d->m_delaySock >= 0;
 }
 
 std::error_code Impl::write(Pipe pipe, const u8 *buffer, size_t size,
@@ -874,10 +917,10 @@ PacketReadResult Impl::read_packet(Pipe pipe_, u8 *buffer, size_t size)
     PacketReadResult res = {};
 
     unsigned pipe = static_cast<unsigned>(pipe_);
-    auto &pipeStats = m_pipeStats[pipe];
+    auto &pipeStats = d->m_pipeStats[pipe];
 
     {
-        UniqueLock guard(m_statsMutex);
+        UniqueLock guard(d->m_statsMutex);
         ++pipeStats.receiveAttempts;
     }
 
@@ -916,7 +959,7 @@ PacketReadResult Impl::read_packet(Pipe pipe_, u8 *buffer, size_t size)
     }
 
     {
-        UniqueLock guard(m_statsMutex);
+        UniqueLock guard(d->m_statsMutex);
         ++pipeStats.receivedPackets;
         pipeStats.receivedBytes += res.bytesTransferred;
         ++pipeStats.packetSizes[res.bytesTransferred];
@@ -926,7 +969,7 @@ PacketReadResult Impl::read_packet(Pipe pipe_, u8 *buffer, size_t size)
 
     if (!res.hasHeaders())
     {
-        UniqueLock guard(m_statsMutex);
+        UniqueLock guard(d->m_statsMutex);
         ++pipeStats.shortPackets;
         logger->warn("read_packet: pipe={}, received data is smaller than the MVLC UDP header size", pipe);
         res.ec = make_error_code(MVLCErrorCode::ShortRead);
@@ -963,28 +1006,28 @@ PacketReadResult Impl::read_packet(Pipe pipe_, u8 *buffer, size_t size)
     {
         logger->warn("read_packet: pipe={}, {} leftover bytes in received packet",
                  pipe, res.leftoverBytes());
-        UniqueLock guard(m_statsMutex);
+        UniqueLock guard(d->m_statsMutex);
         ++pipeStats.packetsWithResidue;
     }
 
     if (res.packetChannel() >= NumPacketChannels)
     {
         logger->warn("read_packet: pipe={}, packet channel number out of range: {}", pipe, res.packetChannel());
-        UniqueLock guard(m_statsMutex);
+        UniqueLock guard(d->m_statsMutex);
         ++pipeStats.packetChannelOutOfRange;
         res.ec = make_error_code(MVLCErrorCode::UDPPacketChannelOutOfRange);
         return res;
     }
 
-    auto &channelStats = m_packetChannelStats[res.packetChannel()];
+    auto &channelStats = d->m_packetChannelStats[res.packetChannel()];
     {
-        UniqueLock guard(m_statsMutex);
+        UniqueLock guard(d->m_statsMutex);
         ++channelStats.receivedPackets;
         channelStats.receivedBytes += res.bytesTransferred;
     }
 
     {
-        auto &lastPacketNumber = m_lastPacketNumbers[res.packetChannel()];
+        auto &lastPacketNumber = d->m_lastPacketNumbers[res.packetChannel()];
 
         logger->trace("read_packet: pipe={}, packetChannel={}, packetNumber={}, lastPacketNumber={}",
                   pipe, res.packetChannel(), res.packetNumber(), lastPacketNumber);
@@ -1002,7 +1045,7 @@ PacketReadResult Impl::read_packet(Pipe pipe_, u8 *buffer, size_t size)
             }
 
             res.lostPackets = loss;
-            UniqueLock guard(m_statsMutex);
+            UniqueLock guard(d->m_statsMutex);
             pipeStats.lostPackets += loss;
             channelStats.lostPackets += loss;
         }
@@ -1010,7 +1053,7 @@ PacketReadResult Impl::read_packet(Pipe pipe_, u8 *buffer, size_t size)
         lastPacketNumber = res.packetNumber();
 
         {
-            UniqueLock guard(m_statsMutex);
+            UniqueLock guard(d->m_statsMutex);
             ++channelStats.packetSizes[res.bytesTransferred];
         }
     }
@@ -1024,7 +1067,7 @@ PacketReadResult Impl::read_packet(Pipe pipe_, u8 *buffer, size_t size)
 
         if (headerp >= end)
         {
-            UniqueLock guard(m_statsMutex);
+            UniqueLock guard(d->m_statsMutex);
             ++pipeStats.headerOutOfRange;
             ++channelStats.headerOutOfRange;
 
@@ -1039,7 +1082,7 @@ PacketReadResult Impl::read_packet(Pipe pipe_, u8 *buffer, size_t size)
             logger->trace("read_packet: pipe={}, nextHeaderPointer={} -> header=0x{:08x}",
                       pipe, res.nextHeaderPointer(), header);
             u32 type = get_frame_type(header);
-            UniqueLock guard(m_statsMutex);
+            UniqueLock guard(d->m_statsMutex);
             ++pipeStats.headerTypes[type];
             ++channelStats.headerTypes[type];
         }
@@ -1048,7 +1091,7 @@ PacketReadResult Impl::read_packet(Pipe pipe_, u8 *buffer, size_t size)
     {
         logger->trace("read_packet: pipe={}, NoHeaderPointerPresent, eth header1=0x{:08x}",
                   pipe, res.header1());
-        UniqueLock guard(m_statsMutex);
+        UniqueLock guard(d->m_statsMutex);
         ++pipeStats.noHeader;
         ++channelStats.noHeader;
     }
@@ -1087,7 +1130,7 @@ std::error_code Impl::read(Pipe pipe_, u8 *buffer, size_t size,
     if (!isConnected())
         return make_error_code(MVLCErrorCode::IsDisconnected);
 
-    auto &receiveBuffer = m_receiveBuffers[pipe];
+    auto &receiveBuffer = d->m_receiveBuffers[pipe];
 
     // Copy from receiveBuffer into the dest buffer while updating local
     // variables.
@@ -1167,7 +1210,7 @@ std::error_code Impl::read(Pipe pipe_, u8 *buffer, size_t size,
 
 EthThrottleCounters Impl::getThrottleCounters() const
 {
-    return m_throttleCounters.copy();
+    return d->m_throttleCounters.copy();
 }
 
 #if 0
@@ -1177,7 +1220,7 @@ std::error_code Impl::getReadQueueSize(Pipe pipe_, u32 &dest)
     assert(pipe < PipeCount);
 
     if (pipe < PipeCount)
-        dest = m_receiveBuffers[static_cast<unsigned>(pipe)].available();
+        dest = d->m_receiveBuffers[static_cast<unsigned>(pipe)].available();
 
     return make_error_code(MVLCErrorCode::InvalidPipe);
 }
@@ -1185,33 +1228,39 @@ std::error_code Impl::getReadQueueSize(Pipe pipe_, u32 &dest)
 
 std::array<PipeStats, PipeCount> Impl::getPipeStats() const
 {
-    UniqueLock guard(m_statsMutex);
-    return m_pipeStats;
+    UniqueLock guard(d->m_statsMutex);
+    return d->m_pipeStats;
 }
 
 std::array<PacketChannelStats, NumPacketChannels> Impl::getPacketChannelStats() const
 {
-    UniqueLock guard(m_statsMutex);
-    return m_packetChannelStats;
+    UniqueLock guard(d->m_statsMutex);
+    return d->m_packetChannelStats;
 }
 
 void Impl::resetPipeAndChannelStats()
 {
-    UniqueLock guard(m_statsMutex);
-    m_pipeStats = {};
-    m_packetChannelStats = {};
-    std::fill(m_lastPacketNumbers.begin(), m_lastPacketNumbers.end(), -1);
+    UniqueLock guard(d->m_statsMutex);
+    d->m_pipeStats = {};
+    d->m_packetChannelStats = {};
+    std::fill(d->m_lastPacketNumbers.begin(), d->m_lastPacketNumbers.end(), -1);
 }
 
 u32 Impl::getCmdAddress() const
 {
-    return ntohl(m_cmdAddr.sin_addr.s_addr);
+    return ntohl(d->m_cmdAddr.sin_addr.s_addr);
 }
 
 u32 Impl::getDataAddress() const
 {
-    return ntohl(m_dataAddr.sin_addr.s_addr);
+    return ntohl(d->m_dataAddr.sin_addr.s_addr);
 }
+
+std::string Impl::getHost() const { return d->m_host; }
+
+void Impl::setDisableTriggersOnConnect(bool b) { d->m_disableTriggersOnConnect = b; }
+bool Impl::disableTriggersOnConnect() const { return d->m_disableTriggersOnConnect; }
+int Impl::getSocket(Pipe pipe) { return pipe == Pipe::Command ? d->m_cmdSock : d->m_dataSock; }
 
 std::string Impl::connectionInfo() const
 {
