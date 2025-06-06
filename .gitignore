@@ -10,3 +10,4 @@ compile_commands.json
 *.srctrldb
 *.srctrlprj
 .cache/
+vcpkg_installed/
