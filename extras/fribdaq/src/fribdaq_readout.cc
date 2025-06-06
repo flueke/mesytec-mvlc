@@ -17,7 +17,6 @@
 #include <string.h>
 #include <unistd.h>
 #include <cstdlib>
-#include "command_parse.h"
 #include "parser_callbacks.h"
 #include "StateUtils.h"
 #include "username.h"

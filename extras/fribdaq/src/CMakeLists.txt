@@ -87,7 +87,10 @@ else ()
     target_link_options(slowControlsClient PRIVATE
         -Wl,-rpath=${NSCLDAQ_ROOT}/lib -lm
     )
-    set_target_properties(slowControlsClient PROPERTIES PUBLIC_HEADER CVMEClient.h)
+    set_target_properties(slowControlsClient PROPERTIES
+         PUBLIC_HEADER 
+        "CVMEClient.h;SlowControlsDriver.h;SlowControlsModuleCommand.h"
+    )
     #
     # install pkgIndex.tcl into the lib dir:
     #
@@ -100,16 +103,7 @@ else ()
         PUBLIC_HEADER DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/fribdaq"
     )
 
-    
 
-    # Tests:
-
-    add_executable(parse_test parse_test.cc command_parse.cc)
-    target_link_libraries(parse_test
-            PRIVATE gtest
-            PRIVATE gtest_main
-    )
-    add_test(NAME parse_test COMMAND parse_test)
 endif ()
 
 
