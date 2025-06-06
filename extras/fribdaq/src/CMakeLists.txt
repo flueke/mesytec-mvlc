@@ -87,7 +87,10 @@ else ()
     target_link_options(slowControlsClient PRIVATE
         -Wl,-rpath=${NSCLDAQ_ROOT}/lib -lm
     )
-    set_target_properties(slowControlsClient PROPERTIES PUBLIC_HEADER CVMEClient.h)
+    set_target_properties(slowControlsClient PROPERTIES
+         PUBLIC_HEADER 
+        "CVMEClient.h;SlowControlsDriver.h;SlowControlsModuleCommand.h"
+    )
     #
     # install pkgIndex.tcl into the lib dir:
     #
