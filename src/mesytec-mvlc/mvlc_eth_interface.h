@@ -86,11 +86,11 @@ struct MESYTEC_MVLC_EXPORT PayloadHeaderInfo
 };
 
 // Single line info about each header
-std::string eth_header0_to_string(u32 header0);
-std::string eth_header1_to_string(u32 header1);
+std::string MESYTEC_MVLC_EXPORT eth_header0_to_string(u32 header0);
+std::string MESYTEC_MVLC_EXPORT eth_header1_to_string(u32 header1);
 // Info about both headers in one line.
-std::string eth_headers_to_string(u32 header0, u32 header1);
-std::string eth_headers_to_string(const PayloadHeaderInfo &info);
+std::string MESYTEC_MVLC_EXPORT eth_headers_to_string(u32 header0, u32 header1);
+std::string MESYTEC_MVLC_EXPORT eth_headers_to_string(const PayloadHeaderInfo &info);
 
 struct MESYTEC_MVLC_EXPORT PacketReadResult
 {
