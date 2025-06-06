@@ -1,6 +1,4 @@
 #include <argh.h>
-#include <boost/format.hpp>
-#include <boost/histogram.hpp>
 #include <mesytec-mvlc/mesytec-mvlc.h>
 #include <mesytec-mvlc/mesytec_vme_modules.h>
 #include <mesytec-mvlc/mvlc_impl_eth.h>
