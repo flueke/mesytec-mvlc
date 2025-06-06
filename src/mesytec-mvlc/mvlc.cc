@@ -983,7 +983,7 @@ std::error_code CmdApi::uploadStack(
     // super transaction:
     // ETH is limited by the non-jumbo UDP max payload size. Using 181 stack
     // words per part results in 1+181*2=362 super words (reference word +
-    // (write command + payload) for each stack word. If the part is the first
+    // (write command + payload) for each stack part. If the part is the first
     // and/or last part, StackStart and/or StackEnd also have to be written.
     // Extreme case without ref word: StackStart + 181 words + StackEnd = 183 words.
     // With WriteLocal commands: 183 * 2 + 1 ref word: 367 words * 4 bytes = 1468 bytes.
