@@ -445,6 +445,22 @@ int main(int argc, char *argv[])
         return 1;
     }
 
+    const auto timeout = std::chrono::milliseconds(1000);
+
+    spdlog::info("Setting socket timeouts to {} ms", timeout.count());
+
+    if (auto ec = eth::set_socket_write_timeout(sock, timeout.count()))
+    {
+        spdlog::error("Error setting socket write timeout: {}", ec.message());
+        return 1;
+    }
+
+    if (auto ec = eth::set_socket_read_timeout(sock, timeout.count()))
+    {
+        spdlog::error("Error setting socket read timeout: {}", ec.message());
+        return 1;
+    }
+
     std::vector<std::string> cmdArgs(pos_args.begin() + 2, pos_args.end());
     return tests[testname](sock, cmdArgs);
 }
