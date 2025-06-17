@@ -489,8 +489,10 @@ int main(int argc, char *argv[])
         // readout object
         //
 
-        // This can be used to do custom initialization during the start
-        // sequence. See mvlc_readout_worker.h for how this works.
+        auto rdo = make_mvlc_readout(mvlc, crateConfig, listfileParams, parserCallbacks);
+
+        // This optional callback can be used to do custom initialization during
+        // the start sequence. See mvlc_readout_worker.h for how this works.
         auto initCallback = [](void *userContext, const std::string &initStage, MVLC &mvlc,
                                    const CrateConfig &crateConfig,
                                    const CommandExecOptions &execOptions)
@@ -499,7 +501,6 @@ int main(int argc, char *argv[])
             return std::error_code();
         };
 
-        auto rdo = make_mvlc_readout(mvlc, crateConfig, listfileParams, parserCallbacks);
         rdo.setInitCallback(initCallback, reinterpret_cast<void *>(0x1337));
 
         spdlog::info("Starting readout. Running for {} seconds.", timeToRun.count());

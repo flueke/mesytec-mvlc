@@ -56,17 +56,18 @@ add_subdirectory(nlohmann_json)
 # static version of yaml-cpp.
 set_target_properties(yaml-cpp PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
-# LZ4
-#add_subdirectory(lz4/contrib/cmake_unofficial)
-#target_include_directories(lz4_static
-#    PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/lz4/lib/>)
+# LZ4 TODO: get rid of this once the builders have lz4 installed
+message(STATUS "${PROJECT_NAME}: Using lz4 from ${CMAKE_CURRENT_SOURCE_DIR}/lz4")
+add_subdirectory(lz4/contrib/cmake_unofficial)
+target_include_directories(lz4_static
+    PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/lz4/lib/>)
 
 # Lyra command line parser
 add_subdirectory(Lyra)
 
 # spdlog
 if (NOT TARGET spdlog)
-    message(STATUS "${CMAKE_PROJECT_NAME}: Using spdlog from ${CMAKE_CURRENT_SOURCE_DIR}/spdlog")
+    message(STATUS "${PROJECT_NAME}: Using spdlog from ${CMAKE_CURRENT_SOURCE_DIR}/spdlog")
     option(SPDLOG_FMT_EXTERNAL "Use external fmt library instead of bundled" OFF)
     option(SPDLOG_INSTALL "Generate the install target" ON)
     add_subdirectory(spdlog-1.14.0)
