@@ -1387,11 +1387,23 @@ std::vector<SuperCommand> make_stack_upload_commands(
 }
 
 std::vector<SuperCommand> make_stack_upload_commands(
+    Pipe pipe, u16 stackMemoryOffset, const StackCommandBuilder &stack)
+{
+    return make_stack_upload_commands(static_cast<u8>(pipe), stackMemoryOffset, stack.getCommands());
+}
+
+std::vector<SuperCommand> make_stack_upload_commands(
     u8 stackOutputPipe, u16 stackMemoryOffset, const std::vector<StackCommand> &stack)
 {
     auto stackBuffer = make_stack_buffer(stack);
 
     return make_stack_upload_commands(stackOutputPipe, stackMemoryOffset, make_stack_buffer(stack));
+}
+
+std::vector<SuperCommand> make_stack_upload_commands(
+    Pipe pipe, u16 stackMemoryOffset, const std::vector<StackCommand> &stack)
+{
+    return make_stack_upload_commands(static_cast<u8>(pipe), stackMemoryOffset, make_stack_buffer(stack));
 }
 
 std::vector<SuperCommand> make_stack_upload_commands(
@@ -1423,6 +1435,12 @@ std::vector<SuperCommand> make_stack_upload_commands(
     address += AddressIncrement;
 
     return super.getCommands();
+}
+
+std::vector<SuperCommand> make_stack_upload_commands(
+    Pipe pipe, u16 stackMemoryOffset, const std::vector<u32> &stackBuffer)
+{
+    return make_stack_upload_commands(static_cast<u8>(pipe), stackMemoryOffset, stackBuffer);
 }
 
 }

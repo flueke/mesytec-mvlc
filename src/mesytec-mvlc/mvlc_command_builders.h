@@ -80,6 +80,8 @@ class MESYTEC_MVLC_EXPORT SuperCommandBuilder
 
         const SuperCommand &operator[](size_t i) const { return m_commands[i]; }
 
+        void clear() { m_commands.clear(); }
+
     private:
         std::vector<SuperCommand> m_commands;
 };
@@ -395,10 +397,19 @@ MESYTEC_MVLC_EXPORT std::vector<SuperCommand> make_stack_upload_commands(
     u8 stackOutputPipe, u16 StackMemoryOffset, const StackCommandBuilder &stack);
 
 MESYTEC_MVLC_EXPORT std::vector<SuperCommand> make_stack_upload_commands(
+    Pipe stackOutputPipe, u16 StackMemoryOffset, const StackCommandBuilder &stack);
+
+MESYTEC_MVLC_EXPORT std::vector<SuperCommand> make_stack_upload_commands(
     u8 stackOutputPipe, u16 StackMemoryOffset, const std::vector<StackCommand> &stack);
 
 MESYTEC_MVLC_EXPORT std::vector<SuperCommand> make_stack_upload_commands(
+    Pipe pipe, u16 StackMemoryOffset, const std::vector<StackCommand> &stack);
+
+MESYTEC_MVLC_EXPORT std::vector<SuperCommand> make_stack_upload_commands(
     u8 stackOutputPipe, u16 StackMemoryOffset, const std::vector<u32> &stackBuffer);
+
+MESYTEC_MVLC_EXPORT std::vector<SuperCommand> make_stack_upload_commands(
+    Pipe pipe, u16 StackMemoryOffset, const std::vector<u32> &stackBuffer);
 
 // Command parsing utilities
 MESYTEC_MVLC_EXPORT std::string accu_comparator_to_string(AccuComparator comp);
