@@ -36,7 +36,7 @@ std::error_code read_packet(int sock, std::vector<u32> &dest)
     return {};
 }
 
-inline bool is_timeout(const std::error_code &ec)
+inline bool is_socket_timeout(const std::error_code &ec)
 {
     return ec == std::error_code(EAGAIN, std::system_category()) ||
            ec == std::error_code(EWOULDBLOCK, std::system_category());
@@ -45,7 +45,7 @@ inline bool is_timeout(const std::error_code &ec)
 // Uses information from the two eth header words to check the packet consistency.
 // Packet loss is not handled in here, only packet size, header pointer etc are checked.
 bool check_packet_consistency(std::basic_string_view<u32> packet,
-                              eth::PacketChannel expectedChannel = eth::PacketChannel::Command,
+                              std::optional<eth::PacketChannel> expectedChannel = {},
                               u16 expectedControllerId = 0)
 {
     if (packet.size() < 2)
@@ -56,12 +56,14 @@ bool check_packet_consistency(std::basic_string_view<u32> packet,
 
     eth::PayloadHeaderInfo headerInfo{packet[0], packet[1]};
 
-    if (headerInfo.packetChannel() != static_cast<u16>(expectedChannel))
-    {
-        spdlog::error("Unexpected packet channel: expected {}, got {}",
-                      static_cast<u16>(expectedChannel), headerInfo.packetChannel());
-        return false;
-    }
+    if (expectedChannel.has_value())
+
+        if (headerInfo.packetChannel() != static_cast<u16>(expectedChannel.value()))
+        {
+            spdlog::error("Unexpected packet channel: expected {}, got {}",
+                        static_cast<u16>(expectedChannel.value()), headerInfo.packetChannel());
+            return false;
+        }
 
     if (headerInfo.controllerId() != expectedControllerId)
     {
@@ -485,6 +487,216 @@ static const Command ReadRegistersCommand{
     .exec = do_read_registers_test,
 };
 
+DEF_TEST_FUNC(do_write_registers_test)
+{
+    auto args = ctx.args;
+    auto sock = ctx.cmdSock;
+
+    // write to somewhere in the middle of the stack mem.
+    const u32 testRegister = stacks::StackMemoryBegin + 1024;
+    u32 writePayload = 0x12345678;
+
+    u16 refWord = 1;
+    std::vector<u32> response;
+    s32 lastPacketNumber = -1;
+    size_t registersToWrite = 1;
+    size_t transactionCount = 0;
+    size_t registersWritten = 0;
+    size_t transactionsInInterval = 0;
+
+    if (args.size() > 1)
+        registersToWrite = std::stoul(args[1]);
+
+    spdlog::info("Writing {} registers per transaction", registersToWrite);
+
+    // 2 eth headers, 1 0xF100 frame header, 1 ref word, N reads and results
+    size_t expectedResponseSize = 2 + 1 + 1 + registersToWrite * 2;
+
+    if (expectedResponseSize > 256)
+    {
+        spdlog::error(
+            "Expected response size {} exceeds maximum of 256 words. MVLC would truncate.",
+            expectedResponseSize);
+        return 1;
+    }
+
+    util::Stopwatch swReport;
+
+    while (true)
+    {
+        SuperCommandBuilder cmdList;
+        cmdList.addReferenceWord(refWord);
+        for (size_t i = 0; i < registersToWrite; ++i)
+        {
+            cmdList.addWriteLocal(testRegister, writePayload);
+        }
+
+        size_t bytesTransferred = 0u;
+
+        if (auto ec = write_to_socket(sock, make_command_buffer(cmdList), bytesTransferred))
+        {
+            spdlog::error("Error writing to socket: {}", ec.message());
+            return 1;
+        }
+
+        spdlog::debug("Sent {} bytes, {} words. writePayload={:#010x}", bytesTransferred, bytesTransferred / sizeof(u32), writePayload);
+
+        response.clear();
+        if (auto ec = read_packet(sock, response))
+        {
+            spdlog::error("Error reading packet: {}", ec.message());
+            return 1;
+        }
+
+        if (response.empty())
+        {
+            spdlog::error("No response received from the MVLC.");
+            return 1;
+        }
+
+        spdlog::debug("Received {} bytes, {} words: {:#010x}", response.size() * sizeof(u32),
+                      response.size(), fmt::join(response, ", "));
+
+        if (response.size() != expectedResponseSize)
+        {
+            spdlog::error("Unexpected response size: expected {}, got {}", expectedResponseSize,
+                          response.size());
+            return 1;
+        }
+
+        auto ethHeader0 = response[0];
+        auto ethHeader1 = response[1];
+
+        eth::PayloadHeaderInfo headerInfo{ethHeader0, ethHeader1};
+        spdlog::debug("{}", eth::eth_headers_to_string(headerInfo));
+
+        if (!check_packet_consistency(std::basic_string_view<u32>(response.data(), response.size()),
+                                      eth::PacketChannel::Command, 0))
+        {
+            // logging is done in check_packet_consistency() so just return here.
+            return 1;
+        }
+
+        if (lastPacketNumber < 0)
+        {
+            lastPacketNumber = headerInfo.packetNumber();
+        }
+        else
+        {
+            if (s32 packetLoss = eth::calc_packet_loss(lastPacketNumber, headerInfo.packetNumber());
+                packetLoss > 0)
+            {
+                // Not considered fatal: another client might have sent a
+                // command in-between which will look like loss to us.
+                spdlog::warn("Packet loss detected: {} packets lost between {} and {}", packetLoss,
+                             lastPacketNumber, headerInfo.packetNumber());
+            }
+            lastPacketNumber = headerInfo.packetNumber();
+        }
+
+        // Check payload contents. This code is not ETH specific anymore but works for USB too.
+        // Example response for two register reads:
+        // 0xf1000005, 0x01010001, 0x01026008, 0x00005008, 0x01026008, 0x00005008
+        // header      ref         read        contents    read        contents
+
+        // 1 0xF100 frame header, 1 ref word, N*(read and result)
+        std::basic_string_view<u32> payloadView(response.data() + 2, response.size() - 2);
+
+        spdlog::trace("Response payload: {:#010x}", fmt::join(payloadView, ", "));
+
+        if (auto ct = get_super_command_type(payloadView[0]);
+            ct != super_commands::SuperCommandType::CmdBufferStart)
+        {
+            spdlog::error("Payload does not start with CmdBufferStart (0xF100) command: {:#010x}",
+                          payloadView[0]);
+            return 1;
+        }
+
+        if (auto ct = get_super_command_type(payloadView[1]);
+            ct != super_commands::SuperCommandType::ReferenceWord)
+        {
+            spdlog::error(
+                "Expected reference word command (0x0101) at payload[1], found {:#010x} instead",
+                payloadView[1]);
+            return 1;
+        }
+
+        if (auto refResponse = get_super_command_arg(payloadView[1]); refResponse != refWord)
+        {
+            spdlog::error("Unexpected reference word in response: expected {:#06x}, got {:#06x}",
+                          refWord, refResponse.value_or(0));
+            return 1;
+        }
+
+        // verify the rest of the response. all register reads must be present
+        // and the read results must match the mvlc hardware ID.
+        payloadView.remove_prefix(2); // remove the first two words (header and ref word)
+
+        if (payloadView.size() != registersToWrite * 2)
+        {
+            spdlog::error("Unexpected payload size: expected {} words, got {}", registersToWrite * 2,
+                          payloadView.size());
+            return 1;
+        }
+
+        for (size_t i = 0; i < payloadView.size(); i += 2)
+        {
+            auto &cmd = payloadView[i];
+            auto &result = payloadView[i + 1];
+
+            if (auto ct = get_super_command_type(cmd);
+                ct != super_commands::SuperCommandType::WriteLocal)
+            {
+                spdlog::error(
+                    "Expected WriteLocal command (0x0204) at payload[{}], found {:#010x} instead", i,
+                    cmd);
+                return 1;
+            }
+
+            if (auto arg = get_super_command_arg(cmd); arg != testRegister)
+            {
+                spdlog::error("Expected WriteLocal command at "
+                              "payload[{}], got 0x{:04x} instead",
+                              registers::hardware_id, i, arg.value_or(0));
+                return 1;
+            }
+
+            if (result != writePayload)
+            {
+                spdlog::error(
+                    "Unexpected read result at payload[{}]: expected 0x{:08x}, got 0x{:08x}", i + 1,
+                    writePayload, result);
+                return 1;
+            }
+        }
+
+        ++refWord;
+        ++transactionCount;
+        ++transactionsInInterval;
+        registersWritten += registersToWrite;
+
+        if (auto elapsed = swReport.get_interval(); elapsed >= ReportInterval)
+        {
+            auto totalElapsedSeconds =
+                std::chrono::duration_cast<std::chrono::duration<double>>(swReport.get_elapsed())
+                    .count();
+            auto totaltxPerSecond = transactionCount / totalElapsedSeconds;
+            auto totalRegistersPerSecond = registersWritten / totalElapsedSeconds;
+            spdlog::info("Elapsed: {:.3f} s, Transactions: {}, {:.2f} tx/s, {:.2f} registers/s",
+                         totalElapsedSeconds, transactionCount, totaltxPerSecond,
+                         totalRegistersPerSecond);
+            swReport.interval();
+        }
+
+        ++writePayload;
+    }
+}
+
+static const Command WriteRegistersCommand{
+    .name = "write_registers",
+    .exec = do_write_registers_test,
+};
+
 // Send eth throttle commands to the MVLC. This is send-only, no responses are read.
 // The default throttle values is 0 which means unlimited.
 // TODO: add ability to set different throttle values over time.
@@ -537,6 +749,128 @@ static const Command SendEthThrottleCommand{
     .exec = send_eth_throttle,
 };
 
+DEF_TEST_FUNC(read_write_vme_test)
+{
+    auto sock = ctx.cmdSock;
+
+    // Write to the middle of the stack memory. This won't collide with the command stack itself.
+    static const u32 testAddress = 0xffff0000 + stacks::StackMemoryBegin + 1024;
+    u16 superRef = 0xdead;
+    u32 stackRef = 0x1337cafe;
+    u32 writePayload = 0x12345678;
+    std::array<s32, 3> lastPacketNumbers = {-1, -1, -1}; // per PacketChannel sequential packet numbers
+    size_t transactionCount = 0;
+    size_t transactionsInInterval = 0;
+
+
+    StackCommandBuilder cmdList;
+    SuperCommandBuilder superCmdList;
+    std::vector<u32> response;
+
+    while (true)
+    {
+        spdlog::info("Transaction cycle {}, testAddress={:#010x}, writePayload={:#010x}, superRef={:#06x}, stackRef={:#010x} ===============",
+             transactionCount, testAddress, writePayload, superRef, stackRef);
+        cmdList.clear();
+        cmdList.addWriteMarker(stackRef++);
+        cmdList.addVMEWrite(testAddress, writePayload, vme_amods::A32, VMEDataWidth::D32);
+
+        superCmdList.clear();
+        superCmdList.addReferenceWord(superRef);
+
+        // to increase the size of the command buffer and thus the mirror response size.
+        //for (size_t i=0; i<200; ++i)
+        //    superCmdList.addReferenceWord(superRef);
+
+        ++superRef;
+        superCmdList.addStackUpload(cmdList, static_cast<u8>(Pipe::Command), stacks::ImmediateStackStartOffsetBytes);
+        // Write the stack offset and trigger registers. The latter triggers the
+        // immediate execution of the stack.
+        superCmdList.addWriteLocal(stacks::Stack0OffsetRegister, stacks::ImmediateStackStartOffsetBytes);
+        superCmdList.addWriteLocal(stacks::Stack0TriggerRegister, 1u << stacks::ImmediateShift);
+        // New: directly read both stack status registers
+        superCmdList.addReadLocal(registers::stack_exec_status0);
+        superCmdList.addReadLocal(registers::stack_exec_status1);
+        auto cmdBuffer = make_command_buffer(superCmdList);
+        spdlog::trace("cmdBuffer=\n{:#010x}", fmt::join(cmdBuffer, "\n"));
+
+        size_t bytesTransferred = 0u;
+
+        if (auto ec = write_to_socket(sock, cmdBuffer, bytesTransferred))
+        {
+            spdlog::error("Error writing to socket: {}", ec.message());
+            return 1;
+        }
+
+        spdlog::debug("Sent {} bytes, {} words", bytesTransferred, bytesTransferred / sizeof(u32));
+
+        // Try1: read to timeout
+        std::error_code ec;
+
+        do
+        {
+            response.clear();
+            ec = read_packet(sock, response);
+
+            if (!ec)
+            {
+                spdlog::info("Received response of size {}:\n{:#010x}", response.size(), fmt::join(response, "\n"));
+                spdlog::debug("lastPacketNumbers={}", fmt::join(lastPacketNumbers, ", "));
+
+                if (response.size() >= 2)
+                {
+                    auto ethHeader0 = response[0];
+                    auto ethHeader1 = response[1];
+
+                    eth::PayloadHeaderInfo headerInfo{ethHeader0, ethHeader1};
+                    spdlog::debug("eth headers: {}", eth::eth_headers_to_string(headerInfo));
+
+                    if (!check_packet_consistency(std::basic_string_view<u32>(response.data(), response.size())))
+                    {
+                        // logging is done in check_packet_consistency() so just return here.
+                        return 1;
+                    }
+
+                    auto packetChannel = headerInfo.packetChannel();
+
+                    if (lastPacketNumbers[packetChannel] >= 0)
+                    {
+                        if (s32 packetLoss = eth::calc_packet_loss(lastPacketNumbers[packetChannel], headerInfo.packetNumber());
+                            packetLoss > 0)
+                        {
+                            spdlog::warn("Packet loss detected: {} packets lost between {} and {}", packetLoss,
+                                        lastPacketNumbers[packetChannel], headerInfo.packetNumber());
+                        }
+                    }
+
+                    lastPacketNumbers[packetChannel] = headerInfo.packetNumber();
+                }
+            }
+        } while (!ec);
+
+        spdlog::info("Left read loop with error code: {}", ec.message());
+
+        if (ec && !is_socket_timeout(ec))
+        {
+            spdlog::error("Error reading packet: {}", ec.message());
+            return 1;
+        }
+        else if (ec)
+        {
+            spdlog::info("Read timeout occurred, no more response data from mvlc.");
+        }
+
+        ++transactionCount;
+        ++writePayload;
+    }
+}
+
+static const Command ReadWriteVmeTest
+{
+    .name = "read_write_vme",
+    .exec = read_write_vme_test,
+};
+
 static std::map<std::string, Command> tests;
 static std::vector<std::string> testNames;
 
@@ -554,8 +888,10 @@ int main(int argc, char *argv[])
 {
 
     add_test(ReadRegistersCommand);
+    add_test(WriteRegistersCommand);
     add_test(SendEthThrottleCommand);
     add_test(SendRefWordsCommand);
+    add_test(ReadWriteVmeTest);
 
     argh::parser parser;
     parser.parse(argv);
@@ -600,7 +936,7 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    const auto timeout = std::chrono::milliseconds(1000);
+    const auto timeout = std::chrono::milliseconds(100);
 
     spdlog::info("Setting socket timeouts to {} ms", timeout.count());
 
