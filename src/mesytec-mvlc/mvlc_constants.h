@@ -561,8 +561,9 @@ namespace registers
     // was lost on the way to the MVLC. Retry code in mvlc.cc can now ensure
     // that retries are only done if the transaction has not been performed yet.
     // This works as long as unique reference numbers are used.
-    // Important: the contents of 0x1400 might look like valid 0xF3/0xF7 frames
-    // but they are not!
+    // Note: the contents of 0x1400 might look like valid 0xF3/0xF7 frames
+    // but they are not! Only the status bits (Timeout, BusError and
+    // SyntaxError) are valid.
     static const u16 stack_exec_status0     = 0x1400;
     static const u16 stack_exec_status1     = 0x1404;
 
