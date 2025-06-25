@@ -3,6 +3,7 @@
 
 #include <string>
 #include <mesytec-mvlc/util/int_types.h>
+#include "mesytec-mvlc/mesytec-mvlc_export.h"
 
 namespace mesytec::mvlc::vme_modules
 {
@@ -14,7 +15,7 @@ static const u32 MVHV4HardwareIdRegister = 0x0108;
 static const u32 MVHV4FirmwareRegister = 0x010e;
 
 // Full 16 bit values of the hardware id register (0x6008).
-struct HardwareIds
+struct MESYTEC_MVLC_EXPORT HardwareIds
 {
     static const u16 MADC_32 = 0x5002;
     static const u16 MQDC_32 = 0x5003;
@@ -41,7 +42,7 @@ enum class MDPP_FirmwareType
     CSI  = 5,
 };
 
-struct MDPP_FirmwareInfo
+struct MESYTEC_MVLC_EXPORT MDPP_FirmwareInfo
 {
     static const u32 Mask = 0xf000u;
     static const u32 Shift = 12u;
