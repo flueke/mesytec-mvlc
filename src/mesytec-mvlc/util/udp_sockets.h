@@ -6,7 +6,9 @@
 #ifndef MESYTEC_MVLC_PLATFORM_WINDOWS
 #include <netinet/ip.h> // sockaddr_in
 #else
-#include <winsock2.h>
+    #ifndef _WINSOCKAPI_
+        #include <winsock2.h>
+    #endif
 #endif
 
 #include "mesytec-mvlc/mesytec-mvlc_export.h"

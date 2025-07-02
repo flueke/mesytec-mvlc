@@ -67,17 +67,19 @@ elseif (MESYTEC_MVLC_PLATFORM_WINDOWS)
     target_sources(mesytec-mvlc PRIVATE mvlc_impl_usb_windows.cc)
 endif()
 
-# LZ4 TODO: uncomment this once the builders have lz4 installed
-#if (MESYTEC_MVLC_PLATFORM_WINDOWS)
-#    # vcpkg
-#    find_package(lz4 CONFIG REQUIRED)
-#    target_link_libraries(mesytec-mvlc PRIVATE lz4::lz4)
-#else()
-#    find_package(PkgConfig)
-#    pkg_search_module(LZ4 REQUIRED LZ4 lz4 liblz4)
-#    target_link_libraries(mesytec-mvlc PRIVATE ${LZ4_LIBRARIES})
-#endif()
-target_link_libraries(mesytec-mvlc PRIVATE lz4_static)
+if (MESYTEC_MVLC_PLATFORM_WINDOWS)
+    # vcpkg
+    find_package(lz4 CONFIG REQUIRED)
+    target_link_libraries(mesytec-mvlc PRIVATE lz4::lz4)
+else()
+    # linux still uses lz4 from externals/
+    # Once the builders are update find_package() can be used and the bundled lz4 can be removed
+    target_link_libraries(mesytec-mvlc PRIVATE lz4_static)
+    # LZ4 TODO: uncomment this once the builders have lz4 installed
+    #find_package(PkgConfig)
+    #pkg_search_module(LZ4 REQUIRED LZ4 lz4 liblz4)
+    #target_link_libraries(mesytec-mvlc PRIVATE ${LZ4_LIBRARIES})
+endif()
 
 target_include_directories(mesytec-mvlc
     PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/..>

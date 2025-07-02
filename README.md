@@ -40,6 +40,8 @@ software.
 
 ## Building
 
+### Linux
+
 ```sh
 apt-get update && apt-get install -y --no-install-recommends \
   ca-certificates build-essential git cmake ninja-build zlib1g-dev lz4-dev \
@@ -54,6 +56,19 @@ ctest .
 Dockerfiles can be found [here](tools/dockerfiles).
 
 Pass `-DMVLC_BUILD_DEV_TOOLS=ON -DMVLC_BUILD_TOOLS=ON` to cmake to build additional tools.
+
+### Windows
+
+* Install the microsoft developer tools 2022 with c++ support and clang
+* Install vcpkg
+* Open 'x64 Native Tools Command Prompt for VS 2022'
+* cd into a build directory
+```powershell
+cmake -GNinja "-DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake" -DCMAKE_C_COMPILER="C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\Llvm\x64\bin\clang-cl.exe" -DCMAKE_CXX_COMPILER="C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\Llvm\x64\bin\clang-cl.exe" <path_to_source>
+cmake --build .
+ctest .
+```
+
 
 ## Tools
 
