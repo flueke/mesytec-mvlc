@@ -128,7 +128,7 @@ MVLCReplay make_mvlc_replay(
     void *userContext)
 {
     if (listfileArchiveMemberName.empty())
-        return make_mvlc_replay(listfileArchiveName, parserCallbacks);
+        return make_mvlc_replay(listfileArchiveName, parserCallbacks, userContext);
 
     MVLCReplay r;
     r.d->parserCallbacks = parserCallbacks;
