@@ -10,6 +10,14 @@ using std::endl;
 
 using namespace mesytec::mvlc;
 
+// Context structure passed to the readout parser callbacks. Stores the
+// CrateConfig object read from the input listfile. Used to map event and module
+// indexes to names.
+struct ReadoutParserUserContext
+{
+    CrateConfig crateConfig;
+};
+
 int main(int argc, char *argv[])
 {
     bool opt_printReadoutData = false;
@@ -74,18 +82,28 @@ int main(int argc, char *argv[])
     size_t nReadouts = 0;
 
     parserCallbacks.eventData = [opt_printReadoutData, &nReadouts] (
-        void *, int /*crateIndex*/, int eventIndex, const readout_parser::ModuleData *moduleDataList, unsigned moduleCount)
+        void *ctx_, int /*crateIndex*/, int eventIndex, const readout_parser::ModuleData *moduleDataList, unsigned moduleCount)
     {
+        auto *ctx = static_cast<ReadoutParserUserContext *>(ctx_);
+
         if (opt_printReadoutData)
         {
+            // Get the readout stack that was used for this event.
+            auto eventReadoutCommands = ctx->crateConfig.stacks.at(eventIndex);
+
             for (u32 moduleIndex = 0; moduleIndex < moduleCount; ++moduleIndex)
             {
+                // Get the command group for the module index. This contains the
+                // module readout commands and additional meta information.
+                auto moduleGroup = eventReadoutCommands.getGroup(moduleIndex);
                 auto &moduleData = moduleDataList[moduleIndex];
 
                 if (moduleData.data.size)
                     util::log_buffer(
                         std::cout, basic_string_view<u32>(moduleData.data.data, moduleData.data.size),
-                        fmt::format("module data: eventIndex={}, moduleIndex={}", eventIndex, moduleIndex));
+                        fmt::format("module data: eventIndex={}, moduleIndex={}, eventName={}, moduleName={}, moduleMeta={}",
+                            eventIndex, moduleIndex, eventReadoutCommands.getName(), moduleGroup.getName(), fmt::join(moduleGroup.meta, ", ")
+                        ));
             }
         }
 
@@ -106,10 +124,14 @@ int main(int argc, char *argv[])
         ++nSystems;
     };
 
+    ReadoutParserUserContext parserUserContext;
     auto replay = make_mvlc_replay(
         opt_listfileArchiveName,
         opt_listfileMemberName,
-        parserCallbacks);
+        parserCallbacks,
+        &parserUserContext);
+
+    parserUserContext.crateConfig = replay.crateConfig();
 
 
     if (opt_printCrateConfig)

@@ -58,6 +58,13 @@ Out &log_buffer(Out &out, const u32 *buffer, size_t size, const std::string &hea
     return log_buffer(out, nonstd::basic_string_view<const u32>(buffer, size), header);
 }
 
+template<typename Out>
+Out &log_buffer(Out &out, const u32 *buffer, size_t size, const std::string &header,
+    size_t numStartWords, size_t numEndWords)
+{
+    return log_buffer(out, nonstd::basic_string_view<const u32>(buffer, size), header, numStartWords, numEndWords);
+}
+
 } // end namespace util
 } // end namespace mvlc
 } // end namespace mesytec
