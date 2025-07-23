@@ -709,7 +709,7 @@ template <typename T> void resize_and_clear(size_t size, T &t)
     std::fill(std::begin(t), std::end(t), typename T::value_type{});
 }
 
-template <typename... Ts> void resize_and_clear(size_t size, Ts &&...args)
+template <typename... Ts> void resize_and_clear(size_t size, Ts &...args)
 {
     (resize_and_clear(size, args), ...);
 }
