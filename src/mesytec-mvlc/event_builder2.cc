@@ -92,7 +92,7 @@ struct ModuleStorage
     bool hasDynamic;
     std::optional<TimestampType> timestamp;
 
-    ModuleStorage(const ModuleData &md = {}, std::optional<TimestampType> ts = {})
+    explicit ModuleStorage(const ModuleData &md = {}, std::optional<TimestampType> ts = {})
         : data(md.data.data, md.data.data + md.data.size)
         , prefixSize(md.prefixSize)
         , dynamicSize(md.dynamicSize)
@@ -566,7 +566,7 @@ struct EventBuilder2::Private
             auto &moduleConfig = eventCfg.moduleConfigs.at(mi);
             auto &moduleDatas = eventData.moduleDatas.at(mi);
 
-            outputModuleStorage_[mi] = {};
+            outputModuleStorage_[mi] = ModuleStorage();
             // Set attributes from the config and resize data in case we do not
             // actually get real input data for this module.
             outputModuleStorage_[mi].prefixSize = moduleConfig.prefixSize;
@@ -665,6 +665,7 @@ struct EventBuilder2::Private
         size_t result = 0;
         const auto moduleCount = ed.moduleDatas.size();
         outputModuleData_.resize(moduleCount);
+        outputModuleStorage_.resize(moduleCount);
         auto &eventCtrs = counters_.eventCounters[eventIndex];
 
         do

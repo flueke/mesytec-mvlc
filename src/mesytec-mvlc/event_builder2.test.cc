@@ -504,3 +504,110 @@ TEST(EventBuilder2, CreateHistograms)
         ASSERT_EQ(dtHisto.histo.bins.size(), 64u);
     }
 }
+
+#if 1
+TEST(EventBuilder2, OneModuleEmptyEvents)
+{
+    const std::vector<u32> sysEventData = {0x12345678, 0x87654321};
+    std::vector<ModuleDataStorage> moduleTestData;
+
+    ModuleConfig moduleConfig;
+    moduleConfig.name = "mod0";
+    moduleConfig.tsExtractor = simple_timestamp_extractor;
+    moduleConfig.window = 20;
+    moduleConfig.offset = 0; // offset does not matter with only one module
+    moduleConfig.prefixSize = 1;
+    moduleConfig.hasDynamic = false;
+
+    EventConfig eventConfig;
+    eventConfig.moduleConfigs.push_back(moduleConfig);
+    eventConfig.enabled = true;
+
+    EventBuilderConfig cfg;
+    cfg.eventConfigs.push_back(eventConfig);
+
+    size_t dataCallbackCount = 0;
+    size_t systemCallbackCount = 0;
+
+    auto eventDataCallback = [&](void *, int crateIndex, int eventIndex,
+                                 const ModuleData *moduleDataList, unsigned moduleCount)
+    {
+        ++dataCallbackCount;
+#if 0
+        fmt::print("eventDataCallback: crateIndex={}, eventIndex={}, moduleCount={}\n", crateIndex,
+                   eventIndex, moduleCount);
+        if (moduleDataList[0].data.size > 0)
+        {
+            fmt::print("eventDataCallback: module0: size={}, data[0]={}\n", moduleDataList[0].data.size,
+                    moduleDataList[0].data.data[0]);
+        }
+        else
+        {
+            fmt::print("eventDataCallback: module0: size={}\n", moduleDataList[0].data.size);
+        }
+#endif
+    };
+
+    auto systemEventCallback = [&](void *, int crateIndex, const u32 *header, u32 size)
+    {
+        ++systemCallbackCount;
+#if 0
+        fmt::print("systemEventCallback: crateIndex={}, size={}\n", crateIndex, size);
+#endif
+    };
+
+    EventBuilder2 eb(cfg, {eventDataCallback, systemEventCallback});
+
+    ASSERT_EQ(eb.getCounters().getInputDtHistograms().size(), 1u);
+    ASSERT_EQ(eb.getCounters().getInputDtHistograms().at(0).size(), 0u);
+
+    ASSERT_EQ(eb.flush(), 0);
+    ASSERT_EQ(dataCallbackCount, 0);
+    ASSERT_EQ(systemCallbackCount, 0);
+
+    moduleTestData = {{{}}}; // empty event, no timestamp
+    eb.recordModuleData(0, to_module_data_list(moduleTestData).data(), moduleTestData.size());
+    eb.handleSystemEvent(sysEventData.data(), sysEventData.size());
+
+    ASSERT_EQ(eb.flush(), 0);
+    ASSERT_EQ(dataCallbackCount, 0);
+    ASSERT_EQ(systemCallbackCount, 1);
+
+    eb.recordModuleData(0, to_module_data_list(moduleTestData).data(), moduleTestData.size());
+    ASSERT_EQ(eb.flush(), 0);
+    ASSERT_EQ(dataCallbackCount, 0);
+    ASSERT_EQ(systemCallbackCount, 1);
+
+    eb.recordModuleData(0, to_module_data_list(moduleTestData).data(), moduleTestData.size());
+    ASSERT_EQ(eb.flush(), 0);
+    ASSERT_EQ(dataCallbackCount, 0);
+    ASSERT_EQ(systemCallbackCount, 1);
+
+    eb.recordModuleData(0, to_module_data_list(moduleTestData).data(), moduleTestData.size());
+    ASSERT_EQ(eb.flush(), 0);
+    ASSERT_EQ(dataCallbackCount, 0);
+    ASSERT_EQ(systemCallbackCount, 1);
+
+    eb.recordModuleData(0, to_module_data_list(moduleTestData).data(), moduleTestData.size());
+    ASSERT_EQ(eb.flush(), 0);
+    ASSERT_EQ(dataCallbackCount, 0);
+    ASSERT_EQ(systemCallbackCount, 1);
+
+    moduleTestData = {{{0}}}; // ts0 = 0, cannot yield yet
+    eb.recordModuleData(0, to_module_data_list(moduleTestData).data(), moduleTestData.size());
+    ASSERT_EQ(eb.flush(), 0);
+    ASSERT_EQ(dataCallbackCount, 0);
+    ASSERT_EQ(systemCallbackCount, 1);
+
+#if 0
+    fmt::print(eb.debugDump());
+#endif
+    // remaining stamp is 0
+    ASSERT_EQ(eb.flush(true), 6);
+    ASSERT_EQ(dataCallbackCount, 6);
+    ASSERT_EQ(systemCallbackCount, 1);
+#if 0
+    fmt::print(eb.debugDump());
+#endif
+}
+#endif
