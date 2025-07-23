@@ -119,6 +119,7 @@ struct Context
     std::vector<std::string> args;  // prepared cli pos args for the command.
     int cmdSock = -1;               // MVLC command socket
     std::string hostname;           // mvlc hostname or ip address
+    bool noWarnOnPacketLoss = false;
 };
 
 static const auto ReportInterval = std::chrono::milliseconds(500);
@@ -217,8 +218,11 @@ DEF_TEST_FUNC(do_send_ref_words_test)
             if (s32 packetLoss = eth::calc_packet_loss(lastPacketNumber, headerInfo.packetNumber());
                 packetLoss > 0)
             {
-                spdlog::warn("Packet loss detected: {} packets lost between {} and {}", packetLoss,
-                             lastPacketNumber, headerInfo.packetNumber());
+                if (!ctx.noWarnOnPacketLoss)
+                {
+                    spdlog::warn("Packet loss detected: {} packets lost between {} and {}", packetLoss,
+                                lastPacketNumber, headerInfo.packetNumber());
+                }
             }
             lastPacketNumber = headerInfo.packetNumber();
         }
@@ -380,8 +384,11 @@ DEF_TEST_FUNC(do_read_registers_test)
             {
                 // Not considered fatal: another client might have sent a
                 // command in-between which will look like loss to us.
-                spdlog::warn("Packet loss detected: {} packets lost between {} and {}", packetLoss,
-                             lastPacketNumber, headerInfo.packetNumber());
+                if (!ctx.noWarnOnPacketLoss)
+                {
+                    spdlog::warn("Packet loss detected: {} packets lost between {} and {}", packetLoss,
+                                lastPacketNumber, headerInfo.packetNumber());
+                }
             }
             lastPacketNumber = headerInfo.packetNumber();
         }
@@ -588,8 +595,11 @@ DEF_TEST_FUNC(do_write_registers_test)
             {
                 // Not considered fatal: another client might have sent a
                 // command in-between which will look like loss to us.
-                spdlog::warn("Packet loss detected: {} packets lost between {} and {}", packetLoss,
-                             lastPacketNumber, headerInfo.packetNumber());
+                if (!ctx.noWarnOnPacketLoss)
+                {
+                    spdlog::warn("Packet loss detected: {} packets lost between {} and {}", packetLoss,
+                                lastPacketNumber, headerInfo.packetNumber());
+                }
             }
             lastPacketNumber = headerInfo.packetNumber();
         }
@@ -838,8 +848,11 @@ DEF_TEST_FUNC(read_write_vme_test)
                         if (s32 packetLoss = eth::calc_packet_loss(lastPacketNumbers[packetChannel], headerInfo.packetNumber());
                             packetLoss > 0)
                         {
-                            spdlog::warn("Packet loss detected: {} packets lost between {} and {}", packetLoss,
-                                        lastPacketNumbers[packetChannel], headerInfo.packetNumber());
+                            if (!ctx.noWarnOnPacketLoss)
+                            {
+                                spdlog::warn("Packet loss detected: {} packets lost between {} and {}", packetLoss,
+                                            lastPacketNumbers[packetChannel], headerInfo.packetNumber());
+                            }
                         }
                     }
 
@@ -911,7 +924,7 @@ int main(int argc, char *argv[])
 
     if (parser.pos_args().size() < 3)
     {
-        std::cerr << "Usage: " << argv[0] << " <mvlc hostname/ip> <testname> [<args>]\n";
+        std::cerr << "Usage: " << argv[0] << " <mvlc hostname/ip> <testname> [<args>] [--no-warn-on-packet-loss]\n";
         std::cerr << fmt::format("Available tests: {}\n", fmt::join(testNames, ", "));
         return 1;
     }
@@ -956,6 +969,7 @@ int main(int argc, char *argv[])
     ctx.parser = parser;
     ctx.args = std::vector<std::string>(pos_args.begin() + 2, pos_args.end());
     ctx.cmdSock = sock;
+    ctx.noWarnOnPacketLoss = parser["--no-warn-on-packet-loss"];
 
     auto &cmd = tests[testname];
     return cmd.exec(ctx, cmd);
