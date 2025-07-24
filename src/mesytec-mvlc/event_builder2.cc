@@ -488,6 +488,9 @@ struct EventBuilder2::Private
         if (!eventCfg.enabled)
             return false;
 
+        if (eventData.allTimestamps.empty())
+            return false;
+
         const auto moduleCount = eventCfg.moduleConfigs.size();
         const auto refTs = eventData.allTimestamps.front();
         bool haveData = false;
