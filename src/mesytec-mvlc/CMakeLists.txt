@@ -69,8 +69,12 @@ endif()
 
 if (MESYTEC_MVLC_PLATFORM_WINDOWS)
     # vcpkg
-    find_package(lz4 CONFIG REQUIRED)
-    target_link_libraries(mesytec-mvlc PRIVATE lz4::lz4)
+    if (DEFINED VCPKG_TARGET_TRIPLET)
+        find_package(lz4 CONFIG REQUIRED)
+        target_link_libraries(mesytec-mvlc PRIVATE lz4::lz4)
+    else()
+        target_link_libraries(mesytec-mvlc PRIVATE lz4_static)
+    endif()
 else()
     # linux still uses lz4 from externals/
     # Once the builders are update find_package() can be used and the bundled lz4 can be removed
