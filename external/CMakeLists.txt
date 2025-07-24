@@ -56,9 +56,10 @@ add_subdirectory(nlohmann_json)
 # static version of yaml-cpp.
 set_target_properties(yaml-cpp PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
-if (NOT MESYTEC_MVLC_PLATFORM_WINDOWS) # windows uses lz4 from vcpkg
-    # LZ4 TODO: get rid of this once the builders have lz4 installed
-    # This builds the lz4_static target for linux (and macos).
+# windows can make use of lz4 from vcpkg. For linux still use the bundled lz4
+# until the builders have lz4 installed.
+if (NOT MESYTEC_MVLC_PLATFORM_WINDOWS OR NOT DEFINED VCPKG_TARGET_TRIPLET)
+    # This builds the lz4_static target.
     message(STATUS "${PROJECT_NAME}: Using lz4 from ${CMAKE_CURRENT_SOURCE_DIR}/lz4")
     add_subdirectory(lz4/contrib/cmake_unofficial)
     target_include_directories(lz4_static
