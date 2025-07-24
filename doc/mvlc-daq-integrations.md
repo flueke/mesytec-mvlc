@@ -36,3 +36,8 @@ dispatch TRIVA7 generated triggers to MVLC readout command stacks.
 https://gitlab.com/chalmers-subexp
 
 Custom C implementation and integration into the drasi/nurdlib software.
+
+## Others
+
+Other experiments use mvme for the DAQ and basic analysis, then export to ROOT
+via `mvme_root_client`.
