@@ -59,16 +59,25 @@ Pass `-DMVLC_BUILD_DEV_TOOLS=ON -DMVLC_BUILD_TOOLS=ON` to cmake to build additio
 
 ### Windows
 
+#### vcpkg
+
 * Install the microsoft developer tools 2022 with c++ support and clang
 * Install vcpkg
 * Open 'x64 Native Tools Command Prompt for VS 2022'
 * cd into a build directory
+
 ```powershell
 cmake -GNinja "-DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake" -DCMAKE_C_COMPILER="C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\Llvm\x64\bin\clang-cl.exe" -DCMAKE_CXX_COMPILER="C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\Llvm\x64\bin\clang-cl.exe" <path_to_source>
 cmake --build .
 ctest .
 ```
 
+#### msys2 ucrt64
+
+```
+cmake -G"MSYS Makefiles" -DCMAKE_BUILD_TYPE=Debug  ..
+cmake --build .
+```
 
 ## Tools
 
