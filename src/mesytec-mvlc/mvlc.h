@@ -111,8 +111,18 @@ class MESYTEC_MVLC_EXPORT MVLC
         bool isConnected() const;
         ConnectionType connectionType() const;
         std::string connectionInfo() const;
+
+        // If enabled try to disable trigger processing on the MVLC when
+        // connecting. By default this is disabled for ETH and enabled for USB
+        // as USB can get stuck if it fills up with data.
         void setDisableTriggersOnConnect(bool b);
         bool disableTriggersOnConnect() const;
+
+        // If enabled verify the contents of the stack_exec_status registers
+        // after each stack transaction. Disabled by default, used to test for
+        // correct behavior of the firmware.
+        void setAlwaysCheckStackExecStatus(bool b);
+        bool alwaysCheckStackExecStatus() const;
 
         // register and vme api
         std::error_code readRegister(u16 address, u32 &value);

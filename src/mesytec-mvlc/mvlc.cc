@@ -671,12 +671,12 @@ class CmdApi
         // If set to true the two stack_exec_status registers are checked after
         // every stack transaction, not just on error. For diagnostics and
         // debugging purposes only.
-        void setAlwaysCheckStackStatusRegisters(bool alwaysCheck)
+        void setAlwaysCheckStackExecStatus(bool alwaysCheck)
         {
             alwaysCheckStackStatusRegisters_ = alwaysCheck;
         }
 
-        bool doAlwaysCheckStackStatusRegisters() const
+        bool alwaysCheckStackExecStatus() const
         {
             return alwaysCheckStackStatusRegisters_;
         }
@@ -685,7 +685,7 @@ class CmdApi
         static constexpr std::chrono::milliseconds ResultWaitTimeout = std::chrono::milliseconds(2000);
 
         ReaderContext &readerContext_;
-        bool alwaysCheckStackStatusRegisters_ = false;
+        std::atomic<bool> alwaysCheckStackStatusRegisters_ = false;
 };
 
 constexpr std::chrono::milliseconds CmdApi::ResultWaitTimeout;
@@ -874,7 +874,7 @@ std::error_code CmdApi::stackTransaction(
         }
     } while (ec && ++attempt < TransactionMaxAttempts);
 
-    if (!ec && doAlwaysCheckStackStatusRegisters())
+    if (!ec && alwaysCheckStackExecStatus())
     {
         u32 status0 = 0, status1 = 0;
 
@@ -1454,7 +1454,7 @@ struct MVLC::Private
         , firmwareRevision_(0)
     {
 #if 0 // #ifndef NDEBUG // TODO: enable this once the firmware is fixed
-        cmdApi_.setAlwaysCheckStackStatusRegisters(true);
+        cmdApi_.setAlwaysCheckStackExecStatus(true);
 #endif
     }
 
@@ -1669,6 +1669,16 @@ bool MVLC::disableTriggersOnConnect() const
 {
     auto guards = d->locks_.lockBoth();
     return d->impl_->disableTriggersOnConnect();
+}
+
+void MVLC::setAlwaysCheckStackExecStatus(bool b)
+{
+    d->cmdApi_.setAlwaysCheckStackExecStatus(b);
+}
+
+bool MVLC::alwaysCheckStackExecStatus() const
+{
+    return d->cmdApi_.alwaysCheckStackExecStatus();
 }
 
 // internal register and vme api
