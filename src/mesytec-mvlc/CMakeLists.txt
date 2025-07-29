@@ -121,6 +121,10 @@ endif()
 set(MVLC_SPDLOG_ACTIVE_LEVEL "SPDLOG_LEVEL_WARN" CACHE STRING "Compile time spdlog level for the library")
 
 target_compile_definitions(mesytec-mvlc PRIVATE SPDLOG_ACTIVE_LEVEL=${MVLC_SPDLOG_ACTIVE_LEVEL})
+target_compile_options(mesytec-mvlc
+    PRIVATE $<${not-msvc}:-Wall -Wextra>
+    PRIVATE $<${not-msvc}:-Werror=return-type> # turn missing returns into errors. these cases lead to weird crashes.
+    )
 #target_compile_options(mesytec-mvlc PRIVATE -Wall -Wextra -Wimplicit-fallthrough)
 #target_compile_options(mesytec-mvlc PUBLIC -Wno-dangling-reference) # to silence spdlog warnings with some gcc-14
 target_compile_features(mesytec-mvlc PUBLIC cxx_std_17)
