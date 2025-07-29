@@ -117,7 +117,8 @@ MVLC make_mvlc(const char *urlStr)
 
 const std::vector<std::string> &get_mvlc_standard_params()
 {
-    // Note: --mvlc-usb is not present here as it does not take an argument.
+    // Note: --mvlc-usb and others are not present here as they do not take an
+    // argument.
     static const std::vector<std::string> MvlcStandardParams =
         {"--mvlc", "--mvlc-usb-index", "--mvlc-usb-serial", "--mvlc-eth"};
 

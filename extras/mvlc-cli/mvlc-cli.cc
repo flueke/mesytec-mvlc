@@ -34,6 +34,10 @@ std::pair<MVLC, std::error_code> make_and_connect_default_mvlc(argh::parser &par
     if (parser["--mvlc-force-connect"])
         mvlc.setDisableTriggersOnConnect(true);
 
+    if (parser["--always-check-stack-exec-status"])
+        mvlc.setAlwaysCheckStackExecStatus(true);
+
+
     auto ec = mvlc.connect();
 
     if (ec)
@@ -1261,7 +1265,7 @@ usage: mvlc-cli [-v | --version] [-h | --help [-a]]
                 [--log-level=(off|error|warn|info|debug|trace)] [--trace] [--debug] [--info]
                 [--mvlc <url> | --mvlc-usb | --mvlc-usb-index <index> |
                  --mvlc-usb-serial <serial> | --mvlc-eth <hostname>
-                 --mvlc-force-connect]
+                 --mvlc-force-connect] [--always-check-stack-exec-status]
                 <command> [<args>]
 
 Core Commands:
@@ -1298,6 +1302,10 @@ MVLC connection URIs:
 
     Use --mvlc-force-connect to forcibly disable DAQ mode when connecting. Use
     this when you get the "MVLC is in use" error on connect.
+
+    If --always-check-stack-exec-status is given the library will read and
+    evaluate the two stack_exec_status registers after every MVLC stack
+    transaction. Use this to ensure correct behavior of the firmware.
 )~";
 
 
