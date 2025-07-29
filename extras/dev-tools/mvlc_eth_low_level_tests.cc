@@ -510,6 +510,7 @@ DEF_TEST_FUNC(do_write_registers_test)
     size_t transactionCount = 0;
     size_t registersWritten = 0;
     size_t transactionsInInterval = 0;
+    size_t totalPacketLoss = 0;
 
     if (args.size() > 1)
         registersToWrite = std::stoul(args[1]);
@@ -593,6 +594,7 @@ DEF_TEST_FUNC(do_write_registers_test)
             if (s32 packetLoss = eth::calc_packet_loss(lastPacketNumber, headerInfo.packetNumber());
                 packetLoss > 0)
             {
+                totalPacketLoss += packetLoss;
                 // Not considered fatal: another client might have sent a
                 // command in-between which will look like loss to us.
                 if (!ctx.noWarnOnPacketLoss)
@@ -692,9 +694,11 @@ DEF_TEST_FUNC(do_write_registers_test)
                     .count();
             auto totaltxPerSecond = transactionCount / totalElapsedSeconds;
             auto totalRegistersPerSecond = registersWritten / totalElapsedSeconds;
-            spdlog::info("Elapsed: {:.3f} s, Transactions: {}, {:.2f} tx/s, {:.2f} registers/s",
+            auto lossRate = totalPacketLoss / totalElapsedSeconds;
+            spdlog::info("Elapsed: {:.3f} s, Transactions: {}, {:.2f} tx/s, {:.2f} registers/s,"
+                         " {} packets lost, {:.2f} loss/s",
                          totalElapsedSeconds, transactionCount, totaltxPerSecond,
-                         totalRegistersPerSecond);
+                         totalRegistersPerSecond, totalPacketLoss, lossRate);
             swReport.interval();
         }
 
