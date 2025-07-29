@@ -782,9 +782,11 @@ std::error_code CmdApi::readStackExecStatusRegisters(u32 &status0, u32 &status1)
     //   0xf1000005,   0x010135f0, 0x01021400,   0xf3001ac8,         0x01021404,   0x00001ac8
     status0 = response[3];
     status1 = response[5];
+    const auto flags = extract_frame_flags(status0);
 
-    logger->debug("readStackExecStatusRegisters: superRef={:#06x}, response={{{:#010x}}}, status0={:#010x}, status1={:#010x}",
-         superRef, fmt::join(response, ", "), status0, status1);
+
+    logger->debug("readStackExecStatusRegisters: superRef={:#06x}, response={{{:#010x}}}, status0={:#010x}, status1={:#010x}, status_flags={}",
+         superRef, fmt::join(response, ", "), status0, status1, format_frame_flags(flags));
 
     return {};
 }
