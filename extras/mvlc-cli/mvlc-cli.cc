@@ -661,7 +661,7 @@ DEF_EXEC_FUNC(vme_read_command)
     spdlog::trace("entered vme_read_command()");
 
     auto &parser = ctx.parser;
-    parser.add_params({"--amod", "--datawidth"});
+    parser.add_params({"--amod", "--datawidth", "--repeat"});
     parser.parse(argv);
     trace_log_parser_info(parser, "vme_read_command");
 
@@ -669,6 +669,7 @@ DEF_EXEC_FUNC(vme_read_command)
     VMEDataWidth dataWidth = VMEDataWidth::D16;
     u32 address = 0x0u;
     std::string str;
+    size_t repetitions = 1;
 
     if (parser("--amod") >> str)
     {
@@ -702,6 +703,19 @@ DEF_EXEC_FUNC(vme_read_command)
         }
     }
 
+    if (parser("--repeat") >> str)
+    {
+        if (auto val = parse_unsigned<u32>(str))
+        {
+            repetitions = *val;
+        }
+        else
+        {
+            std::cerr << fmt::format("Error: invalid --repeat value given: {}\n", str);
+            return 1;
+        }
+    }
+
     auto addressStr = parser[2];
 
     if (auto val = parse_unsigned<u32>(addressStr))
@@ -714,8 +728,8 @@ DEF_EXEC_FUNC(vme_read_command)
         return 1;
     }
 
-    spdlog::trace("vme_read_command: amod=0x{:02x}, dataWidth={}, address=0x{:08x}",
-        amod, dataWidth == VMEDataWidth::D16 ? "d16" : "d32", address);
+    spdlog::trace("vme_read_command: amod=0x{:02x}, dataWidth={}, address=0x{:08x}, repetitions={}",
+        amod, dataWidth == VMEDataWidth::D16 ? "d16" : "d32", address, repetitions);
 
     auto [mvlc, ec] = make_and_connect_default_mvlc(parser);
 
@@ -724,22 +738,25 @@ DEF_EXEC_FUNC(vme_read_command)
 
     u32 value = 0;
 
-    if (auto ec = mvlc.vmeRead(address, value, amod, dataWidth))
+    for (size_t rep=0; rep < repetitions; ++rep)
     {
-        if (ec == MVLCErrorCode::StackSyntaxError)
+        if (auto ec = mvlc.vmeRead(address, value, amod, dataWidth))
         {
-            std::cerr << fmt::format("Error from VME read: {}. Check --amod value.\n",
-                ec.message());
+            if (ec == MVLCErrorCode::StackSyntaxError)
+            {
+                std::cerr << fmt::format("Error from VME read: {}. Check --amod value.\n",
+                    ec.message());
+            }
+            else
+            {
+                std::cerr << fmt::format("Error from VME read: {}\n", ec.message());
+            }
+            return 1;
         }
-        else
-        {
-            std::cerr << fmt::format("Error from VME read: {}\n", ec.message());
-        }
-        return 1;
-    }
 
-    std::cout << fmt::format("vme_read 0x{:02x} {} 0x{:08x} -> 0x{:08x} ({} decimal)\n",
-        amod, dataWidth == VMEDataWidth::D16 ? "d16" : "d32", address, value, value);
+        std::cout << fmt::format("vme_read 0x{:02x} {} 0x{:08x} -> 0x{:08x} ({} decimal)\n",
+            amod, dataWidth == VMEDataWidth::D16 ? "d16" : "d32", address, value, value);
+    }
 
     #if 0 // TODO: make a generic option to print these on exit
     auto counters = mvlc.getCmdPipeCounters();
@@ -770,6 +787,9 @@ options:
 
     <address>
         32-bit VME address to read from.
+
+    [--repeat=<num>(default=1)]
+        Number of times to repeat the read command. Default is 1.
 )~",
     .exec = vme_read_command,
 };
@@ -779,7 +799,7 @@ DEF_EXEC_FUNC(vme_write_command)
     spdlog::trace("entered vme_write_command()");
 
     auto &parser = ctx.parser;
-    parser.add_params({"--amod", "--datawidth"});
+    parser.add_params({"--amod", "--datawidth", "--repeat"});
     parser.parse(argv);
     trace_log_parser_info(parser, "vme_write_command");
 
@@ -788,6 +808,7 @@ DEF_EXEC_FUNC(vme_write_command)
     u32 address = 0x0u;
     u32 value = 0x0u;
     std::string str;
+    size_t repetitions = 1;
 
     if (parser("--amod") >> str)
     {
@@ -820,6 +841,20 @@ DEF_EXEC_FUNC(vme_write_command)
             return 1;
         }
     }
+
+    if (parser("--repeat") >> str)
+    {
+        if (auto val = parse_unsigned<u32>(str))
+        {
+            repetitions = *val;
+        }
+        else
+        {
+            std::cerr << fmt::format("Error: invalid --repeat value given: {}\n", str);
+            return 1;
+        }
+    }
+
 
     auto addressStr = parser[2];
     auto valueStr = parser[3];
@@ -852,22 +887,25 @@ DEF_EXEC_FUNC(vme_write_command)
     if (!mvlc || ec)
         return 1;
 
-    if (auto ec = mvlc.vmeWrite(address, value, amod, dataWidth))
+    for (size_t rep=0; rep < repetitions; ++rep)
     {
-        if (ec == MVLCErrorCode::StackSyntaxError)
+        if (auto ec = mvlc.vmeWrite(address, value, amod, dataWidth))
         {
-            std::cerr << fmt::format("Error from VME write: {}. Check --amod value.\n",
-                ec.message());
+            if (ec == MVLCErrorCode::StackSyntaxError)
+            {
+                std::cerr << fmt::format("Error from VME write: {}. Check --amod value.\n",
+                    ec.message());
+            }
+            else
+            {
+                std::cerr << fmt::format("Error from VME write: {}\n", ec.message());
+            }
+            return 1;
         }
-        else
-        {
-            std::cerr << fmt::format("Error from VME write: {}\n", ec.message());
-        }
-        return 1;
-    }
 
-    std::cout << fmt::format("vme_write 0x{:02x} {} 0x{:08x} 0x{:08x} ({} decimal) ok\n",
-        amod, dataWidth == VMEDataWidth::D16 ? "d16" : "d32", address, value, value);
+        std::cout << fmt::format("vme_write 0x{:02x} {} 0x{:08x} 0x{:08x} ({} decimal) ok\n",
+            amod, dataWidth == VMEDataWidth::D16 ? "d16" : "d32", address, value, value);
+    }
 
     return 0;
 }
@@ -894,6 +932,9 @@ options:
 
     <value>
         16/32 bit value to write.
+
+    [--repeat=<num>(default=1)]
+        Number of times to repeat the read command. Default is 1.
 )~",
     .exec = vme_write_command,
 };
