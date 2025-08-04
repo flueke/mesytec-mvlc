@@ -812,7 +812,7 @@ std::error_code CmdApi::stackTransaction(
 
         ec = stackTransactionImpl(stackRef, stackBuilder, stackResponse, attempt);
 
-        if (ec && ec != ErrorType::VMEError && attempt < TransactionMaxAttempts)
+        if (ec && ec != ErrorType::VMEError && ec != ErrorType::ProtocolError && attempt < TransactionMaxAttempts)
         {
             // We did not get a response matching our request. Now read the
             // stack_exec_status registers to figure out if our transaction was
