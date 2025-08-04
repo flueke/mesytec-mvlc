@@ -1,6 +1,7 @@
 #include "logging.h"
 
 #include <spdlog/sinks/stdout_color_sinks.h>
+#include "string_util.h"
 
 std::mutex g_mutex;
 
@@ -81,6 +82,19 @@ std::vector<std::string> list_logger_names()
 std::vector<std::string> get_logger_names()
 {
     return list_logger_names();
+}
+
+std::optional<spdlog::level::level_enum>
+    log_level_from_string(const std::string &levelName)
+{
+    if (auto result = spdlog::level::from_str(levelName); result != spdlog::level::off)
+        return result;
+    return {};
+}
+
+std::string log_level_to_string(const spdlog::level::level_enum &level)
+{
+    return spdlog::level::to_string_view(level).data();
 }
 
 } // end namespace mvlc

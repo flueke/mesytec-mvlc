@@ -1,6 +1,7 @@
 #ifndef __MESYTEC_MVLC_LOGGING_H__
 #define __MESYTEC_MVLC_LOGGING_H__
 
+#include <optional>
 #include <string>
 #include <spdlog/spdlog.h>
 
@@ -29,6 +30,11 @@ void MESYTEC_MVLC_EXPORT
 
 std::vector<std::string> MESYTEC_MVLC_EXPORT list_logger_names();
 std::vector<std::string> MESYTEC_MVLC_EXPORT get_logger_names(); // alias
+
+std::optional<spdlog::level::level_enum> MESYTEC_MVLC_EXPORT
+    log_level_from_string(const std::string &levelName);
+
+std::string log_level_to_string(const spdlog::level::level_enum &level);
 
 template<typename View>
 void log_buffer(const std::shared_ptr<spdlog::logger> &logger,
