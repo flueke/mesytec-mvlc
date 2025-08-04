@@ -23,13 +23,16 @@ if (MVLC_BUILD_DEV_TOOLS)
     add_mvlc_dev_tool(gsi-listfile-info gsi_listfile_info.cc)
     install(TARGETS gsi-listfile-info RUNTIME DESTINATION bin)
 
-if (NOT WIN32)
-    add_mvlc_dev_tool(mvlc-register-rw-loop mvlc_register_rw_loop.cc)
-    install(TARGETS mvlc-register-rw-loop RUNTIME DESTINATION bin)
+    if (NOT WIN32)
+        add_mvlc_dev_tool(mvlc-register-rw-loop mvlc_register_rw_loop.cc)
+        install(TARGETS mvlc-register-rw-loop RUNTIME DESTINATION bin)
 
-    add_mvlc_dev_tool(mvlc-init-daq-repeat mvlc_init_daq_repeat.cc)
-    install(TARGETS mvlc-init-daq-repeat RUNTIME DESTINATION bin)
-endif()
+        add_mvlc_dev_tool(mvlc-init-daq-repeat mvlc_init_daq_repeat.cc)
+        install(TARGETS mvlc-init-daq-repeat RUNTIME DESTINATION bin)
+    endif()
+
+    add_mvlc_dev_tool(mvlc-vme-write-many mvlc_vme_write_many.cc)
+    install(TARGETS mvlc-vme-write-many RUNTIME DESTINATION bin)
 endif(MVLC_BUILD_DEV_TOOLS)
 
 if (MVLC_BUILD_TOOLS)
