@@ -607,6 +607,7 @@ int main(int argc, char *argv[])
             opt_crateConfig = dirname(const_cast<char*>(tclFile.c_str()));   // Posix won't change tclFile.
             opt_crateConfig += "/.";
             opt_crateConfig += basename(const_cast<char*>(tclFile.c_str())); // Posix won't change tclFile.
+            opt_crateConfig += ".yaml";
             yamlTemplate = opt_templateFile;
 
             generateCrateFile(opt_crateConfig, mvlcgenerate, opt_templateFile, tclFile);
