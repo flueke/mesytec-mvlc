@@ -424,6 +424,13 @@ int main(int argc, char *argv[])
     int opt_controlServerPort = -1;
     std::string opt_controlInitScript ="";
 
+    // Isue #10 flags to support regeneration of
+    // the yaml from a tcl using mvlcgenerate
+    //  
+
+    bool opt_regenerate = false;        // True to regenerate.
+    std::string opt_templateFile = "";       // Alternate template file.
+
     auto cli
         = lyra::help(opt_showHelp)
 
@@ -460,10 +467,12 @@ int main(int argc, char *argv[])
         // logging
         | lyra::opt(opt_logDebug)["--debug"]("enable debug logging")
         | lyra::opt(opt_logTrace)["--trace"]("enable trace logging")
-        
+        | lyra::opt(opt_regenerate)["--convert-tcl"]("Crate crate yaml from FRIB/NSCLDAQ .tcl file")
+        | lyra::opt(opt_templateFile, "YamlTemplate")["--template"]("With --convert-tcl specify alternate template file")
+
         // positional args
         | lyra::arg(opt_crateConfig, "crateConfig")
-            ("crate config yaml file").required()        
+            ("crate config yaml/tcl file").required()        
         ;
 
     auto cliParseResult = cli.parse({ argc, argv });
