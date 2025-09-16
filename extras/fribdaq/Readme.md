@@ -27,6 +27,11 @@ sense in the context of the FRIB/NSCLDAQ environment have been removed.
 * ```--ring ringname```  selects the name of the ring buffer to which the data should be written.  This is a ring name not a URI, as only local ringbuffers can be written to.  If the option is not provided, this defaults to the name of the logged in user.
 * ```--sourceid id``` When used in a larger system that builds events from several sources using the FRIB/NSCLDAQ event builder, this specifies the unique integer source id  that will be used to identify fragments from this data source.   If not provided, this defaults to 0.
 * ```--timestamp-library``` When used with a larger system that builds events from several sources using the FRIB/NSCLDAQ event builder, this specifies a shared library file which includes code to extract timestamps from the raw event data.   If not provided, the body headers required to build events will not be included in the ```PHYSCIS_EVENT``` items.
+* ```--convert-tcl``` Requires a setup version of NSCLDAQ (```DAQBIN``` environment variable defined) with ```mvlcgenerate``` in ```DAQBIN```.  If used, the configuration file is treate as a Tcl script describing the experimewnt suitable as input for ```mvlcgenerate```.   At startup, and the prior to the beginning of each run, ```mvlcgenerate``` is run to convert that file to a yaml crate configitation file.  The converted file is then
+used as the configuration file.  The converted filename is generated from the configuration file name prepending it with a ```.``` to make it a hidden file and appending ```.yaml```.  E.g the configuration file 
+```daqconfig.tcl``` will be converted to ```.daqconfig.tcl.yaml```.
+* ```--template``` this option only makes sense when ```--convert-tcl``` is used. The parameter to this option will be used by ```mvlcgenerate``` as the template yaml file into which the configuration is converted.  This
+supports the use of non-default trigger conditions.  See the ```--template``` option on the FRIB/NSCLDAQ documentation for ```mvlcgenerate```.
 
 Following all options on the command line, a single positional parameter provides the name of a .yaml configuration file that was either exported from ```mdaq``` or produced using the FRIBDA/NSCLDAQ configuration tools mvlcgenerate in FRIB/NSCLDAQ version 12.2 and later.
 
