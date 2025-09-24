@@ -31,6 +31,7 @@
 
 #include <mesytec-mvlc/mesytec-mvlc.h>
 #include <lyra/lyra.hpp>
+#include <libgen.h>
 
 /* Issue #5 - better command handling - use Tcl event driven input interpreter */
 #include "BeginCommand.h"
@@ -66,13 +67,102 @@ struct MiniDaqCountersSnapshot
 static const char* timestampFunctionName = "extract_timestamp";
 static FRIBDAQRunState ExtraRunState;
 
+// Used in the case --regenerate is enabled.
+
+static std::string tclFile;       // Name of the tcl file to process.
+static bool regenerate;           // regeneration is enabled.
+static std::string mvlcgenerate;  // translated path to $DAQBIN/mvlcgenerate
+static std::string yamlTemplate;  // Yaml template if not default.
+
 
 /**
- * This struct is passed to the exti handler.  It needs all that stuff to 
- * clean up prior to the actual exit.alignas
+ * This struct is passed to the exit handler.  It needs all that stuff to 
+ * clean up prior to the actual exit.
  * 
  */
+struct ExitInfo {
+    MVLCReadout*  s_readout;
+    MVLC*         s_mvlc;
+    CrateConfig*  s_config;
 
+} exitinfo;
+
+/**
+ * This function crates a crate file given
+ * @param dest         - path to the output file.
+ * @param mvlcgenerate - the path to the mvlcgenerate translator program.
+ * @param templateFile - Path to the yaml template, or "" if the default template should be used.
+ * @param tclFile      - Path to the 'daqconfig.tcl' file to translate.
+ * 
+ *  Exits on error.
+ */
+static void 
+generateCrateFile(
+    const std::string& dest, const std::string& mvlcgenerate, 
+    const std::string templateFile, const std::string tclFile) {
+    
+    // Construct the command for 'system'
+
+    std::stringstream strCommand;
+    strCommand << mvlcgenerate << " --output=" << dest << " ";
+    if (templateFile != "") {
+        strCommand << "--template=" << templateFile << " ";
+    }
+    strCommand << tclFile;
+    std::string command = strCommand.str();
+
+    if (system(command.c_str())) {
+        std::cerr << "Unable to generate the crate file from a daqconfig Tcl file\n";
+        exit(EXIT_FAILURE);
+    }
+}
+/**
+ *  This function can be called by e.g. begin run to regenerate the crate file if that's
+ *  supposed to happen.
+ * 
+ * @param crateFile - name of crate file.
+ */
+void 
+regenerateCrateFileIfNeeded(const std::string& crateFile) {
+    if (regenerate) {
+        generateCrateFile(crateFile, mvlcgenerate, yamlTemplate, tclFile);
+    }
+}
+/**
+ *  mvlcGeneratePath
+ *     @return std::string - path to $DAQBIN/mvlcgenerate
+ *     @retval "" if there's no such program or it's not executable.
+ */
+static std::string
+mvlcGeneratePath() {
+    // Translate DAQBIN - must translate else "".
+
+    const char* bindir = std::getenv("DAQBIN");
+    if (!bindir) return std::string("");
+
+
+    // Construct the full name:
+
+    std::string path(bindir);
+    path += "/mvlcgenerate";
+
+    // Must be executable:
+    
+    if (access(path.c_str(), X_OK)) {
+        return std::string("");
+    }
+
+    return path;
+}
+/**
+ * foundMvlcGenerate
+ *     @return bool Returns true if there's a $DAQBIN/mvlcgenerate file.
+ */
+static bool
+foundMvlcGenerate() {
+    auto path = mvlcGeneratePath();
+    return path  != "";
+}
 /**
  * loadTimestampExtrctor
  *   Loads a shared object that contains a function named 'extract_timestamp' that better be a 
@@ -183,12 +273,7 @@ struct MiniDaqCountersUpdate
     MiniDaqCountersSnapshot curr;
     std::chrono::milliseconds dt;
 };
-struct ExitInfo {
-    MVLCReadout*  s_readout;
-    MVLC*         s_mvlc;
-    CrateConfig*  s_config;
 
-} exitinfo;
 void dump_counters2(
     std::ostream &out,
     const MiniDaqCountersSnapshot &prev,
@@ -424,6 +509,13 @@ int main(int argc, char *argv[])
     int opt_controlServerPort = -1;
     std::string opt_controlInitScript ="";
 
+    // Isue #10 flags to support regeneration of
+    // the yaml from a tcl using mvlcgenerate
+    //  
+
+    bool opt_regenerate = false;        // True to regenerate.
+    std::string opt_templateFile = "";       // Alternate template file.
+
     auto cli
         = lyra::help(opt_showHelp)
 
@@ -460,10 +552,12 @@ int main(int argc, char *argv[])
         // logging
         | lyra::opt(opt_logDebug)["--debug"]("enable debug logging")
         | lyra::opt(opt_logTrace)["--trace"]("enable trace logging")
-        
+        | lyra::opt(opt_regenerate)["--convert-tcl"]("Crate crate yaml from FRIB/NSCLDAQ .tcl file")
+        | lyra::opt(opt_templateFile, "YamlTemplate")["--template"]("With --convert-tcl specify alternate template file")
+
         // positional args
         | lyra::arg(opt_crateConfig, "crateConfig")
-            ("crate config yaml file").required()        
+            ("crate config yaml/tcl file").required()        
         ;
 
     auto cliParseResult = cli.parse({ argc, argv });
@@ -502,7 +596,23 @@ int main(int argc, char *argv[])
     if (opt_logTrace)
         set_global_log_level(spdlog::level::trace);
 
+    // if we're converting we need to have $DAQBIN/mvlcgenerate
+    if (opt_regenerate) {
+        if (!foundMvlcGenerate()) {
+            std::cerr << "To use the --regenerate option, you must run a daqsetup.sh for a version of FRIB/NSCLDAQ with $DAQBIN/mvlcgenerate built\n";
+            std::exit(EXIT_FAILURE);
+        } else {
+            mvlcgenerate = mvlcGeneratePath();
+            tclFile = opt_crateConfig;
+            opt_crateConfig = dirname(const_cast<char*>(tclFile.c_str()));   // Posix won't change tclFile.
+            opt_crateConfig += "/.";
+            opt_crateConfig += basename(const_cast<char*>(tclFile.c_str())); // Posix won't change tclFile.
+            opt_crateConfig += ".yaml";
+            yamlTemplate = opt_templateFile;
 
+            generateCrateFile(opt_crateConfig, mvlcgenerate, opt_templateFile, tclFile);
+        }
+    }
     std::ifstream inConfig(opt_crateConfig);
 
     if (!inConfig.is_open())
