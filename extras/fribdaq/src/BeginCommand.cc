@@ -27,6 +27,11 @@
 
 using mesytec::mvlc::MVLCReadout;
 
+// for translating tcl -> yaml
+
+
+extern void regenerateCrateFileIfNeeded(const std::string& crateFile);
+
 /**
  * constructor
  *    @param interp - encapsulated Tcl interpreter on which the command is registered.
@@ -79,6 +84,7 @@ BeginCommand::operator()(CTCLInterpreter& interp, std::vector<CTCLObject>& objv)
 
     if (canBegin(*m_pReadout, *m_pRunState)) {
         try {
+            regenerateCrateFileIfNeeded(m_configFileName);
             setConfiguration();                // Update the configuration.
             // Set title and runn um if can:
 
