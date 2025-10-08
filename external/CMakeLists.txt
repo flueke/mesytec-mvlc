@@ -82,3 +82,16 @@ endif()
 add_subdirectory(argh)
 install(FILES "${CMAKE_CURRENT_LIST_DIR}/argh/argh.h" DESTINATION include/mesytec-mvlc)
 target_include_directories(argh INTERFACE $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/argh> $<INSTALL_INTERFACE:include/mesytec-mvlc>)
+
+
+# nng - nanomsg-next-gen - https://github.com/nanomsg/nng
+find_package(nng QUIET)
+if(NOT nng AND NOT TARGET nng)
+    set(nng_sources "${CMAKE_CURRENT_SOURCE_DIR}/nng-1.11")
+    message(STATUS "${CMAKE_PROJECT_NAME}: Using nng from ${CMAKE_CURRENT_SOURCE_DIR}/${nng_sources}")
+    option(NNG_SETSTACKSIZE "Use rlimit for thread stack size" ON)
+    set(NNG_TESTS OFF)
+    set(NNG_ENABLE_NNGCAT ON)
+    set(BUILD_SHARED_LIBS ON) # FIXME: relocation errors without this flag but it's a global setting. not good.
+    add_subdirectory(${nng_sources})
+endif()
