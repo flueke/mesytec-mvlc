@@ -4,8 +4,8 @@ configure_file("git_version.cc.in" "git_version.cc" @ONLY)
 
 add_library(mesytec-mvlc SHARED
     "${CMAKE_CURRENT_BINARY_DIR}/git_version.cc"
-    event_builder.cc
     event_builder2.cc
+    event_builder.cc
     firmware_checks.cc
     mesytec_vme_modules.cc
     mvlc_basic_interface.cc
@@ -40,6 +40,7 @@ add_library(mesytec-mvlc SHARED
     readout_buffer.cc
     readout_buffer_queues.cc
     scanbus_support.cc
+    stream_server.cc
     util/counters.cc
     util/data_filter.cc
     util/filesystem.cc
@@ -95,6 +96,7 @@ target_link_libraries(mesytec-mvlc
     PRIVATE minizip
     PRIVATE yaml-cpp
     PRIVATE nlohmann_json::nlohmann_json
+    PRIVATE nng
     PUBLIC argh
     PUBLIC spdlog::spdlog
     PUBLIC Threads::Threads

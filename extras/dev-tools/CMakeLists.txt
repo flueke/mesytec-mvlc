@@ -33,6 +33,10 @@ if (MVLC_BUILD_DEV_TOOLS)
 
     add_mvlc_dev_tool(mvlc-vme-write-many mvlc_vme_write_many.cc)
     install(TARGETS mvlc-vme-write-many RUNTIME DESTINATION bin)
+
+    add_mvlc_dev_tool(mvlc_stream_test_server mvlc_stream_test_server.cc)
+    target_link_libraries(mvlc_stream_test_server PRIVATE nng)
+    install(TARGETS mvlc_stream_test_server RUNTIME DESTINATION bin)
 endif(MVLC_BUILD_DEV_TOOLS)
 
 if (MVLC_BUILD_TOOLS)
