@@ -31,7 +31,8 @@ int main(int argc, char **argv)
         }
 
         std::vector<u32> data(util::Megabytes(1) / sizeof(u32), 0);
-        std::generate(std::begin(data), std::end(data), [n = 0]() mutable { return n++; });
+        //std::generate(std::begin(data), std::end(data), [n = 0]() mutable { return n++; });
+        std::fill(std::begin(data), std::end(data), 0);
 
         util::Stopwatch swReport;
         size_t iteration = 0;
