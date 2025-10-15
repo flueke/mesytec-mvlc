@@ -490,9 +490,15 @@ void cmd_pipe_reader(ReaderContext &context)
 
                     buffer.consume(toConsume);
                 }
+                else if (is_known_frame_header(buffer[0]))
+                {
+                    logger->warn("cmd_pipe_reader: known but unexpected frame header: 0x{:08x}", buffer[0]);
+                }
                 else
+                {
                     // Should not happen because of the is_good_header() check above.
                     assert(!"cmd_pipe_reader: unknown frame in buffer");
+                }
             }
             else
             {
