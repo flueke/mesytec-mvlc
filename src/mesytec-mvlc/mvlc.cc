@@ -382,7 +382,7 @@ void cmd_pipe_reader(ReaderContext &context)
 
                     if (frameLength == 0)
                     {
-                        logger->warn("cmd_pipe_reader: short super frame, consuming frame header");
+                        logger->warn("cmd_pipe_reader: short super frame (0x{:08x}, consuming frame header", buffer[0]);
                         ec = make_error_code(MVLCErrorCode::ShortSuperFrame);
                         ++counters.shortSuperBuffers;
                         toConsume = 1;
