@@ -4,23 +4,18 @@
 // Streaming server implementation for MVME/mesytec-mvlc using libnng to handle
 // networking.
 //
-// Purpose is to stream raw MVLC buffers to multiple clients over TCP or IPC.
-// Optionally each buffer can be prefixed by a 32-bit sequence number and a
-// 32-bit size prefix. This is required to detect internal buffer loss in case
-// the server is fed data on a best-effort basis (e.g. if it's driven by the
-// mvme analysis side).
+// Purpose is to stream raw MVLC buffers to multiple clients over TCP, IPC and
+// inproc transports.
 //
 // Supports tcp://, ipc://, inproc://, tcp4:// and tcp6:// URIs.
 // The acceptor runs asychronously in the background. No thread creation needed.
-// Message format is: u32 bufferNumber, u32 bufferSize, u32 data[bufferSize].
-// Endianess is left as is.
 //
 // Usage:
-// Create a TCPStreamServer instance, set the output format, then call start()
-// with a list of URIs to listen on. Use stop() to stop the server, isRunning()
-// to query the state.  Use send_to_all_clients() to do a blocking send to all
-// connected clients.  This will internally queue up async sends, then wait for
-// all of them to complete before returning.
+//
+// Create a TCPStreamServer instance and call listen() with the desired URIs.
+// Use send_to_all_clients() to send a buffer of data to all connected clients.
+// This will internally queue up async sends, then wait for all of them to
+// complete before returning.
 
 #include "mesytec-mvlc/mesytec-mvlc_export.h"
 #include <memory>
@@ -58,12 +53,7 @@ class MESYTEC_MVLC_EXPORT StreamServer
 };
 
 // Send data to all clients in a blocking fashion.
-// Message format is: u32 bufferNumber, u32 bufferSize, u32 data[bufferSize].
-// Clients won't receive partial data, only complete messages.
-// The senders network byte order is used, no reordering is done.
-//bool MESYTEC_MVLC_EXPORT send_to_all_clients(StreamServer *ctx, u32 bufferNumber, const u32 *data,
-//                                             u32 bufferElements);
-
+// The senders network byte order is used, no swapping is done.
 bool send_to_all_clients(StreamServer *ctx, const u8 *data, size_t size);
 
 } // namespace mesytec::mvlc
