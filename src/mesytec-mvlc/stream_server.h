@@ -49,12 +49,13 @@ class MESYTEC_MVLC_EXPORT StreamServer
     struct Private;
     std::unique_ptr<Private> d;
     friend void accept_callback(void *arg);
-    friend bool send_to_all_clients(StreamServer *ctx, const u8 *data, size_t size);
+    friend ssize_t send_to_all_clients(StreamServer *ctx, const u8 *data, size_t size);
 };
 
 // Send data to all clients in a blocking fashion.
 // The senders network byte order is used, no swapping is done.
-bool send_to_all_clients(StreamServer *ctx, const u8 *data, size_t size);
+// Returns the number of clients that the data was sent to or -1 on error.
+ssize_t send_to_all_clients(StreamServer *ctx, const u8 *data, size_t size);
 
 } // namespace mesytec::mvlc
 

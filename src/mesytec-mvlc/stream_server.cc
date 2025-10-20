@@ -209,12 +209,12 @@ std::vector<std::string> StreamServer::clients() const
     return result;
 }
 
-bool send_to_all_clients(StreamServer *ctx, const u8 *data, size_t size)
+ssize_t send_to_all_clients(StreamServer *ctx, const u8 *data, size_t size)
 {
     std::unique_lock<std::mutex> lock(ctx->d->clients_mutex);
     if (ctx->d->clients.empty())
     {
-        return true; // No clients to send to
+        return 0; // No clients to send to
     }
 
     auto &clients = ctx->d->clients;
@@ -233,6 +233,7 @@ bool send_to_all_clients(StreamServer *ctx, const u8 *data, size_t size)
     }
 
     std::vector<size_t> clientsToRemove;
+    ssize_t ret = 0;
 
     for (auto it = clients.begin(); it != clients.end(); ++it)
     {
@@ -245,6 +246,10 @@ bool send_to_all_clients(StreamServer *ctx, const u8 *data, size_t size)
             spdlog::warn("Send to failed: {}", nng_strerror(rv));
             clientsToRemove.push_back(std::distance(clients.begin(), it));
         }
+        else
+        {
+            ++ret;
+        }
     }
 
     // reverse sort the indexes so we start removing from the end
@@ -256,7 +261,7 @@ bool send_to_all_clients(StreamServer *ctx, const u8 *data, size_t size)
         clients.erase(clients.begin() + index);
     }
 
-    return true;
+    return ret;
 }
 
 } // namespace mesytec::mvlc

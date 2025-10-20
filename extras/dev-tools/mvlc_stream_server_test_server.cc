@@ -7,6 +7,8 @@
 #include <mesytec-mvlc/util/stopwatch.h>
 #include <mesytec-mvlc/util/storage_sizes.h>
 
+#include "mvlc_stream_test_support.h"
+
 using namespace mesytec;
 using namespace mesytec::mvlc;
 
@@ -30,10 +32,6 @@ int main(int argc, char **argv)
             return 1;
         }
 
-        std::vector<u32> data(util::Megabytes(1) / sizeof(u32), 0);
-        //std::generate(std::begin(data), std::end(data), [n = 0]() mutable { return n++; });
-        std::fill(std::begin(data), std::end(data), 0);
-
         util::Stopwatch swReport;
         size_t iteration = 0;
         size_t totalBytesSent = 0;
@@ -41,8 +39,6 @@ int main(int argc, char **argv)
 
         while (!mvlc::util::signal_received())
         {
-            data[0] = iteration;
-
             if (auto interval = swReport.get_interval(); interval >= std::chrono::seconds(1))
             {
                 auto clients = server.clients();
@@ -59,15 +55,21 @@ int main(int argc, char **argv)
                 bytesSentInInterval = 0;
             }
 
-            if (!send_to_all_clients(&server, reinterpret_cast<const u8 *>(data.data()), data.size() * sizeof(u32)))
+            auto data = generateTestBuffer(static_cast<uint32_t>(iteration), 1u << 19);
+            auto res = send_to_all_clients(&server, reinterpret_cast<const u8 *>(data.data()), data.size() * sizeof(u32));
+
+            if (res < 0)
             {
                 spdlog::error("Failed to send data to all clients");
                 return 1;
             }
+            else if (res > 0)
+            {
+                totalBytesSent += data.size() * sizeof(u32);
+                bytesSentInInterval += data.size() * sizeof(u32);
+            }
 
             ++iteration;
-            totalBytesSent += data.size() * sizeof(u32);
-            bytesSentInInterval += data.size() * sizeof(u32);
         }
     }
 
