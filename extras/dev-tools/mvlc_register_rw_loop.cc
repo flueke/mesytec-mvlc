@@ -188,6 +188,8 @@ int main(int argc, char *argv[])
     util::Stopwatch swReport;
     size_t cycleNumber = 0;
     size_t lastCycleNumber = 0;
+    size_t totalReads = 0;
+    size_t totalWrites = 0;
 
     while (!util::signal_received())
     {
@@ -196,11 +198,15 @@ int main(int argc, char *argv[])
             case SingleRegister:
                 if (auto ec = do_single_register(mvlc, registerAddress, registerValue))
                     return 1;
+                totalReads += 1;
+                totalWrites += 1;
                 break;
 
             case MemoryBlock:
                 if (auto ec = do_memory_block(mvlc))
                     return 1;
+                totalReads += 8;
+                totalWrites += 8;
                 break;
         }
 
@@ -210,7 +216,10 @@ int main(int argc, char *argv[])
             auto cycles = cycleNumber - lastCycleNumber;
             lastCycleNumber = cycleNumber;
             auto cyclesPerSecond = cycles / std::chrono::duration_cast<std::chrono::duration<double>>(elapsed).count();
-            fmt::print("Elapsed: {} s, Cycle Number: {}; {:.2} cycles/s\n", totalElapsed.count(), cycleNumber, cyclesPerSecond);
+            auto writesPerSecond = totalWrites / std::chrono::duration_cast<std::chrono::duration<double>>(totalElapsed).count();
+            auto readsPerSecond = totalReads / std::chrono::duration_cast<std::chrono::duration<double>>(totalElapsed).count();
+            fmt::print("Elapsed: {} s, Cycle Number: {}; {:.2} cycles/s, reads/s={:.2}, writes/s={:.2}\n",
+                 totalElapsed.count(), cycleNumber, cyclesPerSecond , readsPerSecond, writesPerSecond);
             swReport.interval();
         }
 
