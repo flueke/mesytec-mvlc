@@ -2,49 +2,12 @@
 
 #include <algorithm>
 #include <mutex>
+#include <mesytec-mvlc/util/nng_util.h>
 
-#ifndef MESYTEC_MVLC_PLATFORM_WINDOWS
-#include <arpa/inet.h>
-#else
-#include <ws2tcpip.h>
-#endif
-
-#include <nng/nng.h>
 #include <spdlog/spdlog.h>
 
 namespace mesytec::mvlc
 {
-
-struct NngException: public std::runtime_error
-{
-    explicit NngException(int nng_rv_)
-        : std::runtime_error(fmt::format("libnng error: {}", nng_strerror(nng_rv_)))
-        , nng_rv(nng_rv_)
-    {
-    }
-
-    int nng_rv;
-};
-
-inline std::string nng_sockaddr_to_string(const nng_sockaddr &addr)
-{
-    char buf[INET_ADDRSTRLEN];
-    switch (addr.s_family)
-    {
-    case NNG_AF_INET:
-        inet_ntop(AF_INET, &addr.s_in.sa_addr, buf, sizeof(buf));
-        return fmt::format("tcp://{}:{}", buf, ntohs(addr.s_in.sa_port));
-    case NNG_AF_INET6:
-        inet_ntop(AF_INET6, &addr.s_in6.sa_addr, buf, sizeof(buf));
-        return fmt::format("tcp://{}:{}", buf, ntohs(addr.s_in.sa_port));
-    case NNG_AF_IPC:
-        return fmt::format("ipc://{}", addr.s_ipc.sa_path);
-    case NNG_AF_INPROC:
-        return fmt::format("inproc://{}", addr.s_inproc.sa_name);
-    }
-
-    return {};
-}
 
 struct Acceptor
 {
@@ -289,7 +252,7 @@ bool send_to_all_clients(StreamServer *ctx, const u8 *data, size_t size)
 
     for (auto index: clientsToRemove)
     {
-        spdlog::info("Removing client at index {}", index);
+        spdlog::info("Removing client {} at index {}", clients[index]->remoteAddress(), index);
         clients.erase(clients.begin() + index);
     }
 
