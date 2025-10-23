@@ -15,11 +15,11 @@ using namespace mesytec::mvlc;
 int main(int argc, char *argv[])
 {
     mvlc::set_global_log_level(spdlog::level::debug);
-    mvlc::util::setup_signal_handlers();
+    //mvlc::util::setup_signal_handlers();
 
     {
         mesytec::mvlc::StreamClient client;
-        std::string uri = "tcp://localhost:42333";
+        std::string uri = "tcp://0.0.0.0:42333";
 
         if (argc > 1)
         {
@@ -44,7 +44,7 @@ int main(int argc, char *argv[])
                 break;
             }
 
-            std::cout << "Received " << nBytes << " bytes from server\n";
+            //std::cout << "Received " << nBytes << " bytes from server\n";
         }
     }
 

@@ -226,7 +226,7 @@ ssize_t StreamServer::sendToAllClients(const u8 *data, size_t size)
         assert(client->stream);
         assert(client->aio);
 
-        int rv = nng_aio_set_iov(client->aio, iovs.size(), iovs.data());
+        [[maybe_unused]] int rv = nng_aio_set_iov(client->aio, iovs.size(), iovs.data());
         assert(rv == 0); // will only fail if iov is too large
 
         nng_stream_send(client->stream, client->aio);

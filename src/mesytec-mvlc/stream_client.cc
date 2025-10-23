@@ -1,5 +1,6 @@
 #include "stream_client.h"
 #include <mesytec-mvlc/util/nng_util.h>
+#include <mesytec-mvlc/util/stopwatch.h>
 #include <spdlog/spdlog.h>
 
 namespace mesytec::mvlc
@@ -7,6 +8,7 @@ namespace mesytec::mvlc
 
 struct StreamClient::Private
 {
+    StreamClient *q = nullptr;
     nng_aio *dial_aio = nullptr;
     nng_stream_dialer *dialer = nullptr;
     nng_stream *stream = nullptr;
@@ -16,17 +18,12 @@ struct StreamClient::Private
 StreamClient::StreamClient()
     : d(std::make_unique<Private>())
 {
+    d->q = this;
 }
 
 StreamClient::~StreamClient()
 {
     disconnect();
-
-    if (d->stream)
-    {
-        nng_stream_free(d->stream);
-        d->stream = nullptr;
-    }
 
     if (d->dialer)
     {
@@ -61,7 +58,7 @@ void dial_callback(void *arg)
     client->d->stream = static_cast<nng_stream *>(nng_aio_get_output(client->d->dial_aio, 0));
 }
 
-bool StreamClient::connect(const std::string &uri)
+bool StreamClient::connect(const std::string &uri, const std::chrono::milliseconds timeout)
 {
     if (isConnected())
     {
@@ -89,8 +86,19 @@ bool StreamClient::connect(const std::string &uri)
         }
     }
 
-    nng_stream_dialer_dial(d->dialer, d->dial_aio);
-    nng_aio_wait(d->dial_aio);
+    util::Stopwatch sw;
+
+    while (!isConnected() && (timeout.count() == 0 || sw.get_elapsed() < timeout))
+    {
+        nng_stream_dialer_dial(d->dialer, d->dial_aio);
+        nng_aio_wait(d->dial_aio);
+
+        if (!isConnected())
+        {
+            spdlog::warn("StreamClient::connect: Dial attempt failed, retrying...");
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        }
+    }
 
     return isConnected();
 }
@@ -102,6 +110,12 @@ void StreamClient::disconnect()
         nng_aio_stop(d->dial_aio);
         nng_aio_free(d->dial_aio);
         d->dial_aio = nullptr;
+    }
+
+    if (d->stream)
+    {
+        nng_stream_free(d->stream);
+        d->stream = nullptr;
     }
 
     if (d->dialer)
