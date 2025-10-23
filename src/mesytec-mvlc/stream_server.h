@@ -45,17 +45,16 @@ class MESYTEC_MVLC_EXPORT StreamServer
     bool isListening() const;
     std::vector<std::string> clients() const;
 
+    // Send data to all clients in a blocking fashion.
+    // The senders network byte order is used, no swapping is done.
+    // Returns the number of clients that the data was sent to or -1 on error.
+    ssize_t sendToAllClients(const u8 *data, size_t size);
+
   private:
     struct Private;
     std::unique_ptr<Private> d;
     friend void accept_callback(void *arg);
-    friend ssize_t send_to_all_clients(StreamServer *ctx, const u8 *data, size_t size);
 };
-
-// Send data to all clients in a blocking fashion.
-// The senders network byte order is used, no swapping is done.
-// Returns the number of clients that the data was sent to or -1 on error.
-ssize_t send_to_all_clients(StreamServer *ctx, const u8 *data, size_t size);
 
 } // namespace mesytec::mvlc
 

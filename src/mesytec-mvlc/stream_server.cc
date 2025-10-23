@@ -90,7 +90,7 @@ void accept_callback(void *arg)
     {
         if (rv != NNG_ETIMEDOUT)
         {
-            spdlog::error("Accept failed: {}, restarting", nng_strerror(rv));
+            spdlog::error("Accept failed: {}", nng_strerror(rv));
         }
 
         if (rv != NNG_ECANCELED)
@@ -209,15 +209,15 @@ std::vector<std::string> StreamServer::clients() const
     return result;
 }
 
-ssize_t send_to_all_clients(StreamServer *ctx, const u8 *data, size_t size)
+ssize_t StreamServer::sendToAllClients(const u8 *data, size_t size)
 {
-    std::unique_lock<std::mutex> lock(ctx->d->clients_mutex);
-    if (ctx->d->clients.empty())
+    std::unique_lock<std::mutex> lock(d->clients_mutex);
+    if (d->clients.empty())
     {
         return 0; // No clients to send to
     }
 
-    auto &clients = ctx->d->clients;
+    auto &clients = d->clients;
     std::array<nng_iov, 1> iovs = {{{const_cast<u8 *>(data), size}}};
 
     // Setup sends for each client
@@ -257,7 +257,7 @@ ssize_t send_to_all_clients(StreamServer *ctx, const u8 *data, size_t size)
 
     for (auto index: clientsToRemove)
     {
-        spdlog::info("Removing client {} at index {}", clients[index]->remoteAddress(), index);
+        spdlog::info("Removing client at index {}", index);
         clients.erase(clients.begin() + index);
     }
 
