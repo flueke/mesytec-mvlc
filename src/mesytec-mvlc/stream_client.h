@@ -10,6 +10,7 @@
 #include <mesytec-mvlc/util/int_types.h>
 #include <memory>
 #include <string>
+#include <chrono>
 
 namespace mesytec::mvlc
 {
@@ -20,15 +21,11 @@ class MESYTEC_MVLC_EXPORT StreamClient
     explicit StreamClient();
     ~StreamClient();
 
-    // Set the timeout used for connect() and receive() calls.
-    void setTimeout(std::chrono::milliseconds timeout);
-    std::chrono::milliseconds getTimeout() const;
-
     // Connect to the given server URI. Supported URI schemes are:
     // tcp://, tcp4://, tcp6://, ipc:// and inproc://
     //
     // Returns true on success, false on failure.
-    bool connect(const std::string &uri);
+    bool connect(const std::string &uri, const std::chrono::milliseconds timeout = std::chrono::milliseconds(0));
 
     // Disconnect from the server.
     void disconnect();
