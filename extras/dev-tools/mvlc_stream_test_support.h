@@ -10,7 +10,7 @@
 
 using namespace mesytec::mvlc;
 
-static constexpr uint32_t MAGIC_PATTERN = 0xDEADBEEF;
+static constexpr uint32_t MAGIC_PATTERN = 0xCAFEBABE;
 
 #define PACK_AND_ALIGN4 __attribute__((packed, aligned(4)))
 
@@ -60,39 +60,5 @@ inline bool verify_test_data(const std::vector<u8> &buffer, u32 expectedBufferNu
 
     return true;
 }
-
-#if 0
-// Verify received buffer
-inline bool verifyTestBuffer(const std::vector<uint8_t> &buffer, uint32_t expected_seq)
-{
-    if (buffer.size() < sizeof(TestBuffer))
-        return false;
-
-    TestBuffer header;
-    memcpy(&header, buffer.data(), sizeof(header));
-
-    if (header.sequence_number != expected_seq)
-        return false;
-    if (header.magic != MAGIC_PATTERN)
-        return false;
-
-    size_t expected_size = sizeof(header) + header.buffer_size * sizeof(uint32_t);
-    if (buffer.size() != expected_size)
-        return false;
-
-    // Verify data pattern and checksum
-    const uint32_t *data = reinterpret_cast<const uint32_t *>(buffer.data() + sizeof(header));
-    uint32_t calc_checksum = expected_seq ^ MAGIC_PATTERN ^ header.buffer_size;
-
-    for (uint32_t i = 0; i < header.buffer_size; ++i)
-    {
-        if (data[i] != expected_seq + i)
-            return false;
-        calc_checksum ^= data[i];
-    }
-
-    return calc_checksum == header.checksum;
-}
-#endif
 
 #endif /* EA7E715D_CA0E_40F7_A86F_25433386C414 */

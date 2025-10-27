@@ -39,8 +39,6 @@ int main(int argc, char **argv)
         size_t buffersSentInInterval = 0;
         util::Stopwatch swReport;
 
-        //generate_test_data(sendBuffer, static_cast<u32>(iteration), 1u << 19);
-
         while (!mvlc::util::signal_received())
         {
             if (auto interval = swReport.get_interval(); interval >= std::chrono::seconds(1))

@@ -1,0 +1,233 @@
+#include <arpa/inet.h>
+#include <errno.h>
+#include <netdb.h>
+#include <sys/socket.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
+
+#include <cstdint>
+#include <cstring>
+#include <iomanip>
+#include <iostream>
+#include <optional>
+#include <string>
+#include <vector>
+
+#include "mvlc_stream_test_support.h"
+
+// host lookup
+std::optional<sockaddr_in> lookup(const std::string &host, std::uint16_t port)
+{
+    if (host.empty())
+        return {};
+
+    sockaddr_in ret = {};
+
+    struct addrinfo hints = {};
+    hints.ai_family = AF_INET;
+    hints.ai_socktype = SOCK_STREAM;
+    hints.ai_protocol = IPPROTO_TCP;
+
+    struct addrinfo *result = nullptr, *rp = nullptr;
+
+    int rc = getaddrinfo(host.c_str(), std::to_string(port).c_str(), &hints, &result);
+
+    if (rc != 0)
+    {
+        std::cout << "Failed to resolve host " << host << ": " << gai_strerror(rc) << "\n";
+        return {};
+    }
+
+    for (rp = result; rp != NULL; rp = rp->ai_next)
+    {
+        if (rp->ai_addrlen == sizeof(ret))
+        {
+            std::memcpy(&ret, rp->ai_addr, rp->ai_addrlen);
+            break;
+        }
+    }
+
+    freeaddrinfo(result);
+
+    if (!rp) // did not find a suitable address
+        return {};
+
+    return ret;
+}
+
+struct timeval ms_to_timeval(unsigned ms)
+{
+    unsigned seconds = ms / 1000;
+    ms -= seconds * 1000;
+
+    struct timeval tv;
+    tv.tv_sec  = seconds;
+    tv.tv_usec = ms * 1000;
+
+    return tv;
+}
+
+#ifndef MESYTEC_MVLC_PLATFORM_WINDOWS
+std::error_code set_socket_timeout(int optname, int sock, unsigned ms)
+{
+    struct timeval tv = ms_to_timeval(ms);
+
+    int res = setsockopt(sock, SOL_SOCKET, optname, &tv, sizeof(tv));
+
+    if (res != 0)
+        return std::error_code(errno, std::system_category());
+
+    return {};
+}
+#else // WIN32
+std::error_code set_socket_timeout(int optname, int sock, unsigned ms)
+{
+    init_socket_system();
+
+    DWORD optval = ms;
+    int res = setsockopt(sock, SOL_SOCKET, optname,
+                         reinterpret_cast<const char *>(&optval),
+                         sizeof(optval));
+
+    if (res != 0)
+        return std::error_code(errno, std::system_category());
+
+    return {};
+}
+#endif
+
+std::error_code set_socket_write_timeout(int sock, unsigned ms)
+{
+    return set_socket_timeout(SO_SNDTIMEO, sock, ms);
+}
+
+std::error_code set_socket_read_timeout(int sock, unsigned ms)
+{
+    return set_socket_timeout(SO_RCVTIMEO, sock, ms);
+}
+
+std::error_code set_socket_timeouts(int sock, unsigned readTimeout_ms, unsigned writeTimeout_ms)
+{
+    if (auto ec = set_socket_read_timeout(sock, readTimeout_ms))
+        return ec;
+
+    return set_socket_write_timeout(sock, writeTimeout_ms);
+}
+
+int main(int argc, char *argv[])
+{
+    try
+    {
+        std::string host = "localhost";
+        std::string port = "42333";
+
+        if (argc > 1)
+            host = argv[1];
+
+        if (argc > 2)
+            port = argv[2];
+
+        auto addr = lookup(host, static_cast<std::uint16_t>(std::stoi(port)));
+
+        if (!addr)
+        {
+            return 1;
+        }
+
+        int sock = socket(AF_INET, SOCK_STREAM, 0);
+
+        if (sock < 0)
+        {
+            std::cout << "Failed to create socket: " << strerror(errno) << "\n";
+            return 1;
+        }
+
+        if (auto ec = set_socket_timeouts(sock, 5000, 5000); ec)
+        {
+            std::cout << "Failed to set socket timeouts: " << ec.message() << "\n";
+            close(sock);
+            return 1;
+        }
+
+        std::cout << "Connecting to " << host << ":" << port << "...\n";
+
+        if (connect(sock, reinterpret_cast<const sockaddr *>(&addr.value()), sizeof(addr.value())) <
+            0)
+        {
+            std::cout << "Failed to connect: " << strerror(errno) << "\n";
+            close(sock);
+            return 1;
+        }
+
+        std::cout << "Connected successfully!\n";
+
+        std::uint32_t bufferNumber = 0;
+        std::uint32_t bufferSize = 0;
+        std::vector<std::uint32_t> destBuffer;
+
+        while (true)
+        {
+            ssize_t bytesRead = recv(sock, &bufferNumber, sizeof(bufferNumber), MSG_WAITALL);
+            if (bytesRead == 0)
+            {
+                std::cout << "recv() returned 0 bytes (1st recv)\n";
+                continue;
+            }
+            if (bytesRead < 0)
+            {
+                std::cout << "Error reading buffer number: " << strerror(errno) << "\n";
+                break;
+            }
+
+            bytesRead = recv(sock, &bufferSize, sizeof(bufferSize), MSG_WAITALL);
+            if (bytesRead == 0)
+            {
+                std::cout << "recv() returned 0 bytes (2nd recv)\n";
+                continue;
+            }
+            if (bytesRead < 0)
+            {
+                std::cout << "Error reading buffer size: " << strerror(errno) << "\n";
+                break;
+            }
+
+            destBuffer.resize(bufferSize);
+
+            bytesRead = recv(sock, destBuffer.data(), destBuffer.size() * sizeof(std::uint32_t),
+                             MSG_WAITALL);
+            if (bytesRead == 0)
+            {
+                std::cout << "recv() returned 0 bytes (3rd recv)\n";
+                continue;
+            }
+            if (bytesRead < 0)
+            {
+                std::cout << "Error reading buffer data: " << strerror(errno) << "\n";
+                break;
+            }
+
+            destBuffer.resize(bytesRead / sizeof(std::uint32_t));
+
+            auto bufferView = std::basic_string_view<std::uint32_t>(
+                reinterpret_cast<const std::uint32_t *>(destBuffer.data()),
+                std::min(destBuffer.size(), static_cast<std::size_t>(10)));
+
+            std::cout << "Received buffer " << bufferNumber << " of size " << bufferSize << ": ";
+
+            for (const auto &val: bufferView)
+                std::cout << "0x" << std::hex << std::setw(8) << std::setfill('0') << val << " ";
+
+            std::cout << std::dec << "\n";
+        }
+
+        close(sock);
+
+        return 0;
+    }
+    catch (std::exception &e)
+    {
+        std::cout << "Exception: " << e.what() << "\n";
+        return 1;
+    }
+}

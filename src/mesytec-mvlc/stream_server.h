@@ -36,6 +36,12 @@ class MESYTEC_MVLC_EXPORT StreamServer
         virtual std::string remoteAddress() const = 0;
     };
 
+    struct IOV
+    {
+        u8 *buf;
+        size_t len;
+    };
+
     StreamServer();
     ~StreamServer();
 
@@ -47,8 +53,14 @@ class MESYTEC_MVLC_EXPORT StreamServer
 
     // Send data to all clients in a blocking fashion.
     // The senders network byte order is used, no swapping is done.
-    // Returns the number of clients that the data was sent to or -1 on error.
+    // Returns the number of clients the data was sent to or -1 on error.
     ssize_t sendToAllClients(const u8 *data, size_t size);
+
+    // Send data to all clients in a blocking fashion.
+    // The senders network byte order is used, no swapping is done.
+    // Data is gathered from the given IOV array. Its max size is limited to 4.
+    // Returns the number of clients the data was sent to or -1 on error.
+    ssize_t sendToAllClients(const std::vector<IOV> &iov);
 
   private:
     struct Private;

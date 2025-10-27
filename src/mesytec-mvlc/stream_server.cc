@@ -1,8 +1,9 @@
 #include "stream_server.h"
 
 #include <algorithm>
-#include <mutex>
 #include <mesytec-mvlc/util/nng_util.h>
+#include <mutex>
+#include <numeric>
 
 #include <spdlog/spdlog.h>
 
@@ -58,6 +59,8 @@ struct StreamServer::Private
     std::vector<std::unique_ptr<Acceptor>> acceptors;
     std::vector<std::unique_ptr<Client>> clients;
     std::mutex clients_mutex;
+
+    ssize_t sendToAllClients(const nng_iov *iovs, size_t n_iov);
 };
 
 void accept_callback(void *arg);
@@ -77,8 +80,6 @@ void start_accept(Acceptor *acceptor)
     nng_stream_listener_accept(acceptor->listener, acceptor->accept_aio);
 }
 
-// TODO: the shutdown flag has gone. shutdown is not handled. figure out if it's
-// possible without the flag, otherwise add it back in.
 void accept_callback(void *arg)
 {
     auto acceptor = static_cast<Acceptor *>(arg);
@@ -88,7 +89,7 @@ void accept_callback(void *arg)
 
     if (int rv = nng_aio_result(acceptor->accept_aio))
     {
-        if (rv != NNG_ETIMEDOUT)
+        if (rv != NNG_ETIMEDOUT && rv != NNG_ECANCELED)
         {
             spdlog::error("Accept failed: {}", nng_strerror(rv));
         }
@@ -184,12 +185,9 @@ void StreamServer::stop()
     {
         if (acceptor->accept_aio)
         {
-            // nng_aio_cancel(acceptor.accept_aio);
-            // nng_aio_wait(acceptor.accept_aio);
             nng_aio_stop(acceptor->accept_aio);
             nng_aio_free(acceptor->accept_aio);
         }
-        // XXX: this might be enough to detect 'stop' in accept_callback
         acceptor->accept_aio = nullptr;
         nng_stream_listener_free(acceptor->listener);
     }
@@ -209,33 +207,45 @@ std::vector<std::string> StreamServer::clients() const
     return result;
 }
 
-ssize_t StreamServer::sendToAllClients(const u8 *data, size_t size)
+ssize_t StreamServer::Private::sendToAllClients(const nng_iov *iovs, size_t n_iov)
 {
-    std::unique_lock<std::mutex> lock(d->clients_mutex);
-    if (d->clients.empty())
+    // Create a copy of the current client pointers, so we can release the lock asap.
+    std::vector<Client *> clients_;
+    std::unique_lock<std::mutex> lock(clients_mutex);
+
+    if (clients.empty())
     {
         return 0; // No clients to send to
     }
 
-    auto &clients = d->clients;
-    std::array<nng_iov, 1> iovs = {{{const_cast<u8 *>(data), size}}};
+    clients_.reserve(clients.size());
 
-    // Setup sends for each client
     for (auto &client: clients)
+    {
+        clients_.emplace_back(client.get());
+    }
+
+    lock.unlock();
+
+    // Setup a send for each client
+    for (auto &client: clients_)
     {
         assert(client->stream);
         assert(client->aio);
 
-        [[maybe_unused]] int rv = nng_aio_set_iov(client->aio, iovs.size(), iovs.data());
-        assert(rv == 0); // will only fail if iov is too large
+        if (int rv = nng_aio_set_iov(client->aio, n_iov, iovs); rv != 0)
+        {
+            // will fail if iovs is too large or nng runs OOM
+            return -1;
+        }
 
         nng_stream_send(client->stream, client->aio);
     }
 
-    std::vector<size_t> clientsToRemove;
+    std::vector<Client *> clientsToRemove;
     ssize_t ret = 0;
 
-    for (auto it = clients.begin(); it != clients.end(); ++it)
+    for (auto it = clients_.begin(); it != clients_.end(); ++it)
     {
         auto &client = *it;
         nng_aio_wait(client->aio);
@@ -244,7 +254,7 @@ ssize_t StreamServer::sendToAllClients(const u8 *data, size_t size)
         if (int rv = nng_aio_result(client->aio))
         {
             spdlog::warn("Send to failed: {}", nng_strerror(rv));
-            clientsToRemove.push_back(std::distance(clients.begin(), it));
+            clientsToRemove.push_back(*it);
         }
         else
         {
@@ -252,16 +262,40 @@ ssize_t StreamServer::sendToAllClients(const u8 *data, size_t size)
         }
     }
 
-    // reverse sort the indexes so we start removing from the end
-    std::sort(std::begin(clientsToRemove), std::end(clientsToRemove), std::greater<size_t>());
-
-    for (auto index: clientsToRemove)
+    if (!clientsToRemove.empty())
     {
-        spdlog::info("Removing client at index {}", index);
-        clients.erase(clients.begin() + index);
+        spdlog::info("Removing {} clients due to send errors", clientsToRemove.size());
+        lock.lock();
+
+        auto r = std::remove_if(clients.begin(), clients.end(),
+                                [&clientsToRemove](const std::unique_ptr<Client> &c)
+                                {
+                                    return std::find(clientsToRemove.begin(), clientsToRemove.end(),
+                                                     c.get()) != clientsToRemove.end();
+                                });
+        clients.erase(r, clients.end());
     }
 
     return ret;
+}
+
+ssize_t StreamServer::sendToAllClients(const u8 *data, size_t size)
+{
+    nng_iov iov[] = {{const_cast<u8 *>(data), size}};
+
+    return d->sendToAllClients(iov, 1);
+}
+
+ssize_t StreamServer::sendToAllClients(const std::vector<IOV> &iov)
+{
+    auto nng_iovs = std::accumulate(iov.begin(), iov.end(), std::vector<nng_iov>(),
+                                    [](auto &accu, const IOV &iov)
+                                    {
+                                        accu.push_back(nng_iov{iov.buf, iov.len});
+                                        return accu;
+                                    });
+
+    return d->sendToAllClients(nng_iovs.data(), nng_iovs.size());
 }
 
 } // namespace mesytec::mvlc

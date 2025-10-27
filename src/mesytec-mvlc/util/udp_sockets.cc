@@ -289,6 +289,14 @@ std::error_code set_socket_read_timeout(int sock, unsigned ms)
     return set_socket_timeout(SO_RCVTIMEO, sock, ms);
 }
 
+std::error_code set_socket_timeouts(int sock, unsigned readTimeout_ms, unsigned writeTimeout_ms)
+{
+    if (auto ec = set_socket_read_timeout(sock, readTimeout_ms))
+        return ec;
+
+    return set_socket_write_timeout(sock, writeTimeout_ms);
+}
+
 #ifndef MESYTEC_MVLC_PLATFORM_WINDOWS
 std::error_code close_socket(int sock)
 {

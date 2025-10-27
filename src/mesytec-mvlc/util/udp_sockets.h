@@ -35,6 +35,7 @@ u16 MESYTEC_MVLC_EXPORT get_local_socket_port(int sock, std::error_code *ecp = n
 
 std::error_code MESYTEC_MVLC_EXPORT set_socket_write_timeout(int sock, unsigned ms);
 std::error_code MESYTEC_MVLC_EXPORT set_socket_read_timeout(int sock, unsigned ms);
+std::error_code MESYTEC_MVLC_EXPORT set_socket_timeouts(int sock, unsigned readTimeout_ms, unsigned writeTimeout_ms);
 
 std::error_code MESYTEC_MVLC_EXPORT close_socket(int sock);
 

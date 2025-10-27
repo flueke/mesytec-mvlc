@@ -35,13 +35,25 @@ if (MVLC_BUILD_DEV_TOOLS)
     install(TARGETS mvlc-vme-write-many RUNTIME DESTINATION bin)
 
     # stream_server
-    add_mvlc_dev_tool(mvlc_stream_server_test_server mvlc_stream_server_test_server.cc)
-    target_link_libraries(mvlc_stream_server_test_server PRIVATE nng)
-    install(TARGETS mvlc_stream_server_test_server RUNTIME DESTINATION bin)
+    add_mvlc_dev_tool(mvlc_stream_test_server mvlc_stream_test_server.cc)
+    target_link_libraries(mvlc_stream_test_server PRIVATE nng)
 
-    add_mvlc_dev_tool(mvlc_stream_server_test_client mvlc_stream_server_test_client.cc)
-    target_link_libraries(mvlc_stream_server_test_client PRIVATE nng)
-    install(TARGETS mvlc_stream_server_test_client RUNTIME DESTINATION bin)
+    add_mvlc_dev_tool(mvlc_stream_test_client_nng mvlc_stream_test_client_nng.cc)
+    target_link_libraries(mvlc_stream_test_client_nng PRIVATE nng)
+
+    add_mvlc_dev_tool(mvlc_stream_test_client_posix mvlc_stream_test_client_posix.cc)
+    target_link_libraries(mvlc_stream_test_client_posix PRIVATE pthread)
+
+    add_mvlc_dev_tool(mvlc_stream_test_client_asio mvlc_stream_test_client_asio.cc)
+    target_link_libraries(mvlc_stream_test_client_asio PRIVATE asio)
+
+    install(TARGETS
+        mvlc_stream_test_server
+        mvlc_stream_test_client_nng
+        mvlc_stream_test_client_posix
+        mvlc_stream_test_client_asio
+        RUNTIME DESTINATION bin)
+
 endif(MVLC_BUILD_DEV_TOOLS)
 
 if (MVLC_BUILD_TOOLS)
