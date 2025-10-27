@@ -6,11 +6,13 @@
 #include <cstring>
 #include <vector>
 
+#include <argh.h>
 #include <mesytec-mvlc/util/int_types.h>
+#include <spdlog/spdlog.h>
 
 using namespace mesytec::mvlc;
 
-static constexpr uint32_t MAGIC_PATTERN = 0xCAFEBABE;
+static constexpr u32 MAGIC_PATTERN = 0xCAFEBABE;
 
 #define PACK_AND_ALIGN4 __attribute__((packed, aligned(4)))
 
@@ -18,8 +20,7 @@ struct PACK_AND_ALIGN4 TestBuffer
 {
     uint32_t magic;
     uint32_t sequence_number;
-    uint32_t buffer_size; // Number of uint32_t values following
-    // Followed by buffer_size uint32_t values with pattern
+    uint32_t buffer_size; // Number of uint32_t values following this header
 };
 
 inline void generate_test_data(std::vector<u8> &dest, u32 bufferNumber, size_t dataWords = 256)
@@ -59,6 +60,31 @@ inline bool verify_test_data(const std::vector<u8> &buffer, u32 expectedBufferNu
     }
 
     return true;
+}
+
+inline std::string str_tolower(std::string s)
+{
+    std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c) { return std::tolower(c); });
+    return s;
+}
+
+inline void log_parser_info(
+    const argh::parser &parser,
+    const std::string &context,
+    const std::shared_ptr<spdlog::logger> &logger,
+    const spdlog::level::level_enum &level)
+{
+    if (auto params = parser.params(); !params.empty())
+    {
+        for (const auto &param: params)
+            logger->log(level, "argh-parse {} parameter: {}={}", context, param.first, param.second);
+    }
+
+    if (auto flags = parser.flags(); !flags.empty())
+        logger->log(level, "argh-parse {} flags: {}", context, fmt::join(flags, ", "));
+
+    if (auto pos_args = parser.pos_args(); !pos_args.empty())
+        logger->log(level, "argh-parse {} pos args: {}", context, fmt::join(pos_args, ", "));
 }
 
 #endif /* EA7E715D_CA0E_40F7_A86F_25433386C414 */

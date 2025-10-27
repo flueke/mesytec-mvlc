@@ -1,11 +1,13 @@
 #include <algorithm>
-#include <nng/nng.h>
+#include <iostream>
 
+#include <argh.h>
 #include <mesytec-mvlc/stream_server.h>
 #include <mesytec-mvlc/util/logging.h>
 #include <mesytec-mvlc/util/signal_handling.h>
 #include <mesytec-mvlc/util/stopwatch.h>
 #include <mesytec-mvlc/util/storage_sizes.h>
+#include <nng/nng.h>
 
 #include "mvlc_stream_test_support.h"
 
@@ -21,8 +23,36 @@ static const std::vector<std::string> listenUris = {
 
 int main(int argc, char **argv)
 {
-    mvlc::set_global_log_level(spdlog::level::debug);
     mvlc::util::setup_signal_handlers();
+    spdlog::set_level(spdlog::level::info);
+    mvlc::set_global_log_level(spdlog::level::info);
+
+    argh::parser parser({"-h", "--help", "--log-level"});
+    parser.parse(argc, argv);
+
+    {
+        std::string logLevelName;
+        if (parser("--log-level") >> logLevelName)
+            logLevelName = str_tolower(logLevelName);
+        else if (parser["--trace"])
+            logLevelName = "trace";
+        else if (parser["--debug"])
+            logLevelName = "debug";
+        else if (parser["--info"])
+            logLevelName = "info";
+        else if (parser["--warn"])
+            logLevelName = "warn";
+
+        if (!logLevelName.empty())
+            spdlog::set_level(spdlog::level::from_str(logLevelName));
+    }
+
+    if (parser[{"-h", "--help"}])
+    {
+        std::cout << "Usage: " << argv[0]
+                  << " [--log-level level][--trace][--debug][--info][--warn]\n";
+        return 0;
+    }
 
     {
         StreamServer server;
@@ -45,34 +75,36 @@ int main(int argc, char **argv)
             {
                 auto clients = server.clients();
                 spdlog::info("Main loop iteration {}, {} clients connected: {}", iteration,
-                            clients.size(), fmt::join(clients, ", "));
-                spdlog::info("  Sent {:.2f} MB ({} buffers) in the last {} ms, rate={:.2f} MB/s ({:.2f} buffers/s) (total {} MB sent)",
-                    bytesSentInInterval / util::Megabytes(1) * 1.0,
-                    buffersSentInInterval,
+                             clients.size(), fmt::join(clients, ", "));
+                spdlog::info(
+                    "  Sent {:.2f} MB ({} buffers) in the last {} ms, rate={:.2f} MB/s ({:.2f} "
+                    "buffers/s) (total {} MB sent)",
+                    bytesSentInInterval / util::Megabytes(1) * 1.0, buffersSentInInterval,
                     std::chrono::duration_cast<std::chrono::milliseconds>(interval).count(),
                     bytesSentInInterval / util::Megabytes(1) * 1.0 /
-                        (std::chrono::duration_cast<std::chrono::milliseconds>(interval).count() * 1.0 / 1000.0),
+                        (std::chrono::duration_cast<std::chrono::milliseconds>(interval).count() *
+                         1.0 / 1000.0),
                     buffersSentInInterval /
-                        (std::chrono::duration_cast<std::chrono::milliseconds>(interval).count() * 1.0 / 1000.0),
-                    totalBytesSent / util::Megabytes(1) * 1.0
-                );
+                        (std::chrono::duration_cast<std::chrono::milliseconds>(interval).count() *
+                         1.0 / 1000.0),
+                    totalBytesSent / util::Megabytes(1) * 1.0);
                 swReport.interval();
                 bytesSentInInterval = 0;
                 buffersSentInInterval = 0;
             }
 
-            generate_test_data(sendBuffer, static_cast<u32>(iteration), 0xffff);
+            generate_test_data(sendBuffer, static_cast<u32>(iteration), 1);
 
             auto bufferView = std::basic_string_view<std::uint32_t>(
                 reinterpret_cast<const std::uint32_t *>(sendBuffer.data()),
-                std::min(sendBuffer.size(), static_cast<std::size_t>(10)));
+                std::min(sendBuffer.size() / sizeof(u32), static_cast<std::size_t>(10)));
 
-            spdlog::debug("Generated test buffer {} of size {} words: {:#010x}", iteration, sendBuffer.size() / sizeof(u32),
-                fmt::join(bufferView, ", "));
+            spdlog::debug("Generated test buffer {} of size {} words, {} bytes: {:#010x} ...",
+                          iteration, sendBuffer.size() / sizeof(u32), sendBuffer.size(),
+                          fmt::join(bufferView, ", "));
 
-            auto res = server.sendToAllClients(reinterpret_cast<const u8 *>(sendBuffer.data()), sendBuffer.size() * sizeof(u32));
-            spdlog::debug("Sent buffer {} of size {} words", iteration, sendBuffer.size());
-
+            auto res = server.sendToAllClients(reinterpret_cast<const u8 *>(sendBuffer.data()),
+                                               sendBuffer.size());
             if (res < 0)
             {
                 spdlog::error("Failed to send data to all clients");
@@ -83,8 +115,12 @@ int main(int argc, char **argv)
                 totalBytesSent += sendBuffer.size();
                 bytesSentInInterval += sendBuffer.size();
                 ++buffersSentInInterval;
-                //spdlog::debug("Generated test buffer of size {} MB", data.size() / util::Megabytes(1) * 1.0);
+                // spdlog::debug("Generated test buffer of size {} MB", data.size() /
+                // util::Megabytes(1) * 1.0);
             }
+
+            spdlog::debug("Sent buffer {} of size {} bytes to {} clients", iteration,
+                          sendBuffer.size(), res);
 
             ++iteration;
         }

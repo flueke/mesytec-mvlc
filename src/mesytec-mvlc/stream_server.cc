@@ -209,8 +209,6 @@ std::vector<std::string> StreamServer::clients() const
 
 ssize_t StreamServer::Private::sendToAllClients(const nng_iov *iovs, size_t n_iov)
 {
-    // Create a copy of the current client pointers, so we can release the lock asap.
-    std::vector<Client *> clients_;
     std::unique_lock<std::mutex> lock(clients_mutex);
 
     if (clients.empty())
@@ -218,6 +216,8 @@ ssize_t StreamServer::Private::sendToAllClients(const nng_iov *iovs, size_t n_io
         return 0; // No clients to send to
     }
 
+    // Create a copy of the current client pointers, so we can release the lock asap.
+    std::vector<Client *> clients_;
     clients_.reserve(clients.size());
 
     for (auto &client: clients)
