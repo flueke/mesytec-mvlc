@@ -95,3 +95,7 @@ if(NOT nng AND NOT TARGET nng)
     set(BUILD_SHARED_LIBS ON) # FIXME: relocation errors without this flag but it's a global setting. not good.
     add_subdirectory(${nng_sources})
 endif()
+
+# asio (non-boost)
+add_library(asio INTERFACE)
+target_include_directories(asio INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/asio-1.30.2/include)
