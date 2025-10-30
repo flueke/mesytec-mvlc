@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <mesytec-mvlc/util/nng_util.h>
+#include <mesytec-mvlc/util/stopwatch.h>
 #include <mutex>
 #include <numeric>
 
@@ -67,6 +68,7 @@ void accept_callback(void *arg);
 
 void start_accept(Acceptor *acceptor)
 {
+    spdlog::debug("Starting accept on listener");
     if (!acceptor->accept_aio)
     {
         if (int rv = nng_aio_alloc(&acceptor->accept_aio, accept_callback, acceptor))
@@ -82,6 +84,7 @@ void start_accept(Acceptor *acceptor)
 
 void accept_callback(void *arg)
 {
+    spdlog::debug("Accept callback called");
     auto acceptor = static_cast<Acceptor *>(arg);
 
     if (!acceptor->accept_aio)
@@ -181,6 +184,7 @@ bool StreamServer::listen(const std::vector<std::string> &uris)
 
 void StreamServer::stop()
 {
+    spdlog::debug("Stopping StreamServer");
     for (auto &acceptor: d->acceptors)
     {
         if (acceptor->accept_aio)
@@ -215,6 +219,8 @@ ssize_t StreamServer::Private::sendToAllClients(const nng_iov *iovs, size_t n_io
     {
         return 0; // No clients to send to
     }
+
+    util::Stopwatch sw;
 
     // Create a copy of the current client pointers, so we can release the lock asap.
     std::vector<Client *> clients_;
@@ -275,6 +281,10 @@ ssize_t StreamServer::Private::sendToAllClients(const nng_iov *iovs, size_t n_io
                                 });
         clients.erase(r, clients.end());
     }
+
+    spdlog::debug("sendToAllClients to {} clients took {} ms",
+                  clients_.size(),
+                  std::chrono::duration_cast<std::chrono::milliseconds>(sw.get_elapsed()).count());
 
     return ret;
 }

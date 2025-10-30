@@ -44,7 +44,10 @@ int main(int argc, char **argv)
             logLevelName = "warn";
 
         if (!logLevelName.empty())
+        {
             spdlog::set_level(spdlog::level::from_str(logLevelName));
+            mvlc::set_global_log_level(spdlog::level::from_str(logLevelName));
+        }
     }
 
     if (parser[{"-h", "--help"}])
@@ -100,7 +103,7 @@ int main(int argc, char **argv)
                 reinterpret_cast<const std::uint32_t *>(sendBuffer.data()),
                 std::min(sendBuffer.size() / sizeof(u32), static_cast<std::size_t>(10)));
 
-            spdlog::debug("Generated test buffer {} of size {} words, {} bytes: {:#010x} ...",
+            spdlog::trace("Generated test buffer {} of size {} words, {} bytes: {:#010x} ...",
                           iteration, sendBuffer.size() / sizeof(u32), sendBuffer.size(),
                           fmt::join(bufferView, ", "));
 
@@ -120,7 +123,7 @@ int main(int argc, char **argv)
                 // util::Megabytes(1) * 1.0);
             }
 
-            spdlog::debug("Sent buffer {} of size {} bytes to {} clients", iteration,
+            spdlog::trace("Sent buffer {} of size {} bytes to {} clients", iteration,
                           sendBuffer.size(), res);
 
             ++iteration;
