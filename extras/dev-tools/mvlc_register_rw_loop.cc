@@ -75,6 +75,7 @@ std::error_code do_memory_block(MVLC &mvlc)
         u16 addr = memStart + addrIncr * i;
         u32 value = i % 2 == 0 ? 0xaa00 : 0x5500;
         value |= i;
+        value &= 0xffff; // only lower 16 bits are valid
         if (auto ec = mvlc.writeRegister(addr, value))
         {
             std::cerr << fmt::format("Error writing register 0x{:04x}: {}\n", addr, ec.message());
@@ -87,6 +88,7 @@ std::error_code do_memory_block(MVLC &mvlc)
         u16 addr = memStart + addrIncr * i;
         u32 value = i % 2 == 0 ? 0xaa00 : 0x5500;
         value |= i;
+        value &= 0xffff; // only lower 16 bits are valid
 
         u32 readBack = 0;
         if (auto ec = mvlc.readRegister(addr, readBack))
@@ -119,7 +121,7 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    argh::parser parser({ "--test-type", "--register-address", "--register-value", "--log-level"});
+    argh::parser parser({"-h", "--help", "--test-type", "--register-address", "--register-value", "--log-level"});
     parser.parse(argv);
 
     {
@@ -148,6 +150,19 @@ int main(int argc, char *argv[])
     TestType testType = SingleRegister;
 
     std::string str;
+
+    if (parser[{"-h", "--help"}])
+    {
+        fmt::print("Usage: {} [--test-type <single-register|memory-block>] [--register-address <address>] [--register-value <value>] <mvlc-address>\n", argv[0]);
+        fmt::print("  --test-type: Type of test to perform. Default is 'single-register'.\n");
+        fmt::print("  --register-address: Register address to use for single-register tests. Default is 0x600E.\n");
+        fmt::print("  --register-value: Value to write to the register in single-register tests. Default is 1.\n");
+        fmt::print("  <mvlc-address>: Address of the MVLC device (e.g. 'mvlc-0124' or 'usb://').\n\n");
+        fmt::print("In single-register mode the specified register is repeatedly written to and read from.\n");
+        fmt::print("In memory-block mode a sequence of 8 registers starting at 0x7000 is written to and read back.\n");
+
+        return 0;
+    }
 
     if (parser("--test-type") >> str)
     {
@@ -220,6 +235,7 @@ int main(int argc, char *argv[])
             auto readsPerSecond = totalReads / std::chrono::duration_cast<std::chrono::duration<double>>(totalElapsed).count();
             fmt::print("Elapsed: {} s, Cycle Number: {}; {:.2} cycles/s, reads/s={:.2}, writes/s={:.2}\n",
                  totalElapsed.count(), cycleNumber, cyclesPerSecond , readsPerSecond, writesPerSecond);
+            fmt::print("Elapsed: {} s, Cycle Number: {}; {:.2} cycles/s\n", totalElapsed.count(), cycleNumber, cyclesPerSecond);
             swReport.interval();
         }
 
