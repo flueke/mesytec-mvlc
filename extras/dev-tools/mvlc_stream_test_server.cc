@@ -93,7 +93,8 @@ int main(int argc, char **argv)
                 buffersSentInInterval = 0;
             }
 
-            generate_test_data(sendBuffer, static_cast<u32>(iteration), 1);
+            generate_test_data(sendBuffer, static_cast<u32>(iteration), 1u << 20);
+            assert(verify_test_data(sendBuffer, static_cast<u32>(iteration)));
 
             auto bufferView = std::basic_string_view<std::uint32_t>(
                 reinterpret_cast<const std::uint32_t *>(sendBuffer.data()),
