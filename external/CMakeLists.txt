@@ -1,3 +1,5 @@
+# Note: gtest is handled in the parent CMakeLists.txt
+
 # ftdi d3xx drivers
 add_subdirectory(ftdi-d3xx)
 
