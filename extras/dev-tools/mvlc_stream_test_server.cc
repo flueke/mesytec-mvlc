@@ -23,7 +23,7 @@ static const std::vector<std::string> listenUris = {
 
 int main(int argc, char **argv)
 {
-    mvlc::util::setup_signal_handlers();
+    //mvlc::util::setup_signal_handlers();
     spdlog::set_level(spdlog::level::info);
     mvlc::set_global_log_level(spdlog::level::info);
 
