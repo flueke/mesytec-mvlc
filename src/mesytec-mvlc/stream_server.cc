@@ -349,6 +349,7 @@ void StreamServer::Private::sendToAllClients(const std::vector<Client *> &client
             // Will only fail if iovs is too large (> 4) or nng runs OOM
             if (int rv = nng_aio_set_iov(client->aio, client->n_send_iov, client->send_iovs.data()); rv != 0)
             {
+                spdlog::warn("Failed to set IOVs for client {}: {}", client->remoteAddress(), nng_strerror(rv));
                 // Mark all data as sent to avoid scheduling further sends
                 client->n_send_iov = 0;
                 continue;
@@ -376,7 +377,10 @@ void StreamServer::Private::sendToAllClients(const std::vector<Client *> &client
             }
 
             size_t sentSize = nng_aio_count(client->aio);
+            auto totalSize = nng_iov_total_size(client->send_iovs.data(), client->n_send_iov);
             subtract_from_iovs(client->send_iovs, client->n_send_iov, sentSize);
+            auto newTotalSize = nng_iov_total_size(client->send_iovs.data(), client->n_send_iov);
+            assert(newTotalSize + sentSize == totalSize);
         }
     } while (didScheduleASend);
 
