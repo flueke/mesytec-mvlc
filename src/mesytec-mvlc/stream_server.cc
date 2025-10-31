@@ -233,6 +233,10 @@ ssize_t StreamServer::Private::sendToAllClients(const nng_iov *iovs, size_t n_io
 
     lock.unlock();
 
+    size_t totalSize = 0;
+    for (size_t i = 0; i < n_iov; ++i)
+        totalSize += iovs[i].iov_len;
+
     // Setup a send for each client
     for (auto &client: clients_)
     {
@@ -241,7 +245,7 @@ ssize_t StreamServer::Private::sendToAllClients(const nng_iov *iovs, size_t n_io
 
         if (int rv = nng_aio_set_iov(client->aio, n_iov, iovs); rv != 0)
         {
-            // will fail if iovs is too large or nng runs OOM
+            // will only fail if iovs is too large (> 4) or nng runs OOM
             return -1;
         }
 
@@ -256,13 +260,26 @@ ssize_t StreamServer::Private::sendToAllClients(const nng_iov *iovs, size_t n_io
         auto &client = *it;
         nng_aio_wait(client->aio);
         assert(!nng_aio_busy(client->aio));
+        bool good = true;
 
         if (int rv = nng_aio_result(client->aio))
         {
-            spdlog::warn("Send to failed: {}", nng_strerror(rv));
+            spdlog::warn("Send to client {} failed: {}", client->remoteAddress(), nng_strerror(rv));
             clientsToRemove.push_back(*it);
+            good = false;
         }
-        else
+
+        if (size_t sentSize = nng_aio_count(client->aio); sentSize != totalSize)
+        {
+            spdlog::warn("Send to client {} incomplete: sent {}/{} bytes",
+                         client->remoteAddress(),
+                         sentSize,
+                         totalSize);
+            clientsToRemove.push_back(*it);
+            good = false;
+        }
+
+        if (good)
         {
             ++ret;
         }
