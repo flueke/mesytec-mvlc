@@ -11,6 +11,49 @@
 namespace mesytec::mvlc
 {
 
+static const size_t NngMaxIOVs = 4;
+using IovArray = std::array<nng_iov, NngMaxIOVs>;
+
+size_t nng_iov_total_size(const nng_iov *iovs, size_t n_iov)
+{
+    size_t total = 0;
+    for (size_t i = 0; i < n_iov; ++i)
+    {
+        total += iovs[i].iov_len;
+    }
+    return total;
+}
+
+void subtract_from_iovs(IovArray &iovs, size_t &n_iov, size_t bytes)
+{
+    assert(n_iov <= NngMaxIOVs);
+
+    IovArray new_iovs;
+    size_t new_n_iov = 0;
+    size_t remaining = bytes;
+
+    for (size_t i = 0; i < n_iov; ++i)
+    {
+        if (remaining == 0)
+            break;
+
+        if (iovs[i].iov_len <= remaining)
+        {
+            remaining -= iovs[i].iov_len;
+        }
+        else
+        {
+            iovs[i].iov_buf = static_cast<uint8_t *>(iovs[i].iov_buf) + remaining;
+            iovs[i].iov_len -= remaining;
+            remaining = 0;
+            new_iovs[new_n_iov++] = iovs[i];
+        }
+    }
+
+    std::swap(iovs, new_iovs);
+    n_iov = new_n_iov;
+}
+
 struct Acceptor
 {
     StreamServer *ctx = nullptr;
@@ -22,6 +65,8 @@ struct Client: public StreamServer::IClient
 {
     nng_stream *stream = nullptr;
     nng_aio *aio = nullptr;
+    IovArray send_iovs;
+    size_t n_send_iov = 0;
 
     explicit Client(nng_stream *s)
         : stream(s)
@@ -62,6 +107,7 @@ struct StreamServer::Private
     std::mutex clients_mutex;
 
     ssize_t sendToAllClients(const nng_iov *iovs, size_t n_iov);
+    void sendToAllClients(const std::vector<Client *> &clients_);
 };
 
 void accept_callback(void *arg);
@@ -121,10 +167,9 @@ void accept_callback(void *arg)
 
         // Add to client list
         {
+            spdlog::info("Accepted new connection from {}", client->remoteAddress());
             std::lock_guard<std::mutex> lock(acceptor->ctx->d->clients_mutex);
             acceptor->ctx->d->clients.emplace_back(std::move(client));
-            spdlog::info("Accepted new connection from {}",
-                         acceptor->ctx->d->clients.back()->remoteAddress());
         }
     }
     catch (const NngException &e)
@@ -213,6 +258,13 @@ std::vector<std::string> StreamServer::clients() const
 
 ssize_t StreamServer::Private::sendToAllClients(const nng_iov *iovs, size_t n_iov)
 {
+    assert(n_iov <= NngMaxIOVs);
+    if (n_iov > NngMaxIOVs)
+    {
+        spdlog::error("sendToAllClients called with too many IOVs: {} (max {})", n_iov, NngMaxIOVs);
+        return -1;
+    }
+
     std::unique_lock<std::mutex> lock(clients_mutex);
 
     if (clients.empty())
@@ -228,29 +280,13 @@ ssize_t StreamServer::Private::sendToAllClients(const nng_iov *iovs, size_t n_io
 
     for (auto &client: clients)
     {
+        std::copy(iovs, iovs + n_iov, client->send_iovs.data());
         clients_.emplace_back(client.get());
     }
 
     lock.unlock();
 
-    size_t totalSize = 0;
-    for (size_t i = 0; i < n_iov; ++i)
-        totalSize += iovs[i].iov_len;
-
-    // Setup a send for each client
-    for (auto &client: clients_)
-    {
-        assert(client->stream);
-        assert(client->aio);
-
-        if (int rv = nng_aio_set_iov(client->aio, n_iov, iovs); rv != 0)
-        {
-            // will only fail if iovs is too large (> 4) or nng runs OOM
-            return -1;
-        }
-
-        nng_stream_send(client->stream, client->aio);
-    }
+    sendToAllClients(clients_);
 
     std::vector<Client *> clientsToRemove;
     ssize_t ret = 0;
@@ -258,31 +294,14 @@ ssize_t StreamServer::Private::sendToAllClients(const nng_iov *iovs, size_t n_io
     for (auto it = clients_.begin(); it != clients_.end(); ++it)
     {
         auto &client = *it;
-        nng_aio_wait(client->aio);
-        assert(!nng_aio_busy(client->aio));
-        bool good = true;
 
-        if (int rv = nng_aio_result(client->aio))
-        {
-            spdlog::warn("Send to client {} failed: {}", client->remoteAddress(), nng_strerror(rv));
-            clientsToRemove.push_back(*it);
-            good = false;
-        }
-
-        if (size_t sentSize = nng_aio_count(client->aio); sentSize != totalSize)
-        {
-            spdlog::warn("Send to client {} incomplete: sent {}/{} bytes",
-                         client->remoteAddress(),
-                         sentSize,
-                         totalSize);
-            clientsToRemove.push_back(*it);
-            good = false;
-        }
-
-        if (good)
+        if (nng_aio_result(client->aio) == 0)
         {
             ++ret;
+            continue;
         }
+
+        clientsToRemove.push_back(client);
     }
 
     if (!clientsToRemove.empty())
@@ -304,6 +323,64 @@ ssize_t StreamServer::Private::sendToAllClients(const nng_iov *iovs, size_t n_io
                   std::chrono::duration_cast<std::chrono::milliseconds>(sw.get_elapsed()).count());
 
     return ret;
+}
+
+void StreamServer::Private::sendToAllClients(const std::vector<Client *> &clients_)
+{
+    auto need_more_sends = [](auto &clients_) -> bool
+    {
+        return std::any_of(clients_.begin(), clients_.end(),
+                           [](auto *c)
+                           { return nng_iov_total_size(c->send_iovs.data(), c->n_send_iov) > 0; });
+    };
+
+    bool didScheduleASend = false;
+
+    do
+    {
+        didScheduleASend = false;
+
+        // Schedule a send for each client that still has data left to send
+        for (auto &client: clients_)
+        {
+            if (nng_iov_total_size(client->send_iovs.data(), client->n_send_iov) == 0)
+                continue;
+
+            // Will only fail if iovs is too large (> 4) or nng runs OOM
+            if (int rv = nng_aio_set_iov(client->aio, client->n_send_iov, client->send_iovs.data()); rv != 0)
+            {
+                // Mark all data as sent to avoid scheduling further sends
+                client->n_send_iov = 0;
+                continue;
+            }
+
+            nng_stream_send(client->stream, client->aio);
+            didScheduleASend = true;
+        }
+
+        if (!didScheduleASend)
+            break;
+
+        // Wait for all scheduled sends to complete
+        for (auto &client: clients_)
+        {
+            nng_aio_wait(client->aio);
+            assert(!nng_aio_busy(client->aio));
+
+            if (int rv = nng_aio_result(client->aio))
+            {
+                spdlog::warn("Send to client {} failed: {}", client->remoteAddress(), nng_strerror(rv));
+                // Mark all data as sent to avoid scheduling further sends
+                client->n_send_iov = 0;
+                continue;
+            }
+
+            size_t sentSize = nng_aio_count(client->aio);
+            subtract_from_iovs(client->send_iovs, client->n_send_iov, sentSize);
+        }
+    } while (didScheduleASend);
+
+    assert(!need_more_sends(clients_));
 }
 
 ssize_t StreamServer::sendToAllClients(const u8 *data, size_t size)
