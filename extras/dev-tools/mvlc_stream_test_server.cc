@@ -27,7 +27,7 @@ int main(int argc, char **argv)
     spdlog::set_level(spdlog::level::info);
     mvlc::set_global_log_level(spdlog::level::info);
 
-    argh::parser parser({"-h", "--help", "--log-level"});
+    argh::parser parser({"-h", "--help", "--log-level", "--trace", "--debug", "--info", "--warn", "--buffer-size"});
     parser.parse(argc, argv);
 
     {
@@ -53,9 +53,19 @@ int main(int argc, char **argv)
     if (parser[{"-h", "--help"}])
     {
         std::cout << "Usage: " << argv[0]
-                  << " [--log-level level][--trace][--debug][--info][--warn]\n";
+                  << " [--log-level level][--trace][--debug][--info][--warn][--buffer-size <words=1 << 10>]\n";
         return 0;
     }
+
+    std::string arg;
+    size_t bufferSizeWords = 1ul << 10;
+
+    if (parser("--buffer-size") >> arg)
+    {
+        bufferSizeWords = std::stoul(arg);
+    }
+
+    spdlog::info("Using test buffer size of {} words", bufferSizeWords);
 
     {
         StreamServer server;
@@ -96,7 +106,7 @@ int main(int argc, char **argv)
                 buffersSentInInterval = 0;
             }
 
-            generate_test_data(sendBuffer, static_cast<u32>(iteration), 1u << 20);
+            generate_test_data(sendBuffer, static_cast<u32>(iteration), bufferSizeWords);
             assert(verify_test_data(sendBuffer, static_cast<u32>(iteration)));
 
             auto bufferView = std::basic_string_view<std::uint32_t>(
