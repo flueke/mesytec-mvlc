@@ -66,6 +66,7 @@ class MESYTEC_MVLC_EXPORT StreamServer
     struct Private;
     std::unique_ptr<Private> d;
     friend void accept_callback(void *arg);
+    friend struct Acceptor;
 };
 
 } // namespace mesytec::mvlc
