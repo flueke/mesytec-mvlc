@@ -23,6 +23,7 @@ struct StreamServerAsio::Private
     void addClient(std::unique_ptr<ClientBase> client);
     bool listenTcp(const std::string &uri);
     bool listenIpc(const std::string &path);
+    void start(size_t num_threads = 4);
 
     asio::io_context io_context_;
     std::unique_ptr<asio::io_context::work> work_guard_;
@@ -32,8 +33,14 @@ struct StreamServerAsio::Private
 #endif
     std::vector<std::unique_ptr<ClientBase>> clients_;
     std::mutex mutable clients_mutex_;
-    std::thread io_thread_;
+    std::vector<std::thread> io_threads_;
     std::atomic<bool> running_{false};
+
+    // Reusable buffers for sendToAllClients to avoid allocations
+    std::vector<asio::const_buffer> send_buffers_;
+    std::vector<std::future<size_t>> send_futures_;
+    std::vector<ClientBase*> send_snapshot_;
+    std::vector<ClientBase*> send_failed_;
 };
 
 struct TcpClient: ClientBase
@@ -120,7 +127,9 @@ struct TcpAcceptor
                                       asio::error_code opt_ec;
                                       socket.set_option(asio::ip::tcp::no_delay(true), opt_ec);
                                       socket.set_option(
-                                          asio::socket_base::send_buffer_size(256 * 1024), opt_ec);
+                                          asio::socket_base::send_buffer_size(2 * 1024 * 1024), opt_ec);
+                                      socket.set_option(
+                                          asio::socket_base::receive_buffer_size(2 * 1024 * 1024), opt_ec);
 
                                       auto client = std::make_unique<TcpClient>(std::move(socket));
                                       server->addClient(std::move(client));
@@ -182,6 +191,20 @@ void StreamServerAsio::Private::addClient(std::unique_ptr<ClientBase> client)
     std::lock_guard<std::mutex> lock(clients_mutex_);
     spdlog::info("New client connected: {}", client->remoteAddress());
     clients_.push_back(std::move(client));
+}
+
+void StreamServerAsio::Private::start(size_t num_threads)
+{
+    if (running_)
+        return;
+
+    running_ = true;
+    work_guard_ = std::make_unique<asio::io_context::work>(io_context_);
+
+    for (size_t i = 0; i < num_threads; ++i)
+    {
+        io_threads_.emplace_back([this]() { io_context_.run(); });
+    }
 }
 
 bool StreamServerAsio::Private::listenTcp(const std::string &uri)
@@ -274,11 +297,7 @@ bool StreamServerAsio::listen(const std::string &uri)
         bool result = d->listenTcp(uri);
 
         if (!d->running_ && result)
-        {
-            d->running_ = true;
-            d->work_guard_ = std::make_unique<asio::io_context::work>(d->io_context_);
-            d->io_thread_ = std::thread([this]() { d->io_context_.run(); });
-        }
+            d->start();
 
         return result;
     }
@@ -288,11 +307,7 @@ bool StreamServerAsio::listen(const std::string &uri)
         bool result = d->listenIpc(path);
 
         if (!d->running_ && result)
-        {
-            d->running_ = true;
-            d->work_guard_ = std::make_unique<asio::io_context::work>(d->io_context_);
-            d->io_thread_ = std::thread([this]() { d->io_context_.run(); });
-        }
+            d->start();
 
         return result;
     }
@@ -302,11 +317,7 @@ bool StreamServerAsio::listen(const std::string &uri)
         bool result = d->listenIpc(path);
 
         if (!d->running_ && result)
-        {
-            d->running_ = true;
-            d->work_guard_ = std::make_unique<asio::io_context::work>(d->io_context_);
-            d->io_thread_ = std::thread([this]() { d->io_context_.run(); });
-        }
+            d->start();
 
         return result;
     }
@@ -352,8 +363,12 @@ void StreamServerAsio::stop()
     // Stop io_context and wait for thread
     d->work_guard_.reset();
     d->io_context_.stop();
-    if (d->io_thread_.joinable())
-        d->io_thread_.join();
+    for (auto &thread : d->io_threads_)
+    {
+        if (thread.joinable())
+            thread.join();
+    }
+    d->io_threads_.clear();
 
     // Clear everything
     d->tcp_acceptors_.clear();
@@ -392,16 +407,15 @@ ssize_t StreamServerAsio::sendToAllClients(const uint8_t *data, size_t size)
 
 ssize_t StreamServerAsio::sendToAllClients(const IOV *iov, size_t n_iov)
 {
-    std::vector<asio::const_buffer> buffers;
-    buffers.reserve(n_iov);
+    // Reuse vectors from Private to avoid allocations
+    d->send_buffers_.clear();
+    d->send_futures_.clear();
+    d->send_snapshot_.clear();
+    d->send_failed_.clear();
 
+    d->send_buffers_.reserve(n_iov);
     for (size_t i = 0; i < n_iov; ++i)
-    {
-        buffers.push_back(asio::buffer(iov[i].buf, iov[i].len));
-    }
-
-    std::vector<std::future<size_t>> futures;
-    std::vector<ClientBase *> clients_snapshot;
+        d->send_buffers_.push_back(asio::buffer(iov[i].buf, iov[i].len));
 
     {
         std::lock_guard<std::mutex> lock(d->clients_mutex_);
@@ -409,191 +423,47 @@ ssize_t StreamServerAsio::sendToAllClients(const IOV *iov, size_t n_iov)
         if (d->clients_.empty())
             return 0;
 
-        futures.reserve(d->clients_.size());
-        clients_snapshot.reserve(d->clients_.size());
+        d->send_futures_.reserve(d->clients_.size());
+        d->send_snapshot_.reserve(d->clients_.size());
 
         for (auto &client: d->clients_)
         {
-            futures.emplace_back(client->asyncWrite(buffers));
-            clients_snapshot.push_back(client.get());
+            d->send_futures_.emplace_back(client->asyncWrite(d->send_buffers_));
+            d->send_snapshot_.push_back(client.get());
         }
     }
 
-    // Wait for all futures and collect failures
+    // Wait for ALL futures to complete (they execute concurrently on io_context)
     size_t completed = 0;
-    std::vector<ClientBase *> failed;
-
-    for (size_t i = 0; i < futures.size(); ++i)
+    for (size_t i = 0; i < d->send_futures_.size(); ++i)
     {
         try
         {
-            futures[i].get(); // blocks until this write completes
+            d->send_futures_[i].get();
             completed++;
         }
         catch (...)
         {
-            failed.push_back(clients_snapshot[i]);
+            d->send_failed_.push_back(d->send_snapshot_[i]);
         }
     }
 
     // Remove failed clients
-    if (!failed.empty())
+    if (!d->send_failed_.empty())
     {
         std::lock_guard<std::mutex> lock(d->clients_mutex_);
-        // ... removal logic
-        spdlog::info("Removing {} clients due to send errors", failed.size());
+        spdlog::info("Removing {} clients due to send errors", d->send_failed_.size());
         auto new_end = std::remove_if(
-            d->clients_.begin(), d->clients_.end(), [&failed](const std::unique_ptr<ClientBase> &c)
-            { return std::find(failed.begin(), failed.end(), c.get()) != failed.end(); });
+            d->clients_.begin(), d->clients_.end(),
+            [this](const std::unique_ptr<ClientBase> &c)
+            {
+                return std::find(d->send_failed_.begin(), d->send_failed_.end(), c.get())
+                    != d->send_failed_.end();
+            });
         d->clients_.erase(new_end, d->clients_.end());
     }
 
     return completed;
-
-#if 0
-    // Use shared_ptr for state to ensure it lives until all callbacks complete
-    struct SendState
-    {
-        std::atomic<size_t> completed{0};
-        std::atomic<size_t> pending{0};
-        std::mutex cv_mutex;
-        std::condition_variable cv;
-        std::vector<ClientBase *> failed_clients;
-        std::mutex failed_mutex;
-    };
-    auto state = std::make_shared<SendState>();
-
-    {
-        std::lock_guard<std::mutex> lock(d->clients_mutex_);
-
-        if (d->clients_.empty())
-            return 0;
-
-        // Set pending BEFORE starting any async operations to avoid race
-        state->pending.store(d->clients_.size(), std::memory_order_release);
-
-        for (auto &client: d->clients_)
-        {
-            client->asyncWrite(
-                buffers,
-                [state, raw_client = client.get()](const asio::error_code &ec, size_t)
-                {
-                    if (!ec)
-                    {
-                        state->completed++;
-                    }
-                    else
-                    {
-                        std::lock_guard<std::mutex> lock(state->failed_mutex);
-                        state->failed_clients.push_back(raw_client);
-                    }
-
-                    if (--state->pending == 0)
-                        state->cv.notify_one();
-                });
-        }
-    } // Release clients_mutex_ before waiting
-
-    // Wait for all sends to complete
-    std::unique_lock<std::mutex> cv_lock(state->cv_mutex);
-    state->cv.wait(cv_lock, [&state] { return state->pending == 0; });
-
-    // Remove failed clients
-    if (!state->failed_clients.empty())
-    {
-        std::lock_guard<std::mutex> lock(d->clients_mutex_);
-        spdlog::info("Removing {} clients due to send errors", state->failed_clients.size());
-
-        auto new_end = std::remove_if(d->clients_.begin(), d->clients_.end(),
-                                      [&state](const std::unique_ptr<ClientBase> &c)
-                                      {
-                                          return std::find(state->failed_clients.begin(),
-                                                           state->failed_clients.end(),
-                                                           c.get()) != state->failed_clients.end();
-                                      });
-
-        d->clients_.erase(new_end, d->clients_.end());
-    }
-
-    return state->completed;
-#endif
 }
-
-#if 0
-ssize_t StreamServerAsio::sendToAllClients(const std::vector<IOV> &iov)
-{
-    std::vector<asio::const_buffer> buffers;
-    buffers.reserve(iov.size());
-
-    for (const auto &v: iov)
-        buffers.push_back(asio::buffer(v.buf, v.len));
-
-    // Use shared_ptr for state to ensure it lives until all callbacks complete
-    struct SendState
-    {
-        std::atomic<size_t> completed{0};
-        std::atomic<size_t> pending{0};
-        std::mutex cv_mutex;
-        std::condition_variable cv;
-        std::vector<ClientBase *> failed_clients;
-        std::mutex failed_mutex;
-    };
-    auto state = std::make_shared<SendState>();
-
-    {
-        std::lock_guard<std::mutex> lock(d->clients_mutex_);
-
-        if (d->clients_.empty())
-            return 0;
-
-        // Set pending BEFORE starting any async operations to avoid race
-        state->pending.store(d->clients_.size(), std::memory_order_release);
-
-        for (auto &client: d->clients_)
-        {
-            client->asyncWrite(
-                buffers,
-                [state, raw_client = client.get()](const asio::error_code &ec, size_t)
-                {
-                    if (!ec)
-                    {
-                        state->completed++;
-                    }
-                    else
-                    {
-                        std::lock_guard<std::mutex> lock(state->failed_mutex);
-                        state->failed_clients.push_back(raw_client);
-                    }
-
-                    if (--state->pending == 0)
-                        state->cv.notify_one();
-                });
-        }
-    } // Release clients_mutex_ before waiting
-
-    // Wait for all sends to complete
-    std::unique_lock<std::mutex> cv_lock(state->cv_mutex);
-    state->cv.wait(cv_lock, [&state] { return state->pending == 0; });
-
-    // Remove failed clients
-    if (!state->failed_clients.empty())
-    {
-        std::lock_guard<std::mutex> lock(d->clients_mutex_);
-        spdlog::info("Removing {} clients due to send errors", state->failed_clients.size());
-
-        auto new_end = std::remove_if(d->clients_.begin(), d->clients_.end(),
-                                      [&state](const std::unique_ptr<ClientBase> &c)
-                                      {
-                                          return std::find(state->failed_clients.begin(),
-                                                           state->failed_clients.end(),
-                                                           c.get()) != state->failed_clients.end();
-                                      });
-
-        d->clients_.erase(new_end, d->clients_.end());
-    }
-
-    return state->completed;
-}
-#endif
 
 } // namespace mesytec::mvlc
