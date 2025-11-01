@@ -41,6 +41,7 @@ add_library(mesytec-mvlc SHARED
     readout_buffer_queues.cc
     scanbus_support.cc
     stream_server.cc
+    stream_server_asio.cc
     util/counters.cc
     util/data_filter.cc
     util/filesystem.cc
@@ -93,10 +94,12 @@ target_include_directories(mesytec-mvlc
     )
 
 target_link_libraries(mesytec-mvlc
+    PRIVATE asio
     PRIVATE minizip
-    PRIVATE yaml-cpp
     PRIVATE nlohmann_json::nlohmann_json
     PRIVATE nng
+    PRIVATE pthread
+    PRIVATE yaml-cpp
     PUBLIC argh
     PUBLIC spdlog::spdlog
     PUBLIC Threads::Threads
@@ -132,7 +135,7 @@ target_compile_options(mesytec-mvlc
 target_compile_features(mesytec-mvlc PUBLIC cxx_std_17)
 
 if (WIN32)
-    target_link_libraries(mesytec-mvlc PRIVATE ws2_32 winmm)
+    target_link_libraries(mesytec-mvlc PRIVATE ws2_32 winmm mswsock)
     target_compile_options(mesytec-mvlc PRIVATE -Wno-format)
 endif(WIN32)
 

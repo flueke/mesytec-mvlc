@@ -10,7 +10,7 @@
 #include <mesytec-mvlc/util/int_types.h>
 #include <spdlog/spdlog.h>
 
-using namespace mesytec::mvlc;
+using namespace mesytec::mvlc; // FIXME: avoid polluting global namespace
 
 static constexpr u32 MAGIC_PATTERN = 0xCAFEBABE;
 

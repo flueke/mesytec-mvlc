@@ -17,8 +17,8 @@ using namespace mesytec::mvlc;
 static const std::vector<std::string> listenUris = {
     "tcp4://localhost:42333",
     "tcp4://*:42334",
-    "ipc:///tmp/mvlc_stream_test_server.ipc",
-    "ipc:///tmp/mvlc_stream_test_server2.ipc",
+    //"ipc:///tmp/mvlc_stream_test_server.ipc",
+    //"ipc:///tmp/mvlc_stream_test_server2.ipc",
 };
 
 int main(int argc, char **argv)
@@ -135,6 +135,9 @@ int main(int argc, char **argv)
 
             spdlog::trace("Sent buffer {} of size {} bytes to {} clients", iteration,
                           sendBuffer.size(), res);
+
+            if (res ==  0)
+                std::this_thread::sleep_for(std::chrono::milliseconds(10));
 
             ++iteration;
         }

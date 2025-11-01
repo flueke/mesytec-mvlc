@@ -1,0 +1,52 @@
+#ifndef STREAM_SERVER_ASIO_H
+#define STREAM_SERVER_ASIO_H
+
+#include "mesytec-mvlc/mesytec-mvlc_export.h"
+#include <asio.hpp>
+#include <atomic>
+#include <condition_variable>
+#include <memory>
+#include <mutex>
+#include <string>
+#include <thread>
+#include <vector>
+
+#ifdef ASIO_HAS_LOCAL_SOCKETS
+#include <asio/local/stream_protocol.hpp>
+#endif
+
+namespace mesytec::mvlc
+{
+
+class MESYTEC_MVLC_EXPORT StreamServerAsio
+{
+  public:
+    struct IOV
+    {
+        const void *buf;
+        size_t len;
+    };
+
+    StreamServerAsio();
+    ~StreamServerAsio();
+
+    bool listen(const std::string &uri);
+    bool listen(const std::vector<std::string> &uris);
+    void stop();
+    bool isListening() const;
+    std::vector<std::string> clients() const;
+
+    // Send data to all clients in a blocking fashion
+    ssize_t sendToAllClients(const uint8_t *data, size_t size);
+    ssize_t sendToAllClients(const IOV *iov, size_t n_iov);
+
+  private:
+    struct Private;
+    std::unique_ptr<Private> d;
+    friend struct TcpAcceptor;
+    friend struct UnixAcceptor;
+};
+
+} // namespace mesytec::mvlc
+
+#endif // STREAM_SERVER_ASIO_H
