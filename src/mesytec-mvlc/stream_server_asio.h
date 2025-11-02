@@ -2,18 +2,10 @@
 #define STREAM_SERVER_ASIO_H
 
 #include "mesytec-mvlc/mesytec-mvlc_export.h"
-#include <asio.hpp>
-#include <atomic>
-#include <condition_variable>
 #include <memory>
 #include <mutex>
 #include <string>
-#include <thread>
 #include <vector>
-
-#ifdef ASIO_HAS_LOCAL_SOCKETS
-#include <asio/local/stream_protocol.hpp>
-#endif
 
 namespace mesytec::mvlc
 {

@@ -1,6 +1,16 @@
 #include "stream_server_asio.h"
+
 #include <algorithm>
+#include <atomic>
+#include <condition_variable>
 #include <spdlog/spdlog.h>
+#include <thread>
+
+#include <asio.hpp>
+
+#ifdef ASIO_HAS_LOCAL_SOCKETS
+#include <asio/local/stream_protocol.hpp>
+#endif
 
 namespace mesytec::mvlc
 {
@@ -39,8 +49,8 @@ struct StreamServerAsio::Private
     // Reusable buffers for sendToAllClients to avoid allocations
     std::vector<asio::const_buffer> send_buffers_;
     std::vector<std::future<size_t>> send_futures_;
-    std::vector<ClientBase*> send_snapshot_;
-    std::vector<ClientBase*> send_failed_;
+    std::vector<ClientBase *> send_snapshot_;
+    std::vector<ClientBase *> send_failed_;
 };
 
 struct TcpClient: ClientBase
@@ -118,25 +128,25 @@ struct TcpAcceptor
 
     void startAccept()
     {
-        acceptor.async_accept(socket,
-                              [this](const asio::error_code &ec)
-                              {
-                                  if (!ec)
-                                  {
-                                      // Set socket options for better performance
-                                      asio::error_code opt_ec;
-                                      socket.set_option(asio::ip::tcp::no_delay(true), opt_ec);
-                                      socket.set_option(
-                                          asio::socket_base::send_buffer_size(2 * 1024 * 1024), opt_ec);
-                                      socket.set_option(
-                                          asio::socket_base::receive_buffer_size(2 * 1024 * 1024), opt_ec);
+        acceptor.async_accept(
+            socket,
+            [this](const asio::error_code &ec)
+            {
+                if (!ec)
+                {
+                    // Set socket options for better performance
+                    asio::error_code opt_ec;
+                    socket.set_option(asio::ip::tcp::no_delay(true), opt_ec);
+                    socket.set_option(asio::socket_base::send_buffer_size(2 * 1024 * 1024), opt_ec);
+                    socket.set_option(asio::socket_base::receive_buffer_size(2 * 1024 * 1024),
+                                      opt_ec);
 
-                                      auto client = std::make_unique<TcpClient>(std::move(socket));
-                                      server->addClient(std::move(client));
-                                  }
-                                  if (acceptor.is_open())
-                                      startAccept();
-                              });
+                    auto client = std::make_unique<TcpClient>(std::move(socket));
+                    server->addClient(std::move(client));
+                }
+                if (acceptor.is_open())
+                    startAccept();
+            });
     }
 };
 
@@ -363,7 +373,7 @@ void StreamServerAsio::stop()
     // Stop io_context and wait for thread
     d->work_guard_.reset();
     d->io_context_.stop();
-    for (auto &thread : d->io_threads_)
+    for (auto &thread: d->io_threads_)
     {
         if (thread.joinable())
             thread.join();
@@ -453,13 +463,13 @@ ssize_t StreamServerAsio::sendToAllClients(const IOV *iov, size_t n_iov)
     {
         std::lock_guard<std::mutex> lock(d->clients_mutex_);
         spdlog::info("Removing {} clients due to send errors", d->send_failed_.size());
-        auto new_end = std::remove_if(
-            d->clients_.begin(), d->clients_.end(),
-            [this](const std::unique_ptr<ClientBase> &c)
-            {
-                return std::find(d->send_failed_.begin(), d->send_failed_.end(), c.get())
-                    != d->send_failed_.end();
-            });
+        auto new_end =
+            std::remove_if(d->clients_.begin(), d->clients_.end(),
+                           [this](const std::unique_ptr<ClientBase> &c)
+                           {
+                               return std::find(d->send_failed_.begin(), d->send_failed_.end(),
+                                                c.get()) != d->send_failed_.end();
+                           });
         d->clients_.erase(new_end, d->clients_.end());
     }
 
