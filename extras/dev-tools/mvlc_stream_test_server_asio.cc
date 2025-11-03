@@ -8,8 +8,7 @@
 #include <mesytec-mvlc/util/signal_handling.h>
 #include <mesytec-mvlc/util/stopwatch.h>
 #include <mesytec-mvlc/util/storage_sizes.h>
-
-#include "mvlc_stream_test_support.h"
+#include <mesytec-mvlc/mvlc_stream_test_support.h>
 
 using namespace mesytec;
 using namespace mesytec::mvlc;
