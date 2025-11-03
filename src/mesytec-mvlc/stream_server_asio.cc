@@ -17,9 +17,12 @@ namespace mesytec::mvlc
 
 struct ClientBase
 {
+    using WriteHandler = std::function<void(const asio::error_code &ec, size_t bytesTransferred)>;
+
     virtual ~ClientBase() = default;
     virtual std::string remoteAddress() const = 0;
     virtual std::future<size_t> asyncWrite(const std::vector<asio::const_buffer> &buffers) = 0;
+    virtual void asyncWrite(const std::vector<asio::const_buffer> &buffers, WriteHandler handler) = 0;
     virtual void close() = 0;
 };
 
@@ -48,9 +51,22 @@ struct StreamServerAsio::Private
 
     // Reusable buffers for sendToAllClients to avoid allocations
     std::vector<asio::const_buffer> send_buffers_;
+    std::vector<ClientBase *> send_failed_;
+
+    #if 0 // for the future based approach: one future per client
     std::vector<std::future<size_t>> send_futures_;
     std::vector<ClientBase *> send_snapshot_;
-    std::vector<ClientBase *> send_failed_;
+    #else
+    struct WriteResult
+    {
+        asio::error_code ec = {};
+        size_t bytes_transferred = 0;
+    };
+    std::vector<WriteResult> send_results_;
+    std::mutex send_results_mutex_;
+    std::condition_variable send_results_cv_;
+    size_t send_results_pending_ = 0;
+    #endif
 };
 
 struct TcpClient: ClientBase
@@ -80,6 +96,11 @@ struct TcpClient: ClientBase
         return asio::async_write(socket, buffers, asio::use_future);
     }
 
+    void asyncWrite(const std::vector<asio::const_buffer> &buffers, WriteHandler handler)
+    {
+        asio::async_write(socket, buffers, handler);
+    }
+
     void close() override
     {
         asio::error_code ec;
@@ -102,6 +123,11 @@ struct UnixClient: ClientBase
     std::future<size_t> asyncWrite(const std::vector<asio::const_buffer> &buffers) override
     {
         return asio::async_write(socket, buffers, asio::use_future);
+    }
+
+    void asyncWrite(const std::vector<asio::const_buffer> &buffers, WriteHandler handler)
+    {
+        asio::async_write(socket, buffers, handler);
     }
 
     void close() override
@@ -415,6 +441,7 @@ ssize_t StreamServerAsio::sendToAllClients(const uint8_t *data, size_t size)
     return sendToAllClients(&iov, 1);
 }
 
+#if 0 // the future based approach
 ssize_t StreamServerAsio::sendToAllClients(const IOV *iov, size_t n_iov)
 {
     // Reuse vectors from Private to avoid allocations
@@ -475,5 +502,78 @@ ssize_t StreamServerAsio::sendToAllClients(const IOV *iov, size_t n_iov)
 
     return completed;
 }
+#else // the handler based approach
+ssize_t StreamServerAsio::sendToAllClients(const IOV *iov, size_t n_iov)
+{
+    // Reuse vectors from Private to avoid allocations
+    d->send_buffers_.clear();
+    d->send_failed_.clear();
+    d->send_results_.clear();
+
+    d->send_buffers_.reserve(n_iov);
+    for (size_t i = 0; i < n_iov; ++i)
+        d->send_buffers_.push_back(asio::buffer(iov[i].buf, iov[i].len));
+
+    {
+        std::lock_guard<std::mutex> lock(d->clients_mutex_);
+
+        if (d->clients_.empty())
+            return 0;
+
+        d->send_results_.resize(d->clients_.size());
+        d->send_results_pending_ = d->clients_.size();
+
+        for (size_t i=0; i<d->clients_.size(); ++i)
+        {
+            auto &client = d->clients_[i];
+
+            auto handler = [this, i](const asio::error_code &ec, size_t bytes_transferred)
+            {
+                {
+                    std::unique_lock<std::mutex> lock(d->send_results_mutex_);
+                    d->send_results_[i].ec = ec;
+                    d->send_results_[i].bytes_transferred = bytes_transferred;
+                    d->send_results_pending_--;
+                    lock.unlock();
+                    d->send_results_cv_.notify_one();
+                }
+            };
+
+            client->asyncWrite(d->send_buffers_, handler);
+        }
+    }
+
+    std::unique_lock<std::mutex> lock(d->send_results_mutex_);
+    d->send_results_cv_.wait(lock, [this]() { return d->send_results_pending_ == 0; });
+    size_t completed = 0;
+
+    for (size_t i = 0; i < d->send_results_.size(); ++i)
+    {
+        if (d->send_results_[i].ec)
+        {
+            d->send_failed_.push_back(d->clients_[i].get());
+        }
+        else
+            ++completed;
+    }
+
+    // Remove failed clients
+    if (!d->send_failed_.empty())
+    {
+        std::lock_guard<std::mutex> lock(d->clients_mutex_);
+        spdlog::info("Removing {} clients due to send errors", d->send_failed_.size());
+        auto new_end =
+            std::remove_if(d->clients_.begin(), d->clients_.end(),
+                           [this](const std::unique_ptr<ClientBase> &c)
+                           {
+                               return std::find(d->send_failed_.begin(), d->send_failed_.end(),
+                                                c.get()) != d->send_failed_.end();
+                           });
+        d->clients_.erase(new_end, d->clients_.end());
+    }
+
+    return completed;
+}
+#endif
 
 } // namespace mesytec::mvlc
