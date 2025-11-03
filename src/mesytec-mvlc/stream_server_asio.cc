@@ -21,8 +21,8 @@ struct ClientBase
 
     virtual ~ClientBase() = default;
     virtual std::string remoteAddress() const = 0;
-    virtual std::future<size_t> asyncWrite(const std::vector<asio::const_buffer> &buffers) = 0;
-    virtual void asyncWrite(const std::vector<asio::const_buffer> &buffers, WriteHandler handler) = 0;
+    virtual void asyncWrite(const std::vector<asio::const_buffer> &buffers,
+                            WriteHandler handler) = 0;
     virtual void close() = 0;
 };
 
@@ -36,10 +36,12 @@ struct StreamServerAsio::Private
     void addClient(std::unique_ptr<ClientBase> client);
     bool listenTcp(const std::string &uri);
     bool listenIpc(const std::string &path);
-    void start(size_t num_threads = 4);
+    void start(size_t num_threads = StreamServerAsio::DefaultIoThreads);
 
+    std::mutex send_mutex;
     asio::io_context io_context_;
     std::unique_ptr<asio::io_context::work> work_guard_;
+    std::mutex acceptors_lock;
     std::vector<std::unique_ptr<TcpAcceptor>> tcp_acceptors_;
 #ifdef ASIO_HAS_LOCAL_SOCKETS
     std::vector<std::unique_ptr<UnixAcceptor>> unix_acceptors_;
@@ -53,10 +55,6 @@ struct StreamServerAsio::Private
     std::vector<asio::const_buffer> send_buffers_;
     std::vector<ClientBase *> send_failed_;
 
-    #if 0 // for the future based approach: one future per client
-    std::vector<std::future<size_t>> send_futures_;
-    std::vector<ClientBase *> send_snapshot_;
-    #else
     struct WriteResult
     {
         asio::error_code ec = {};
@@ -66,7 +64,6 @@ struct StreamServerAsio::Private
     std::mutex send_results_mutex_;
     std::condition_variable send_results_cv_;
     size_t send_results_pending_ = 0;
-    #endif
 };
 
 struct TcpClient: ClientBase
@@ -89,11 +86,6 @@ struct TcpClient: ClientBase
         {
             return "unknown";
         }
-    }
-
-    std::future<size_t> asyncWrite(const std::vector<asio::const_buffer> &buffers) override
-    {
-        return asio::async_write(socket, buffers, asio::use_future);
     }
 
     void asyncWrite(const std::vector<asio::const_buffer> &buffers, WriteHandler handler)
@@ -119,11 +111,6 @@ struct UnixClient: ClientBase
     }
 
     std::string remoteAddress() const override { return "unix:local_client"; }
-
-    std::future<size_t> asyncWrite(const std::vector<asio::const_buffer> &buffers) override
-    {
-        return asio::async_write(socket, buffers, asio::use_future);
-    }
 
     void asyncWrite(const std::vector<asio::const_buffer> &buffers, WriteHandler handler)
     {
@@ -164,8 +151,6 @@ struct TcpAcceptor
                     asio::error_code opt_ec;
                     socket.set_option(asio::ip::tcp::no_delay(true), opt_ec);
                     socket.set_option(asio::socket_base::send_buffer_size(2 * 1024 * 1024), opt_ec);
-                    socket.set_option(asio::socket_base::receive_buffer_size(2 * 1024 * 1024),
-                                      opt_ec);
 
                     auto client = std::make_unique<TcpClient>(std::move(socket));
                     server->addClient(std::move(client));
@@ -200,17 +185,21 @@ struct UnixAcceptor
 
     void startAccept()
     {
-        acceptor.async_accept(socket,
-                              [this](const asio::error_code &ec)
-                              {
-                                  if (!ec)
-                                  {
-                                      auto client = std::make_unique<UnixClient>(std::move(socket));
-                                      server->addClient(std::move(client));
-                                  }
-                                  if (acceptor.is_open())
-                                      startAccept();
-                              });
+        acceptor.async_accept(
+            socket,
+            [this](const asio::error_code &ec)
+            {
+                if (!ec)
+                {
+                    asio::error_code opt_ec;
+                    socket.set_option(asio::socket_base::send_buffer_size(2 * 1024 * 1024), opt_ec);
+
+                    auto client = std::make_unique<UnixClient>(std::move(socket));
+                    server->addClient(std::move(client));
+                }
+                if (acceptor.is_open())
+                    startAccept();
+            });
     }
 };
 #endif
@@ -284,6 +273,7 @@ bool StreamServerAsio::Private::listenTcp(const std::string &uri)
             spdlog::info("Listening on TCP {}:{}", endpoint.endpoint().address().to_string(),
                          endpoint.endpoint().port());
             acceptor->startAccept();
+            std::lock_guard<std::mutex> lock(acceptors_lock);
             tcp_acceptors_.push_back(std::move(acceptor));
 
             if (scheme == "tcp4" || scheme == "tcp6")
@@ -311,6 +301,7 @@ bool StreamServerAsio::Private::listenIpc(const std::string &path)
 
         spdlog::info("Listening on IPC {}", path);
         acceptor->startAccept();
+        std::lock_guard<std::mutex> lock(acceptors_lock);
         unix_acceptors_.push_back(std::move(acceptor));
 
         return true;
@@ -362,15 +353,15 @@ bool StreamServerAsio::listen(const std::string &uri)
     return false;
 }
 
-bool StreamServerAsio::listen(const std::vector<std::string> &uris)
+size_t StreamServerAsio::listen(const std::vector<std::string> &uris)
 {
-    bool all_ok = true;
+    size_t res = 0;
     for (const auto &uri: uris)
     {
-        if (!listen(uri))
-            all_ok = false;
+        if (listen(uri))
+            ++res;
     }
-    return all_ok;
+    return res;
 }
 
 void StreamServerAsio::stop()
@@ -378,9 +369,13 @@ void StreamServerAsio::stop()
     if (!d->running_)
         return;
 
+    std::lock_guard<std::mutex> send_lock(d->send_mutex);
+
     d->running_ = false;
 
     // Close all acceptors
+    std::lock_guard<std::mutex> acceptors_lock(d->acceptors_lock);
+
     for (auto &acceptor: d->tcp_acceptors_)
         acceptor->acceptor.close();
 
@@ -396,7 +391,7 @@ void StreamServerAsio::stop()
             client->close();
     }
 
-    // Stop io_context and wait for thread
+    // Stop io_context and wait for threads
     d->work_guard_.reset();
     d->io_context_.stop();
     for (auto &thread: d->io_threads_)
@@ -416,6 +411,7 @@ void StreamServerAsio::stop()
 
 bool StreamServerAsio::isListening() const
 {
+    std::lock_guard<std::mutex> lock(d->acceptors_lock);
     return !d->tcp_acceptors_.empty()
 #ifdef ASIO_HAS_LOCAL_SOCKETS
            || !d->unix_acceptors_.empty()
@@ -441,70 +437,10 @@ ssize_t StreamServerAsio::sendToAllClients(const uint8_t *data, size_t size)
     return sendToAllClients(&iov, 1);
 }
 
-#if 0 // the future based approach
 ssize_t StreamServerAsio::sendToAllClients(const IOV *iov, size_t n_iov)
 {
-    // Reuse vectors from Private to avoid allocations
-    d->send_buffers_.clear();
-    d->send_futures_.clear();
-    d->send_snapshot_.clear();
-    d->send_failed_.clear();
+    std::lock_guard<std::mutex> send_locklock(d->send_mutex);
 
-    d->send_buffers_.reserve(n_iov);
-    for (size_t i = 0; i < n_iov; ++i)
-        d->send_buffers_.push_back(asio::buffer(iov[i].buf, iov[i].len));
-
-    {
-        std::lock_guard<std::mutex> lock(d->clients_mutex_);
-
-        if (d->clients_.empty())
-            return 0;
-
-        d->send_futures_.reserve(d->clients_.size());
-        d->send_snapshot_.reserve(d->clients_.size());
-
-        for (auto &client: d->clients_)
-        {
-            d->send_futures_.emplace_back(client->asyncWrite(d->send_buffers_));
-            d->send_snapshot_.push_back(client.get());
-        }
-    }
-
-    // Wait for ALL futures to complete (they execute concurrently on io_context)
-    size_t completed = 0;
-    for (size_t i = 0; i < d->send_futures_.size(); ++i)
-    {
-        try
-        {
-            d->send_futures_[i].get();
-            completed++;
-        }
-        catch (...)
-        {
-            d->send_failed_.push_back(d->send_snapshot_[i]);
-        }
-    }
-
-    // Remove failed clients
-    if (!d->send_failed_.empty())
-    {
-        std::lock_guard<std::mutex> lock(d->clients_mutex_);
-        spdlog::info("Removing {} clients due to send errors", d->send_failed_.size());
-        auto new_end =
-            std::remove_if(d->clients_.begin(), d->clients_.end(),
-                           [this](const std::unique_ptr<ClientBase> &c)
-                           {
-                               return std::find(d->send_failed_.begin(), d->send_failed_.end(),
-                                                c.get()) != d->send_failed_.end();
-                           });
-        d->clients_.erase(new_end, d->clients_.end());
-    }
-
-    return completed;
-}
-#else // the handler based approach
-ssize_t StreamServerAsio::sendToAllClients(const IOV *iov, size_t n_iov)
-{
     // Reuse vectors from Private to avoid allocations
     d->send_buffers_.clear();
     d->send_failed_.clear();
@@ -523,7 +459,7 @@ ssize_t StreamServerAsio::sendToAllClients(const IOV *iov, size_t n_iov)
         d->send_results_.resize(d->clients_.size());
         d->send_results_pending_ = d->clients_.size();
 
-        for (size_t i=0; i<d->clients_.size(); ++i)
+        for (size_t i = 0; i < d->clients_.size(); ++i)
         {
             auto &client = d->clients_[i];
 
@@ -574,6 +510,5 @@ ssize_t StreamServerAsio::sendToAllClients(const IOV *iov, size_t n_iov)
 
     return completed;
 }
-#endif
 
 } // namespace mesytec::mvlc

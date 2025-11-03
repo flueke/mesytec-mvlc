@@ -19,11 +19,13 @@ class MESYTEC_MVLC_EXPORT StreamServerAsio
         size_t len;
     };
 
+    static const size_t DefaultIoThreads = 1;
+
     StreamServerAsio();
     ~StreamServerAsio();
 
     bool listen(const std::string &uri);
-    bool listen(const std::vector<std::string> &uris);
+    size_t listen(const std::vector<std::string> &uris);
     void stop();
     bool isListening() const;
     std::vector<std::string> clients() const;
