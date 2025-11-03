@@ -87,6 +87,7 @@ target_include_directories(argh INTERFACE $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST
 
 
 # nng - nanomsg-next-gen - https://github.com/nanomsg/nng
+if(FALSE)
 find_package(nng QUIET)
 if(NOT nng AND NOT TARGET nng)
     set(nng_sources "${CMAKE_CURRENT_SOURCE_DIR}/nng-1.11")
@@ -97,6 +98,7 @@ if(NOT nng AND NOT TARGET nng)
     set(BUILD_SHARED_LIBS ON) # FIXME: relocation errors without this flag but it's a global setting. not good.
     add_subdirectory(${nng_sources})
 endif()
+endif(FALSE)
 
 # asio (non-boost)
 add_library(asio INTERFACE)

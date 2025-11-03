@@ -40,7 +40,6 @@ add_library(mesytec-mvlc SHARED
     readout_buffer.cc
     readout_buffer_queues.cc
     scanbus_support.cc
-    stream_server.cc
     stream_server_asio.cc
     util/counters.cc
     util/data_filter.cc
@@ -97,7 +96,6 @@ target_link_libraries(mesytec-mvlc
     PRIVATE asio
     PRIVATE minizip
     PRIVATE nlohmann_json::nlohmann_json
-    PRIVATE nng
     PRIVATE pthread
     PRIVATE yaml-cpp
     PUBLIC argh
@@ -215,5 +213,5 @@ if (MVLC_BUILD_TESTS)
         add_gtest(test_mvlc_listfile_zmq_ganil mvlc_listfile_zmq_ganil.test.cc)
     endif(ZMQ_FOUND)
     add_gtest(test_mvlc_factory mvlc_factory.test.cc)
-    add_gtest(test_stream_server stream_server.test.cc)
+    #add_gtest(test_stream_server stream_server.test.cc)
 endif(MVLC_BUILD_TESTS)
