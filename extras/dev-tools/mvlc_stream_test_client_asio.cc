@@ -4,7 +4,7 @@
 
 #include <asio.hpp>
 
-#include "mvlc_stream_test_support.h"
+#include "mesytec-mvlc/mvlc_stream_test_support.h"
 
 template <typename Sock, typename ReconnectFun>
 int run_client(Sock &socket, ReconnectFun reconnect);
