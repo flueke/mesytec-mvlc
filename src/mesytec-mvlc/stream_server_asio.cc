@@ -151,6 +151,7 @@ struct TcpAcceptor
                     asio::error_code opt_ec;
                     socket.set_option(asio::ip::tcp::no_delay(true), opt_ec);
                     socket.set_option(asio::socket_base::send_buffer_size(2 * 1024 * 1024), opt_ec);
+                    socket.set_option(asio::socket_base::receive_buffer_size(2 * 1024 * 1024), opt_ec);
 
                     auto client = std::make_unique<TcpClient>(std::move(socket));
                     server->addClient(std::move(client));
@@ -193,6 +194,7 @@ struct UnixAcceptor
                 {
                     asio::error_code opt_ec;
                     socket.set_option(asio::socket_base::send_buffer_size(2 * 1024 * 1024), opt_ec);
+                    socket.set_option(asio::socket_base::receive_buffer_size(2 * 1024 * 1024), opt_ec);
 
                     auto client = std::make_unique<UnixClient>(std::move(socket));
                     server->addClient(std::move(client));
@@ -417,6 +419,25 @@ bool StreamServerAsio::isListening() const
            || !d->unix_acceptors_.empty()
 #endif
         ;
+}
+
+std::vector<std::string> StreamServerAsio::listenUris() const
+{
+    std::lock_guard<std::mutex> lock(d->acceptors_lock);
+    std::vector<std::string> result;
+    for (auto &acceptor: d->tcp_acceptors_)
+    {
+        result.emplace_back(fmt::format("tcp://{}:{}",
+            acceptor->acceptor.local_endpoint().address().to_string(),
+            acceptor->acceptor.local_endpoint().port()));
+    }
+#ifdef ASIO_HAS_LOCAL_SOCKETS
+    for (auto &acceptor: d->unix_acceptors_)
+    {
+        result.emplace_back(fmt::format("ipc://{}", acceptor->acceptor.local_endpoint().path()));
+    }
+#endif
+    return result;;
 }
 
 std::vector<std::string> StreamServerAsio::clients() const

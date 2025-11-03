@@ -28,6 +28,7 @@ class MESYTEC_MVLC_EXPORT StreamServerAsio
     size_t listen(const std::vector<std::string> &uris);
     void stop();
     bool isListening() const;
+    std::vector<std::string> listenUris() const;
     std::vector<std::string> clients() const;
 
     // Send data to all clients in a blocking fashion
