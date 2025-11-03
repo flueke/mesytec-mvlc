@@ -23,7 +23,7 @@ struct PACK_AND_ALIGN4 TestBuffer
     uint32_t buffer_size; // Number of uint32_t values following this header
 };
 
-inline void generate_test_data(std::vector<u8> &dest, u32 bufferNumber, size_t dataWords = 256)
+inline void generate_test_data(std::vector<u8> &dest, u32 bufferNumber, size_t dataWords = 256, bool doFill = true)
 {
     dest.resize(sizeof(TestBuffer) + dataWords * sizeof(u32));
     auto header = reinterpret_cast<TestBuffer *>(dest.data());
@@ -33,9 +33,10 @@ inline void generate_test_data(std::vector<u8> &dest, u32 bufferNumber, size_t d
     header->sequence_number = bufferNumber;
     header->buffer_size = static_cast<u32>(dataWords);
 
-    std::generate(data, data + dataWords, [n = 0u]() mutable {
-        return n++;
-    });
+    if (doFill)
+        std::generate(data, data + dataWords, [n = 0u]() mutable {
+            return n++;
+        });
 }
 
 inline bool verify_test_data(const std::vector<u8> &buffer, u32 expectedBufferNumber)

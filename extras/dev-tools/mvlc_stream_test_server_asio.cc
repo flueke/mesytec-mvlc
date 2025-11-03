@@ -2,6 +2,7 @@
 #include <iostream>
 
 #include <argh.h>
+#include <asio.hpp>
 #include <mesytec-mvlc/stream_server_asio.h>
 #include <mesytec-mvlc/util/logging.h>
 #include <mesytec-mvlc/util/signal_handling.h>
@@ -16,16 +17,16 @@ using namespace mesytec::mvlc;
 static const std::vector<std::string> listenUris = {
     "tcp4://127.0.0.1:42333",
     //"tcp4://0.0.0.0:42334",
-#if 0
-//#ifdef ASIO_HAS_LOCAL_SOCKETS
+//#if 0
+#ifdef ASIO_HAS_LOCAL_SOCKETS
     "ipc:///tmp/mvlc_stream_test_server_asio.ipc",
-    "ipc:///tmp/mvlc_stream_test_server_asio2.ipc",
+    //"ipc:///tmp/mvlc_stream_test_server_asio2.ipc",
 #endif
 };
 
 int main(int argc, char **argv)
 {
-    //mvlc::util::setup_signal_handlers();
+    mvlc::util::setup_signal_handlers();
     spdlog::set_level(spdlog::level::info);
     mvlc::set_global_log_level(spdlog::level::info);
 
@@ -84,6 +85,9 @@ int main(int argc, char **argv)
         size_t buffersSentInInterval = 0;
         util::Stopwatch swReport;
 
+        generate_test_data(sendBuffer, static_cast<u32>(iteration), bufferSizeWords);
+        assert(verify_test_data(sendBuffer, static_cast<u32>(iteration)));
+
         while (!mvlc::util::signal_received())
         {
             if (auto interval = swReport.get_interval(); interval >= std::chrono::seconds(1))
@@ -108,8 +112,8 @@ int main(int argc, char **argv)
                 buffersSentInInterval = 0;
             }
 
-            generate_test_data(sendBuffer, static_cast<u32>(iteration), bufferSizeWords);
-            assert(verify_test_data(sendBuffer, static_cast<u32>(iteration)));
+            generate_test_data(sendBuffer, static_cast<u32>(iteration), bufferSizeWords, false);
+            //assert(verify_test_data(sendBuffer, static_cast<u32>(iteration)));
 
             auto bufferView = std::basic_string_view<std::uint32_t>(
                 reinterpret_cast<const std::uint32_t *>(sendBuffer.data()),
