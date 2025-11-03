@@ -55,12 +55,12 @@ int main(int argc, char **argv)
     if (parser[{"-h", "--help"}])
     {
         std::cout << "Usage: " << argv[0]
-                  << " [--log-level level][--trace][--debug][--info][--warn][--buffer-size <words=1 << 10>]\n";
+                  << " [--log-level level][--trace][--debug][--info][--warn][--buffer-size <words>]\n";
         return 0;
     }
 
     std::string arg;
-    size_t bufferSizeWords = 1ul << 10;
+    size_t bufferSizeWords = (1ul << 20) / sizeof(u32); // 1 MB default
 
     if (parser("--buffer-size") >> arg)
     {
@@ -85,7 +85,7 @@ int main(int argc, char **argv)
         util::Stopwatch swReport;
 
         generate_test_data(sendBuffer, static_cast<u32>(iteration), bufferSizeWords);
-        assert(verify_test_data(sendBuffer, static_cast<u32>(iteration)));
+        assert(verify_test_data({sendBuffer.data(), sendBuffer.size()}, static_cast<u32>(iteration)));
 
         while (!mvlc::util::signal_received())
         {

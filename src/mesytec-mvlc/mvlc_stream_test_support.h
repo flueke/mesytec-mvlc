@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <cstring>
+#include <string_view>
 #include <vector>
 
 #include <argh.h>
@@ -40,7 +41,7 @@ inline void generate_test_data(std::vector<u8> &dest, u32 bufferNumber, size_t d
         });
 }
 
-inline bool verify_test_data(const std::vector<u8> &buffer, u32 expectedBufferNumber)
+inline bool verify_test_data(const std::basic_string_view<u8> &buffer, u32 expectedBufferNumber)
 {
     if (buffer.size() < sizeof(TestBuffer))
         return false;
