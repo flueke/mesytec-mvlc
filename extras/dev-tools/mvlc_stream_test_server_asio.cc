@@ -67,7 +67,7 @@ int main(int argc, char **argv)
         bufferSizeWords = std::stoul(arg);
     }
 
-    spdlog::info("Using test buffer size of {} words", bufferSizeWords);
+    spdlog::info("Using test buffer size of {} words, {:0.2f} MB", bufferSizeWords, bufferSizeWords * sizeof(u32) / (util::Megabytes(1) * 1.0));
 
     {
         StreamServerAsio server;

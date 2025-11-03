@@ -4,7 +4,11 @@
 
 #include <asio.hpp>
 
+#include <mesytec-mvlc/util/storage_sizes.h>
+#include <mesytec-mvlc/util/stopwatch.h>
 #include "mesytec-mvlc/mvlc_stream_test_support.h"
+
+using namespace mesytec::mvlc;
 
 template <typename Sock, typename ReconnectFun>
 int run_client(Sock &socket, ReconnectFun reconnect);
@@ -40,7 +44,7 @@ std::error_code reconnect_tcp(asio::ip::tcp::socket &socket, const std::string &
 
 int main(int argc, char *argv[])
 {
-    std::string tcpHost = "localhost";
+    std::string tcpHost = "127.0.0.1";
     std::string tcpPort = "42333";
     std::string socketPath = "/tmp/mvlc_stream_test_server.ipc";
     enum class Method
@@ -146,6 +150,11 @@ template <typename Sock, typename ReconnectFun> int run_client(Sock &socket, Rec
     std::vector<u8> destBuffer;
     ssize_t lastSeqNum = -1;
     std::error_code ec;
+    size_t iteration = 0;
+    size_t totalBytesReceived = 0;
+    size_t bytesReceivedInInterval = 0;
+    size_t buffersReceivedInInterval = 0;
+    util::Stopwatch swReport;
 
     while (true)
     {
@@ -171,6 +180,9 @@ template <typename Sock, typename ReconnectFun> int run_client(Sock &socket, Rec
             destBuffer.resize(sizeof(TestBuffer));
             auto bytesRead =
                 asio::read(socket, asio::buffer(destBuffer.data(), destBuffer.size()), ec);
+
+            totalBytesReceived += bytesRead;
+            bytesReceivedInInterval += bytesRead;
 
             if (ec)
             {
@@ -222,6 +234,10 @@ template <typename Sock, typename ReconnectFun> int run_client(Sock &socket, Rec
                 bytesRead = asio::read(
                     socket, asio::buffer(destBuffer.data() + sizeof(TestBuffer), bytesToRead));
 
+                totalBytesReceived += bytesRead;
+                bytesReceivedInInterval += bytesRead;
+                ++buffersReceivedInInterval;
+
                 if (bytesRead != bytesToRead)
                 {
                     spdlog::error("Connection closed while reading data");
@@ -239,6 +255,26 @@ template <typename Sock, typename ReconnectFun> int run_client(Sock &socket, Rec
                     break;
                 }
 #endif
+            }
+
+            if (auto interval = swReport.get_interval(); interval >= std::chrono::seconds(1))
+            {
+                spdlog::info(
+                    "Received in the last {} ms: {:.2f} MB ({} buffers), rate={:.2f} MB/s ({:.2f} "
+                    "buffers/s) (total {} MB received)",
+                    std::chrono::duration_cast<std::chrono::milliseconds>(interval).count(),
+                    bytesReceivedInInterval / util::Megabytes(1) * 1.0,
+                    buffersReceivedInInterval,
+                    bytesReceivedInInterval / util::Megabytes(1) * 1.0 /
+                        (std::chrono::duration_cast<std::chrono::milliseconds>(interval).count() *
+                         1.0 / 1000.0),
+                    buffersReceivedInInterval /
+                        (std::chrono::duration_cast<std::chrono::milliseconds>(interval).count() *
+                         1.0 / 1000.0),
+                    totalBytesReceived / util::Megabytes(1) * 1.0);
+                swReport.interval();
+                bytesReceivedInInterval = 0;
+                buffersReceivedInInterval = 0;
             }
         }
         }
