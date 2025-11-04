@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <atomic>
 #include <condition_variable>
+#include <mutex>
 #include <spdlog/spdlog.h>
 #include <thread>
 
@@ -207,7 +208,8 @@ struct UnixAcceptor
 #endif
 
 StreamServerAsio::StreamServerAsio()
-    : d(std::make_unique<Private>())
+    : IStreamServer()
+    , d(std::make_unique<Private>())
 {
 }
 
@@ -355,17 +357,6 @@ bool StreamServerAsio::listen(const std::string &uri)
     return false;
 }
 
-size_t StreamServerAsio::listen(const std::vector<std::string> &uris)
-{
-    size_t res = 0;
-    for (const auto &uri: uris)
-    {
-        if (listen(uri))
-            ++res;
-    }
-    return res;
-}
-
 void StreamServerAsio::stop()
 {
     if (!d->running_)
@@ -450,12 +441,6 @@ std::vector<std::string> StreamServerAsio::clients() const
         result.push_back(client->remoteAddress());
 
     return result;
-}
-
-ssize_t StreamServerAsio::sendToAllClients(const uint8_t *data, size_t size)
-{
-    IOV iov{data, size};
-    return sendToAllClients(&iov, 1);
 }
 
 ssize_t StreamServerAsio::sendToAllClients(const IOV *iov, size_t n_iov)

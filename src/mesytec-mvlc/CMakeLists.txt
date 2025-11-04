@@ -41,6 +41,7 @@ add_library(mesytec-mvlc SHARED
     readout_buffer_queues.cc
     scanbus_support.cc
     stream_server_asio.cc
+    stream_server_interface.cc
     util/counters.cc
     util/data_filter.cc
     util/filesystem.cc
