@@ -21,3 +21,7 @@ endif()
 
 install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/cmake-example
     DESTINATION share/mesytec-mvlc)
+
+add_executable(mvlc_stream_client_asio mvlc_stream_client_asio.cc)
+target_link_libraries(mvlc_stream_client_asio PRIVATE mesytec-mvlc asio pthread)
+install(TARGETS mvlc_stream_client_asio RUNTIME DESTINATION bin)
