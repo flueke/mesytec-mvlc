@@ -15,7 +15,7 @@ using namespace mesytec::mvlc;
 
 static const std::vector<std::string> listenUris = {
     "tcp4://127.0.0.1:42333",
-    //"tcp4://0.0.0.0:42334",
+    "tcp4://0.0.0.0:42334",
 //#if 0
 #ifdef ASIO_HAS_LOCAL_SOCKETS
     "ipc:///tmp/mvlc_stream_test_server_asio.ipc",
