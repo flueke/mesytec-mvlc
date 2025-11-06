@@ -59,7 +59,7 @@ int main(int argc, char *argv[])
 {
     std::string tcpHost = "127.0.0.1";
     std::string tcpPort = "42333";
-    std::string socketPath = "/tmp/mvlc_stream_test_server.ipc";
+    std::string socketPath = "/tmp/mvlc_stream_test_server_asio.ipc";
     enum class Method
     {
         TCP,
