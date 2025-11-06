@@ -1,15 +1,17 @@
 #include <argh.h>
 #include <asio.hpp>
+#include <cassert>
 #include <chrono>
 #include <iostream>
 #include <spdlog/spdlog.h>
 #include <string>
 
-inline std::string str_tolower(std::string s)
-{
-    std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c) { return std::tolower(c); });
-    return s;
-}
+#include <mesytec-mvlc/util/int_types.h>
+#include <mesytec-mvlc/util/stopwatch.h>
+#include <mesytec-mvlc/util/storage_sizes.h>
+#include <mesytec-mvlc/util/string_util.h>
+
+using namespace mesytec::mvlc;
 
 std::error_code reconnect_ipc(asio::local::stream_protocol::socket &socket,
                               const std::string &socketPath)
@@ -42,7 +44,7 @@ std::error_code reconnect_tcp(asio::ip::tcp::socket &socket, const std::string &
 struct ClientContext
 {
     bool isRawFormat = false;
-    std::vector<std::uint8_t> destBuffer;
+    std::vector<u8> destBuffer;
     size_t destBufferUsed = 0;
     ssize_t lastSeqNum = -1;
     size_t totalBytesReceived = 0;
@@ -50,19 +52,23 @@ struct ClientContext
     size_t buffersReceivedInInterval = 0;
     size_t totalReads = 0;
     size_t totalBuffersReceived = 0;
+    util::Stopwatch swReport;
 };
 
-template<typename Sock>
-size_t read_at_least(Sock &socket, std::uint8_t *dest, size_t bytesNeeded, std::error_code &ec)
+template <typename Sock>
+size_t read_at_least(Sock &socket, u8 *dest, size_t bytesNeeded, std::error_code &ec)
 {
     size_t bytesRead = 0;
     while (bytesRead < bytesNeeded && !ec)
     {
         auto asioDest = asio::buffer(dest + bytesRead, bytesNeeded - bytesRead);
-        totalBytesRead += asio::read(socket, asioDest, ec);
+        bytesRead += asio::read(socket, asioDest, ec);
     }
     return bytesRead;
 }
+
+// Must return the number of bytes consumed.
+size_t process_data(ClientContext &ctx, std::basic_string_view<u32> buffer);
 
 template <typename Sock, typename ReconnectFun>
 int run_client(Sock &socket, ReconnectFun reconnect, ClientContext &ctx)
@@ -80,7 +86,7 @@ int run_client(Sock &socket, ReconnectFun reconnect, ClientContext &ctx)
         switch (state)
         {
         case State::Connecting:
-            if (ec = reconnect())
+            if ((ec = reconnect()))
             {
                 spdlog::warn("Failed to connect to server: {}", ec.message());
                 std::this_thread::sleep_for(std::chrono::milliseconds(250));
@@ -89,30 +95,29 @@ int run_client(Sock &socket, ReconnectFun reconnect, ClientContext &ctx)
             {
                 state = State::Connected;
                 spdlog::info("Connected to server");
-                clientState.lastSeqNum = -1;
-                clientState.destBufferUsed = 0;
+                ctx.lastSeqNum = -1;
+                ctx.destBufferUsed = 0;
             }
             break;
 
         case State::Connected:
         {
-            clientState.destBuffer.resize(util::Megabytes(2));
+            ctx.destBuffer.resize(util::Megabytes(1));
+            const size_t minBytes = ctx.isRawFormat ? sizeof(u32) : 2 * sizeof(u32);
             size_t bytesRead = 0;
 
-            while (clientState.destBufferUsed < sizeof(TestBuffer) && !ec)
+            while (ctx.destBufferUsed < minBytes && !ec)
             {
-                auto dest =
-                    asio::buffer(clientState.destBuffer.data() + clientState.destBufferUsed,
-                                 clientState.destBuffer.size() - clientState.destBufferUsed);
-
+                auto dest = asio::buffer(ctx.destBuffer.data() + ctx.destBufferUsed,
+                                         ctx.destBuffer.size() - ctx.destBufferUsed);
                 bytesRead = asio::read(socket, dest, ec);
 
                 if (!ec)
                 {
-                    clientState.destBufferUsed += bytesRead;
-                    clientState.totalBytesReceived += bytesRead;
-                    clientState.bytesReceivedInInterval += bytesRead;
-                    clientState.totalReads += 1;
+                    ctx.destBufferUsed += bytesRead;
+                    ctx.totalBytesReceived += bytesRead;
+                    ctx.bytesReceivedInInterval += bytesRead;
+                    ctx.totalReads += 1;
                 }
             }
 
@@ -134,121 +139,46 @@ int run_client(Sock &socket, ReconnectFun reconnect, ClientContext &ctx)
                 break;
             }
 
-            auto testBuffer = reinterpret_cast<const TestBuffer *>(clientState.destBuffer.data());
+            spdlog::trace("Buffer size after reading: {} bytes, {} words", ctx.destBufferUsed,
+                          ctx.destBufferUsed / sizeof(u32));
 
-            spdlog::trace("Received TestBuffer header: magic={:#010x}, sequence_number={}, "
-                          "buffer_size={} "
-                          "words ({} bytes)",
-                          testBuffer->magic, testBuffer->sequence_number, testBuffer->buffer_size,
-                          testBuffer->buffer_size * sizeof(u32));
-
-            if (testBuffer->magic != MAGIC_PATTERN)
+            std::basic_string_view<u32> bufferView(reinterpret_cast<u32 *>(ctx.destBuffer.data()),
+                                                   ctx.destBufferUsed / sizeof(u32));
+            size_t bytesConsumed = process_data(ctx, bufferView);
+            assert(bytesConsumed <= ctx.destBufferUsed);
+            if (bytesConsumed < ctx.destBufferUsed)
             {
-                spdlog::error("Invalid magic pattern in received buffer: {:#010x}",
-                              testBuffer->magic);
-                state = State::Connecting;
-                break;
-            }
-
-            if (clientState.lastSeqNum != -1 &&
-                testBuffer->sequence_number != static_cast<u32>(clientState.lastSeqNum + 1u))
-            {
-                spdlog::warn("Buffer loss detected: last seq num {}, current seq num {}",
-                             clientState.lastSeqNum, testBuffer->sequence_number);
-            }
-
-            clientState.lastSeqNum = testBuffer->sequence_number;
-
-            size_t totalBytesNeeded = sizeof(TestBuffer) + testBuffer->buffer_size * sizeof(u32);
-            clientState.destBuffer.resize(
-                std::max(totalBytesNeeded, clientState.destBuffer.size()));
-            // have to update the pointer to the header after resizing!
-            testBuffer = reinterpret_cast<const TestBuffer *>(clientState.destBuffer.data());
-
-            while (clientState.destBufferUsed < totalBytesNeeded && !ec)
-            {
-                auto dest =
-                    asio::buffer(clientState.destBuffer.data() + clientState.destBufferUsed,
-                                 clientState.destBuffer.size() - clientState.destBufferUsed);
-
-                bytesRead = asio::read(socket, dest, ec);
-
-                if (!ec)
-                {
-                    clientState.destBufferUsed += bytesRead;
-                    clientState.totalBytesReceived += bytesRead;
-                    clientState.bytesReceivedInInterval += bytesRead;
-                    clientState.totalReads += 1;
-                }
-            }
-
-            if (ec)
-            {
-                if (ec == asio::error::eof)
-                {
-                    spdlog::warn("Connection closed by server");
-                }
-                else if (ec == asio::error::connection_reset || ec == asio::error::broken_pipe)
-                {
-                    spdlog::warn("Connection lost: {}", ec.message());
-                }
-                else
-                {
-                    spdlog::warn("Error while reading from server: {}", ec.message());
-                }
-                state = State::Connecting;
-                break;
-            }
-
-            ++clientState.buffersReceivedInInterval;
-            ++clientState.totalBuffersReceived;
-
-            std::basic_string_view<u8> bufferView(clientState.destBuffer.data(),
-                                                  sizeof(TestBuffer) +
-                                                      testBuffer->buffer_size * sizeof(u32));
-
-#if 1
-            if (!verify_test_data(bufferView, testBuffer->sequence_number))
-            {
-                spdlog::error("Data verification failed for buffer {}",
-                              testBuffer->sequence_number);
-            }
-#endif
-
-            // Move any remaining data to the front of the buffer
-            if (clientState.destBufferUsed > totalBytesNeeded)
-            {
-                size_t remaining = clientState.destBufferUsed - totalBytesNeeded;
-                std::memmove(clientState.destBuffer.data(),
-                             clientState.destBuffer.data() + totalBytesNeeded, remaining);
-                clientState.destBufferUsed = remaining;
+                // move remaining data to the front of the buffer
+                size_t bytesRemaining = ctx.destBufferUsed - bytesConsumed;
+                std::memmove(ctx.destBuffer.data(), ctx.destBuffer.data() + bytesConsumed,
+                             bytesRemaining);
+                ctx.destBufferUsed = bytesRemaining;
             }
             else
             {
-                clientState.destBufferUsed = 0;
+                ctx.destBufferUsed = 0;
             }
 
-            if (auto interval = clientState.swReport.get_interval();
-                interval >= std::chrono::seconds(1))
+            if (auto interval = ctx.swReport.get_interval(); interval >= std::chrono::seconds(1))
             {
                 spdlog::info(
                     "Received in the last {} ms: {:.2f} MB ({} buffers), rate={:.2f} MB/s ({:.2f} "
                     "buffers/s) (total {} MB received), avg {:.2f} reads per buffer",
                     std::chrono::duration_cast<std::chrono::milliseconds>(interval).count(),
-                    clientState.bytesReceivedInInterval / util::Megabytes(1) * 1.0,
-                    clientState.buffersReceivedInInterval,
-                    clientState.bytesReceivedInInterval / util::Megabytes(1) * 1.0 /
+                    ctx.bytesReceivedInInterval / util::Megabytes(1) * 1.0,
+                    ctx.buffersReceivedInInterval,
+                    ctx.bytesReceivedInInterval / util::Megabytes(1) * 1.0 /
                         (std::chrono::duration_cast<std::chrono::milliseconds>(interval).count() *
                          1.0 / 1000.0),
-                    clientState.buffersReceivedInInterval /
+                    ctx.buffersReceivedInInterval /
                         (std::chrono::duration_cast<std::chrono::milliseconds>(interval).count() *
                          1.0 / 1000.0),
-                    clientState.totalBytesReceived / util::Megabytes(1) * 1.0,
-                    clientState.totalReads * 1.0 / clientState.totalBuffersReceived);
+                    ctx.totalBytesReceived / util::Megabytes(1) * 1.0,
+                    ctx.totalReads * 1.0 / ctx.totalBuffersReceived);
 
-                clientState.swReport.interval();
-                clientState.bytesReceivedInInterval = 0;
-                clientState.buffersReceivedInInterval = 0;
+                ctx.swReport.interval();
+                ctx.bytesReceivedInInterval = 0;
+                ctx.buffersReceivedInInterval = 0;
             }
         }
         }
@@ -264,7 +194,7 @@ int main(int argc, char *argv[])
     {
         std::string logLevelName;
         if (parser("--log-level") >> logLevelName)
-            logLevelName = str_tolower(logLevelName);
+            logLevelName = util::str_tolower(logLevelName);
         else if (parser["--trace"])
             logLevelName = "trace";
         else if (parser["--debug"])
@@ -362,4 +292,66 @@ int main(int argc, char *argv[])
     {
         std::cerr << e.what() << '\n';
     }
+}
+
+// Unframed readout data. Cannot distinguish server created loss from UDP packet
+// loss that occured at the readout side.
+//
+// Returns the number of words consumed.
+size_t process_data_raw(ClientContext &ctx, std::basic_string_view<u32> data)
+{
+    if (data.empty())
+        return 0;
+    return 0;
+}
+
+// Framed format: bufferNumber: u32, bufferSize: u32, buffer: u32[]
+//
+// Allows to detect buffers skipped by the server based on the sequence number.
+// E.g. if the server operates on a best-effort basis and at least one connected
+// client is too slow to keep up with the data volume the server will drop
+// buffers.
+// Also allows to distinguish between server created loss and UDP packet loss at
+// the readout side.
+//
+// Returns the number of words consumed.
+size_t process_data_framed(ClientContext &ctx, std::basic_string_view<u32> data)
+{
+    if (data.size() < 2)
+        return 0;
+
+    u32 seqNum = data[0];
+    u32 wordsInBuffer = data[1];
+
+    if (ctx.lastSeqNum != -1 && data[0] != static_cast<u32>(ctx.lastSeqNum + 1u))
+    {
+        spdlog::warn("Buffer loss detected: last seq num {}, current seq num {}", ctx.lastSeqNum,
+                     seqNum);
+    }
+
+    if (data.size() < 2 + wordsInBuffer)
+    {
+        // not enough data yet
+        return 0;
+    }
+
+    std::basic_string_view<u32> rawView = data.substr(2, wordsInBuffer);
+    size_t wordsProcessed = process_data_raw(ctx, rawView);
+
+    if (wordsProcessed != wordsInBuffer)
+    {
+        // This should not happen. The server should guarantee that only complete frames are sent.
+        spdlog::error("Format error: framed buffer with seq num {} contains {} words, but only {} "
+                      "words could be processed.",
+                      seqNum, wordsInBuffer, wordsProcessed);
+    }
+
+    return 2 + wordsProcessed;
+}
+
+size_t process_data(ClientContext &ctx, std::basic_string_view<u32> data)
+{
+    if (!ctx.isRawFormat)
+        return process_data_framed(ctx, data);
+    return process_data_raw(ctx, data);
 }
