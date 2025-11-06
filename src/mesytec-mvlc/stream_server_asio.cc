@@ -42,7 +42,7 @@ struct StreamServerAsio::Private
     std::mutex send_mutex;
     asio::io_context io_context_;
     std::unique_ptr<asio::io_context::work> work_guard_;
-    std::mutex acceptors_lock;
+    std::mutex acceptors_mutex;
     std::vector<std::unique_ptr<TcpAcceptor>> tcp_acceptors_;
 #ifdef ASIO_HAS_LOCAL_SOCKETS
     std::vector<std::unique_ptr<UnixAcceptor>> unix_acceptors_;
@@ -277,7 +277,7 @@ bool StreamServerAsio::Private::listenTcp(const std::string &uri)
             spdlog::info("Listening on TCP {}:{}", endpoint.endpoint().address().to_string(),
                          endpoint.endpoint().port());
             acceptor->startAccept();
-            std::lock_guard<std::mutex> lock(acceptors_lock);
+            std::lock_guard<std::mutex> lock(acceptors_mutex);
             tcp_acceptors_.push_back(std::move(acceptor));
 
             if (scheme == "tcp4" || scheme == "tcp6")
@@ -305,7 +305,7 @@ bool StreamServerAsio::Private::listenIpc(const std::string &path)
 
         spdlog::info("Listening on IPC {}", path);
         acceptor->startAccept();
-        std::lock_guard<std::mutex> lock(acceptors_lock);
+        std::lock_guard<std::mutex> lock(acceptors_mutex);
         unix_acceptors_.push_back(std::move(acceptor));
 
         return true;
@@ -367,22 +367,36 @@ void StreamServerAsio::stop()
     d->running_ = false;
 
     // Close all acceptors
-    std::lock_guard<std::mutex> acceptors_lock(d->acceptors_lock);
+    std::lock_guard<std::mutex> acceptors_lock(d->acceptors_mutex);
 
+    std::vector<std::future<void>> futures;
     for (auto &acceptor: d->tcp_acceptors_)
-        acceptor->acceptor.close();
+    {
+        std::packaged_task<void()> task([&acceptor]() { acceptor->acceptor.close(); });
+        futures.push_back(asio::post(acceptor->acceptor.get_executor(), asio::use_future(std::move(task))));
+    }
 
 #ifdef ASIO_HAS_LOCAL_SOCKETS
     for (auto &acceptor: d->unix_acceptors_)
-        acceptor->acceptor.close();
+    {
+        std::packaged_task<void()> task([&acceptor]() { acceptor->acceptor.close(); });
+        futures.push_back(asio::post(acceptor->acceptor.get_executor(), asio::use_future(std::move(task))));
+    }
 #endif
 
     // Close all client connections
     {
         std::lock_guard<std::mutex> lock(d->clients_mutex_);
         for (auto &client: d->clients_)
-            client->close();
+        {
+            std::packaged_task<void()> task([&client]() { client->close(); });
+            futures.push_back(asio::post(d->io_context_.get_executor(), asio::use_future(std::move(task))));
+        }
     }
+
+    // Wait for all posts to complete
+    for (auto &future: futures)
+        future.wait();
 
     // Stop io_context and wait for threads
     d->work_guard_.reset();
@@ -404,7 +418,7 @@ void StreamServerAsio::stop()
 
 bool StreamServerAsio::isListening() const
 {
-    std::lock_guard<std::mutex> lock(d->acceptors_lock);
+    std::lock_guard<std::mutex> lock(d->acceptors_mutex);
     return !d->tcp_acceptors_.empty()
 #ifdef ASIO_HAS_LOCAL_SOCKETS
            || !d->unix_acceptors_.empty()
@@ -414,7 +428,7 @@ bool StreamServerAsio::isListening() const
 
 std::vector<std::string> StreamServerAsio::listenUris() const
 {
-    std::lock_guard<std::mutex> lock(d->acceptors_lock);
+    std::lock_guard<std::mutex> lock(d->acceptors_mutex);
     std::vector<std::string> result;
     for (auto &acceptor: d->tcp_acceptors_)
     {
