@@ -89,7 +89,7 @@ struct TcpClient: ClientBase
         }
     }
 
-    void asyncWrite(const std::vector<asio::const_buffer> &buffers, WriteHandler handler)
+    void asyncWrite(const std::vector<asio::const_buffer> &buffers, WriteHandler handler) override
     {
         asio::async_write(socket, buffers, handler);
     }
@@ -113,7 +113,7 @@ struct UnixClient: ClientBase
 
     std::string remoteAddress() const override { return "unix:local_client"; }
 
-    void asyncWrite(const std::vector<asio::const_buffer> &buffers, WriteHandler handler)
+    void asyncWrite(const std::vector<asio::const_buffer> &buffers, WriteHandler handler) override
     {
         asio::async_write(socket, buffers, handler);
     }
