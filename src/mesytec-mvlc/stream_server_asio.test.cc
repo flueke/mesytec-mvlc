@@ -42,7 +42,7 @@ class StreamServerTestBase: public ::testing::TestWithParam<std::vector<std::str
     static constexpr size_t TEST_BUFFER_SIZE = 1024;
 };
 
-TEST(StreamServerTest, CanListen)
+TEST(StreamServerTest, CanListenAndStop)
 {
     StreamServerAsio server;
     EXPECT_FALSE(server.isListening());
@@ -52,7 +52,7 @@ TEST(StreamServerTest, CanListen)
                                      ("mvlc_test_stream_server_asio-" + std::to_string(getpid())))
                                         .string());
 
-    for (size_t i = 0; i < 1; ++i)
+    for (size_t i = 0; i < 10; ++i)
     {
         // for tcp let the OS pick a port
         ASSERT_TRUE(server.listen("tcp://127.0.0.1:0"));
@@ -71,8 +71,9 @@ TEST(StreamServerTest, CanListen)
     }
 }
 
-TEST(StreamServerTest, CanListenAgain)
+TEST(StreamServerTest, CanListenWithNewInstance)
 {
+    for (size_t j = 0; j < 10; ++j)
     {
         StreamServerAsio server;
         EXPECT_FALSE(server.isListening());
@@ -82,34 +83,7 @@ TEST(StreamServerTest, CanListenAgain)
                                     ("mvlc_test_stream_server_asio-" + std::to_string(getpid())))
                                        .string());
 
-        for (size_t i = 0; i < 1; ++i)
-        {
-            ASSERT_TRUE(server.listen("tcp://127.0.0.1:43333"));
-            ASSERT_TRUE(server.listen("tcp://127.0.0.1:43334"));
-            ASSERT_TRUE(server.listen(ipcPath));
-
-            spdlog::info("Listening URIs: {}", fmt::join(server.listenUris(), ", "));
-
-            EXPECT_TRUE(server.isListening());
-            ASSERT_EQ(server.listenUris().size(), 3u);
-
-            server.stop();
-
-            ASSERT_FALSE(server.isListening());
-            ASSERT_EQ(server.listenUris().size(), 0u);
-        }
-    }
-
-    {
-        StreamServerAsio server;
-        EXPECT_FALSE(server.isListening());
-
-        auto ipcPath = fmt::format("ipc://{}.ipc",
-                                   (std::filesystem::temp_directory_path() /
-                                    ("mvlc_test_stream_server_asio-" + std::to_string(getpid())))
-                                       .string());
-
-        for (size_t i = 0; i < 1; ++i)
+        for (size_t i = 0; i < 10; ++i)
         {
             ASSERT_TRUE(server.listen("tcp://127.0.0.1:43333"));
             ASSERT_TRUE(server.listen("tcp://127.0.0.1:43334"));
