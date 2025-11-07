@@ -11,16 +11,25 @@
 #define ASIO_ENABLE_HANDLER_TRACKING
 #include <asio.hpp>
 
-#define HANDLER_LOCATION \
-  ASIO_HANDLER_LOCATION((__FILE__, __LINE__, __func__))
+#define HANDLER_LOCATION ASIO_HANDLER_LOCATION((__FILE__, __LINE__, __func__))
 
 #ifdef ASIO_HAS_LOCAL_SOCKETS
 #include <asio/local/stream_protocol.hpp>
 #endif
 
-
 namespace mesytec::mvlc
 {
+
+template <typename Func> std::future<void> post(asio::io_context &io_context, Func &&func)
+{
+    std::packaged_task<void()> task(std::move(func));
+    return asio::post(io_context, asio::use_future(std::move(task)));
+}
+
+template <typename Func> void post_and_wait(asio::io_context &io_context, Func &&func)
+{
+    post(io_context, std::forward<Func>(func)).wait();
+}
 
 struct ClientBase
 {
@@ -40,7 +49,7 @@ struct UnixAcceptor;
 
 struct StreamServerAsio::Private
 {
-    void addClient(std::unique_ptr<ClientBase> client);
+    void addClient(std::unique_ptr<ClientBase> &&client);
     bool listenTcp(const std::string &uri);
     bool listenIpc(const std::string &path);
     void start(size_t num_threads = StreamServerAsio::DefaultIoThreads);
@@ -76,24 +85,24 @@ struct StreamServerAsio::Private
 struct TcpClient: ClientBase
 {
     asio::ip::tcp::socket socket;
+    std::string remoteAddressCache;
 
-    explicit TcpClient(asio::ip::tcp::socket s)
+    explicit TcpClient(asio::ip::tcp::socket &&s)
         : socket(std::move(s))
-    {
-    }
 
-    std::string remoteAddress() const override
     {
         try
         {
-            return socket.remote_endpoint().address().to_string() + ":" +
-                   std::to_string(socket.remote_endpoint().port());
+            remoteAddressCache = socket.remote_endpoint().address().to_string() + ":" +
+                                 std::to_string(socket.remote_endpoint().port());
         }
         catch (...)
         {
-            return "unknown";
+            remoteAddressCache = "unknown";
         }
     }
+
+    std::string remoteAddress() const override { return remoteAddressCache; }
 
     void asyncWrite(const std::vector<asio::const_buffer> &buffers, WriteHandler handler) override
     {
@@ -103,8 +112,8 @@ struct TcpClient: ClientBase
 
     void close() override
     {
-        asio::error_code ec;
-        socket.close(ec);
+        HANDLER_LOCATION;
+        socket.close();
     }
 };
 
@@ -113,7 +122,7 @@ struct UnixClient: ClientBase
 {
     asio::local::stream_protocol::socket socket;
 
-    explicit UnixClient(asio::local::stream_protocol::socket s)
+    explicit UnixClient(asio::local::stream_protocol::socket &&s)
         : socket(std::move(s))
     {
     }
@@ -128,8 +137,8 @@ struct UnixClient: ClientBase
 
     void close() override
     {
-        asio::error_code ec;
-        socket.close(ec);
+        HANDLER_LOCATION;
+        socket.close();
     }
 };
 #endif
@@ -152,7 +161,6 @@ struct TcpAcceptor
     {
         HANDLER_LOCATION;
         acceptor.async_accept(
-            asio::make_strand(io),
             [this](const asio::error_code &ec, asio::ip::tcp::socket socket)
             {
                 if (!acceptor.is_open())
@@ -166,7 +174,8 @@ struct TcpAcceptor
                     asio::error_code opt_ec;
                     socket.set_option(asio::ip::tcp::no_delay(true), opt_ec);
                     socket.set_option(asio::socket_base::send_buffer_size(2 * 1024 * 1024), opt_ec);
-                    socket.set_option(asio::socket_base::receive_buffer_size(2 * 1024 * 1024), opt_ec);
+                    socket.set_option(asio::socket_base::receive_buffer_size(2 * 1024 * 1024),
+                                      opt_ec);
 
                     auto client = std::make_unique<TcpClient>(std::move(socket));
                     server->addClient(std::move(client));
@@ -203,7 +212,6 @@ struct UnixAcceptor
     {
         HANDLER_LOCATION;
         acceptor.async_accept(
-            asio::make_strand(io),
             [this](const asio::error_code &ec, asio::local::stream_protocol::socket socket)
             {
                 if (!acceptor.is_open())
@@ -215,7 +223,8 @@ struct UnixAcceptor
                 {
                     asio::error_code opt_ec;
                     socket.set_option(asio::socket_base::send_buffer_size(2 * 1024 * 1024), opt_ec);
-                    socket.set_option(asio::socket_base::receive_buffer_size(2 * 1024 * 1024), opt_ec);
+                    socket.set_option(asio::socket_base::receive_buffer_size(2 * 1024 * 1024),
+                                      opt_ec);
 
                     auto client = std::make_unique<UnixClient>(std::move(socket));
                     server->addClient(std::move(client));
@@ -235,7 +244,7 @@ StreamServerAsio::StreamServerAsio()
 
 StreamServerAsio::~StreamServerAsio() { stop(); }
 
-void StreamServerAsio::Private::addClient(std::unique_ptr<ClientBase> client)
+void StreamServerAsio::Private::addClient(std::unique_ptr<ClientBase> &&client)
 {
     std::lock_guard<std::mutex> lock(clients_mutex_);
     spdlog::info("New client connected: {}", client->remoteAddress());
@@ -392,27 +401,18 @@ void StreamServerAsio::stop()
     // Close all acceptors
     std::lock_guard<std::mutex> acceptors_lock(d->acceptors_mutex);
 
-    std::vector<std::future<void>> futures;
     for (auto &acceptor: d->tcp_acceptors_)
     {
-        std::packaged_task<void()> task([&acceptor]() { acceptor->acceptor.close(); });
-        futures.emplace_back(asio::post(d->io_context_.get_executor(), asio::use_future(std::move(task))));
+        HANDLER_LOCATION;
+        post_and_wait(d->io_context_, [&acceptor]() { acceptor->acceptor.close(); });
     }
-
-    for (auto &future: futures)
-        future.wait();
-    futures.clear();
 
 #ifdef ASIO_HAS_LOCAL_SOCKETS
     for (auto &acceptor: d->unix_acceptors_)
     {
-        std::packaged_task<void()> task([&acceptor]() { acceptor->acceptor.close(); });
-        futures.emplace_back(asio::post(d->io_context_.get_executor(), asio::use_future(std::move(task))));
+        HANDLER_LOCATION;
+        post_and_wait(d->io_context_, [&acceptor]() { acceptor->acceptor.close(); });
     }
-
-    for (auto &future: futures)
-        future.wait();
-    futures.clear();
 #endif
 
     // Close all client connections
@@ -420,15 +420,10 @@ void StreamServerAsio::stop()
         std::lock_guard<std::mutex> lock(d->clients_mutex_);
         for (auto &client: d->clients_)
         {
-            std::packaged_task<void()> task([&client]() { client->close(); });
-            futures.emplace_back(asio::post(d->io_context_.get_executor(), asio::use_future(std::move(task))));
+            HANDLER_LOCATION;
+            post_and_wait(d->io_context_, [client = client.get()]() { client->close(); });
         }
     }
-
-    // Wait for all posts to complete
-    for (auto &future: futures)
-        future.wait();
-    futures.clear();
 
     // Stop io_context and wait for threads
     d->work_guard_.reset();
@@ -465,8 +460,8 @@ std::vector<std::string> StreamServerAsio::listenUris() const
     for (auto &acceptor: d->tcp_acceptors_)
     {
         result.emplace_back(fmt::format("tcp://{}:{}",
-            acceptor->acceptor.local_endpoint().address().to_string(),
-            acceptor->acceptor.local_endpoint().port()));
+                                        acceptor->acceptor.local_endpoint().address().to_string(),
+                                        acceptor->acceptor.local_endpoint().port()));
     }
 #ifdef ASIO_HAS_LOCAL_SOCKETS
     for (auto &acceptor: d->unix_acceptors_)
@@ -474,7 +469,8 @@ std::vector<std::string> StreamServerAsio::listenUris() const
         result.emplace_back(fmt::format("ipc://{}", acceptor->acceptor.local_endpoint().path()));
     }
 #endif
-    return result;;
+    return result;
+    ;
 }
 
 std::vector<std::string> StreamServerAsio::clients() const
@@ -491,7 +487,7 @@ std::vector<std::string> StreamServerAsio::clients() const
 
 ssize_t StreamServerAsio::sendToAllClients(const IOV *iov, size_t n_iov)
 {
-    std::lock_guard<std::mutex> send_locklock(d->send_mutex);
+    std::lock_guard<std::mutex> send_lock(d->send_mutex);
 
     // Reuse vectors from Private to avoid allocations
     d->send_buffers_.clear();
