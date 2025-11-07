@@ -20,7 +20,6 @@ class MESYTEC_MVLC_EXPORT StreamServerAsio: public IStreamServer
     using IStreamServer::listen;
     using IStreamServer::sendToAllClients;
 
-    // True if the server is able to listen on the given uri.
     bool listen(const std::string &uri) override;
 
 

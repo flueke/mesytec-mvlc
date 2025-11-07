@@ -41,13 +41,13 @@ class MESYTEC_MVLC_EXPORT IStreamServer
     virtual std::vector<std::string> listenUris() const = 0;
     virtual std::vector<std::string> clients() const = 0;
 
-    // Send data to all clients in a blocking fashion.
+    // Send data to all clients. Blocks.
     // The senders network byte order is used, no swapping is done.
     // Data is gathered from the given IOV array.
     // Returns the number of clients the data was sent to or -1 on error.
     virtual ssize_t sendToAllClients(const IOV *iov, size_t n_iov) = 0;
 
-    // Send data to all clients in a blocking fashion.
+    // Send data to all clients. Blocks.
     // The senders network byte order is used, no swapping is done.
     // Returns the number of clients the data was sent to or -1 on error.
     // Note: this also needs a 'using' declaration in subclasses.
