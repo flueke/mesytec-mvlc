@@ -15,10 +15,10 @@ using namespace mesytec::mvlc;
 
 static const std::vector<std::string> listenUris = {
     "tcp4://127.0.0.1:42333",
-    "tcp4://0.0.0.0:42334",
+    //"tcp4://0.0.0.0:42334",
 //#if 0
 #ifdef ASIO_HAS_LOCAL_SOCKETS
-    "ipc:///tmp/mvlc_stream_test_server_asio.ipc",
+    //"ipc:///tmp/mvlc_stream_test_server_asio.ipc",
     //"ipc:///tmp/mvlc_stream_test_server_asio2.ipc",
 #endif
 };
@@ -26,8 +26,8 @@ static const std::vector<std::string> listenUris = {
 int main(int argc, char **argv)
 {
     mvlc::util::setup_signal_handlers();
-    spdlog::set_level(spdlog::level::info);
-    mvlc::set_global_log_level(spdlog::level::info);
+    spdlog::set_level(spdlog::level::trace);
+    mvlc::set_global_log_level(spdlog::level::trace);
 
     argh::parser parser({"-h", "--help", "--log-level", "--trace", "--debug", "--info", "--warn", "--buffer-size"});
     parser.parse(argc, argv);
@@ -87,7 +87,9 @@ int main(int argc, char **argv)
         generate_test_data(sendBuffer, static_cast<u32>(iteration), bufferSizeWords);
         assert(verify_test_data({sendBuffer.data(), sendBuffer.size()}, static_cast<u32>(iteration)));
 
-        while (!mvlc::util::signal_received())
+        util::Stopwatch swRunning;
+        //while (!mvlc::util::signal_received())
+        while (swRunning.get_elapsed() < std::chrono::seconds(2))
         {
             if (auto interval = swReport.get_interval(); interval >= std::chrono::seconds(1))
             {

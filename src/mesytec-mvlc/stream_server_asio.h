@@ -12,8 +12,6 @@ namespace mesytec::mvlc
 class MESYTEC_MVLC_EXPORT StreamServerAsio: public IStreamServer
 {
   public:
-    static const size_t DefaultIoThreads = 1;
-
     StreamServerAsio();
     ~StreamServerAsio() override;
 

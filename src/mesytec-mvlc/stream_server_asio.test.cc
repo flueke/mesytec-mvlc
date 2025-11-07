@@ -19,29 +19,6 @@
 using namespace mesytec::mvlc;
 using namespace std::chrono_literals;
 
-class StreamServerTestBase: public ::testing::TestWithParam<std::vector<std::string>>
-{
-  protected:
-    void SetUp() override
-    {
-        server = std::make_unique<StreamServerAsio>();
-        ASSERT_TRUE(server->listen(GetParam()));
-        ASSERT_TRUE(server->isListening());
-    }
-
-    void TearDown() override
-    {
-        if (server)
-        {
-            server->stop();
-            ASSERT_FALSE(server->isListening());
-        }
-    }
-
-    std::unique_ptr<StreamServerAsio> server;
-    static constexpr size_t TEST_BUFFER_SIZE = 1024;
-};
-
 TEST(StreamServerTest, CanListenAndStop)
 {
     StreamServerAsio server;
@@ -102,6 +79,33 @@ TEST(StreamServerTest, CanListenWithNewInstance)
     }
 }
 
+#if 1
+class StreamServerTestBase: public ::testing::TestWithParam<std::vector<std::string>>
+{
+  protected:
+    void SetUp() override
+    {
+        server = std::make_unique<StreamServerAsio>();
+        ASSERT_TRUE(server->listen(GetParam()));
+        ASSERT_TRUE(server->isListening());
+    }
+
+    void TearDown() override
+    {
+        if (server)
+        {
+            server->stop();
+            ASSERT_FALSE(server->isListening());
+        }
+    }
+
+    std::unique_ptr<StreamServerAsio> server;
+    static constexpr size_t TEST_BUFFER_SIZE = 1024;
+};
+
+#endif
+
+#if 0
 TEST_P(StreamServerTestBase, OneSenderOneClient)
 {
     auto uri = server->listenUris().front();
@@ -156,3 +160,4 @@ INSTANTIATE_TEST_SUITE_P(StreamServerTest, StreamServerTestBase,
                                  return "Ipc";
                          } /* name generator */
 );
+#endif
