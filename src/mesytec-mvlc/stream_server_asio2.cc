@@ -5,6 +5,7 @@
 #include <condition_variable>
 #include <memory>
 #include <mutex>
+#include <spdlog/fmt/std.h>
 #include <spdlog/spdlog.h>
 #include <thread>
 
@@ -34,25 +35,48 @@ template <typename Func> void post_and_wait(asio::io_context &io_context, Func &
     post(io_context, std::forward<Func>(func)).wait();
 }
 
+class TcpClient: std::enable_shared_from_this<TcpClient>
+{
+  public:
+    using Pointer = std::shared_ptr<TcpClient>;
+    asio::ip::tcp::socket socket;
+
+    static Pointer create(asio::io_context &io_context)
+    {
+        return Pointer(new TcpClient(io_context));
+    }
+
+    ~TcpClient() { spdlog::trace("TcpClient destroyed @{}", fmt::ptr(this)); }
+
+  private:
+    explicit TcpClient(asio::io_context &io_context)
+        : socket(io_context)
+    {
+        spdlog::trace("TcpClient created @{}", fmt::ptr(this));
+    }
+};
+
 struct StreamServerAsio::Private
 {
     asio::io_context io_context_;
     std::atomic<bool> running_{false};
     std::vector<std::thread> io_threads_;
+    // std::unique_ptr<asio::strand<asio::io_context::executor_type>> strand_;
+    std::unique_ptr<asio::io_context::work> work_guard_;
 
     std::vector<std::shared_ptr<asio::ip::tcp::acceptor>> tcp_acceptors_;
-    std::vector<asio::ip::tcp::socket> tcp_clients_;
+    std::vector<TcpClient::Pointer> tcp_clients_;
 
     std::mutex acceptors_mutex_;
     std::mutex clients_mutex_;
 
     bool listenTcp(const std::string &uri);
-    //bool listenIpc(const std::string &path);
+    // bool listenIpc(const std::string &path);
     void start(size_t num_threads = DefaultIoThreads);
-    void addClientSocket(asio::ip::tcp::socket socket)
+    void addClient(std::shared_ptr<TcpClient> client)
     {
         std::lock_guard<std::mutex> clients_lock(clients_mutex_);
-        tcp_clients_.emplace_back(std::move(socket));
+        tcp_clients_.emplace_back(std::move(client));
     }
 };
 
@@ -60,6 +84,7 @@ StreamServerAsio::StreamServerAsio()
     : IStreamServer()
     , d(std::make_unique<Private>())
 {
+    d->start();
 }
 
 StreamServerAsio::~StreamServerAsio()
@@ -75,11 +100,20 @@ void StreamServerAsio::Private::start(size_t num_threads)
 
     spdlog::debug("Starting StreamServerAsio with {} IO threads", num_threads);
     running_ = true;
-    // work_guard_ = std::make_unique<asio::io_context::work>(io_context_);
+    // strand_ =
+    //     std::make_unique<asio::strand<asio::io_context::executor_type>>(io_context_.get_executor());
+    work_guard_ = std::make_unique<asio::io_context::work>(io_context_);
 
     for (size_t i = 0; i < num_threads; ++i)
     {
-        io_threads_.emplace_back([this]() { io_context_.run(); });
+        io_threads_.emplace_back(
+            [this]()
+            {
+                spdlog::debug("Starting IO thread, id={}", std::this_thread::get_id());
+                size_t cnt = io_context_.run();
+                spdlog::debug("IO thread exiting, id={}, handlers={}", std::this_thread::get_id(),
+                              cnt);
+            });
     }
 }
 
@@ -107,9 +141,16 @@ bool StreamServerAsio::Private::listenTcp(const std::string &uri)
         if (host.empty() || host == "*")
             host = "0.0.0.0";
 
-        asio::ip::tcp::resolver resolver(io_context_);
-        asio::ip::tcp::resolver::query query(host, port);
-        auto endpoints = resolver.resolve(query);
+        // asio::ip::tcp::resolver resolver(io_context_);
+        // asio::ip::tcp::resolver::query query(host, port);
+        // auto endpoints = resolver.resolve(query);
+        struct ResolveEntry
+        {
+            asio::ip::tcp::endpoint endpoint() const { return ep; }
+            asio::ip::tcp::endpoint ep;
+        };
+        auto endpoint = asio::ip::tcp::endpoint(asio::ip::tcp::v4(), std::stoi(port));
+        auto endpoints = {ResolveEntry{endpoint}};
 
         for (const auto &resolveEntry: endpoints)
         {
@@ -121,26 +162,55 @@ bool StreamServerAsio::Private::listenTcp(const std::string &uri)
 
             auto acceptor =
                 std::make_shared<asio::ip::tcp::acceptor>(io_context_, resolveEntry.endpoint());
-            tcp_acceptors_.push_back(acceptor);
+            {
+                std::lock_guard<std::mutex> lock(acceptors_mutex_);
+                tcp_acceptors_.push_back(acceptor);
+            }
 
             spdlog::info("Listening on TCP {}:{}", resolveEntry.endpoint().address().to_string(),
                          resolveEntry.endpoint().port());
 
+#if 0
+            HANDLER_LOCATION;
             acceptor->async_accept(
-                asio::make_strand(io_context_),
                 [this, acceptor](const asio::error_code &ec, asio::ip::tcp::socket socket)
                 {
+                    HANDLER_LOCATION;
                     if (!ec)
                     {
                         spdlog::trace("Accepted TCP connection from {}",
                                       socket.remote_endpoint().address().to_string());
-                        this->addClientSocket(std::move(socket));
+                        auto newClient = TcpClient::create(io_context_);
+                        newClient->socket = std::move(socket);
+                        this->addClient(newClient);
+                        //this->addClientSocket(std::move(socket));
                     }
                     else
                     {
                         spdlog::error("Error accepting TCP connection: {}", ec.message());
                     }
                 });
+#else
+
+            HANDLER_LOCATION;
+            auto newClient = TcpClient::create(io_context_);
+            acceptor->async_accept(
+                newClient->socket,
+                [this, newClient](const asio::error_code &ec)
+                {
+                    HANDLER_LOCATION;
+                    if (!ec)
+                    {
+                        spdlog::trace("Accepted TCP connection from {}",
+                                      newClient->socket.remote_endpoint().address().to_string());
+                        this->addClient(newClient);
+                    }
+                    else
+                    {
+                        spdlog::error("Error accepting TCP connection: {}", ec.message());
+                    }
+                });
+#endif
 
             if (scheme == "tcp4" || scheme == "tcp6")
                 break; // Only bind once for specific protocol version
@@ -196,7 +266,7 @@ bool StreamServerAsio::listen(const std::string &uri)
 
         return result;
     }
-    #if 0
+#if 0
     else if (uri.find("ipc://") == 0)
     {
         std::string path = uri.substr(6); // Remove "ipc://" prefix
@@ -217,7 +287,7 @@ bool StreamServerAsio::listen(const std::string &uri)
 
         return result;
     }
-    #endif
+#endif
 
     spdlog::error("Unsupported URI scheme: {}", uri);
     return false;
@@ -228,8 +298,62 @@ void StreamServerAsio::stop()
     if (!d->running_)
         return;
 
-    spdlog::trace("StreamServerAsio::stop() io_context_.stop()");
-    d->io_context_.stop();
+    {
+        spdlog::trace("StreamServerAsio::stop(): Stopping acceptors");
+        std::lock_guard<std::mutex> lock(d->acceptors_mutex_);
+
+        for (auto &acceptor: d->tcp_acceptors_)
+        {
+            post_and_wait(d->io_context_,
+                          [acceptor]()
+                          {
+                              asio::error_code ec;
+                              acceptor->close(ec);
+                              if (ec)
+                              {
+                                  spdlog::error("Error closing TCP acceptor: {}", ec.message());
+                              }
+                          });
+        }
+
+        // TODO: clear acceptors
+
+        spdlog::trace("StreamServerAsio::stop(): All acceptors stopped");
+    }
+
+    {
+        spdlog::trace("StreamServerAsio::stop(): Closing client connections");
+        std::lock_guard<std::mutex> lock(d->clients_mutex_);
+
+        for (auto &client: d->tcp_clients_)
+        {
+            post_and_wait(d->io_context_,
+                          [client]()
+                          {
+                              asio::error_code ec;
+                              client->socket.close(ec);
+                              if (ec)
+                              {
+                                  spdlog::error("Error closing TCP client socket: {}",
+                                                ec.message());
+                              }
+                          });
+        }
+
+        // TODO: clear clients
+
+        spdlog::trace("StreamServerAsio::stop(): All client connections closed");
+    }
+
+    // d->work_guard_.reset();
+
+    spdlog::trace("StreamServerAsio::stop() calling io_context_.stop()");
+    if (!d->io_context_.stopped())
+        d->io_context_.stop();
+    spdlog::trace("StreamServerAsio::stop() io_context_.stop() returned");
+
+    // assert(d->io_context_.stopped());
+
     spdlog::trace("StreamServerAsio::stop() joining IO threads");
     for (auto &thread: d->io_threads_)
     {
@@ -240,18 +364,17 @@ void StreamServerAsio::stop()
     spdlog::trace("StreamServerAsio::stop() clearing all the things");
 
     d->io_threads_.clear();
+    d->tcp_acceptors_.clear();
+    d->tcp_clients_.clear();
 
     // Clear everything
 }
 
-bool StreamServerAsio::isListening() const
-{
-    return false;
-}
+bool StreamServerAsio::isListening() const { return false; }
 
 std::vector<std::string> StreamServerAsio::listenUris() const
 {
-    #if 0
+#if 0
     std::lock_guard<std::mutex> lock(d->acceptors_mutex);
     std::vector<std::string> result;
     for (auto &acceptor: d->tcp_acceptors_)
@@ -268,14 +391,14 @@ std::vector<std::string> StreamServerAsio::listenUris() const
 #endif
     return result;
     ;
-    #else
+#else
     return {};
-    #endif
+#endif
 }
 
 std::vector<std::string> StreamServerAsio::clients() const
 {
-    #if 0
+#if 0
     std::lock_guard<std::mutex> lock(d->clients_mutex_);
     std::vector<std::string> result;
     result.reserve(d->clients_.size());
@@ -284,14 +407,14 @@ std::vector<std::string> StreamServerAsio::clients() const
         result.emplace_back(client->remoteAddress());
 
     return result;
-    #else
+#else
     return {};
-    #endif
+#endif
 }
 
 ssize_t StreamServerAsio::sendToAllClients(const IOV *iov, size_t n_iov)
 {
-    #if 0
+#if 0
     std::lock_guard<std::mutex> send_lock(d->send_mutex);
 
     // Reuse vectors from Private to avoid allocations
@@ -363,9 +486,9 @@ ssize_t StreamServerAsio::sendToAllClients(const IOV *iov, size_t n_iov)
     }
 
     return completed;
-    #else
+#else
     return -1;
-    #endif
+#endif
 }
 
 } // namespace mesytec::mvlc
