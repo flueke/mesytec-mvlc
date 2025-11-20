@@ -25,7 +25,7 @@ static const std::vector<std::string> listenUris = {
 
 int main(int argc, char **argv)
 {
-    mvlc::util::setup_signal_handlers();
+    //mvlc::util::setup_signal_handlers();
     spdlog::set_level(spdlog::level::trace);
     mvlc::set_global_log_level(spdlog::level::trace);
 
@@ -70,7 +70,7 @@ int main(int argc, char **argv)
     spdlog::info("Using test buffer size of {} words, {:0.2f} MB", bufferSizeWords, bufferSizeWords * sizeof(u32) / (util::Megabytes(1) * 1.0));
 
     {
-        StreamServerAsio server;
+        StreamServerAsio server(2);
         if (!server.listen(listenUris))
         {
             spdlog::error("Failed to start StreamServerAsio");
@@ -93,7 +93,7 @@ int main(int argc, char **argv)
         {
             if (auto interval = swReport.get_interval(); interval >= std::chrono::seconds(1))
             {
-                auto clients = server.clients();
+                auto clients = server.clientAddresses();
                 spdlog::info("Main loop iteration {}, {} clients connected: {}", iteration,
                              clients.size(), fmt::join(clients, ", "));
                 spdlog::info(

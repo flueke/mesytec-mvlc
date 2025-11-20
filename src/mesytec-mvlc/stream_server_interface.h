@@ -12,6 +12,7 @@ namespace mesytec::mvlc
 class MESYTEC_MVLC_EXPORT IStreamServer
 {
   public:
+    // IO vector for gathered writes.
     struct IOV
     {
         const void *buf;
@@ -34,12 +35,15 @@ class MESYTEC_MVLC_EXPORT IStreamServer
     // IStreamSever::listen' in their declaration.
     virtual size_t listen(const std::vector<std::string> &uris);
 
-    // Stop listening and disconnect all clients. Idempotent.
-    virtual void stop() = 0;
+    // TODO: is this needed?
+    //// Stop listening and disconnect all clients. Idempotent.
+    //virtual void stop() = 0;
 
-    virtual bool isListening() const = 0;
-    virtual std::vector<std::string> listenUris() const = 0;
-    virtual std::vector<std::string> clients() const = 0;
+    virtual bool isRunning() const = 0;
+    virtual size_t clientCount() const = 0;
+
+    virtual std::vector<std::string> listenAddresses() const = 0;
+    virtual std::vector<std::string> clientAddresses() const = 0;
 
     // Send data to all clients in a blocking fashion.
     // The senders network byte order is used, no swapping is done.
@@ -52,6 +56,9 @@ class MESYTEC_MVLC_EXPORT IStreamServer
     // Returns the number of clients the data was sent to or -1 on error.
     // Note: this also needs a 'using' declaration in subclasses.
     ssize_t sendToAllClients(const uint8_t *data, size_t size);
+
+    // Set a preamble that is sent to newly connected clients before any other data.
+    virtual void setPreamble(const std::uint8_t *data, size_t size) = 0;
 };
 
 }

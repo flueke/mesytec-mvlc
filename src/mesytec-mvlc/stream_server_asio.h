@@ -12,7 +12,7 @@ namespace mesytec::mvlc
 class MESYTEC_MVLC_EXPORT StreamServerAsio: public IStreamServer
 {
   public:
-    StreamServerAsio();
+    explicit StreamServerAsio(size_t io_threads=1);
     ~StreamServerAsio() override;
 
     using IStreamServer::listen;
@@ -20,15 +20,17 @@ class MESYTEC_MVLC_EXPORT StreamServerAsio: public IStreamServer
 
     bool listen(const std::string &uri) override;
 
+    //// Stop listening and disconnect all clients. Idempotent.
+    //void stop() override;
 
-    // Stop listening and disconnect all clients. Idempotent.
-    void stop() override;
+    bool isRunning() const override;
+    size_t clientCount() const override;
 
-    bool isListening() const override;
-    std::vector<std::string> listenUris() const override;
-    std::vector<std::string> clients() const override;
+    std::vector<std::string> listenAddresses() const override;
+    std::vector<std::string> clientAddresses() const override;
 
-    virtual ssize_t sendToAllClients(const IOV *iov, size_t n_iov) override;
+    ssize_t sendToAllClients(const IOV *iov, size_t n_iov) override;
+    void setPreamble(const std::uint8_t *data, size_t size) override;
 
   private:
     struct Private;

@@ -40,7 +40,7 @@ add_library(mesytec-mvlc SHARED
     readout_buffer.cc
     readout_buffer_queues.cc
     scanbus_support.cc
-    stream_server_asio2.cc
+    stream_server_asio3.cc
     stream_server_interface.cc
     util/counters.cc
     util/data_filter.cc
@@ -136,7 +136,17 @@ target_compile_features(mesytec-mvlc PUBLIC cxx_std_17)
 if (WIN32)
     target_link_libraries(mesytec-mvlc PRIVATE ws2_32 winmm mswsock)
     target_compile_options(mesytec-mvlc PRIVATE -Wno-format)
+    target_compile_definitions(mesytec-mvlc PRIVATE _WIN32_WINNT=0x0601)
 endif(WIN32)
+
+# Enable if you want to use asio with io_uring on Linux.
+# Requires liburing-dev to be installed.
+option(MVLC_ASIO_USE_IO_URING "Enable io_uring support in asio" OFF)
+
+if (MVLC_ASIO_USE_IO_URING)
+    target_link_libraries(mesytec-mvlc PRIVATE uring)
+    target_compile_definitions(mesytec-mvlc PRIVATE ASIO_HAS_IO_URING ASIO_DISABLE_EPOLL)
+endif()
 
 include(GenerateExportHeader)
 generate_export_header(mesytec-mvlc)
