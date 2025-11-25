@@ -41,16 +41,16 @@ class TcpClient: std::enable_shared_from_this<TcpClient>
     using Pointer = std::shared_ptr<TcpClient>;
     asio::ip::tcp::socket socket;
 
-    static Pointer create(asio::io_context &io_context)
+    static Pointer create(asio::ip::tcp::socket &&socket)
     {
-        return Pointer(new TcpClient(io_context));
+        return Pointer(new TcpClient(std::move(socket)));
     }
 
     ~TcpClient() { spdlog::trace("TcpClient destroyed @{}", fmt::ptr(this)); }
 
   private:
-    explicit TcpClient(asio::io_context &io_context)
-        : socket(io_context)
+    explicit TcpClient(asio::ip::tcp::socket &&socket_)
+        : socket(std::move(socket_))
     {
         spdlog::trace("TcpClient created @{}", fmt::ptr(this));
     }
@@ -62,12 +62,68 @@ struct StreamServerAsio::Private
     std::atomic<bool> running_{false};
     std::vector<std::thread> io_threads_;
     // std::unique_ptr<asio::strand<asio::io_context::executor_type>> strand_;
-    std::unique_ptr<asio::io_context::work> work_guard_;
+    // std::unique_ptr<asio::io_context::work> work_guard_;
 
     std::vector<std::shared_ptr<asio::ip::tcp::acceptor>> tcp_acceptors_;
-    std::vector<TcpClient::Pointer> tcp_clients_;
-
     std::mutex acceptors_mutex_;
+    std::condition_variable acceptors_cv_;
+    size_t pending_accepts_ = 0;
+
+    void startAccept(std::shared_ptr<asio::ip::tcp::acceptor> acceptor)
+    {
+        HANDLER_LOCATION;
+        std::unique_lock<std::mutex> lock(acceptors_mutex_);
+
+        spdlog::trace("Starting async accept on acceptor @{}", fmt::ptr(acceptor.get()));
+
+        acceptor->async_accept(
+            asio::make_strand(io_context_),
+            [this, acceptor](const asio::error_code &ec, asio::ip::tcp::socket socket)
+            {
+                HANDLER_LOCATION;
+
+                std::unique_lock<std::mutex> lock(acceptors_mutex_);
+
+                spdlog::trace("TcpAcceptor::async_accept handler called, ec={}, pending_accepts={}",
+                              ec.message(), pending_accepts_);
+
+                if (!acceptor->is_open())
+                {
+                    pending_accepts_--;
+                    spdlog::trace("TcpAcceptor::async_accept handler called, acceptor is closed, "
+                                  "pending_accepts={}",
+                                  pending_accepts_);
+                    lock.unlock();
+                    acceptors_cv_.notify_all();
+                    return;
+                }
+
+                if (!ec)
+                {
+                    spdlog::trace("Accepted TCP connection from {}",
+                                  socket.remote_endpoint().address().to_string());
+                    this->addClient(TcpClient::create(std::move(socket)));
+                }
+                else
+                {
+                    spdlog::error("Error accepting TCP connection: {}", ec.message());
+                }
+                pending_accepts_--;
+                spdlog::trace("TcpAcceptor::async_accept handler done, pending_accepts={}",
+                              pending_accepts_);
+                lock.unlock();
+                acceptors_cv_.notify_all();
+
+                startAccept(acceptor);
+            });
+
+        pending_accepts_++;
+        spdlog::trace("Async accept started, pending_accepts={}", pending_accepts_);
+        lock.unlock();
+        acceptors_cv_.notify_all();
+    }
+
+    std::vector<TcpClient::Pointer> tcp_clients_;
     std::mutex clients_mutex_;
 
     bool listenTcp(const std::string &uri);
@@ -102,7 +158,7 @@ void StreamServerAsio::Private::start(size_t num_threads)
     running_ = true;
     // strand_ =
     //     std::make_unique<asio::strand<asio::io_context::executor_type>>(io_context_.get_executor());
-    work_guard_ = std::make_unique<asio::io_context::work>(io_context_);
+    // work_guard_ = std::make_unique<asio::io_context::work>(io_context_);
 
     for (size_t i = 0; i < num_threads; ++i)
     {
@@ -110,9 +166,15 @@ void StreamServerAsio::Private::start(size_t num_threads)
             [this]()
             {
                 spdlog::debug("Starting IO thread, id={}", std::this_thread::get_id());
-                size_t cnt = io_context_.run();
-                spdlog::debug("IO thread exiting, id={}, handlers={}", std::this_thread::get_id(),
-                              cnt);
+                while (!io_context_.stopped())
+                {
+                    spdlog::trace("Running io_context_.run_for(1s) in IO thread id={}",
+                                  std::this_thread::get_id());
+                    auto handlersCount = io_context_.run_for(std::chrono::seconds(1));
+                    spdlog::trace("io_context_.run_for(1s) returned, id={}, handlers={}",
+                                  std::this_thread::get_id(), handlersCount);
+                }
+                spdlog::debug("IO thread exiting, id={}", std::this_thread::get_id());
             });
     }
 }
@@ -170,47 +232,8 @@ bool StreamServerAsio::Private::listenTcp(const std::string &uri)
             spdlog::info("Listening on TCP {}:{}", resolveEntry.endpoint().address().to_string(),
                          resolveEntry.endpoint().port());
 
-#if 0
             HANDLER_LOCATION;
-            acceptor->async_accept(
-                [this, acceptor](const asio::error_code &ec, asio::ip::tcp::socket socket)
-                {
-                    HANDLER_LOCATION;
-                    if (!ec)
-                    {
-                        spdlog::trace("Accepted TCP connection from {}",
-                                      socket.remote_endpoint().address().to_string());
-                        auto newClient = TcpClient::create(io_context_);
-                        newClient->socket = std::move(socket);
-                        this->addClient(newClient);
-                        //this->addClientSocket(std::move(socket));
-                    }
-                    else
-                    {
-                        spdlog::error("Error accepting TCP connection: {}", ec.message());
-                    }
-                });
-#else
-
-            HANDLER_LOCATION;
-            auto newClient = TcpClient::create(io_context_);
-            acceptor->async_accept(
-                newClient->socket,
-                [this, newClient](const asio::error_code &ec)
-                {
-                    HANDLER_LOCATION;
-                    if (!ec)
-                    {
-                        spdlog::trace("Accepted TCP connection from {}",
-                                      newClient->socket.remote_endpoint().address().to_string());
-                        this->addClient(newClient);
-                    }
-                    else
-                    {
-                        spdlog::error("Error accepting TCP connection: {}", ec.message());
-                    }
-                });
-#endif
+            startAccept(acceptor);
 
             if (scheme == "tcp4" || scheme == "tcp6")
                 break; // Only bind once for specific protocol version
@@ -300,8 +323,9 @@ void StreamServerAsio::stop()
 
     {
         spdlog::trace("StreamServerAsio::stop(): Stopping acceptors");
-        std::lock_guard<std::mutex> lock(d->acceptors_mutex_);
+        std::unique_lock<std::mutex> acceptors_lock(d->acceptors_mutex_);
 
+#if 0
         for (auto &acceptor: d->tcp_acceptors_)
         {
             post_and_wait(d->io_context_,
@@ -315,12 +339,20 @@ void StreamServerAsio::stop()
                               }
                           });
         }
+#else
+        asio::error_code opt_ec;
+        for (auto &acceptor: d->tcp_acceptors_)
+            acceptor->close(opt_ec);
+
+        d->acceptors_cv_.wait(acceptors_lock, [this]() { return d->pending_accepts_ == 0; });
+#endif
 
         // TODO: clear acceptors
 
         spdlog::trace("StreamServerAsio::stop(): All acceptors stopped");
     }
 
+#if 0
     {
         spdlog::trace("StreamServerAsio::stop(): Closing client connections");
         std::lock_guard<std::mutex> lock(d->clients_mutex_);
@@ -344,6 +376,7 @@ void StreamServerAsio::stop()
 
         spdlog::trace("StreamServerAsio::stop(): All client connections closed");
     }
+#endif
 
     // d->work_guard_.reset();
 
@@ -351,6 +384,10 @@ void StreamServerAsio::stop()
     if (!d->io_context_.stopped())
         d->io_context_.stop();
     spdlog::trace("StreamServerAsio::stop() io_context_.stop() returned");
+
+    spdlog::trace("sleeping for a bit");
+    std::this_thread::sleep_for(std::chrono::milliseconds(10000));
+    spdlog::trace("woke up from sleep, io_context.stopped()={}", d->io_context_.stopped());
 
     // assert(d->io_context_.stopped());
 
