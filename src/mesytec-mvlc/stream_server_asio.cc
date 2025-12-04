@@ -273,6 +273,7 @@ bool StreamServerAsio::Private::listenTcp(const std::string &uri)
                 continue;
 
             auto acceptor = std::make_unique<TcpAcceptor>(io_context_, endpoint.endpoint(), this);
+            acceptor->acceptor.set_option(asio::socket_base::reuse_address(true));
 
             spdlog::info("Listening on TCP {}:{}", endpoint.endpoint().address().to_string(),
                          endpoint.endpoint().port());
