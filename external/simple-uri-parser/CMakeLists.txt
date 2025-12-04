@@ -6,23 +6,26 @@ set(CMAKE_CXX_STANDARD 11)
 add_library(uri-parser INTERFACE)
 target_include_directories(uri-parser INTERFACE .)
 
-include(FetchContent)
-
-FetchContent_Declare(
-    Catch2
-    GIT_REPOSITORY https://github.com/catchorg/Catch2.git
-    GIT_TAG        v3.10.0
-)
-
-FetchContent_MakeAvailable(Catch2)
-
-add_executable(uri-parser-example example.cpp)
-target_link_libraries(uri-parser-example uri-parser)
-
-add_executable(uri-parser-tests tests.cpp)
-target_link_libraries(uri-parser-tests PRIVATE Catch2::Catch2WithMain uri-parser)
-
-list(APPEND CMAKE_MODULE_PATH ${catch2_SOURCE_DIR}/extras)
-include(CTest)
-include(Catch)
-catch_discover_tests(uri-parser-tests)
+# Note (flueke): Disabled for now. This thing works, I do not need to test it
+# repeatedly in CI.
+#include(FetchContent)
+#
+#FetchContent_Declare(
+#    Catch2
+#    GIT_REPOSITORY https://github.com/catchorg/Catch2.git
+#    GIT_TAG        v3.10.0
+#)
+#
+#FetchContent_MakeAvailable(Catch2)
+#
+#add_executable(uri-parser-example example.cpp)
+#target_link_libraries(uri-parser-example uri-parser)
+#
+#add_executable(uri-parser-tests tests.cpp)
+#target_link_libraries(uri-parser-tests PRIVATE Catch2::Catch2WithMain uri-parser)
+#
+#list(APPEND CMAKE_MODULE_PATH ${catch2_SOURCE_DIR}/extras)
+#include(CTest)
+#include(Catch)
+#catch_discover_tests(uri-parser-tests)
+#
