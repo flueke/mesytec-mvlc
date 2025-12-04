@@ -15,6 +15,7 @@
 
 #include "gtest/gtest.h"
 #include <asio.hpp>
+#include <uri_parser.h>
 
 using namespace mesytec::mvlc;
 using namespace std::chrono_literals;
@@ -73,9 +74,13 @@ TEST(StreamServerTest, CanListen)
 
 TEST_P(StreamServerTestBase, OneSenderOneClient)
 {
-    auto uri = server->listenUris().front();
+    auto param = GetParam();
+    ASSERT_TRUE(param.size() >= 1);
 
-    if (!util::startswith(uri, "tcp://"))
+    auto string_uri = server->listenUris().front();
+    auto parsed_uri = uri::parse_uri(string_uri);
+
+    if (parsed_uri.scheme != "tcp")
     {
         GTEST_SKIP() << "Skipping non-tcp transport test (for now)";
     }
@@ -83,11 +88,11 @@ TEST_P(StreamServerTestBase, OneSenderOneClient)
     std::atomic<bool> quitClient = false;
 
     std::thread clientThread(
-        [&uri, &quitClient]()
+        [&parsed_uri, &quitClient]()
         {
             asio::io_context io_context;
             asio::ip::tcp::resolver resolver(io_context);
-            asio::ip::tcp::resolver::query query("localhost", "42333");
+            asio::ip::tcp::resolver::query query(parsed_uri.authority.host, std::to_string(parsed_uri.authority.port));
             auto endpoints = resolver.resolve(query);
             ASSERT_FALSE(endpoints.empty());
             asio::ip::tcp::socket socket(io_context);
@@ -115,7 +120,7 @@ TEST_P(StreamServerTestBase, OneSenderOneClient)
 }
 
 INSTANTIATE_TEST_SUITE_P(StreamServerTest, StreamServerTestBase,
-                         ::testing::Values(std::vector<std::string>{"tcp://localhost:42333"},
+                         ::testing::Values(std::vector<std::string>{"tcp://localhost:42337"},
                                            std::vector<std::string>{
                                                "ipc:///tmp/mvlc_test_stream_server_asio.ipc"}),
                          [](const auto &info)
