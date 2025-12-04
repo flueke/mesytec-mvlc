@@ -18,4 +18,4 @@ WORKDIR /build
 
 # Run cmake then compile and install the server binary.
 RUN cmake -GNinja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_INSTALL_PREFIX=/install /sources \
-    && ninja && ninja install && ctest --output-on-failure .
+    && ninja && ninja install && ctest -LE not_in_docker --output-on-failure .

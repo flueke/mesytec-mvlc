@@ -92,7 +92,8 @@ TEST_P(StreamServerTestBase, OneSenderOneClient)
         {
             asio::io_context io_context;
             asio::ip::tcp::resolver resolver(io_context);
-            asio::ip::tcp::resolver::query query(parsed_uri.authority.host, std::to_string(parsed_uri.authority.port));
+            asio::ip::tcp::resolver::query query(parsed_uri.authority.host,
+                                                 std::to_string(parsed_uri.authority.port));
             auto endpoints = resolver.resolve(query);
             ASSERT_FALSE(endpoints.empty());
             asio::ip::tcp::socket socket(io_context);
@@ -111,7 +112,6 @@ TEST_P(StreamServerTestBase, OneSenderOneClient)
     quitClient = true;
     if (clientThread.joinable())
         clientThread.join();
-
 
     std::vector<u8> send_buffer;
     generate_test_data(send_buffer, 4711, TEST_BUFFER_SIZE);
