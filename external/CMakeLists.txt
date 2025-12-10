@@ -106,3 +106,7 @@ target_include_directories(asio INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/asio-1.30.
 
 # simple uri parser
 add_subdirectory(simple-uri-parser)
+
+# minbool
+add_library(minbool INTERFACE)
+target_include_directories(minbool INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/minbool)
