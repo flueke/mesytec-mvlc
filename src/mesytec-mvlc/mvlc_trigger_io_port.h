@@ -11,6 +11,7 @@
 #include <array>
 #include <bitset>
 #include <stdexcept>
+#include <variant>
 #include <vector>
 
 #include <mesytec-mvlc/mesytec-mvlc_export.h>
@@ -117,8 +118,7 @@ struct MESYTEC_MVLC_EXPORT LUT
 
 // Minimize the given 6 -> 1 bit boolean function. Return a bitset with the
 // input bits affecting the output set, the other bits cleared.
-MESYTEC_MVLC_EXPORT std::bitset<LUT::InputBits>
-minimize(const LUT::Bitmap &mapping);
+MESYTEC_MVLC_EXPORT std::bitset<LUT::InputBits> minimize(const LUT::Bitmap &mapping);
 
 // Minimize each of the 3 6->1 bit functions the LUT implements. Return a
 // bitset with the bits affecting at least one of the outputs set, the other
@@ -159,6 +159,7 @@ struct MESYTEC_MVLC_EXPORT IRQ_Util
     u8 irqIndex;
 };
 
+// TODO: rename to SyncOut or similar
 // SlaveTrigger consisting of a gate generator and the slave trigger index to
 // output.
 struct MESYTEC_MVLC_EXPORT SlaveTrigger
@@ -191,6 +192,9 @@ struct MESYTEC_MVLC_EXPORT TriggerResource
 // This is not perfect as not every pin in the system can be addressed. Right
 // now the output pins are addressed except for L3 where the current code is
 // dealing with the input pins.
+// Update (see above): StrobeGGInput as the subunit/last address value is used
+// to refer to the strobe input of LUTs.
+
 using UnitAddress = std::array<unsigned, 3>;
 using UnitAddressVector = std::vector<UnitAddress>;
 
@@ -308,8 +312,7 @@ struct MESYTEC_MVLC_EXPORT Level2
 
     // List of possible input connection choices per LUT (including the LUTs
     // strobe GG input).
-    static const std::array<LUTDynamicInputChoices, LUTCount>
-        DynamicInputChoices;
+    static const std::array<LUTDynamicInputChoices, LUTCount> DynamicInputChoices;
 
     std::array<LUT, LUTCount> luts;
 
@@ -333,11 +336,9 @@ struct MESYTEC_MVLC_EXPORT Level3
     static const size_t CountersCount = 8;
     static const size_t CountersOffset = 8;
 
-    static const size_t UtilityUnitCount =
-        StackStartCount + MasterTriggersCount + CountersCount;
+    static const size_t UtilityUnitCount = StackStartCount + MasterTriggersCount + CountersCount;
 
-    static const size_t UnitCount =
-        UtilityUnitCount + NIM_IO_Count + ECL_OUT_Count;
+    static const size_t UnitCount = UtilityUnitCount + NIM_IO_Count + ECL_OUT_Count;
 
     static const int NIM_IO_Unit_Offset = 16;
     static const int ECL_Unit_Offset = 30;
@@ -345,10 +346,8 @@ struct MESYTEC_MVLC_EXPORT Level3
     static const unsigned CounterInputNotConnected = 21;
     static const unsigned ExcludedSysclock = 20;
 
-    static const std::array<std::string, trigger_io::Level3::UnitCount + 1>
-        DefaultUnitNames;
-    static const std::vector<std::vector<UnitAddressVector>>
-        DynamicInputChoiceLists;
+    static const std::array<std::string, trigger_io::Level3::UnitCount + 1> DefaultUnitNames;
+    static const std::vector<std::vector<UnitAddressVector>> DynamicInputChoiceLists;
 
     std::array<StackStart, StackStartCount> stackStart = {};
     std::array<MasterTrigger, MasterTriggersCount> masterTriggers = {};
@@ -360,8 +359,7 @@ struct MESYTEC_MVLC_EXPORT Level3
     std::vector<std::string> unitNames;
 
     // Per {unit, unit-input} connection values.
-    std::array<std::vector<unsigned>, trigger_io::Level3::UnitCount>
-        connections = {};
+    std::array<std::vector<unsigned>, trigger_io::Level3::UnitCount> connections = {};
 
     Level3();
     Level3(const Level3 &) = default;
@@ -378,27 +376,27 @@ struct MESYTEC_MVLC_EXPORT TriggerIO
 
 // Returns the user supplied name for the given address stored in the
 // TriggerIO.
-MESYTEC_MVLC_EXPORT std::string lookup_name(const TriggerIO &ioCfg,
-                                            const UnitAddress &addr);
+std::string MESYTEC_MVLC_EXPORT lookup_name(const TriggerIO &ioCfg, const UnitAddress &addr);
 
 // Returns the default name/unit name for the given address.
-MESYTEC_MVLC_EXPORT std::string lookup_default_name(const TriggerIO &ioCfg,
+std::string MESYTEC_MVLC_EXPORT lookup_default_name(const TriggerIO &ioCfg,
                                                     const UnitAddress &addr);
 
 // Reset all pin names to their default value
-MESYTEC_MVLC_EXPORT void reset_names(TriggerIO &ioCfg);
+void MESYTEC_MVLC_EXPORT reset_names(TriggerIO &ioCfg);
 
 // Given a unit address looks up the 'connect' value for that unit. These
 // values have different meaning depending on the unit being checked (e.g. L3
 // NIM outputs can only connect to the L2 LUTs).
-MESYTEC_MVLC_EXPORT unsigned get_connection_value(const TriggerIO &ioCfg,
-                                                  const UnitAddress &addr);
+unsigned MESYTEC_MVLC_EXPORT get_connection_value(const TriggerIO &ioCfg, const UnitAddress &addr);
 
 // Given a unit address this function looks up the 'connect' value stored in
 // the TriggerIO setup (get_connection_value()) then resolves this value to the
 // UnitAddress of the source unit of the connection.
-MESYTEC_MVLC_EXPORT UnitAddress
-get_connection_unit_address(const TriggerIO &ioCfg, const UnitAddress &addr);
+UnitAddress MESYTEC_MVLC_EXPORT get_connection_unit_address(const TriggerIO &ioCfg,
+                                                            const UnitAddress &addr);
+
+std::vector<UnitAddress> MESYTEC_MVLC_EXPORT get_connection_possibilities(const UnitAddress &addr);
 
 // This is how the mappings of a single LUT are stored in the MVLC memory.
 // 6 input bits, 4 output bits, 3 of which are used.
@@ -438,8 +436,19 @@ inline void set(LUT_RAM &lut, u8 address, u8 value)
     lut[cell] |= (value & 0xf) << shift;
 }
 
-Timer::Range MESYTEC_MVLC_EXPORT
-timer_range_from_string(const std::string &str);
+Timer::Range MESYTEC_MVLC_EXPORT timer_range_from_string(const std::string &str);
+
+using UnitVariant = std::variant<Timer, IO, StackBusy, LUT, StackStart, MasterTrigger, Counter,
+                                 TriggerResource, SlaveTrigger>;
+
+struct MESYTEC_MVLC_EXPORT IUnitVisitor
+{
+    virtual void visit(const UnitVariant &unit, const UnitAddress &address) = 0;
+    virtual ~IUnitVisitor() = default;
+};
+
+// Visits all units in the given TriggerIO configuration in level order.
+void MESYTEC_MVLC_EXPORT visit(const TriggerIO &ioCfg, IUnitVisitor &visitor);
 
 } // namespace mesytec::mvlc::trigger_io
 

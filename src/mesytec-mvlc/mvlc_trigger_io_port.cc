@@ -9,9 +9,10 @@
 
 #include <boost/range/adaptor/indexed.hpp>
 #include <iterator>
-#include <mesytec-mvlc/util/fmt.h>
-#include <mesytec-mvlc/util/string_util.h>
 #include <minbool.h>
+
+#include "util/fmt.h"
+#include "util/string_util.h"
 
 using boost::adaptors::indexed;
 
@@ -36,8 +37,7 @@ std::bitset<LUT::InputBits> minimize(const LUT::Bitmap &mapping)
             minterms.push_back(i);
     }
 
-    auto solution =
-        minbool::minimize_boolean<trigger_io::LUT::InputBits>(minterms, {});
+    auto solution = minbool::minimize_boolean<trigger_io::LUT::InputBits>(minterms, {});
 
     std::bitset<LUT::InputBits> result;
 
@@ -65,55 +65,53 @@ std::bitset<LUT::InputBits> minimize(const LUT &lut)
 //
 
 // Note: ECL units not included here. They are only on level3.
-const std::array<std::string, trigger_io::Level0::OutputCount>
-    Level0::DefaultUnitNames = {
-        "timer0",
-        "timer1",
-        "timer2",
-        "timer3",
-        "trigger_resource0",
-        "trigger_resource1",
-        "trigger_resource2",
-        "trigger_resource3",
-        "trigger_resource4",
-        "trigger_resource5",
-        "trigger_resource6",
-        "trigger_resource7",
-        "stack_busy0",
-        "stack_busy1",
-        "sysclk",
-        "daq_start",
-        "NIM0",
-        "NIM1",
-        "NIM2",
-        "NIM3",
-        "NIM4",
-        "NIM5",
-        "NIM6",
-        "NIM7",
-        "NIM8",
-        "NIM9",
-        "NIM10",
-        "NIM11",
-        "NIM12",
-        "NIM13",
-        "<unused>",
-        "<unused>",
-        "<unused>",
-        "IRQ1",
-        "IRQ2",
-        "IRQ3",
-        "IRQ4",
-        "IRQ5",
-        "IRQ6",
+const std::array<std::string, trigger_io::Level0::OutputCount> Level0::DefaultUnitNames = {
+    "timer0",
+    "timer1",
+    "timer2",
+    "timer3",
+    "trigger_resource0",
+    "trigger_resource1",
+    "trigger_resource2",
+    "trigger_resource3",
+    "trigger_resource4",
+    "trigger_resource5",
+    "trigger_resource6",
+    "trigger_resource7",
+    "stack_busy0",
+    "stack_busy1",
+    "sysclk",
+    "daq_start",
+    "NIM0",
+    "NIM1",
+    "NIM2",
+    "NIM3",
+    "NIM4",
+    "NIM5",
+    "NIM6",
+    "NIM7",
+    "NIM8",
+    "NIM9",
+    "NIM10",
+    "NIM11",
+    "NIM12",
+    "NIM13",
+    "<unused>",
+    "<unused>",
+    "<unused>",
+    "IRQ1",
+    "IRQ2",
+    "IRQ3",
+    "IRQ4",
+    "IRQ5",
+    "IRQ6",
 };
 
 Level0::Level0()
 {
     unitNames.reserve(DefaultUnitNames.size());
 
-    std::copy(DefaultUnitNames.begin(), DefaultUnitNames.end(),
-              std::back_inserter(unitNames));
+    std::copy(DefaultUnitNames.begin(), DefaultUnitNames.end(), std::back_inserter(unitNames));
 
     timers.fill({});
     triggerResources.fill({});
@@ -128,48 +126,32 @@ static const UnitConnection Dynamic = UnitConnection::makeDynamic();
 // Level1
 //
 // Level 1 connections including internal ones between the LUTs.
-const std::array<LUT_Connections, trigger_io::Level1::LUTCount>
-    Level1::StaticConnections = {
+const std::array<LUT_Connections, trigger_io::Level1::LUTCount> Level1::StaticConnections = {
+    {
+        // L1.LUT0
+        {{{0, 16}, {0, 17}, {0, 18}, {0, 19}, {0, 20}, {0, 21}}},
+        // L1.LUT1
+        {{{0, 20}, {0, 21}, {0, 22}, {0, 23}, {0, 24}, {0, 25}}},
+        // L1.LUT2
+        {{Dynamic, Dynamic, Dynamic, {0, 27}, {0, 28}, {0, 29}}},
+
+        // L1.LUT3
         {
-            // L1.LUT0
-            {{{0, 16}, {0, 17}, {0, 18}, {0, 19}, {0, 20}, {0, 21}}},
-            // L1.LUT1
-            {{{0, 20}, {0, 21}, {0, 22}, {0, 23}, {0, 24}, {0, 25}}},
-            // L1.LUT2
-            {{Dynamic, Dynamic, Dynamic, {0, 27}, {0, 28}, {0, 29}}},
-
-            // L1.LUT3
-            {
-                {{1, 0, 0},
-                 {1, 0, 1},
-                 {1, 0, 2},
-                 {1, 1, 0},
-                 {1, 1, 1},
-                 {1, 1, 2}},
-            },
-            // L1.LUT4
-            {
-                {{1, 1, 0},
-                 {1, 1, 1},
-                 {1, 1, 2},
-                 {1, 2, 0},
-                 {1, 2, 1},
-                 {1, 2, 2}},
-            },
-
-            // L1.LUT5
-            {{{0, 33}, {0, 34}, {0, 35}, {0, 36}, {0, 37}, {0, 38}}},
-
-            // L1.LUT6
-            {
-                {{1, 2, 0},
-                 {1, 2, 1},
-                 {1, 2, 2},
-                 {1, 5, 0},
-                 {1, 5, 1},
-                 {1, 5, 2}},
-            },
+            {{1, 0, 0}, {1, 0, 1}, {1, 0, 2}, {1, 1, 0}, {1, 1, 1}, {1, 1, 2}},
         },
+        // L1.LUT4
+        {
+            {{1, 1, 0}, {1, 1, 1}, {1, 1, 2}, {1, 2, 0}, {1, 2, 1}, {1, 2, 2}},
+        },
+
+        // L1.LUT5
+        {{{0, 33}, {0, 34}, {0, 35}, {0, 36}, {0, 37}, {0, 38}}},
+
+        // L1.LUT6
+        {
+            {{1, 2, 0}, {1, 2, 1}, {1, 2, 2}, {1, 5, 0}, {1, 5, 1}, {1, 5, 2}},
+        },
+    },
 };
 
 const std::vector<UnitAddressVector> Level1::LUT2DynamicInputChoices = {
@@ -184,14 +166,11 @@ Level1::Level1()
 
     for (size_t unit = 0; unit < luts.size(); unit++)
     {
-        for (size_t output = 0; output < luts[unit].outputNames.size();
-             output++)
+        for (size_t output = 0; output < luts[unit].outputNames.size(); output++)
         {
-            luts[unit].defaultOutputNames[output] =
-                fmt::format("L1.LUT{}.OUT{}", unit, output);
+            luts[unit].defaultOutputNames[output] = fmt::format("L1.LUT{}.OUT{}", unit, output);
 
-            luts[unit].outputNames[output] =
-                luts[unit].defaultOutputNames[output];
+            luts[unit].outputNames[output] = luts[unit].defaultOutputNames[output];
         }
     }
 
@@ -203,8 +182,7 @@ Level1::Level1()
 //
 namespace
 {
-std::array<Level2::LUTDynamicInputChoices, Level2::LUTCount>
-make_l2_input_choices()
+std::array<Level2::LUTDynamicInputChoices, Level2::LUTCount> make_l2_input_choices()
 {
     std::array<Level2::LUTDynamicInputChoices, Level2::LUTCount> result = {};
 
@@ -252,8 +230,7 @@ make_l2_input_choices()
         }
 
         // Strobes can connect to L0 up to and including the sysclock
-        std::vector<UnitAddress> strobeChoices(
-            trigger_io::Level0::SysClockOffset + 1);
+        std::vector<UnitAddress> strobeChoices(trigger_io::Level0::SysClockOffset + 1);
 
         for (unsigned i = 0; i < strobeChoices.size(); i++)
             strobeChoices[i] = {0, i};
@@ -284,33 +261,29 @@ make_l2_input_choices()
 
 // Using level 1 unit + output address values (basically full addresses
 // without the need for a Level1::OutputPinMapping).
-const std::array<LUT_Connections, trigger_io::Level2::LUTCount>
-    Level2::StaticConnections = {
-        {
-            // L2.LUT0
-            {Dynamic, Dynamic, Dynamic, {1, 3, 0}, {1, 3, 1}, {1, 3, 2}},
-            // L2.LUT1
-            {Dynamic, Dynamic, Dynamic, {1, 4, 0}, {1, 4, 1}, {1, 4, 2}},
-            // L2.LUT2, new in FW0016
-            {Dynamic, Dynamic, Dynamic, {1, 6, 0}, {1, 6, 1}, {1, 6, 2}},
-        },
+const std::array<LUT_Connections, trigger_io::Level2::LUTCount> Level2::StaticConnections = {
+    {
+        // L2.LUT0
+        {Dynamic, Dynamic, Dynamic, {1, 3, 0}, {1, 3, 1}, {1, 3, 2}},
+        // L2.LUT1
+        {Dynamic, Dynamic, Dynamic, {1, 4, 0}, {1, 4, 1}, {1, 4, 2}},
+        // L2.LUT2, new in FW0016
+        {Dynamic, Dynamic, Dynamic, {1, 6, 0}, {1, 6, 1}, {1, 6, 2}},
+    },
 };
 
-const std::array<Level2::LUTDynamicInputChoices, Level2::LUTCount>
-    Level2::DynamicInputChoices = make_l2_input_choices();
+const std::array<Level2::LUTDynamicInputChoices, Level2::LUTCount> Level2::DynamicInputChoices =
+    make_l2_input_choices();
 
 Level2::Level2()
 {
     for (size_t unit = 0; unit < luts.size(); unit++)
     {
-        for (size_t output = 0; output < luts[unit].outputNames.size();
-             output++)
+        for (size_t output = 0; output < luts[unit].outputNames.size(); output++)
         {
-            luts[unit].defaultOutputNames[output] =
-                fmt::format("L2.LUT{}.OUT{}", unit, output);
+            luts[unit].defaultOutputNames[output] = fmt::format("L2.LUT{}.OUT{}", unit, output);
 
-            luts[unit].outputNames[output] =
-                luts[unit].defaultOutputNames[output];
+            luts[unit].outputNames[output] = luts[unit].defaultOutputNames[output];
         }
     }
 
@@ -321,42 +294,41 @@ Level2::Level2()
 //
 // Level3
 //
-const std::array<std::string, trigger_io::Level3::UnitCount + 1>
-    Level3::DefaultUnitNames = {
-        "StackStart0",
-        "StackStart1",
-        "StackStart2",
-        "StackStart3",
-        "MasterTrigger0",
-        "MasterTrigger1",
-        "MasterTrigger2",
-        "MasterTrigger3",
-        "Counter0+Timestamper",
-        "Counter1",
-        "Counter2",
-        "Counter3",
-        "Counter4",
-        "Counter5",
-        "Counter6",
-        "Counter7",
-        "NIM0",
-        "NIM1",
-        "NIM2",
-        "NIM3",
-        "NIM4",
-        "NIM5",
-        "NIM6",
-        "NIM7",
-        "NIM8",
-        "NIM9",
-        "NIM10",
-        "NIM11",
-        "NIM12",
-        "NIM13",
-        "LVDS0",
-        "LVDS1",
-        "LVDS2",
-        "<not connected>",
+const std::array<std::string, trigger_io::Level3::UnitCount + 1> Level3::DefaultUnitNames = {
+    "StackStart0",
+    "StackStart1",
+    "StackStart2",
+    "StackStart3",
+    "MasterTrigger0",
+    "MasterTrigger1",
+    "MasterTrigger2",
+    "MasterTrigger3",
+    "Counter0+Timestamper",
+    "Counter1",
+    "Counter2",
+    "Counter3",
+    "Counter4",
+    "Counter5",
+    "Counter6",
+    "Counter7",
+    "NIM0",
+    "NIM1",
+    "NIM2",
+    "NIM3",
+    "NIM4",
+    "NIM5",
+    "NIM6",
+    "NIM7",
+    "NIM8",
+    "NIM9",
+    "NIM10",
+    "NIM11",
+    "NIM12",
+    "NIM13",
+    "LVDS0",
+    "LVDS1",
+    "LVDS2",
+    "<not connected>",
 };
 
 namespace
@@ -390,12 +362,10 @@ std::vector<std::vector<UnitAddressVector>> make_l3_input_choices()
         for (unsigned unit = 0; unit <= LastL0Unit; unit++)
             choices.push_back({0, unit});
 
-        std::copy(Level2LUTs01.begin(), Level2LUTs01.end(),
-                  std::back_inserter(choices));
+        std::copy(Level2LUTs01.begin(), Level2LUTs01.end(), std::back_inserter(choices));
         // FW0016: excluded sysclk value
         choices.push_back({3, Level3::UnitCount + 1});
-        std::copy(Level2LUT2.begin(), Level2LUT2.end(),
-                  std::back_inserter(choices));
+        std::copy(Level2LUT2.begin(), Level2LUT2.end(), std::back_inserter(choices));
         result.push_back({choices});
     }
 
@@ -408,12 +378,10 @@ std::vector<std::vector<UnitAddressVector>> make_l3_input_choices()
         for (unsigned unit = 0; unit <= LastL0Unit; unit++)
             choices.push_back({0, unit});
 
-        std::copy(Level2LUTs01.begin(), Level2LUTs01.end(),
-                  std::back_inserter(choices));
+        std::copy(Level2LUTs01.begin(), Level2LUTs01.end(), std::back_inserter(choices));
         // FW0016: excluded sysclk value
         choices.push_back({3, Level3::UnitCount + 1});
-        std::copy(Level2LUT2.begin(), Level2LUT2.end(),
-                  std::back_inserter(choices));
+        std::copy(Level2LUT2.begin(), Level2LUT2.end(), std::back_inserter(choices));
         result.push_back({choices});
     }
 
@@ -436,8 +404,7 @@ std::vector<std::vector<UnitAddressVector>> make_l3_input_choices()
             choices.push_back({0, unit});
 
         // L2.LUT0/1 connectivity
-        std::copy(Level2LUTs01.begin(), Level2LUTs01.end(),
-                  std::back_inserter(choices));
+        std::copy(Level2LUTs01.begin(), Level2LUTs01.end(), std::back_inserter(choices));
 
         // L0.sysclock
         choices.push_back({0, Level0::SysClockOffset});
@@ -446,8 +413,7 @@ std::vector<std::vector<UnitAddressVector>> make_l3_input_choices()
         choices.push_back({3, Level3::UnitCount});
 
         // L2.LUT2 connectivity
-        std::copy(Level2LUT2.begin(), Level2LUT2.end(),
-                  std::back_inserter(choices));
+        std::copy(Level2LUT2.begin(), Level2LUT2.end(), std::back_inserter(choices));
 
         // latch choices are the same as counter input choices
         std::vector<UnitAddress> latchChoices = choices;
@@ -456,12 +422,10 @@ std::vector<std::vector<UnitAddressVector>> make_l3_input_choices()
     }
 
     // NIM and ECL outputs can connect to Level2 only
-    for (size_t i = 0;
-         i < (trigger_io::NIM_IO_Count + trigger_io::ECL_OUT_Count); i++)
+    for (size_t i = 0; i < (trigger_io::NIM_IO_Count + trigger_io::ECL_OUT_Count); i++)
     {
         std::vector<UnitAddress> choices = Level2LUTs01;
-        std::copy(Level2LUT2.begin(), Level2LUT2.end(),
-                  std::back_inserter(choices));
+        std::copy(Level2LUT2.begin(), Level2LUT2.end(), std::back_inserter(choices));
         result.push_back({choices});
     }
 
@@ -469,8 +433,8 @@ std::vector<std::vector<UnitAddressVector>> make_l3_input_choices()
 }
 } // namespace
 
-const std::vector<std::vector<UnitAddressVector>>
-    Level3::DynamicInputChoiceLists = make_l3_input_choices();
+const std::vector<std::vector<UnitAddressVector>> Level3::DynamicInputChoiceLists =
+    make_l3_input_choices();
 
 Level3::Level3()
 {
@@ -493,8 +457,7 @@ Level3::Level3()
         connections[unit][1] = Level3::CounterInputNotConnected;
     }
 
-    std::copy(DefaultUnitNames.begin(), DefaultUnitNames.end(),
-              std::back_inserter(unitNames));
+    std::copy(DefaultUnitNames.begin(), DefaultUnitNames.end(), std::back_inserter(unitNames));
 }
 
 //
@@ -569,8 +532,7 @@ void reset_names(TriggerIO &ioCfg)
 {
     // l0
     ioCfg.l0.unitNames.clear();
-    std::copy(ioCfg.l0.DefaultUnitNames.begin(),
-              ioCfg.l0.DefaultUnitNames.end(),
+    std::copy(ioCfg.l0.DefaultUnitNames.begin(), ioCfg.l0.DefaultUnitNames.end(),
               std::back_inserter(ioCfg.l0.unitNames));
 
     // l1
@@ -593,8 +555,7 @@ void reset_names(TriggerIO &ioCfg)
 
     // l3
     ioCfg.l3.unitNames.clear();
-    std::copy(ioCfg.l3.DefaultUnitNames.begin(),
-              ioCfg.l3.DefaultUnitNames.end(),
+    std::copy(ioCfg.l3.DefaultUnitNames.begin(), ioCfg.l3.DefaultUnitNames.end(),
               std::back_inserter(ioCfg.l3.unitNames));
 }
 
@@ -605,23 +566,22 @@ unsigned get_connection_value(const TriggerIO &ioCfg, const UnitAddress &addr)
     case 0:
     case 1:
         if (addr[1] == 2)
-            return ioCfg.l1.lut2Connections[addr[2]];
+            return ioCfg.l1.lut2Connections.at(addr[2]);
         return 0;
 
     case 2:
         if (addr[2] == LUT::InputBits)
-            return ioCfg.l2.strobeConnections[addr[1]];
-        return ioCfg.l2.lutConnections[addr[1]][addr[2]];
+            return ioCfg.l2.strobeConnections.at(addr[1]);
+        return ioCfg.l2.lutConnections.at(addr[1]).at(addr[2]);
 
     case 3:
-        return ioCfg.l3.connections[addr[1]][addr[2]];
+        return ioCfg.l3.connections.at(addr[1]).at(addr[2]);
     }
 
     return 0;
 }
 
-UnitAddress get_connection_unit_address(const TriggerIO &ioCfg,
-                                        const UnitAddress &addr)
+UnitAddress get_connection_unit_address(const TriggerIO &ioCfg, const UnitAddress &addr)
 {
     unsigned conValue = get_connection_value(ioCfg, addr);
 
@@ -630,25 +590,66 @@ UnitAddress get_connection_unit_address(const TriggerIO &ioCfg,
     case 0:
     case 1:
         if (addr[1] == 2 && addr[2] < LUT_DynamicInputCount)
-            return ioCfg.l1.LUT2DynamicInputChoices[addr[2]][conValue];
+            return ioCfg.l1.LUT2DynamicInputChoices.at(addr[2]).at(conValue);
         return {};
 
     case 2:
         if (addr[2] == LUT::StrobeGGInput)
-            return ioCfg.l2.DynamicInputChoices[addr[1]]
-                .strobeChoices[conValue];
+            return ioCfg.l2.DynamicInputChoices.at(addr[1]).strobeChoices.at(conValue);
 
-        if (addr[2] < ioCfg.l2.DynamicInputChoices[addr[1]].lutChoices.size())
-            return ioCfg.l2.DynamicInputChoices[addr[1]]
-                .lutChoices[addr[2]][conValue];
+        if (addr[2] < ioCfg.l2.DynamicInputChoices.at(addr[1]).lutChoices.size())
+            return ioCfg.l2.DynamicInputChoices.at(addr[1]).lutChoices.at(addr[2]).at(conValue);
 
         if (addr[2] < LUT::InputBits)
-            return ioCfg.l2.StaticConnections[addr[1]][addr[2]].address;
+            return ioCfg.l2.StaticConnections.at(addr[1]).at(addr[2]).address;
 
         return {};
 
     case 3:
-        return ioCfg.l3.DynamicInputChoiceLists[addr[1]][addr[2]][conValue];
+        return ioCfg.l3.DynamicInputChoiceLists.at(addr[1]).at(addr[2]).at(conValue);
+    }
+
+    return {};
+}
+
+std::vector<UnitAddress> get_connection_possibilities(const UnitAddress &addr)
+{
+    try
+    {
+        switch (addr[0])
+        {
+        case 0:
+            return {};
+        case 1:
+            // only L1.LUT2 has dynamic connections
+            if (addr[1] == 2)
+            {
+                return Level1::LUT2DynamicInputChoices.at(addr[2]);
+            }
+            break;
+        case 2:
+        {
+            // All L2 LUTs have dynamic connections on inputs 0-2 and an additional strobe input
+            const auto &choices = Level2::DynamicInputChoices.at(addr[1]);
+
+            if (addr[2] < LUT::InputBits)
+            {
+                return choices.lutChoices.at(addr[2]);
+            }
+            else if (addr[2] == LUT::StrobeGGInput)
+            {
+                return choices.strobeChoices;
+            }
+        }
+        break;
+
+        case 3:
+            return Level3::DynamicInputChoiceLists.at(addr[1]).at(addr[2]);
+        }
+    }
+    catch (const std::out_of_range &)
+    {
+        // vector index out of range => no possibilities
     }
 
     return {};
@@ -671,6 +672,81 @@ Timer::Range timer_range_from_string(const std::string &str_)
         return Timer::Range::s;
 
     return {};
+}
+
+void visit(const TriggerIO &ioCfg, IUnitVisitor &visitor)
+{
+    // level 0
+    for (const auto &kv: ioCfg.l0.timers | indexed(0))
+    {
+        visitor.visit(kv.value(), UnitAddress{0, static_cast<u8>(kv.index())});
+    }
+
+    for (const auto &kv: ioCfg.l0.triggerResources | indexed(0))
+    {
+        visitor.visit(kv.value(),
+                      UnitAddress{0, static_cast<u8>(kv.index() + Level0::TriggerResourceOffset)});
+    }
+
+    for (const auto &kv: ioCfg.l0.stackBusy | indexed(0))
+    {
+        visitor.visit(kv.value(),
+                      UnitAddress{0, static_cast<u8>(kv.index() + Level0::StackBusyOffset)});
+    }
+
+    for (const auto &kv: ioCfg.l0.ioNIM | indexed(0))
+    {
+        visitor.visit(kv.value(),
+                      UnitAddress{0, static_cast<u8>(kv.index() + Level0::NIM_IO_Offset)});
+    }
+
+    for (const auto &kv: ioCfg.l0.ioIRQ | indexed(0))
+    {
+        visitor.visit(kv.value(),
+                      UnitAddress{0, static_cast<u8>(kv.index() + Level0::IRQ_Inputs_Offset)});
+    }
+
+    // level 1
+    for (const auto &kv: ioCfg.l1.luts | indexed(0))
+    {
+        visitor.visit(kv.value(), UnitAddress{1, static_cast<u8>(kv.index())});
+    }
+
+    // level 2
+    for (const auto &kv: ioCfg.l2.luts | indexed(0))
+    {
+        visitor.visit(kv.value(), UnitAddress{2, static_cast<u8>(kv.index())});
+    }
+
+    // level 3
+    for (const auto &kv: ioCfg.l3.stackStart | indexed(0))
+    {
+        visitor.visit(kv.value(), UnitAddress{3, static_cast<u8>(kv.index())});
+    }
+
+    for (const auto &kv: ioCfg.l3.masterTriggers | indexed(0))
+    {
+        visitor.visit(kv.value(),
+                      UnitAddress{3, static_cast<u8>(kv.index() + Level3::MasterTriggersOffset)});
+    }
+
+    for (const auto &kv: ioCfg.l3.counters | indexed(0))
+    {
+        visitor.visit(kv.value(),
+                      UnitAddress{3, static_cast<u8>(kv.index() + Level3::CountersOffset)});
+    }
+
+    for (size_t nim = 0; nim < trigger_io::NIM_IO_Count; nim++)
+    {
+        visitor.visit(ioCfg.l3.ioNIM[nim],
+                      UnitAddress{3, static_cast<u8>(nim + Level3::NIM_IO_Unit_Offset)});
+    }
+
+    for (const auto &kv: ioCfg.l3.ioECL | indexed(0))
+    {
+        visitor.visit(kv.value(),
+                      UnitAddress{3, static_cast<u8>(kv.index() + Level3::ECL_Unit_Offset)});
+    }
 }
 
 } // namespace mesytec::mvlc::trigger_io
