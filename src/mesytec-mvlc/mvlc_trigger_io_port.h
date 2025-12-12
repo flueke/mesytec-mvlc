@@ -159,13 +159,10 @@ struct MESYTEC_MVLC_EXPORT IRQ_Util
     u8 irqIndex;
 };
 
-// TODO: rename to SyncOut or similar
-// SlaveTrigger consisting of a gate generator and the slave trigger index to
-// output.
-struct MESYTEC_MVLC_EXPORT SlaveTrigger
+struct MESYTEC_MVLC_EXPORT SyncInTrigger
 {
     IO gateGenerator;
-    u8 triggerIndex; // slave trigger index to output (0..3)
+    u8 triggerIndex; // sync trigger index to output (0..3)
 };
 
 // Generic trigger resource unit. Replaces individual IRQ, SoftTrigger, and
@@ -179,12 +176,12 @@ struct MESYTEC_MVLC_EXPORT TriggerResource
     {
         IRQ,
         SoftTrigger,
-        SlaveTrigger
+        SyncInTrigger,
     };
 
     Type type;
     IRQ_Util irqUtil;
-    SlaveTrigger slaveTrigger;
+    SyncInTrigger syncOutTrigger;
 };
 
 // Addressing: level, unit [, output]
@@ -438,12 +435,17 @@ inline void set(LUT_RAM &lut, u8 address, u8 value)
 
 Timer::Range MESYTEC_MVLC_EXPORT timer_range_from_string(const std::string &str);
 
-using UnitVariant = std::variant<Timer, IO, StackBusy, LUT, StackStart, MasterTrigger, Counter,
-                                 TriggerResource, SlaveTrigger>;
-
 struct MESYTEC_MVLC_EXPORT IUnitVisitor
 {
-    virtual void visit(const UnitVariant &unit, const UnitAddress &address) = 0;
+    virtual void visit(const Timer &unit, const UnitAddress &address) = 0;
+    virtual void visit(const IO &unit, const UnitAddress &address) = 0;
+    virtual void visit(const StackBusy &unit, const UnitAddress &address) = 0;
+    virtual void visit(const LUT &unit, const UnitAddress &address) = 0;
+    virtual void visit(const StackStart &unit, const UnitAddress &address) = 0;
+    virtual void visit(const MasterTrigger &unit, const UnitAddress &address) = 0;
+    virtual void visit(const Counter &unit, const UnitAddress &address) = 0;
+    virtual void visit(const TriggerResource &unit, const UnitAddress &address) = 0;
+    virtual void visit(const SyncInTrigger &unit, const UnitAddress &address) = 0;
     virtual ~IUnitVisitor() = default;
 };
 
