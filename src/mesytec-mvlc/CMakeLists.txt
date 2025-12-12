@@ -38,6 +38,7 @@ add_library(mesytec-mvlc SHARED
     mvlc_stack_executor.cc
     mvlc_trigger_io_port.cc
     mvlc_trigger_io_serialize.cc
+    mvlc_trigger_io_serialize_vmescript.cc
     mvlc_usb_interface.cc
     mvlc_util.cc
     readout_buffer.cc
@@ -216,6 +217,7 @@ if (MVLC_BUILD_TESTS)
     add_gtest(test_stack_errors mvlc_stack_errors.test.cc)
     add_gtest(test_mvlc_readout_worker mvlc_readout_worker.test.cc)
     add_gtest(test_mvlc_util mvlc_util.test.cc)
+    add_gtest(test_mvlc_trigger_io_serialize mvlc_trigger_io_serialize.test.cc)
     #target_link_libraries(test_mvlc_error PRIVATE ftd3xx)
     if (ZMQ_FOUND)
         add_gtest(test_mvlc_listfile_zmq_ganil mvlc_listfile_zmq_ganil.test.cc)
