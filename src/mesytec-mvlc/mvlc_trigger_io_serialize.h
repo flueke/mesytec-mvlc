@@ -8,6 +8,7 @@
 #ifndef E8D6A3D4_9A71_4B1C_B4E0_55FF88FAC1E6
 #define E8D6A3D4_9A71_4B1C_B4E0_55FF88FAC1E6
 
+#include <algorithm>
 #include <variant>
 
 #include <mesytec-mvlc/mesytec-mvlc_export.h>
@@ -16,8 +17,7 @@
 namespace mesytec::mvlc::trigger_io
 {
 
-// TODO: rename to RegisterWrite
-struct Write
+struct RegisterWrite
 {
     // Opt_HexValue indicates that the register value should be printed in
     // hexadecimal instead of decimal.
@@ -39,16 +39,16 @@ struct Write
     // OR of the Opt_* constants defined above.
     unsigned options = 0u;
 
-    Write() = default;
+    RegisterWrite() = default;
 
-    Write(u16 address_, u16 value_, const std::string &comment_ = {}, unsigned options_ = 0u)
+    RegisterWrite(u16 address_, u16 value_, const std::string &comment_ = {}, unsigned options_ = 0u)
         : address(address_)
         , value(value_)
         , comment(comment_)
         , options(options_)
     {}
 
-    Write(u16 address_, u16 value_, unsigned options_)
+    RegisterWrite(u16 address_, u16 value_, unsigned options_)
         : address(address_)
         , value(value_)
         , options(options_)
@@ -56,7 +56,7 @@ struct Write
 };
 
 // Basic part of the script: either a register write or a block comment.
-using BasicPart = std::variant<Write, std::string>;
+using BasicPart = std::variant<RegisterWrite, std::string>;
 using BasicParts = std::vector<BasicPart>;
 
 // Represents a single DSO unit in the script. In the output script this is
@@ -65,7 +65,7 @@ using BasicParts = std::vector<BasicPart>;
 struct UnitBlock
 {
     std::string comment;
-    std::vector<BasicPart> parts;
+    BasicParts parts;
 
     void operator+=(const BasicPart &part)
     {
@@ -79,22 +79,42 @@ struct UnitBlock
     }
 };
 
-// Top level parts of the script: basic parts or unit blocks.
-using ScriptPart = std::variant<Write, std::string, UnitBlock>;
+// Top level parts of the script: basic parts, comment strings or unit blocks.
+using ScriptPart = std::variant<RegisterWrite, std::string, UnitBlock>;
 using ScriptParts = std::vector<ScriptPart>;
 
-ScriptParts generate_trigger_io_script(const TriggerIO &ioCfg);
+ScriptParts generate_trigger_io_parts(const TriggerIO &ioCfg);
 
-struct VisitorInterface
+struct IScriptPartVisitor
 {
-    virtual void operator()(const Write &write) = 0;
+    virtual void operator()(const RegisterWrite &write) = 0;
     virtual void operator()(const std::string &blockComment) = 0;
     virtual void operator()(const UnitBlock &ub) = 0;
-    virtual ~VisitorInterface() = default;
+    virtual ~IScriptPartVisitor() = default;
 };
 
-void visit(const ScriptParts &parts, VisitorInterface &visitor);
-void visit(const TriggerIO &ioCfg, VisitorInterface &visitor);
+// Visits units in the given ScriptParts in order. For each unit the
+// statements needed to select and initialize the unit and additional comments
+// are generated. Concrete visitors can process these parts and generate
+// appropriate output code or structures.
+inline void visit(const ScriptParts &parts, IScriptPartVisitor &visitor)
+{
+    std::for_each(std::begin(parts), std::end(parts), [&visitor](const ScriptPart &part)
+    {
+        std::visit([&visitor](auto &&arg) { visitor(arg); }, part);
+    });
+}
+
+// Visits units in the TriggerIO structure in level order. For each unit the
+// statements needed to select and initialize the unit and additional comments
+// are generated. Concrete visitors can process these parts and generate
+// appropriate output code or structures.
+inline void visit(const TriggerIO &ioCfg, IScriptPartVisitor &visitor)
+{
+    visit(generate_trigger_io_parts(ioCfg), visitor);
+}
+
+std::string generate_meta_info_yaml(const TriggerIO &ioCfg);
 
 }
 

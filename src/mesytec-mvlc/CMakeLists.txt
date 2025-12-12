@@ -37,6 +37,7 @@ add_library(mesytec-mvlc SHARED
     mvlc_stack_errors.cc
     mvlc_stack_executor.cc
     mvlc_trigger_io_port.cc
+    mvlc_trigger_io_serialize.cc
     mvlc_usb_interface.cc
     mvlc_util.cc
     readout_buffer.cc

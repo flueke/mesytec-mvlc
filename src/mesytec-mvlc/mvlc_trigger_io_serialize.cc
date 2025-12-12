@@ -1,6 +1,9 @@
-#include "mvlc_trigger_io_script_gen.h"
+#include "mvlc_trigger_io_serialize.h"
 
 #include <boost/range/adaptor/indexed.hpp>
+#include <map>
+#include <yaml-cpp/yaml.h>
+#include <yaml-cpp/emittermanip.h>
 
 #include "util/fmt.h"
 
@@ -16,7 +19,7 @@ static const u16 StrobeGGIOOffset = 0x32u;
 
 BasicPart select_unit(int level, int unit, const std::string &unitName = {})
 {
-    auto ret = Write{ 0x0200,  static_cast<u16>(((level << 8) | unit)), Write::Opt_HexValue };
+    auto ret = RegisterWrite{ 0x0200,  static_cast<u16>(((level << 8) | unit)), RegisterWrite::Opt_HexValue };
 
 #if 1
     ret.comment = fmt::format("select L{}.Unit{}", level, unit);
@@ -31,7 +34,7 @@ BasicPart select_unit(int level, int unit, const std::string &unitName = {})
 // Note: the desired unit must be selected prior to calling this function.
 BasicPart write_unit_reg(u16 reg, u16 value, const std::string &comment, unsigned writeOpts = 0u)
 {
-    auto ret = Write { static_cast<u16>(0x0300u + reg), value, comment, writeOpts };
+    auto ret = RegisterWrite { static_cast<u16>(0x0300u + reg), value, comment, writeOpts };
 
     return ret;
 }
@@ -39,7 +42,7 @@ BasicPart write_unit_reg(u16 reg, u16 value, const std::string &comment, unsigne
 // Note: the desired unit must be selected prior to calling this function.
 BasicPart write_connection(u16 offset, u16 value, const std::string &sourceName = {})
 {
-    auto ret = Write { static_cast<u16>(0x0380u + offset), value };
+    auto ret = RegisterWrite { static_cast<u16>(0x0380u + offset), value };
 
     if (!sourceName.empty())
         ret.comment = fmt::format("connect input{} to '{}'", offset / 2, sourceName);
@@ -49,7 +52,7 @@ BasicPart write_connection(u16 offset, u16 value, const std::string &sourceName 
 
 BasicPart write_strobe_connection(u16 offset, u16 value, const std::string &sourceName = {})
 {
-    auto ret = Write { static_cast<u16>(0x0380u + offset), value };
+    auto ret = RegisterWrite { static_cast<u16>(0x0380u + offset), value };
 
     if (!sourceName.empty())
         ret.comment = fmt::format("connect strobe_input to '{}'", sourceName);
@@ -109,16 +112,16 @@ BasicParts generate(const trigger_io::TriggerResource &unit, int /*index*/)
     BasicParts ret;
 
     ret.push_back(write_unit_reg(0x80u, static_cast<u16>(unit.type),
-                          "type: 0=IRQ, 1=SoftTrigger, 2=SlaveTrigger"));
+                          "type: 0=IRQ, 1=SoftTrigger, 2=SyncTrigger"));
 
     ret.push_back(write_unit_reg(0, static_cast<u16>(unit.irqUtil.irqIndex),
                           "irq_index (zero-based: 0: IRQ1, .., 6: IRQ7)"));
 
-    auto ggParts = generate(unit.slaveTrigger.gateGenerator, io_flags::None, 6);
+    auto ggParts = generate(unit.syncOutTrigger.gateGenerator, io_flags::None, 6);
 
     for (auto &part: ggParts)
     {
-        if (auto write = std::get_if<Write>(&part))
+        if (auto write = std::get_if<RegisterWrite>(&part))
         {
             write->comment = "slave_trigger: " + write->comment;
         }
@@ -126,7 +129,7 @@ BasicParts generate(const trigger_io::TriggerResource &unit, int /*index*/)
 
     std::copy(std::begin(ggParts), std::end(ggParts), std::back_inserter(ret));
 
-    ret.push_back(write_unit_reg(0x82u, unit.slaveTrigger.triggerIndex,
+    ret.push_back(write_unit_reg(0x82u, unit.syncOutTrigger.triggerIndex,
                           "slave trigger number (0..3)"));
 
     return ret;
@@ -175,7 +178,7 @@ BasicParts write_lut_ram(const trigger_io::LUT_RAM &ram)
         u16 reg = kv.index() * sizeof(u16); // register address increment is 2 bytes
         u16 cell = reg * 2;
         auto comment = fmt::format("cells {}-{}", cell, cell + 3);
-        ret.push_back(write_unit_reg(reg, kv.value(), comment, Write::Opt_HexValue));
+        ret.push_back(write_unit_reg(reg, kv.value(), comment, RegisterWrite::Opt_HexValue));
     }
 
     return ret;
@@ -217,7 +220,7 @@ BasicParts generate(const trigger_io::Counter &unit, int index)
 
 } // end anon namespace
 
-ScriptParts generate_trigger_io_script(const TriggerIO &ioCfg)
+ScriptParts generate_trigger_io_parts(const TriggerIO &ioCfg)
 {
     ScriptParts ret;
 
@@ -317,7 +320,7 @@ ScriptParts generate_trigger_io_script(const TriggerIO &ioCfg)
         ub += select_unit(2, unitIndex);
         ub += write_lut(kv.value());
         ub += write_unit_reg(0x20, kv.value().strobedOutputs.to_ulong(),
-                              "strobed_outputs", Write::Opt_BinValue);
+                              "strobed_outputs", RegisterWrite::Opt_BinValue);
 
         const auto &l2InputChoices = Level2::DynamicInputChoices[unitIndex];
 
@@ -441,6 +444,171 @@ ScriptParts generate_trigger_io_script(const TriggerIO &ioCfg)
     }
 
     return ret;
+}
+
+std::string generate_meta_info_yaml(const TriggerIO &ioCfg)
+{
+    // unit number -> unit name
+    using NameMap = std::map<unsigned, std::string>;
+
+    YAML::Emitter out;
+    assert(out.good()); // initial consistency check
+    out << YAML::BeginMap;
+    out << YAML::Key << "names" << YAML::Value << YAML::BeginMap;
+
+    // Level0 - flat list of unitnames
+    {
+        NameMap m;
+
+        for (const auto &kv: ioCfg.l0.DefaultUnitNames | indexed(0))
+        {
+            const auto &unitIndex = kv.index();
+            const auto &defaultName = kv.value();
+            const auto &unitName = ioCfg.l0.unitNames.at(unitIndex);
+
+            if (defaultName == UnitNotAvailable)
+                continue;
+
+            m[unitIndex] = unitName;
+        }
+
+        if (!m.empty())
+            out << YAML::Key << "level0" << YAML::Value << m;
+    }
+
+    // Level1 - per lut output names
+    {
+        // Map structure is  [lutIndex][outputIndex] = outputName
+
+        std::map<unsigned, NameMap> lutMaps;
+
+        for (const auto &kv: ioCfg.l1.luts | indexed(0))
+        {
+            const auto &unitIndex = kv.index();
+            const auto &lut = kv.value();
+
+            NameMap m;
+
+            for (const auto &kv2: lut.outputNames | indexed(0))
+            {
+                const auto &outputIndex = kv2.index();
+                const auto &outputName = kv2.value();
+
+                m[outputIndex] = outputName;
+            }
+
+            if (!m.empty())
+                lutMaps[unitIndex] = m;
+        }
+
+        if (!lutMaps.empty())
+            out << YAML::Key << "level1" << YAML::Value << lutMaps;
+    }
+
+    // Level2 - per lut output names
+    {
+        // Map structure is  [lutIndex][outputIndex] = outputName
+
+        std::map<unsigned, NameMap> lutMaps;
+
+        for (const auto &kv: ioCfg.l2.luts | indexed(0))
+        {
+            const auto &unitIndex = kv.index();
+            const auto &lut = kv.value();
+
+            NameMap m;
+
+            for (const auto &kv2: lut.outputNames | indexed(0))
+            {
+                const auto &outputIndex = kv2.index();
+                const auto &outputName = kv2.value();
+
+                m[outputIndex] = outputName;
+            }
+
+            if (!m.empty())
+                lutMaps[unitIndex] = m;
+        }
+
+        if (!lutMaps.empty())
+            out << YAML::Key << "level2" << YAML::Value << lutMaps;
+    }
+
+    // Level3 - flat list of unitnames
+    {
+        NameMap m;
+
+        for (const auto &kv: ioCfg.l3.DefaultUnitNames | indexed(0))
+        {
+            const size_t unitIndex = kv.index();
+
+            // Skip NIM I/Os as these are included in level0
+            if (Level3::NIM_IO_Unit_Offset <= unitIndex
+                && unitIndex < Level3::NIM_IO_Unit_Offset + trigger_io::NIM_IO_Count)
+            {
+                continue;
+            }
+
+            const auto &defaultName = kv.value();
+            const auto &unitName = ioCfg.l3.unitNames.at(unitIndex);
+
+            if (defaultName == UnitNotAvailable)
+                continue;
+
+            m[unitIndex] = unitName;
+        }
+
+        if (!m.empty())
+            out << YAML::Key << "level3" << YAML::Value << m;
+    }
+
+    out << YAML::EndMap;
+    assert(out.good()); // consistency check
+
+    //
+    // Additional settings stored in the meta block, e.g. soft activate flags.
+    //
+
+    out << YAML::Key << "settings" << YAML::Value << YAML::BeginMap;
+
+    {
+        out << YAML::Key << "level0" << YAML::Value << YAML::BeginMap;
+
+        for (const auto &kv: ioCfg.l0.timers | indexed(0))
+        {
+            auto &unit = kv.value();
+            unsigned unitIndex = kv.index();
+
+            out << YAML::Key << unitIndex << YAML::Value << YAML::BeginMap;
+            out << YAML::Key << "soft_activate" << YAML::Value << unit.softActivate;
+            out << YAML::EndMap;
+        }
+
+        out << YAML::EndMap;
+        assert(out.good()); // consistency check
+    }
+
+    {
+        out << YAML::Key << "level3" << YAML::Value << YAML::BeginMap;
+
+        for (const auto &kv: ioCfg.l3.counters | indexed(ioCfg.l3.CountersOffset))
+        {
+            auto &unit = kv.value();
+            unsigned unitIndex = kv.index();
+
+            out << YAML::Key << unitIndex << YAML::Value << YAML::BeginMap;
+            out << YAML::Key << "soft_activate" << YAML::Value << unit.softActivate;
+            out << YAML::EndMap;
+        }
+
+        out << YAML::EndMap;
+        assert(out.good()); // consistency check
+    }
+
+    out << YAML::EndMap;
+    assert(out.good()); // consistency check
+
+    return out.c_str();
 }
 
 }
