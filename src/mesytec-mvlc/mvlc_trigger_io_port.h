@@ -30,6 +30,11 @@ static const size_t ECL_OUT_Count = 3;
 // holdoff do not apply.
 static const size_t GateGeneratorMinWidth = 8;
 
+static const size_t LevelCount = 4;
+static const u16 UnitSelectRegister = 0x200u;
+static const u16 UnitRegisterBase = 0x300u;
+static const u16 UnitConnectBase = 0x80u;
+
 struct MESYTEC_MVLC_EXPORT Timer
 {
     static const u16 MinPeriod = 8;
@@ -43,7 +48,7 @@ struct MESYTEC_MVLC_EXPORT Timer
         s
     };
 
-    Range range;
+    Range range; // Unit of the 'period' value.
     u16 delay_ns;
     u16 period;
     bool softActivate;
@@ -111,6 +116,9 @@ struct MESYTEC_MVLC_EXPORT LUT
                    .invert = false,
                    .direction = IO::Direction::in,
                    .activate = false};
+
+    // Register offset of the strobe gate generator IO settings.
+    static const u16 StrobeGGIOOffset = 0x32u;
 
     std::array<std::string, OutputBits> defaultOutputNames;
     std::array<std::string, OutputBits> outputNames;
