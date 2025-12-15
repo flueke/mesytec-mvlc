@@ -36,6 +36,7 @@ add_library(mesytec-mvlc SHARED
     mvlc_replay_worker.cc
     mvlc_stack_errors.cc
     mvlc_stack_executor.cc
+    mvlc_trigger_io_deserialize.cc
     mvlc_trigger_io_port.cc
     mvlc_trigger_io_serialize.cc
     mvlc_trigger_io_serialize_vmescript.cc
