@@ -7,6 +7,14 @@
 namespace mesytec::mvlc::trigger_io
 {
 
+// Serialization of the TriggerIO structure to/from mvme VMEScript.
+//
+// The implementation does not really know VMEScript, there's no dependency on
+// mvme. The generator just emits VMEScript formatted text, the parser contains
+// a mini implementation doing just enough to parse the write commands and the
+// meta info. No support for variable expansion or math expressions or any fancy
+// VMEScript features as those are not used in the generated scripts.
+
 MESYTEC_MVLC_EXPORT std::string generate_trigger_io_vmescript(const TriggerIO &ioCfg);
 MESYTEC_MVLC_EXPORT TriggerIO parse_trigger_io_vmescript(const std::string &text);
 
