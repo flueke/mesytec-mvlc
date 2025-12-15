@@ -14,6 +14,15 @@
 #include <mesytec-mvlc/mesytec-mvlc_export.h>
 #include <mesytec-mvlc/mvlc_trigger_io_port.h>
 
+// Abstractions and helpers for serializing the TriggerIO structure.
+
+// This is generic code producing a list of 'ScriptPart' objects that can be
+// iterated by concrete serializers, e.g. the one producing mvme VMEScript.
+// A helper IScriptParserVisitor interface is provided with the accompanying
+// 'visit' function.
+// A step that's directly implemented is the serialization of meta info (unit
+// names and 'soft activate' flags) to YAML.
+
 namespace mesytec::mvlc::trigger_io
 {
 
@@ -21,7 +30,7 @@ struct RegisterWrite
 {
     // Opt_HexValue indicates that the register value should be printed in
     // hexadecimal instead of decimal.
-    static const unsigned Opt_HexValue = 1u << 0;;
+    static const unsigned Opt_HexValue = 1u << 0;
 
     // Opt_BinValue indicates that the register value should be printed in
     // binary (0bxyz literal) instead of decimal.
@@ -41,18 +50,21 @@ struct RegisterWrite
 
     RegisterWrite() = default;
 
-    RegisterWrite(u16 address_, u16 value_, const std::string &comment_ = {}, unsigned options_ = 0u)
+    RegisterWrite(u16 address_, u16 value_, const std::string &comment_ = {},
+                  unsigned options_ = 0u)
         : address(address_)
         , value(value_)
         , comment(comment_)
         , options(options_)
-    {}
+    {
+    }
 
     RegisterWrite(u16 address_, u16 value_, unsigned options_)
         : address(address_)
         , value(value_)
         , options(options_)
-    {}
+    {
+    }
 };
 
 // Basic part of the script: either a register write or a block comment.
@@ -67,15 +79,11 @@ struct UnitBlock
     std::string comment;
     BasicParts parts;
 
-    void operator+=(const BasicPart &part)
-    {
-        parts.push_back(part);
-    }
+    void operator+=(const BasicPart &part) { parts.push_back(part); }
 
     void operator+=(const BasicParts &parts_)
     {
-        std::copy(std::begin(parts_), std::end(parts_),
-                  std::back_inserter(parts));
+        std::copy(std::begin(parts_), std::end(parts_), std::back_inserter(parts));
     }
 };
 
@@ -93,16 +101,15 @@ struct IScriptPartVisitor
     virtual ~IScriptPartVisitor() = default;
 };
 
-// Visits units in the given ScriptParts in order. For each unit the
-// statements needed to select and initialize the unit and additional comments
-// are generated. Concrete visitors can process these parts and generate
-// appropriate output code or structures.
+// Visits units in the given ScriptParts in order. For each unit the statements
+// needed to select and initialize the unit and additional comments are
+// generated. Concrete visitors can process these parts and generate appropriate
+// output code or structures.
 inline void visit(const ScriptParts &parts, IScriptPartVisitor &visitor)
 {
-    std::for_each(std::begin(parts), std::end(parts), [&visitor](const ScriptPart &part)
-    {
-        std::visit([&visitor](auto &&arg) { visitor(arg); }, part);
-    });
+    std::for_each(std::begin(parts), std::end(parts),
+                  [&visitor](const ScriptPart &part)
+                  { std::visit([&visitor](auto &&arg) { visitor(arg); }, part); });
 }
 
 // Visits units in the TriggerIO structure in level order. For each unit the
@@ -114,8 +121,10 @@ inline void visit(const TriggerIO &ioCfg, IScriptPartVisitor &visitor)
     visit(generate_trigger_io_parts(ioCfg), visitor);
 }
 
+// Serializes the unit names and 'soft activate' flags to a YAML string.
+// The reverse is apply_meta_info_yaml() in the deserializer.
 std::string generate_meta_info_yaml(const TriggerIO &ioCfg);
 
-}
+} // namespace mesytec::mvlc::trigger_io
 
 #endif /* E8D6A3D4_9A71_4B1C_B4E0_55FF88FAC1E6 */

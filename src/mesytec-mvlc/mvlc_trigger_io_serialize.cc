@@ -15,8 +15,6 @@ namespace mesytec::mvlc::trigger_io
 namespace
 {
 
-static const u16 StrobeGGIOOffset = 0x32u;
-
 BasicPart select_unit(int level, int unit, const std::string &unitName = {})
 {
     auto ret = RegisterWrite{ 0x0200,  static_cast<u16>(((level << 8) | unit)), RegisterWrite::Opt_HexValue };
@@ -335,7 +333,7 @@ ScriptParts generate_trigger_io_parts(const TriggerIO &ioCfg)
 
         // strobe GG
         ub += fmt::format("L2.LUT{} strobe gate generator", unitIndex);
-        ub += generate(kv.value().strobeGG, io_flags::None, StrobeGGIOOffset);
+        ub += generate(kv.value().strobeGG, io_flags::None, LUT::StrobeGGIOOffset);
 
         // strobe_input
         {
