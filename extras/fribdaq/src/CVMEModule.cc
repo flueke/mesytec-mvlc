@@ -204,7 +204,92 @@ CVMEModule::CompileItem(CTCLObject& op) {
     result.s_data.push_back(data);
     result.s_width = wid;
 
+  } else if (std::string(definition[0]) == "rb") {
+    // Read block - must be 5 items:
+    if (definition.size() != 5) {
+      std::stringstream smsg;
+      smsg << std::string(op) << " must be a 5 element list for read block operations";
+      std::string msg(smsg.str());
+      throw std::invalid_argument(msg);
+    }
+    int amod = definition[1];
+    uint32_t adr =  int(definition[2]);
+    uint32_t count = int(definition[3]);
+    mesytec::mvlc::VMEDataWidth wid = decodeWidth(definition[4]);
     
+    
+    result.s_op = ReadBlock;
+    result.s_modifier = amod;
+    result.s_address = adr;
+    result.s_count = count;
+    result.s_width = wid;
+  } else if (std::string(definition[0]) == "rf") {
+    // Read fifo - must be 5 items:
+    if (definition.size() != 5) {
+      std::stringstream smsg;
+      smsg << std::string(op) << " must be a 5 element list for read fifo operations";
+      std::string msg(smsg.str());
+      throw std::invalid_argument(msg);
+    }
+    int amod = definition[1];
+    uint32_t adr =  int(definition[2]);
+    uint32_t count = int(definition[3]);
+    mesytec::mvlc::VMEDataWidth wid = decodeWidth(definition[4]);
+    
+    
+    result.s_op = ReadFifo;
+    result.s_modifier = amod;
+    result.s_address = adr;
+    result.s_count = count;
+    result.s_width = wid;
+  } else if (std::string(definition[0]) == "wb") {
+    // Write block - must be 5 items:
+    if (definition.size() != 5) {
+      std::stringstream smsg;
+      smsg << std::string(op) << " must be a 5 element list for write block operations";
+      std::string msg(smsg.str());
+      throw std::invalid_argument(msg);
+    }
+    int amod = definition[1];
+    uint32_t adr =  int(definition[2]);
+    mesytec::mvlc::VMEDataWidth wid = decodeWidth(definition[3]);
+    // The last item is a list of data items:
+    CTCLObject dataList = definition[4];
+    dataList.Bind(op.getInterpreter());
+    auto dataElements = dataList.getListElements();
+    for (auto& de : dataElements) {
+      de.Bind(op.getInterpreter());
+      result.s_data.push_back(int(de));
+    }
+    result.s_op = WriteBlock;
+    result.s_modifier = amod;
+    result.s_address = adr;
+    result.s_width = wid;
+
+  } else if (std::string(definition[0]) == "wf") {
+    // Write fifo - must be 5 items:
+    if (definition.size() != 5) {
+      std::stringstream smsg;
+      smsg << std::string(op) << " must be a 5 element list for write fifo operations";
+      std::string msg(smsg.str());
+      throw std::invalid_argument(msg);
+    }
+    int amod = definition[1];
+    uint32_t adr =  int(definition[2]);
+    mesytec::mvlc::VMEDataWidth wid = decodeWidth(definition[3]);
+    // The last item is a list of data items:
+    CTCLObject dataList = definition[4];
+    dataList.Bind(op.getInterpreter());
+    auto dataElements = dataList.getListElements();
+    for (auto& de : dataElements) {
+      de.Bind(op.getInterpreter());
+      result.s_data.push_back(int(de));
+    }
+    result.s_op = WriteFifo;
+    result.s_modifier = amod;
+    result.s_address = adr;
+    result.s_width = wid;
+
   } else {
     // Invalid operation string:
 

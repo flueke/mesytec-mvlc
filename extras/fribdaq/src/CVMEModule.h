@@ -58,9 +58,9 @@ class CTCLObject;
  * - Read fifos operations are of the form:
  *     {rf amod address count width}
  * - Write block operations (simulated) are of the form
- *     {wb amod address count width {item1...}}
+ *     {wb amod address  width {item1...}}
  * - Write fifo operations (simulated) are of the form:
- *     {wf amod address count width {item1...}}
+ *     {wf amod address  width {item1...}}
  *  
  * Note this is not compatible with the VMUSB module in VMUSBReadout as its list are raw VMUSB opcodes.
  *
@@ -119,6 +119,9 @@ public:
 
   void                      execWrite(const VmeOperation& op);
   uint32_t                  execRead(const VmeOperation& op);
+  std::vector<uint32_t>     execReadBlock(const VmeOperation& op);
+  std::vector<uint32_t>     execReadFifo(const VmeOperation& op);
+  void                      execWriteBlock(const VmeOperation& op);
   std::string               createOkResponse(const std::vector<uint32_t> readData);
 };
 
