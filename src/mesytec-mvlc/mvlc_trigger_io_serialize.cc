@@ -32,7 +32,7 @@ BasicPart select_unit(int level, int unit, const std::string &unitName = {})
 // Note: the desired unit must be selected prior to calling this function.
 BasicPart write_unit_reg(u16 reg, u16 value, const std::string &comment, unsigned writeOpts = 0u)
 {
-    auto ret = RegisterWrite { static_cast<u16>(0x0300u + reg), value, comment, writeOpts };
+    auto ret = RegisterWrite { static_cast<u16>(UnitRegisterBase + reg), value, comment, writeOpts };
 
     return ret;
 }
