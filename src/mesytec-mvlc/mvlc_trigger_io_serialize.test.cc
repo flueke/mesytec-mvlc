@@ -2,6 +2,9 @@
 #include <gtest/gtest.h>
 
 #include "mvlc_trigger_io_serialize_vmescript.h"
+#include "mvlc_trigger_io_serialize_mvlcscript.h"
+#include "mvlc_readout_config.h"
+#include "util/fmt.h"
 
 using namespace mesytec::mvlc;
 using boost::adaptors::indexed;
@@ -9,6 +12,17 @@ using boost::adaptors::indexed;
 static const char *ReferenceVMEScript =
 #include "data/trigger_io_vme_script_reference_file.vmescript"
     ;
+
+// Some tests compare against the reference file from mvme. This is fine but
+// does not check if modifications really carry through.
+//
+// Other tests first generate a StackCommandBuilder from the TriggerIO, then do
+// a serialize loop, create a 2nd builder from the deserialized result and
+// compare the two builders. This was done because builder comparsion was
+// already implemented. These should be fine.
+//
+// What's missing is more code that modifies parameters, then checks that the
+// values really survived the serialization round-trip. TODO: add more test
 
 // Simple one way test from TriggerIO to VMEScript text.
 TEST(TriggerIOSerialize, SerializeToVMEScript)
@@ -119,4 +133,24 @@ TEST(TriggerIOSerialize, DeserializeFromVMEScript)
             ASSERT_EQ(parsed.l3.unitNames.at(index), parsed.l0.unitNames.at(index));
         }
     }
+}
+
+TEST(TriggerIOSerialize, SerializeToStackCommandBuilder)
+{
+    auto cmdBuilder = trigger_io::generate_trigger_io_command_builder(trigger_io::TriggerIO{});
+    auto parsed = trigger_io::parse_trigger_io_command_builder(cmdBuilder);
+    auto cmdBuilder2 = trigger_io::generate_trigger_io_command_builder(parsed);
+
+    ASSERT_EQ(cmdBuilder, cmdBuilder2);
+}
+
+TEST(TriggerIOSerialize, SerializeToMvlcScript)
+{
+    trigger_io::TriggerIO triggerIo;
+    auto cmdBuilder = trigger_io::generate_trigger_io_command_builder(triggerIo);
+    auto mvlcScript = trigger_io::generate_trigger_io_mvlcscript(triggerIo);
+    auto parsed = trigger_io::parse_trigger_io_mvlcscript(mvlcScript);
+    auto cmdBuilder2 = trigger_io::generate_trigger_io_command_builder(parsed);
+
+    ASSERT_EQ(cmdBuilder, cmdBuilder2);
 }

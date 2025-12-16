@@ -74,7 +74,8 @@ struct VMEScriptGenerator: public IScriptPartVisitor
         for (const auto &part: ub.parts)
         {
             // clang-format off
-            std::visit(mesytec::mvlc::util::overloaded {
+            std::visit(mesytec::mvlc::util::overloaded
+            {
                 [this](const RegisterWrite &write)
                 {
                     this->operator()(write);

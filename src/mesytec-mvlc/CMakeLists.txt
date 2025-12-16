@@ -39,6 +39,7 @@ add_library(mesytec-mvlc SHARED
     mvlc_trigger_io_deserialize.cc
     mvlc_trigger_io_port.cc
     mvlc_trigger_io_serialize.cc
+    mvlc_trigger_io_serialize_mvlcscript.cc
     mvlc_trigger_io_serialize_vmescript.cc
     mvlc_usb_interface.cc
     mvlc_util.cc
