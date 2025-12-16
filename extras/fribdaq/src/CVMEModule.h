@@ -53,10 +53,10 @@ class CTCLObject;
  *   to be read and width one of 16 or 32 indicating the width of the read.
  * - Write operations are of the form {w amod address data width} where w is a literal w and data are the
  *   data to write.
- * - Readblock operations are of the form:
- *     {rb amod address  count width} 
- * - Read fifos operations are of the form:
- *     {rf amod address count width}
+ * - Readblock operations are of the form all block reads are 32bits wide
+ *     {rb amod address  count} 
+ * - Read fifos operations are of the form all fifo block reads are 32 bits wide
+ *     {rf amod address count }
  * - Write block operations (simulated) are of the form
  *     {wb amod address  width {item1...}}
  * - Write fifo operations (simulated) are of the form:
