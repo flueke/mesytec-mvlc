@@ -122,7 +122,8 @@ public:
   std::vector<uint32_t>     execReadBlock(const VmeOperation& op);
   std::vector<uint32_t>     execReadFifo(const VmeOperation& op);
   void                      execWriteBlock(const VmeOperation& op);
-  std::string               createOkResponse(const std::vector<uint32_t> readData);
+  void                      execWriteFifo(const VmeOperation& op);
+  std::string               createOkResponse(const std::vector<std::vector<uint32_t>>& readData);
 };
 
 /////////////////////// Creator and autoregister:
