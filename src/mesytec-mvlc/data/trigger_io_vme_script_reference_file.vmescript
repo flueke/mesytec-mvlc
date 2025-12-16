@@ -544,7 +544,7 @@ mvlc_stack_begin
   0x031a 0x0000    # cells 52-55
   0x031c 0x0000    # cells 56-59
   0x031e 0x0000    # cells 60-63
-  0x0320 0b0000    # strobed_outputs
+  0x0320 0b0000    # strobed_outputs (3 bit mask)
   0x0380      0    # connect input0 to 'timer0'
   0x0382      0    # connect input1 to 'timer0'
   0x0384      0    # connect input2 to 'timer0'
@@ -575,7 +575,7 @@ mvlc_stack_begin
   0x031a 0x0000    # cells 52-55
   0x031c 0x0000    # cells 56-59
   0x031e 0x0000    # cells 60-63
-  0x0320 0b0000    # strobed_outputs
+  0x0320 0b0000    # strobed_outputs (3 bit mask)
   0x0380      0    # connect input0 to 'timer0'
   0x0382      0    # connect input1 to 'timer0'
   0x0384      0    # connect input2 to 'timer0'
@@ -606,7 +606,7 @@ mvlc_stack_begin
   0x031a 0x0000    # cells 52-55
   0x031c 0x0000    # cells 56-59
   0x031e 0x0000    # cells 60-63
-  0x0320 0b0000    # strobed_outputs
+  0x0320 0b0000    # strobed_outputs (3 bit mask)
   0x0380      0    # connect input0 to 'timer0'
   0x0382      0    # connect input1 to 'timer0'
   0x0384      0    # connect input2 to 'timer0'
