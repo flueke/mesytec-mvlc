@@ -121,14 +121,14 @@ BasicParts generate(const trigger_io::TriggerResource &unit, int /*index*/)
     {
         if (auto write = std::get_if<RegisterWrite>(&part))
         {
-            write->comment = "slave_trigger: " + write->comment;
+            write->comment = "SyncTrigger: " + write->comment;
         }
     }
 
     std::copy(std::begin(ggParts), std::end(ggParts), std::back_inserter(ret));
 
     ret.push_back(write_unit_reg(0x82u, unit.syncOutTrigger.triggerIndex,
-                          "slave trigger number (0..3)"));
+                          "SyncTrigger number (0..3)"));
 
     return ret;
 }
