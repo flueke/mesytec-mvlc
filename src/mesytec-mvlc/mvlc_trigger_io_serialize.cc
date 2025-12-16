@@ -1,4 +1,5 @@
 #include "mvlc_trigger_io_serialize.h"
+#include "mvlc_trigger_io_serialize_internal.h"
 
 #include <boost/range/adaptor/indexed.hpp>
 #include <map>
@@ -12,10 +13,7 @@ using boost::adaptors::indexed;
 namespace mesytec::mvlc::trigger_io
 {
 
-namespace
-{
-
-BasicPart select_unit(int level, int unit, const std::string &unitName = {})
+BasicPart select_unit(int level, int unit, const std::string &unitName)
 {
     auto ret = RegisterWrite{ 0x0200,  static_cast<u16>(((level << 8) | unit)), RegisterWrite::Opt_HexValue };
 
@@ -30,7 +28,7 @@ BasicPart select_unit(int level, int unit, const std::string &unitName = {})
 };
 
 // Note: the desired unit must be selected prior to calling this function.
-BasicPart write_unit_reg(u16 reg, u16 value, const std::string &comment, unsigned writeOpts = 0u)
+BasicPart write_unit_reg(u16 reg, u16 value, const std::string &comment, unsigned writeOpts)
 {
     auto ret = RegisterWrite { static_cast<u16>(UnitRegisterBase + reg), value, comment, writeOpts };
 
@@ -38,7 +36,7 @@ BasicPart write_unit_reg(u16 reg, u16 value, const std::string &comment, unsigne
 }
 
 // Note: the desired unit must be selected prior to calling this function.
-BasicPart write_connection(u16 offset, u16 value, const std::string &sourceName = {})
+BasicPart write_connection(u16 offset, u16 value, const std::string &sourceName)
 {
     auto ret = RegisterWrite { static_cast<u16>(0x0380u + offset), value };
 
@@ -48,7 +46,7 @@ BasicPart write_connection(u16 offset, u16 value, const std::string &sourceName 
     return ret;
 }
 
-BasicPart write_strobe_connection(u16 offset, u16 value, const std::string &sourceName = {})
+BasicPart write_strobe_connection(u16 offset, u16 value, const std::string &sourceName)
 {
     auto ret = RegisterWrite { static_cast<u16>(0x0380u + offset), value };
 
@@ -69,24 +67,14 @@ BasicParts generate(const trigger_io::Timer &unit, int index)
     return ret;
 }
 
-namespace io_flags
-{
-    using Flags = u8;
-    static const Flags HasDirection    = 1u << 0;
-    static const Flags HasActivation   = 1u << 1;
-
-    static const Flags None             = 0u;
-    static const Flags NIM_IO_Flags     = HasDirection | HasActivation;
-    static const Flags ECL_IO_Flags     = HasActivation;
-}
 
 /* The IO structure is used for different units sharing IO properties:
- * NIM I/Os, ECL Outputs, slave triggers, and strobe gate generators.
+ * NIM I/Os, ECL Outputs, sync triggers and strobe gate generators.
  * The activation and direction registers are only written out if the
  * respective io_flags bit is set. The offset value is added to all base
  * register addresses.
  */
-BasicParts generate(const trigger_io::IO &io, const io_flags::Flags &ioFlags, u16 offset = 0)
+BasicParts generate(const trigger_io::IO &io, const io_flags::Flags &ioFlags, u16 offset)
 {
     BasicParts ret;
 
@@ -215,8 +203,6 @@ BasicParts generate(const trigger_io::Counter &unit, int index)
     ret.push_back(write_unit_reg(14, static_cast<u16>(unit.clearOnLatch), "clear on latch"));
     return ret;
 }
-
-} // end anon namespace
 
 ScriptParts generate_trigger_io_parts(const TriggerIO &ioCfg)
 {

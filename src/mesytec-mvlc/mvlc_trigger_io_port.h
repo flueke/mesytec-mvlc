@@ -11,6 +11,7 @@
 #include <array>
 #include <bitset>
 #include <stdexcept>
+#include <string>
 #include <variant>
 #include <vector>
 
