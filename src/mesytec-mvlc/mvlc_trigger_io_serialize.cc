@@ -318,7 +318,7 @@ ScriptParts generate_trigger_io_parts(const TriggerIO &ioCfg)
         ub += select_unit(2, unitIndex);
         ub += write_lut(kv.value());
         ub += write_unit_reg(0x20, kv.value().strobedOutputs.to_ulong(),
-                              "strobed_outputs", RegisterWrite::Opt_BinValue);
+                              "strobed_outputs (3 bit mask)", RegisterWrite::Opt_BinValue);
 
         const auto &l2InputChoices = Level2::DynamicInputChoices[unitIndex];
 
