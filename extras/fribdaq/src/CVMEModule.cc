@@ -201,7 +201,7 @@ CVMEModule::CompileItem(CTCLObject& op) {
     result.s_op = Write;
     result.s_modifier = amod;
     result.s_address = add;
-    result.s_data = data;
+    result.s_data.push_back(data);
     result.s_width = wid;
 
     
@@ -239,7 +239,7 @@ CVMEModule::decodeWidth(CTCLObject& wid) {
     // invalid:
 
     std::stringstream smsg;
-    smsg << "Width specify must be '16 or '32' but was " << std::string(wid);
+    smsg << "Width specify must be '16 or '32' buSt was " << std::string(wid);
     std::string msg(smsg.str());
     throw std::invalid_argument(msg);
   }
@@ -256,7 +256,7 @@ CVMEModule::decodeWidth(CTCLObject& wid) {
  */
 void
 CVMEModule::execWrite(const VmeOperation& op) {
-  auto status = m_pVme->vmeWrite(op.s_address, op.s_data, op.s_modifier, op.s_width);
+  auto status = m_pVme->vmeWrite(op.s_address, op.s_data[0], op.s_modifier, op.s_width);
 
   if (status) {
     std::stringstream smsg;

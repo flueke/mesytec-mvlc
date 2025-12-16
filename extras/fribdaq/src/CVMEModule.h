@@ -53,7 +53,15 @@ class CTCLObject;
  *   to be read and width one of 16 or 32 indicating the width of the read.
  * - Write operations are of the form {w amod address data width} where w is a literal w and data are the
  *   data to write.
- * 
+ * - Readblock operations are of the form:
+ *     {rb amod address  count width} 
+ * - Read fifos operations are of the form:
+ *     {rf amod address count width}
+ * - Write block operations (simulated) are of the form
+ *     {wb amod address count width {item1...}}
+ * - Write fifo operations (simulated) are of the form:
+ *     {wf amod address count width {item1...}}
+ *  
  * Note this is not compatible with the VMUSB module in VMUSBReadout as its list are raw VMUSB opcodes.
  *
  * Success will return:
@@ -71,12 +79,13 @@ class CVMEModule : public SlowControlsDriver
   // Private data structures - these are the compiled
   // list:
 private:
-  enum OpType {Read, Write};   
+  enum OpType {Read, Write, ReadBlock, ReadFifo, WriteBlock, WriteFifo};   
   typedef struct _VmeOperation {
     OpType             s_op;
     uint8_t            s_modifier;
     uint32_t           s_address;
-    uint32_t           s_data;             // Only meaningful on Write ops.
+    uint32_t           s_count;            // Only meaningful on block/fifo ops.
+    std::vector<uint32_t>           s_data;   // Only meaningful on Write ops.
     mesytec::mvlc::VMEDataWidth s_width;
   } VmeOperation;
 
