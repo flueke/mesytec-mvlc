@@ -101,7 +101,7 @@ BasicParts generate(const trigger_io::TriggerResource &unit, int /*index*/)
                           "type: 0=IRQ, 1=SoftTrigger, 2=SyncTrigger"));
 
     ret.push_back(write_unit_reg(0, static_cast<u16>(unit.irqUtil.irqIndex),
-                          "irq_index (zero-based: 0: IRQ1, .., 6: IRQ7)"));
+                          "IRQ: zero-based index: 0=IRQ1, .., 6=IRQ7"));
 
     auto ggParts = generate(unit.syncOutTrigger.gateGenerator, io_flags::None, 6);
 

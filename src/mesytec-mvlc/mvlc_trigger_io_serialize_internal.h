@@ -11,7 +11,6 @@ BasicPart select_unit(int level, int unit, const std::string &unitName = {});
 BasicPart write_unit_reg(u16 reg, u16 value, const std::string &comment, unsigned writeOpts = 0u);
 BasicPart write_connection(u16 offset, u16 value, const std::string &sourceName = {});
 BasicPart write_strobe_connection(u16 offset, u16 value, const std::string &sourceName = {});
-BasicParts generate(const trigger_io::Timer &unit, int index);
 
 namespace io_flags
 {
@@ -24,6 +23,7 @@ namespace io_flags
     static const Flags ECL_IO_Flags     = HasActivation;
 }
 
+BasicParts generate(const trigger_io::Timer &unit, int index);
 BasicParts generate(const trigger_io::IO &io, const io_flags::Flags &ioFlags, u16 offset = 0);
 BasicParts generate(const trigger_io::TriggerResource &unit, int index);
 BasicParts generate(const trigger_io::StackBusy &unit, int index);
