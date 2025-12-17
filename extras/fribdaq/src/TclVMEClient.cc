@@ -48,6 +48,8 @@ class CVMEClientCommand;
   *   $client addRead 0x10000 0x09 16;   # add a 16 bit read from 0x10000
   *   $client addWrite 0x120000 0x09 0x1234 32;  # Add a 32 bit write of 0x1234 -> 0x120000
   * 
+  * Each single shot read will produce a single result list item while block reads will produced a sublist.
+  * 
   *   set result [$client execute];               # run the list.
   *   set readValue [lindex $result [$client readIndex 0]];  # Get data from the read
   *   $client reset;                              # Prepare for another list.
@@ -139,6 +141,10 @@ public:
 private:
     void addRead(CTCLInterpreter& interp, std::vector<CTCLObject>& objv);
     void addWrite(CTCLInterpreter& interp, std::vector<CTCLObject>& objv);
+    void addBlockRead(CTCLInterpreter& interp, std::vector<CTCLObject>& objv);
+    void addFifoRead(CTCLInterpreter& interp, std::vector<CTCLObject>& objv);
+    void addBlockWrite(CTCLInterpreter& interp, std::vector<CTCLObject>& objv);
+    void addFifoWrite(CTCLInterpreter& interp, std::vector<CTCLObject>& objv);
     void execute(CTCLInterpreter& interp, std::vector<CTCLObject>& objv);
     void readIndex(CTCLInterpreter& interp, std::vector<CTCLObject>& objv);
     void reset(CTCLInterpreter& interp, std::vector<CTCLObject>& objv);
@@ -337,6 +343,14 @@ CVMEClientCommand::operator()(CTCLInterpreter& interp, std::vector<CTCLObject>& 
             addRead(interp, objv);
         } else if (subcommand == "addWrite") {
             addWrite(interp, objv);
+        } else if(subcommand == "addblockRead") {
+            addBlockRead(interp, objv);
+        } else if (subcommand == "addFifoRead") {
+            addFifoRead(interp, objv);
+        } else if (subcommand == "addBlockWrite") {
+            addBlockWrite(interp, objv);
+        } else if (subcommand == "addFifoWrite") {
+            addFifoWrite(interp, objv);
         } else if (subcommand == "execute") {
             execute(interp, objv);
         } else if (subcommand == "readIndex") {
@@ -454,6 +468,108 @@ CVMEClientCommand::addWrite(CTCLInterpreter& interp, std::vector<CTCLObject>& ob
 
     m_client->addWrite(addr, amod, data, width);
 }
+
+/**
+ * addBlockRead
+ *    Add a block read operation to the list of operations.  This command has the form:
+ *  $instance addBlockRead address maxRead amod
+ * 
+ * @param interp  - interpreter running this command.
+ * @param objv    - Command words.
+ * @throw std::string - number of command arguments incorrect.
+ * @throw CTCLException - integer conversions fail
+ * @throw std::invalid_argument - Tha addreess modifier or width are not valid.
+ * @note all block reads are 32 bits wide.
+ */
+void
+CVMEClientCommand::addBlockRead(CTCLInterpreter& interp, std::vector<CTCLObject>& objv) {
+    requireExactly(objv, 5, "VMEInstance addBlockRead - incorrect number of command words");
+    uint32_t addr = int(objv[2]);
+    uint16_t maxRead = int(objv[3]);
+    uint8_t amod = validateAmod(objv[4]);
+    m_client->addBlockRead(addr, maxRead, amod);
+}
+/**
+ * addFifoRead
+ *    Adds a FIFO read operation tot he list of operations.  FIFO reads differ from
+ * block reads in that the server will direct all reads to the same address while a block read
+ * will increment the address after each read.  This command has the form:
+ * 
+ * $instance addFifoRead address maxRead amod
+ * 
+ * @param interp  - interpreter running this command.
+ * @param objv    - Command words.
+ * @throw std::string - number of command arguments incorrect.
+ * @throw CTCLException - integer conversions fail
+ * @throw std::invalid_argument - Tha addreess modifier or width are not valid.
+ * @note all FIFO reads are 32 bits wide.
+ */
+void
+CVMEClientCommand::addFifoRead(CTCLInterpreter& interp, std::vector<CTCLObject>& objv) {
+    requireExactly(objv, 5, "VMEInstance addFifoRead - incorrect number of command words");
+    uint32_t addr = int(objv[2]);
+    uint16_t maxRead = int(objv[3]);
+    uint8_t amod = validateAmod(objv[4]);
+    m_client->addFifoRead(addr, maxRead, amod);
+}
+/**
+ * addBlockWrite
+ *    Adds a block write operation to the list of operations.  This command has the form
+ *  $instance addBlockWrite address amod dataList
+ * 
+ * 
+ * @param interp  - interpreter running this command.
+ * @param objv    - Command words.
+ * @throw std::string - number of command arguments incorrect.
+ * @throw CTCLException - integer conversions fail
+ * @throw std::invalid_argument - Tha addreess modifier or width are not valid.
+ * @note All block writes are 32 bits wide.
+ *  
+ */
+void
+CVMEClientCommand::addBlockWrite(CTCLInterpreter& interp, std::vector<CTCLObject>& objv) {
+    requireExactly(objv, 5, "VMEInstance addBlockWrite - incorrect number of command words");
+    uint32_t addr = int(objv[2]);
+    uint8_t amod = validateAmod(objv[3]);
+    CTCLObject dataList = objv[4];
+    dataList.Bind(interp);
+    std::vector<uint32_t> data;
+    auto elements = dataList.getListElements();
+    for (auto& element : elements) {
+        element.Bind(interp);
+        uint32_t value = int(element);
+        data.push_back(value);
+    }
+    m_client->addBlockWrite(addr, amod, data, CVMEClient::DataWidth::D32);
+}
+/**
+ * addFifoWrite
+ *   Adds a FIFO write operation to the list of operations.  This command has the form
+ * $instance addFifoWrite address amod dataList
+ *
+ * @param interp  - interpreter running this command.
+ * @param objv    - Command words.
+ * @throw std::string - number of command arguments incorrect.
+ * @throw CTCLException - integer conversions fail
+ * @throw std::invalid_argument - Tha addreess modifier or width are not valid.
+ * @note All FIFO writes are 32 bits wide.
+ */
+void
+CVMEClientCommand::addFifoWrite(CTCLInterpreter& interp, std::vector<CTCLObject>& objv) {
+    requireExactly(objv, 5, "VMEInstance addFifoWrite - incorrect number of command words");
+    uint32_t addr = int(objv[2]);
+    uint8_t amod = validateAmod(objv[3]);
+    CTCLObject dataList = objv[4];
+    dataList.Bind(interp);
+    std::vector<uint32_t> data;
+    auto elements = dataList.getListElements();
+    for (auto& element : elements) {
+        element.Bind(interp);
+        uint32_t value = int(element);
+        data.push_back(value);
+    }
+    m_client->addFifoWrite(addr, amod, data, CVMEClient::DataWidth::D32);
+}
 /**
  *  execute
  *     Exacute the existing list of VME operations.  Note that this does not
@@ -482,7 +598,7 @@ void
 CVMEClientCommand::execute(CTCLInterpreter& interp, std::vector<CTCLObject>& objv) {
     requireExactly(objv, 2, "VMEInstance execute - no additional command parameters are expected");
 
-    auto data = m_client->execute();
+    auto data = m_client->execute();       // std::vector<std::vector<uint32_t>>
 
     // Marshall the result list and set it as the command result:
 
@@ -490,7 +606,16 @@ CVMEClientCommand::execute(CTCLInterpreter& interp, std::vector<CTCLObject>& obj
     result.Bind(interp);
 
     for (auto datum : data) {
-        result += int(datum);                // no uint_32 +=.
+        if (datum.size() == 1) {
+            result += (int)(datum[0]);
+        } else {
+            CTCLObject sublist;
+            sublist.Bind(interp);
+            for (auto subdatum : datum) {
+                sublist += int(subdatum);      // uint32_t to int conversion.
+            }
+            result += sublist;
+        }
     }
 
     interp.setResult(result);

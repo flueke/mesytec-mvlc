@@ -94,8 +94,97 @@ uint32_t addr, uint8_t amod, uint32_t data, DataWidth width
     // Save the operation for later:
 
     m_operations.push_back(encoded);
-    m_readIndices.push_back(-1);
+    m_readIndices.push_back(-1);   // Reserve space for the read index.
 }
+/**
+ * addBlockRead
+ *   Add a block read operation to the list of operations that will be
+ * requested by the next invocation of execute().   The format of a block read
+ * request is "rb 0xamod 0xaddress count".  Read widths are always
+ * 32 bits.
+ */
+void
+CVMEClient::addBlockRead(uint32_t addr, uint16_t maxRead, uint8_t amod) {
+    std::stringstream encoder;
+    encoder << std::hex << "rb 0x" << unsigned(amod) << " 0x" << addr << " " << maxRead;
+    std::string encoded(encoder.str());
+
+    m_operations.push_back(encoded);
+    m_readIndices.push_back(m_nextReadIndex++);
+}
+/**
+ * addFifoRead
+ *   Add a fifo read operation to the list of operations that will be
+ * requested by the next invocation of execute().   The format of a fifo read
+ * request is "rf 0xamod 0xaddress count".  Read widths are always
+ * 32 bits.
+ */
+void
+CVMEClient::addFifoRead(uint32_t addr, uint16_t maxRead, uint8_t amod) {
+    std::stringstream encoder;
+    encoder << std::hex << "rf 0x" << unsigned(amod) << " 0x" << addr << " " << maxRead;
+    std::string encoded(encoder.str());
+
+    m_operations.push_back(encoded);
+    m_readIndices.push_back(m_nextReadIndex++);
+}
+/**
+ * addBlockWrite
+ *   Add a block write operation to the list of operations that will be
+ * requested by the next invocation of execute().   The format of a block write
+ * request is "wb 0xamod 0xaddress width {0xdata1 0xdata2 ...}".  Write widths are always
+ * 32 bits.
+ * 
+ * @param addr - address to write to.
+ * @param amod - address modifier to use.
+ * @param data - vector of data to write.
+ * @param width - width of the write (D16 or D32).
+ */
+void
+CVMEClient::addBlockWrite(
+    uint32_t addr, uint8_t amod, 
+    const std::vector<uint32_t>& data, DataWidth width) {
+    std::stringstream encoder;
+    encoder << std::hex << "wb 0x" << unsigned(amod) << " 0x" << addr << " "
+        << (width == DataWidth::D16 ? "16" : "32")
+        << " {" << std::dec;
+
+    for (auto item : data) {
+        encoder << " " << item;
+    }
+    encoder << " }";
+    std::string encoded(encoder.str());
+    m_operations.push_back(encoded);
+    m_readIndices.push_back(-1);   // Reserve space for the read index.
+}
+/**
+ * addFifoWrite
+ *  Add a fifo write operation to the list of operations that will be
+ * requested by the next invocation of execute().   The format of a fifo write
+ * request is "wf 0xamod 0xaddress count {0xdata1 0xdata2 ...}".  Write widths are always
+ * 32 bits.
+ * 
+ * @param addr - address to write to.
+ * @param amod - address modifier to use.
+ * @param data - vector of data to write.
+ * @param width - width of the write (D16 or D32).
+ */
+void
+CVMEClient::addFifoWrite(
+    uint32_t addr, uint8_t amod,
+    const std::vector<uint32_t>& data, DataWidth width) {
+    std::stringstream encoder;
+    encoder << std::hex << "wf 0x" << unsigned(amod) << " 0x" << addr << " "
+        << (width == DataWidth::D16 ? "16" : "32")
+        << " {" << std::dec;
+    for (auto item : data) {
+        encoder << " " << item;
+    }
+    encoder << " }";
+    std::string encoded(encoder.str());
+    m_operations.push_back(encoded);
+    m_readIndices.push_back(-1);   // Reserve space for the read index.
+}   
 
 /**
  * execute
@@ -139,7 +228,7 @@ uint32_t addr, uint8_t amod, uint32_t data, DataWidth width
  *     auto myDatta = data[firstReadIndex];
  * ```
  */
-std::vector<uint32_t>
+std::vector<std::vector<uint32_t>>
 CVMEClient::execute() {
     std::string request = buildRequest();
     std::string reply = transact(request);
@@ -262,13 +351,17 @@ CVMEClient::transact(const std::string& request) {
  * distributeData
  *    Take a reply and turn its list of values into a vector of uint32_t
  * 
+ * The reply is of the form "OK {data1 ... dataN}".
+ * where datan are either single values for single shot reads or 
+ * sublists for block/fifo reads.
+ * 
  * @param reply - server reply string.
  * @throw CTCLException if the list does not parse properly.
  */
-std::vector<std::uint32_t>
+std::vector<std::vector<uint32_t>>
 CVMEClient::distributeData(const std::string& reply) {
 
-    std::vector<uint32_t> result;
+    std::vector<std::vector<uint32_t>> result;
     // This is a Tcl list of values:
 
     CTCLInterpreter interp;
@@ -278,10 +371,22 @@ CVMEClient::distributeData(const std::string& reply) {
 
     auto words = objList.getListElements();
     for (int i =1; i < words.size(); i++) { // skip 'OK'.
-	auto word = words[i];
+	    auto word = words[i];
         word.Bind(interp);
-        uint32_t value = int(word);
-        result.push_back(value);
+        std::vector<uint32_t> per_item;
+        if (word.llength() == 1) {
+            uint32_t value = int(word);
+            per_item.push_back(value);
+            
+        } else {
+            // It's a list of values:
+            std::vector<CTCLObject> sublist = word.getListElements();
+            for (auto& item : sublist) {
+                item.Bind(interp);
+                per_item.push_back(int(item));
+            }
+        }
+        result.push_back(per_item);
     }
     return result;
 }
