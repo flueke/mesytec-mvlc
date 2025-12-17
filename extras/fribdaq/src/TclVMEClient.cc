@@ -48,6 +48,8 @@ class CVMEClientCommand;
   *   $client addRead 0x10000 0x09 16;   # add a 16 bit read from 0x10000
   *   $client addWrite 0x120000 0x09 0x1234 32;  # Add a 32 bit write of 0x1234 -> 0x120000
   * 
+  * Each single shot read will produce a single result list item while block reads will produced a sublist.
+  * 
   *   set result [$client execute];               # run the list.
   *   set readValue [lindex $result [$client readIndex 0]];  # Get data from the read
   *   $client reset;                              # Prepare for another list.
@@ -482,7 +484,7 @@ void
 CVMEClientCommand::execute(CTCLInterpreter& interp, std::vector<CTCLObject>& objv) {
     requireExactly(objv, 2, "VMEInstance execute - no additional command parameters are expected");
 
-    auto data = m_client->execute();
+    auto data = m_client->execute();       // std::vector<std::vector<uint32_t>>
 
     // Marshall the result list and set it as the command result:
 
@@ -490,7 +492,16 @@ CVMEClientCommand::execute(CTCLInterpreter& interp, std::vector<CTCLObject>& obj
     result.Bind(interp);
 
     for (auto datum : data) {
-        result += int(datum);                // no uint_32 +=.
+        if (datum.size() == 1) {
+            result += (int)(datum[0]);
+        } else {
+            CTCLObject sublist;
+            sublist.Bind(interp);
+            for (auto subdatum : datum) {
+                sublist += int(subdatum);      // uint32_t to int conversion.
+            }
+            result += sublist;
+        }
     }
 
     interp.setResult(result);
