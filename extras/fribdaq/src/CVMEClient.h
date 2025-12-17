@@ -72,7 +72,17 @@ public:
     void addWrite(
         uint32_t addr, uint8_t amod, uint32_t data, DataWidth width
     );
-    std::vector<uint32_t> execute();
+    void addBlockRead(uint32_t addr, uint16_t maxRead, uint8_t amod);
+    void addFifoRead(uint32_t addr, uint16_t maxRead, uint8_t amod);
+    void addBlockWrite(
+        uint32_t addr, uint8_t amod, 
+        const std::vector<uint32_t>& data, DataWidth width
+    );
+    void addFifoWrite(
+        uint32_t addr, uint8_t amod,
+        const std::vector<uint32_t>& data, DataWidth width
+    );
+    std::vector<std::vector<uint32_t>> execute();
     int readIndex(size_t operationIndex);
 
     void reset();
@@ -82,7 +92,7 @@ public:
 private:
     std::string buildRequest();
     std::string transact(const std::string& request);
-    std::vector<uint32_t> distributeData(const std::string& reply);
+    std::vector<std::vector<uint32_t>> distributeData(const std::string& reply);
     std::string TclRuntimeMessage();
 
 };
