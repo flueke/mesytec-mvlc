@@ -189,13 +189,16 @@ void gen_counter_table(std::ostream &oss)
 }
 
 void gen_unit_address_table(std::ostream &oss, const std::vector<RegisterWrite> &unitSelects,
-                            unsigned targetLevel)
+    std::vector<unsigned> targetLevels)
 {
+    auto headerFragment = fmt::format("{}", fmt::join(targetLevels, " \\& "));
+    auto labelTail = fmt::format("{}", fmt::join(targetLevels, "_"));
+
     TriggerIO ioCfg; // for lookup of unit names and part generation
 
-    print_table_header(oss, fmt::format("Level {} unit addresses (0x0200)", targetLevel),
-                       fmt::format("table:trigger_io_units_level{}", targetLevel),
-                       {"Level", "Value", "Name"});
+    print_table_header(oss, fmt::format("Level {} unit addresses (0x0200)", headerFragment),
+                       fmt::format("table:trigger_io_units_level{}", labelTail),
+                       {"Value", "Name"});
 
     for (const auto &part: unitSelects)
     {
@@ -203,7 +206,7 @@ void gen_unit_address_table(std::ostream &oss, const std::vector<RegisterWrite> 
         unsigned level = (part.value >> 8) & 0xFF;
         unsigned unit = part.value & 0xFF;
 
-        if (level != targetLevel)
+        if (std::find(targetLevels.begin(), targetLevels.end(), level) == targetLevels.end())
             continue;
 
         auto name = lookup_default_name(ioCfg, UnitAddress{level, unit});
@@ -213,7 +216,7 @@ void gen_unit_address_table(std::ostream &oss, const std::vector<RegisterWrite> 
             name = name.substr(0, name.size() - 5);
         }
 
-        fmt::println(oss, "        \\hline {} & 0x{:03X} & {}\\\\", level, part.value,
+        fmt::println(oss, "        \\hline 0x{:03X} & {}\\\\", part.value,
                      escape_underscores(name));
     }
 
@@ -242,10 +245,9 @@ void gen_unit_address_tables(std::ostream &oss)
             return acc;
         });
 
-    for (unsigned level = 0; level <= 3; level++)
-    {
-        gen_unit_address_table(oss, unitSelectWrites, level);
-    }
+    gen_unit_address_table(oss, unitSelectWrites, {0});
+    gen_unit_address_table(oss, unitSelectWrites, {1, 2});
+    gen_unit_address_table(oss, unitSelectWrites, {3});
 }
 
 int main(int argc, char **argv)
