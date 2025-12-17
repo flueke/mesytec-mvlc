@@ -120,6 +120,12 @@ inline bool contains(const std::string &str, const std::string &needle)
     return str.find(needle) != std::string::npos;
 }
 
+inline bool endswith(std::string_view str, std::string_view suffix)
+{
+    if (suffix.size() > str.size()) return false;
+    return str.substr(str.size() - suffix.size(), suffix.size()) == suffix;
+}
+
 }
 
 #endif /* __MESYTEC_MVLC_STRING_UTIL_H__ */

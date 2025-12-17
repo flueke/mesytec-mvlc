@@ -42,6 +42,8 @@ BasicPart write_connection(u16 offset, u16 value, const std::string &sourceName)
 
     if (!sourceName.empty())
         ret.comment = fmt::format("connect input{} to '{}'", offset / 2, sourceName);
+    else
+        ret.comment = fmt::format("input{} connection choice", offset / 2);
 
     return ret;
 }
