@@ -2,7 +2,9 @@
 #include <mesytec-mvlc/util/fmt.h>
 #include <mesytec-mvlc/util/string_util.h>
 
+#include <array>
 #include <cassert>
+#include <fstream>
 #include <numeric>
 
 using namespace mesytec::mvlc;
@@ -35,7 +37,7 @@ void print_table_header(std::ostream &oss, const std::string &caption,
 {
     fmt::println(oss, "\\begin{{table}}[H]");
     fmt::println(oss, "    \\centering");
-    fmt::println(oss, "    \\caption{{{}}}", caption);
+    fmt::println(oss, "    \\caption{{{}}}", escape_underscores(caption));
     if (!label.empty())
     {
         fmt::println(oss, "    \\label{{{}}}", label); // do _not_ escape underscores in labels :)
@@ -47,7 +49,7 @@ void print_table_header(std::ostream &oss, const std::string &caption,
 
     for (const auto &title: columnTitles)
     {
-        formattedColumnTitles.push_back(fmt::format("\\textbf{{{}}}", title));
+        formattedColumnTitles.push_back(fmt::format("\\textbf{{{}}}", escape_underscores(title)));
     }
 
     fmt::println(oss, " {} \\\\", fmt::join(formattedColumnTitles, " & "));
@@ -188,8 +190,47 @@ void gen_counter_table(std::ostream &oss)
     print_table_footer(oss);
 }
 
+void gen_dso_tables(std::ostream &oss)
+{
+    // The DSO is not part of the TriggerIO structure as it's not used in the
+    // same context. Add it manually here.
+    oss <<
+R"(
+    \begin{table}[H]
+        \centering
+        \caption{DSO properties}
+        \label{table::trigger_io_dso}
+        \begin{tabular}{|l|l|}
+            \hline \textbf{Register} & \textbf{Description} \\
+            \hline 0x0300 & pre\_trigger\_time [ns]\\
+            \hline 0x0302 & post\_trigger\_time [ns]\\
+            \hline 0x0304 & nim\_triggers (14 bits, NIM0-NIM13)\\
+            \hline 0x0308 & irq\_triggers (6 bits, IRQ1-IRQ6)\\
+            \hline 0x030A & util\_triggers (16 bits, see \autoref{table:trigger_io_dso_util_triggers})\\
+            \hline 0x0306 & capture\_enable\\
+            \hline
+        \end{tabular}
+    \end{table}
+
+    The DSO FIFO read address is at \texttt{0xFFFF0004}. Readout is terminated by BERR signal.
+)";
+
+    // bit values for the util_triggers register
+    print_table_header(oss, "DSO util_triggers bitmask", "table:trigger_io_dso_util_triggers", {"Bit", "Name"});
+
+    TriggerIO ioCfg; // for lookup of unit names
+    for (auto i=0u; i<Level0::UtilityUnitCount; ++i)
+    {
+        UnitAddress unit = { 0, i, 0 };
+        auto name = lookup_default_name(ioCfg, unit);
+        fmt::println(oss, "        \\hline {} & {}\\\\", i, escape_underscores(name));
+    }
+
+    print_table_footer(oss);
+}
+
 void gen_unit_address_table(std::ostream &oss, const std::vector<RegisterWrite> &unitSelects,
-    std::vector<unsigned> targetLevels)
+                            std::vector<unsigned> targetLevels)
 {
     auto headerFragment = fmt::format("{}", fmt::join(targetLevels, " \\& "));
     auto labelTail = fmt::format("{}", fmt::join(targetLevels, "_"));
@@ -197,8 +238,7 @@ void gen_unit_address_table(std::ostream &oss, const std::vector<RegisterWrite> 
     TriggerIO ioCfg; // for lookup of unit names and part generation
 
     print_table_header(oss, fmt::format("Level {} unit addresses (0x0200)", headerFragment),
-                       fmt::format("table:trigger_io_units_level{}", labelTail),
-                       {"Value", "Name"});
+                       fmt::format("table:trigger_io_units_level{}", labelTail), {"Value", "Name"});
 
     for (const auto &part: unitSelects)
     {
@@ -220,6 +260,12 @@ void gen_unit_address_table(std::ostream &oss, const std::vector<RegisterWrite> 
                      escape_underscores(name));
     }
 
+    // Special DSO handling as it's not part of the TriggerIO structure.
+    if (std::find(targetLevels.begin(), targetLevels.end(), 0) != targetLevels.end())
+    {
+        fmt::println(oss, "        \\hline 0x030 & DSO\\\\");
+    }
+
     print_table_footer(oss);
 }
 
@@ -227,8 +273,8 @@ void gen_unit_address_tables(std::ostream &oss)
 {
     auto allParts = generate_trigger_io_parts(TriggerIO{});
 
-    // The unit selection is always the first part of each UnitBlock. First step
-    // is to collect all of these.
+    // Collect all the unit select writes. They are the first RegisterWrite in
+    // each UnitBlock.
     std::vector<RegisterWrite> unitSelectWrites;
 
     unitSelectWrites = std::accumulate(
@@ -250,6 +296,99 @@ void gen_unit_address_tables(std::ostream &oss)
     gen_unit_address_table(oss, unitSelectWrites, {3});
 }
 
+void gen_connection_map_l1_lut2(std::ostream &oss)
+{
+    print_table_header(oss, "L1.LUT2 dynamic input choices",
+                       "table::trigger_io_l1_lut2_connections",
+                       {"Value", "Input0", "Input1", "Input2"});
+
+    using Row = std::array<std::string, 4>;
+    std::vector<Row> rows;
+
+    for (size_t input = 0; input < trigger_io::Level1::LUT2DynamicInputChoices.size(); ++input)
+    {
+        const auto &choices = Level1::LUT2DynamicInputChoices[input];
+        rows.resize(std::max(choices.size(), rows.size()));
+        for (size_t choice = 0; choice < choices.size(); ++choice)
+        {
+            rows[choice][0] = std::to_string(choice);
+            rows[choice][1 + input] =
+                escape_underscores(lookup_default_name(TriggerIO{}, choices[choice]));
+        }
+    }
+
+    for (const auto &row: rows)
+    {
+        fmt::println(oss, "        \\hline {} \\\\", fmt::join(row, " & "));
+    }
+
+    print_table_footer(oss);
+}
+
+void gen_connection_map_l2_lut(std::ostream &oss, size_t lutIndex)
+{
+    print_table_header(oss, fmt::format("L2.LUT{} dynamic input choices", lutIndex),
+                       fmt::format("table::trigger_io_l2_lut{}_connections", lutIndex),
+                       {"Value", "Input0", "Input1", "Input2", "Strobe"});
+
+    auto allChoices = Level2::DynamicInputChoices[lutIndex];
+    using Row = std::array<std::string, 5>;
+    std::vector<Row> rows;
+
+    for (size_t input = 0; input < 3; ++input)
+    {
+        const auto &choices = allChoices.lutChoices[input];
+        size_t choiceCount = choices.size();
+        if (rows.size() < choiceCount)
+        {
+            rows.resize(choiceCount);
+        }
+        for (size_t choice = 0; choice < choiceCount; ++choice)
+        {
+            rows[choice][0] = std::to_string(choice);
+            rows[choice][1 + input] =
+                escape_underscores(lookup_default_name(TriggerIO{}, choices[choice]));
+        }
+    }
+
+    // strobe input
+    {
+        size_t choiceCount = allChoices.strobeChoices.size();
+        if (rows.size() < choiceCount)
+        {
+            rows.resize(choiceCount);
+        }
+
+        for (size_t choice = 0; choice < choiceCount; ++choice)
+        {
+            rows[choice][0] = std::to_string(choice);
+            rows[choice][4] = escape_underscores(
+                lookup_default_name(TriggerIO{}, allChoices.strobeChoices[choice]));
+        }
+    }
+
+    for (const auto &row: rows)
+    {
+        fmt::println(oss, "        \\hline {} \\\\", fmt::join(row, " & "));
+    }
+
+    print_table_footer(oss);
+}
+
+void gen_connection_maps_l2_luts(std::ostream &oss)
+{
+    for (size_t lutIndex = 0; lutIndex < trigger_io::Level2::LUTCount; ++lutIndex)
+    {
+        gen_connection_map_l2_lut(oss, lutIndex);
+    }
+}
+
+void gen_connection_maps(std::ostream &oss)
+{
+    gen_connection_map_l1_lut2(oss);
+    gen_connection_maps_l2_luts(oss);
+}
+
 int main(int argc, char **argv)
 {
     std::ofstream oss("/home/florian/src/mesytec-docs/nuclear_physics/mvlc/trigger_io_tables.tex");
@@ -267,8 +406,10 @@ int main(int argc, char **argv)
     gen_stackstart_table(oss);
     gen_synctrigger_table(oss);
     gen_counter_table(oss);
+    gen_dso_tables(oss);
 
     gen_unit_address_tables(oss);
+    gen_connection_maps(oss);
 
     return 0;
 }
