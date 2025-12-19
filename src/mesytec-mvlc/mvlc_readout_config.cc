@@ -113,7 +113,8 @@ YAML::Emitter &operator<<(YAML::Emitter &out, const StackCommandBuilder &stack)
         for (const auto &cmd: group.commands)
         {
             out << to_string(cmd);
-            out << YAML::Comment(cmd.comment);
+            if (!cmd.comment.empty())
+                out << YAML::Comment(cmd.comment);
         }
         out << YAML::EndSeq;
 
