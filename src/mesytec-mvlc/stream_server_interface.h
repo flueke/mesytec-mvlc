@@ -39,9 +39,11 @@ class MESYTEC_MVLC_EXPORT IStreamServer
     //// Stop listening and disconnect all clients. Idempotent.
     //virtual void stop() = 0;
 
-    virtual bool isRunning() const = 0;
+    virtual void stop() = 0;
+    //virtual bool isRunning() const = 0;
     virtual size_t clientCount() const = 0;
 
+    virtual bool isListening() const = 0;
     virtual std::vector<std::string> listenAddresses() const = 0;
     virtual std::vector<std::string> clientAddresses() const = 0;
 

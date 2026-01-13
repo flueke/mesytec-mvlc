@@ -23,9 +23,11 @@ class MESYTEC_MVLC_EXPORT StreamServerAsio: public IStreamServer
     //// Stop listening and disconnect all clients. Idempotent.
     //void stop() override;
 
-    bool isRunning() const override;
+    //bool isRunning() const override;
     size_t clientCount() const override;
 
+    void stop() override;
+    bool isListening() const override;
     std::vector<std::string> listenAddresses() const override;
     std::vector<std::string> clientAddresses() const override;
 

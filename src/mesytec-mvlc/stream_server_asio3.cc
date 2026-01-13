@@ -571,13 +571,18 @@ std::int64_t StreamServerAsio::sendToAllClients(const IOV *iov, size_t n_iov)
     return ret;
 }
 
+void StreamServerAsio::stop()
+{
+    d->stop();
+}
+
 size_t StreamServerAsio::clientCount() const
 {
     std::lock_guard<std::mutex> lock(d->clients_mutex_);
     return d->clients_.size();
 }
 
-bool StreamServerAsio::isRunning() const { return d->running_; }
+bool StreamServerAsio::isListening() const { return d->running_; }
 
 std::vector<std::string> StreamServerAsio::listenAddresses() const
 {
