@@ -155,6 +155,7 @@ bool process_listfile(const std::string &listfile, const ProcessOptions &options
 
     mvlc::readout_parser::ReadoutParserCounters parserCounters;
     mvlc::readout_parser::ReadoutParserCallbacks parserCallbacks;
+    size_t linearEventNumber = 0;
 
     if (parserState)
     {
@@ -165,15 +166,16 @@ bool process_listfile(const std::string &listfile, const ProcessOptions &options
                 std::cout << fmt::format("    SystemEvent: crateId={}, header={:#010x}, {}\n", crateId, *header, mvlc::decode_frame_header(*header));
         };
 
-        parserCallbacks.eventData = [&] (void *, int crateId, int eventIndex,
-            const mvlc::readout_parser::ModuleData *moduleDataList, unsigned moduleCount)
+        parserCallbacks.eventData = [&, linearEventNumber] (void *, int crateId, int eventIndex,
+            const mvlc::readout_parser::ModuleData *moduleDataList, unsigned moduleCount) mutable
         {
             assert(moduleDataList);
 
             if (options.printEventHeaders || options.printEventData)
             {
                 auto eventName = crateConfig->getEventName(eventIndex);
-                std::cout << fmt::format("    ReadoutEvent: crateId={}, eventIndex={}, eventName={}, moduleCount={}\n", crateId, eventIndex, eventName, moduleCount);
+                std::cout << fmt::format("    ReadoutEvent #{}: crateId={}, eventIndex={}, eventName={}, moduleCount={}\n", linearEventNumber, crateId, eventIndex, eventName, moduleCount);
+                ++linearEventNumber;
             }
 
             if (options.printEventData)
@@ -182,7 +184,7 @@ bool process_listfile(const std::string &listfile, const ProcessOptions &options
                 {
                     auto moduleName = crateConfig->getModuleName(eventIndex, moduleIndex);
                     auto dataView = data_view(moduleDataList[moduleIndex]);
-                    std::cout << fmt::format("        ModuleData: moduleIndex={}, moduleName={}, dataLen={}, data={:#010x}\n",
+                    std::cout << fmt::format("        ModuleData: moduleIndex={:2}, moduleName={:25}, dataLen={:3}, data={:#010x}\n",
                         moduleIndex, moduleName, dataView.size(), fmt::join(dataView, ", "));
                 }
             }
