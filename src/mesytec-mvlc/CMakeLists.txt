@@ -94,12 +94,12 @@ target_include_directories(mesytec-mvlc
     )
 
 target_link_libraries(mesytec-mvlc
-    PRIVATE asio
     PRIVATE minizip
     PRIVATE nlohmann_json::nlohmann_json
     PRIVATE pthread
     PRIVATE yaml-cpp
     PUBLIC argh
+    PUBLIC asio
     PUBLIC spdlog::spdlog
     PUBLIC Threads::Threads
     )

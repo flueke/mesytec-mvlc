@@ -36,10 +36,10 @@ if (MVLC_BUILD_DEV_TOOLS)
 
     # stream_server & test clients
     add_mvlc_dev_tool(mvlc_stream_test_client_asio mvlc_stream_test_client_asio.cc)
-    target_link_libraries(mvlc_stream_test_client_asio PRIVATE asio pthread)
+    target_link_libraries(mvlc_stream_test_client_asio)
 
     add_mvlc_dev_tool(mvlc_stream_test_server_asio mvlc_stream_test_server_asio.cc)
-    target_link_libraries(mvlc_stream_test_server_asio PRIVATE asio pthread)
+    target_link_libraries(mvlc_stream_test_server_asio)
 
     add_mvlc_dev_tool(dev_asio_playground dev_asio_playground.cc)
     target_link_libraries(dev_asio_playground PRIVATE asio pthread)
