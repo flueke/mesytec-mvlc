@@ -213,13 +213,13 @@ void StreamServer::Private::stop()
             break;
     }
 
-    //post_and_wait(io_context,
-    //              [this]()
-    //              {
-    //                  HANDLER_LOCATION;
-    //                  spdlog::debug("in posted io_context foobar");
-    //                  spdlog::debug("end of posted io_context foobar");
-    //              });
+    // post_and_wait(io_context,
+    //               [this]()
+    //               {
+    //                   HANDLER_LOCATION;
+    //                   spdlog::debug("in posted io_context foobar");
+    //                   spdlog::debug("end of posted io_context foobar");
+    //               });
 
     spdlog::debug("joining io_context thread");
     if (io_thread.joinable())
@@ -227,6 +227,7 @@ void StreamServer::Private::stop()
         io_thread.join();
     }
 
+    std::lock_guard<std::mutex> lock(acceptors_mutex);
     tcp_acceptor.reset();
     ipc_acceptor.reset();
 }
@@ -284,6 +285,7 @@ bool StreamServer::listen(const std::string &url)
 
 bool StreamServer::isListening() const
 {
+    std::lock_guard<std::mutex> lock(d->acceptors_mutex);
     return (d->tcp_acceptor && d->tcp_acceptor->is_open()) ||
            (d->ipc_acceptor && d->ipc_acceptor->is_open());
 }
@@ -338,6 +340,7 @@ template <typename Acceptor> std::string get_local_address(Acceptor &acceptor)
 
 std::vector<std::string> StreamServer::listenAddresses() const
 {
+    std::lock_guard<std::mutex> lock(d->acceptors_mutex);
     std::vector<std::string> addresses;
 
     if (d->tcp_acceptor && d->tcp_acceptor->is_open())
@@ -470,17 +473,20 @@ bool StreamServer::Private::listenTcp(const std::string &host, const std::string
 {
     try
     {
-        if (tcp_acceptor && tcp_acceptor->is_open())
         {
-            spdlog::warn("StreamServer is already listening on a TCP address");
-            return false;
-        }
-        spdlog::debug("Attempting to listen on TCP {}:{}", host, port);
-        auto address = asio::ip::make_address(host);
-        unsigned short port_num = static_cast<unsigned short>(std::stoi(port));
-        tcp::endpoint endpoint(address, port_num);
+            std::lock_guard<std::mutex> lock(acceptors_mutex);
+            if (tcp_acceptor && tcp_acceptor->is_open())
+            {
+                spdlog::warn("StreamServer is already listening on a TCP address");
+                return false;
+            }
+            spdlog::debug("Attempting to listen on TCP {}:{}", host, port);
+            auto address = asio::ip::make_address(host);
+            unsigned short port_num = static_cast<unsigned short>(std::stoi(port));
+            tcp::endpoint endpoint(address, port_num);
 
-        tcp_acceptor = std::make_unique<tcp::acceptor>(io_context, endpoint);
+            tcp_acceptor = std::make_unique<tcp::acceptor>(io_context, endpoint);
+        }
 
         HANDLER_LOCATION;
         startAcceptTcp();
@@ -503,6 +509,7 @@ void StreamServer::Private::startAcceptTcp()
 
     auto client = std::make_shared<Client>(GenericSocket(io_context));
 
+    std::lock_guard<std::mutex> lock(acceptors_mutex);
     if (tcp_acceptor && tcp_acceptor->is_open())
     {
         tcp_acceptor->async_accept(client->socket, [this, client](const asio::error_code &error)
@@ -587,36 +594,41 @@ bool StreamServer::Private::listenIpc(const std::string &path)
 #else
     try
     {
-        if (ipc_acceptor && ipc_acceptor->is_open())
         {
-            spdlog::warn("StreamServer is already listening on a unix domain socket");
-            return false;
-        }
-
-        struct stat st;
-        if (stat(path.c_str(), &st) == 0)
-        {
-            if (S_ISSOCK(st.st_mode))
+            std::lock_guard<std::mutex> lock(acceptors_mutex);
+            if (ipc_acceptor && ipc_acceptor->is_open())
             {
-                try
+                spdlog::warn("StreamServer is already listening on a unix domain socket");
+                return false;
+            }
+
+            struct stat st;
+            if (stat(path.c_str(), &st) == 0)
+            {
+                if (S_ISSOCK(st.st_mode))
                 {
-                    asio::local::stream_protocol::socket tmp_socket(io_context);
-                    tmp_socket.connect(asio::local::stream_protocol::endpoint(path));
-                    spdlog::warn("StreamServer: socket file {} already exists and is in use", path);
-                    return false;
-                }
-                catch (...)
-                {
-                    spdlog::debug("StreamServer: socket file {} exists but is not in use, removing",
-                                  path);
-                    ::unlink(path.c_str());
+                    try
+                    {
+                        asio::local::stream_protocol::socket tmp_socket(io_context);
+                        tmp_socket.connect(asio::local::stream_protocol::endpoint(path));
+                        spdlog::warn("StreamServer: socket file {} already exists and is in use",
+                                     path);
+                        return false;
+                    }
+                    catch (...)
+                    {
+                        spdlog::debug(
+                            "StreamServer: socket file {} exists but is not in use, removing",
+                            path);
+                        ::unlink(path.c_str());
+                    }
                 }
             }
-        }
 
-        spdlog::debug("Attempting to listen on unix domain socket {}", path);
-        ipc_acceptor = std::make_unique<stream_protocol::acceptor>(io_context,
-                                                                   stream_protocol::endpoint(path));
+            spdlog::debug("Attempting to listen on unix domain socket {}", path);
+            ipc_acceptor = std::make_unique<stream_protocol::acceptor>(
+                io_context, stream_protocol::endpoint(path));
+        }
         HANDLER_LOCATION;
         startAcceptIpc();
         ensure_io_thread_running();
@@ -641,6 +653,7 @@ void StreamServer::Private::startAcceptIpc()
 
     auto client = std::make_shared<Client>(GenericSocket(io_context));
 
+    std::lock_guard<std::mutex> lock(acceptors_mutex);
     if (ipc_acceptor && ipc_acceptor->is_open())
     {
         ipc_acceptor->async_accept(client->socket, [this, client](const asio::error_code &error)
