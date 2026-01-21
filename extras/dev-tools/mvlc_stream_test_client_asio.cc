@@ -172,7 +172,7 @@ int run_client(Sock &socket, ReconnectFun reconnect, ClientState &clientState)
         switch (state)
         {
         case State::Connecting:
-            if (ec = reconnect())
+            if ((ec = reconnect()))
             {
                 spdlog::warn("Failed to connect to server: {}", ec.message());
                 std::this_thread::sleep_for(std::chrono::milliseconds(250));
@@ -197,14 +197,22 @@ int run_client(Sock &socket, ReconnectFun reconnect, ClientState &clientState)
                     asio::buffer(clientState.destBuffer.data() + clientState.destBufferUsed,
                                  clientState.destBuffer.size() - clientState.destBufferUsed);
 
+                spdlog::trace("Reading up to {} bytes for TestBuffer header",
+                              clientState.destBuffer.size() - clientState.destBufferUsed);
+
                 bytesRead = asio::read(socket, dest, ec);
 
                 if (!ec)
                 {
+                    spdlog::trace("Read {} bytes for TestBuffer header", bytesRead);
                     clientState.destBufferUsed += bytesRead;
                     clientState.totalBytesReceived += bytesRead;
                     clientState.bytesReceivedInInterval += bytesRead;
                     clientState.totalReads += 1;
+                }
+                else
+                {
+                    spdlog::warn("Error while reading from server: {}", ec.message());
                 }
             }
 

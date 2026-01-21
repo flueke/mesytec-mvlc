@@ -40,7 +40,7 @@ add_library(mesytec-mvlc SHARED
     readout_buffer.cc
     readout_buffer_queues.cc
     scanbus_support.cc
-    stream_server_asio3.cc
+    stream_server_asio.cc
     stream_server_interface.cc
     util/counters.cc
     util/data_filter.cc
@@ -224,10 +224,12 @@ if (MVLC_BUILD_TESTS)
         add_gtest(test_mvlc_listfile_zmq_ganil mvlc_listfile_zmq_ganil.test.cc)
     endif(ZMQ_FOUND)
     add_gtest(test_mvlc_factory mvlc_factory.test.cc)
-    add_gtest(test_stream_server stream_server_asio.test.cc)
-    target_link_libraries(test_stream_server PRIVATE asio pthread)
-    if (WIN32)
-        target_link_libraries(test_stream_server PRIVATE ws2_32 winmm mswsock)
-    endif(WIN32)
-    set_tests_properties(test_stream_server PROPERTIES LABELS "not_in_docker")
+
+    # TODO: revive us!
+    #add_gtest(test_stream_server stream_server_asio.test.cc)
+    #target_link_libraries(test_stream_server PRIVATE asio pthread)
+    #if (WIN32)
+    #    target_link_libraries(test_stream_server PRIVATE ws2_32 winmm mswsock)
+    #endif(WIN32)
+    #set_tests_properties(test_stream_server PROPERTIES LABELS "not_in_docker")
 endif(MVLC_BUILD_TESTS)

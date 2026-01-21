@@ -102,7 +102,8 @@ int run_client(Sock &socket, ReconnectFun reconnect, ClientContext &ctx)
 
         case State::Connected:
         {
-            ctx.destBuffer.resize(util::Megabytes(1));
+            //ctx.destBuffer.resize(util::Megabytes(1));
+            ctx.destBuffer.resize(128);
             const size_t minBytes = ctx.isRawFormat ? sizeof(u32) : 2 * sizeof(u32);
             size_t bytesRead = 0;
 
@@ -110,14 +111,20 @@ int run_client(Sock &socket, ReconnectFun reconnect, ClientContext &ctx)
             {
                 auto dest = asio::buffer(ctx.destBuffer.data() + ctx.destBufferUsed,
                                          ctx.destBuffer.size() - ctx.destBufferUsed);
+                spdlog::trace("Reading up to {} bytes from server", dest.size());
                 bytesRead = asio::read(socket, dest, ec);
 
                 if (!ec)
                 {
+                    spdlog::trace("Read {} bytes from server", bytesRead);
                     ctx.destBufferUsed += bytesRead;
                     ctx.totalBytesReceived += bytesRead;
                     ctx.bytesReceivedInInterval += bytesRead;
                     ctx.totalReads += 1;
+                }
+                else
+                {
+                    spdlog::warn("Error while reading from server: {}", ec.message());
                 }
             }
 
@@ -219,7 +226,7 @@ int main(int argc, char *argv[])
     }
 
     std::string tcpHost = "127.0.0.1";
-    std::string tcpPort = "42333";
+    std::string tcpPort = "54321";
     std::string socketPath = "/tmp/mvme_stream_server.sock";
     bool isRawFormat = false;
     enum class Transport
