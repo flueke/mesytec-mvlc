@@ -1,7 +1,8 @@
 #include "stream_server_asio.h"
 
 // TODO: move these into CMakeLists.txt
-#ifndef NDEBUG
+// #ifndef NDEBUG
+#if 1
 #define ASIO_ENABLE_BUFFER_DEBUGGING
 #define ASIO_ENABLE_HANDLER_TRACKING
 #endif
@@ -67,6 +68,22 @@ std::string to_string(const GenericEndpoint &endpoint)
     return to_string(make_socket_address(endpoint));
 }
 
+// Executor can be an io_context or a strand or similar
+template <typename Func, typename Executor> void post_and_wait(Executor &executor, Func &&func)
+{
+    std::promise<void> promise;
+    auto future = promise.get_future();
+
+    asio::post(executor,
+               [func = std::forward<Func>(func), &promise]() mutable
+               {
+                   func();
+                   promise.set_value();
+               });
+
+    future.wait();
+}
+
 struct Client: std::enable_shared_from_this<Client>
 {
     GenericSocket socket;
@@ -95,6 +112,8 @@ struct StreamServer::Private
     // IOV data is stored by sendToAllClients() to save on allocations.
     std::vector<asio::const_buffer> send_buffers;
 
+    std::atomic<bool> accepting = true;
+
     void ensure_io_thread_running();
     void stop();
 
@@ -118,35 +137,98 @@ void StreamServer::Private::ensure_io_thread_running()
 {
     if (!io_thread.joinable())
     {
-        io_thread = std::thread([this]() { io_context.run(); });
+        io_thread = std::thread(
+            [this]()
+            {
+                spdlog::info("StreamServer IO context thread started");
+                io_context.run();
+                spdlog::info("StreamServer IO context thread stopped");
+            });
     }
 }
 
 void StreamServer::Private::stop()
 {
-    asio::error_code ec;
+    HANDLER_LOCATION;
 
+    accepting = false;
+
+    spdlog::debug("posting acceptor close");
+    post_and_wait(io_context,
+                  [this]()
+                  {
+                      HANDLER_LOCATION;
+                      spdlog::debug("in posted acceptor close");
+                      asio::error_code ec;
+                      std::lock_guard<std::mutex> lock(acceptors_mutex);
+                      if (tcp_acceptor && tcp_acceptor->is_open())
+                      {
+                          tcp_acceptor->cancel(ec);
+                          tcp_acceptor->close(ec);
+                          // tcp_acceptor.reset();
+                      }
+
+                      if (ipc_acceptor && ipc_acceptor->is_open())
+                      {
+                          ipc_acceptor->cancel(ec);
+                          ipc_acceptor->close(ec);
+                          // ipc_acceptor.reset();
+                      }
+                      spdlog::debug("end of posted acceptor close");
+                  });
+
+    spdlog::debug("posting client close");
+    post_and_wait(io_context,
+                  [this]()
+                  {
+                      HANDLER_LOCATION;
+                      spdlog::debug("in posted client close");
+                      asio::error_code ec;
+                      std::lock_guard<std::mutex> lock(clients_mutex);
+                      for (auto &client: clients)
+                      {
+                          client->socket.close(ec);
+                      }
+                      clients.clear();
+                      spdlog::debug("end of posted client close");
+                  });
+
+    while (!io_context.stopped())
     {
-        std::lock_guard<std::mutex> lock(acceptors_mutex);
-        if (tcp_acceptor && tcp_acceptor->is_open())
-        {
-            tcp_acceptor->close(ec);
-            tcp_acceptor.reset();
-        }
-
-        if (ipc_acceptor && ipc_acceptor->is_open())
-        {
-            ipc_acceptor->close(ec);
-            ipc_acceptor.reset();
-        }
+        auto hanlder_count = io_context.poll();
+        spdlog::debug("io_context.poll() processed {} handlers", hanlder_count);
+        if (hanlder_count == 0)
+            break;
     }
 
+    spdlog::debug("processed all pending handlers, stopping io_context");
     io_context.stop();
+    spdlog::debug("io_context stop called");
 
+    while (!io_context.stopped())
+    {
+        auto hanlder_count = io_context.poll();
+        spdlog::debug("io_context.poll() processed {} handlers (part two)", hanlder_count);
+        if (hanlder_count == 0)
+            break;
+    }
+
+    //post_and_wait(io_context,
+    //              [this]()
+    //              {
+    //                  HANDLER_LOCATION;
+    //                  spdlog::debug("in posted io_context foobar");
+    //                  spdlog::debug("end of posted io_context foobar");
+    //              });
+
+    spdlog::debug("joining io_context thread");
     if (io_thread.joinable())
     {
         io_thread.join();
     }
+
+    tcp_acceptor.reset();
+    ipc_acceptor.reset();
 }
 
 bool StreamServer::listen(const std::string &url)
@@ -403,7 +485,6 @@ bool StreamServer::Private::listenTcp(const std::string &host, const std::string
         HANDLER_LOCATION;
         startAcceptTcp();
         ensure_io_thread_running();
-
         return true;
     }
     catch (const std::exception &e)
@@ -416,10 +497,17 @@ bool StreamServer::Private::listenTcp(const std::string &host, const std::string
 void StreamServer::Private::startAcceptTcp()
 {
     HANDLER_LOCATION;
+
+    if (!accepting)
+        return;
+
     auto client = std::make_shared<Client>(GenericSocket(io_context));
 
-    tcp_acceptor->async_accept(client->socket, [this, client](const asio::error_code &error)
-                               { handleAcceptTcp(client, error); });
+    if (tcp_acceptor && tcp_acceptor->is_open())
+    {
+        tcp_acceptor->async_accept(client->socket, [this, client](const asio::error_code &error)
+                                   { handleAcceptTcp(client, error); });
+    }
 }
 
 void StreamServer::Private::handleAcceptTcp(std::shared_ptr<Client> client,
@@ -547,10 +635,17 @@ bool StreamServer::Private::listenIpc(const std::string &path)
 void StreamServer::Private::startAcceptIpc()
 {
     HANDLER_LOCATION;
+
+    if (!accepting)
+        return;
+
     auto client = std::make_shared<Client>(GenericSocket(io_context));
 
-    ipc_acceptor->async_accept(client->socket, [this, client](const asio::error_code &error)
-                               { handleAcceptIpc(client, error); });
+    if (ipc_acceptor && ipc_acceptor->is_open())
+    {
+        ipc_acceptor->async_accept(client->socket, [this, client](const asio::error_code &error)
+                                   { handleAcceptIpc(client, error); });
+    }
 }
 
 void StreamServer::Private::handleAcceptIpc(std::shared_ptr<Client> client,
