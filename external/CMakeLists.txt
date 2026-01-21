@@ -108,7 +108,7 @@ target_include_directories(asio INTERFACE
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/asio-1.36.0/include>
     $<INSTALL_INTERFACE:include/>
 )
+
 install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/asio-1.36.0/include/asio
     DESTINATION include
-    FILES_MATCHING PATTERN "*.hpp"
 )
