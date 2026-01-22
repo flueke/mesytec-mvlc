@@ -1,4 +1,4 @@
-find_package(Threads)
+find_package(Threads REQUIRED)
 
 configure_file("git_version.cc.in" "git_version.cc" @ONLY)
 
@@ -99,7 +99,6 @@ target_link_libraries(mesytec-mvlc
     PRIVATE pthread
     PRIVATE yaml-cpp
     PUBLIC argh
-    PUBLIC asio
     PUBLIC spdlog::spdlog
     PUBLIC Threads::Threads
     )
@@ -139,14 +138,32 @@ if (WIN32)
     target_compile_definitions(mesytec-mvlc PRIVATE _WIN32_WINNT=0x0601)
 endif(WIN32)
 
+# asio configuration and compilation
+
 # Enable if you want to use asio with io_uring on Linux.
 # Requires liburing-dev to be installed.
 option(MVLC_ASIO_USE_IO_URING "Enable io_uring support in asio" OFF)
+# Buffer and handler tracking for debugging
+option(MVLC_ASIO_ENABLE_BUFFER_DEBUGGING "Enable asio buffer debugging features" OFF)
+option(MVLC_ASIO_ENABLE_HANDLER_TRACKING "Enable asio handler tracking features" OFF)
 
 if (MVLC_ASIO_USE_IO_URING)
     target_link_libraries(mesytec-mvlc PRIVATE uring)
     target_compile_definitions(mesytec-mvlc PRIVATE ASIO_HAS_IO_URING ASIO_DISABLE_EPOLL)
 endif()
+
+if (MVLC_ASIO_ENABLE_BUFFER_DEBUGGING)
+    target_compile_definitions(mesytec-mvlc PRIVATE ASIO_ENABLE_BUFFER_DEBUGGING)
+endif()
+
+if (MVLC_ASIO_ENABLE_HANDLER_TRACKING)
+    target_compile_definitions(mesytec-mvlc PRIVATE ASIO_ENABLE_HANDLER_TRACKING)
+endif()
+
+target_compile_definitions(mesytec-mvlc PRIVATE ASIO_SEPARATE_COMPILATION)
+target_include_directories(mesytec-mvlc SYSTEM PRIVATE ${CMAKE_SOURCE_DIR}/external/asio-1.36.0/include)
+target_sources(mesytec-mvlc PRIVATE ${CMAKE_SOURCE_DIR}/external/asio-1.36.0/src/asio.cpp)
+set_target_properties(mesytec-mvlc PROPERTIES CXX_VISIBILITY_PRESET hidden) # hide asio symbols to prevent clashes (perplexity.ai)
 
 include(GenerateExportHeader)
 generate_export_header(mesytec-mvlc)

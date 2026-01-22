@@ -2,7 +2,6 @@
 #include <iostream>
 
 #include <argh.h>
-#include <asio.hpp>
 #include <mesytec-mvlc/stream_server_asio.h>
 #include <mesytec-mvlc/util/logging.h>
 #include <mesytec-mvlc/util/signal_handling.h>
@@ -96,7 +95,7 @@ int main(int argc, char **argv)
 
         util::Stopwatch swRunning;
         //while (!mvlc::util::signal_received())
-        while (swRunning.get_elapsed() < std::chrono::seconds(2))
+        while (swRunning.get_elapsed() < std::chrono::seconds(10))
         {
             if (auto interval = swReport.get_interval(); interval >= std::chrono::seconds(1))
             {

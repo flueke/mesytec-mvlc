@@ -9,6 +9,17 @@ if (MVLC_BUILD_DEV_TOOLS)
         )
     endfunction()
 
+    function(add_mvlc_asio_dev_tool exe_name exe_source)
+        add_mvlc_dev_tool(${exe_name} ${exe_source})
+        target_compile_definitions(${exe_name} PRIVATE ASIO_SEPARATE_COMPILATION)
+        target_include_directories(${exe_name} SYSTEM PRIVATE ${CMAKE_SOURCE_DIR}/external/asio-1.36.0/include)
+        target_sources(${exe_name} PRIVATE ${CMAKE_SOURCE_DIR}/external/asio-1.36.0/src/asio.cpp)
+        set_target_properties(${exe_name} PROPERTIES CXX_VISIBILITY_PRESET hidden) # hide asio symbols to prevent clashes (perplexity.ai)
+        if (WIN32)
+            target_link_libraries(${exe_name} PRIVATE ws2_32 winmm)
+        endif(WIN32)
+    endfunction()
+
     add_mvlc_dev_tool(full_duplex_cmd_test full_duplex_cmd_test.cc)
     add_mvlc_dev_tool(request_queue_playground request_queue_playground.cc)
     add_mvlc_dev_tool(mvlc-reconnect-test reconnect-test.cc)
@@ -35,20 +46,11 @@ if (MVLC_BUILD_DEV_TOOLS)
     install(TARGETS mvlc-vme-write-many RUNTIME DESTINATION bin)
 
     # stream_server & test clients
-    add_mvlc_dev_tool(mvlc_stream_test_client_asio mvlc_stream_test_client_asio.cc)
-    target_link_libraries(mvlc_stream_test_client_asio)
-
+    add_mvlc_asio_dev_tool(mvlc_stream_test_client_asio mvlc_stream_test_client_asio.cc)
+    add_mvlc_asio_dev_tool(dev_asio_playground dev_asio_playground.cc)
+    # This does not directly use asio. Instead the StreamServer api is used
+    # which hides asio completely.
     add_mvlc_dev_tool(mvlc_stream_test_server_asio mvlc_stream_test_server_asio.cc)
-    target_link_libraries(mvlc_stream_test_server_asio)
-
-    add_mvlc_dev_tool(dev_asio_playground dev_asio_playground.cc)
-    target_link_libraries(dev_asio_playground PRIVATE asio pthread)
-
-    if (WIN32)
-        target_link_libraries(mvlc_stream_test_client_asio PRIVATE ws2_32 winmm)
-        target_link_libraries(mvlc_stream_test_server_asio PRIVATE ws2_32 winmm)
-        target_link_libraries(dev_asio_playground PRIVATE ws2_32 winmm)
-    endif(WIN32)
 endif(MVLC_BUILD_DEV_TOOLS)
 
 if (MVLC_BUILD_TOOLS)
