@@ -45,7 +45,7 @@ GenericSocketAddress make_socket_address(const GenericEndpoint &endpoint)
         // inet_ntop + port...
         break;
     case AF_UNIX:
-        return {"unix",
+        return {"ipc",
                 std::string(((sockaddr_un *)data)->sun_path, len - offsetof(sockaddr_un, sun_path)),
                 ""};
     }
@@ -189,7 +189,6 @@ void StreamServer::Private::stop()
                       spdlog::debug("end of posted client close");
                   });
 
-
     spdlog::debug("stopping io_context");
     io_context.stop();
     spdlog::debug("resetting work guard");
@@ -285,7 +284,16 @@ std::vector<std::string> StreamServer::clientAddresses() const
     {
         try
         {
-            addresses.push_back(to_string(client->socket.remote_endpoint()));
+            auto addr_str = to_string(client->socket.remote_endpoint());
+            // Unix domain sockets do not return a useful string for
+            // remote_endpoint() so just use the local endpoint here.
+            if (addr_str == "ipc://")
+                addr_str = to_string(client->socket.local_endpoint());
+
+            if (addr_str.empty())
+                addr_str = "<unknown>";
+
+            addresses.push_back(addr_str);
         }
         catch (...)
         {
