@@ -192,6 +192,7 @@ void StreamServer::Private::stop()
                       spdlog::debug("in posted client close");
                       asio::error_code ec;
                       std::lock_guard<std::mutex> lock(clients_mutex);
+
                       for (auto &client: clients)
                       {
                           client->socket.close(ec);
