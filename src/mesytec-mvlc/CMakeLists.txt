@@ -161,8 +161,8 @@ if (MVLC_ASIO_ENABLE_HANDLER_TRACKING)
 endif()
 
 target_compile_definitions(mesytec-mvlc PRIVATE ASIO_SEPARATE_COMPILATION)
-target_include_directories(mesytec-mvlc SYSTEM PRIVATE ${CMAKE_SOURCE_DIR}/external/asio-1.36.0/include)
-target_sources(mesytec-mvlc PRIVATE ${CMAKE_SOURCE_DIR}/external/asio-1.36.0/src/asio.cpp)
+target_include_directories(mesytec-mvlc SYSTEM PRIVATE ${MESYTEC_MVLC_SOURCE_DIR}/external/asio-1.36.0/include)
+target_sources(mesytec-mvlc PRIVATE ${MESYTEC_MVLC_SOURCE_DIR}/external/asio-1.36.0/src/asio.cpp)
 set_target_properties(mesytec-mvlc PROPERTIES CXX_VISIBILITY_PRESET hidden) # hide asio symbols to prevent clashes (perplexity.ai)
 
 include(GenerateExportHeader)
