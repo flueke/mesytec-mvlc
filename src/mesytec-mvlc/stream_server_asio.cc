@@ -1,11 +1,5 @@
 #include "stream_server_asio.h"
 
-// TODO: move these into CMakeLists.txt
-// #ifndef NDEBUG
-#if 1
-#define ASIO_ENABLE_BUFFER_DEBUGGING
-#define ASIO_ENABLE_HANDLER_TRACKING
-#endif
 #include <asio.hpp>
 
 // Enable local (unix domain) sockets on non-Windows platforms if the toolchain
@@ -97,6 +91,8 @@ struct Client: std::enable_shared_from_this<Client>
 struct StreamServer::Private
 {
     asio::io_context io_context;
+    asio::executor_work_guard<asio::io_context::executor_type> work_guard{
+        asio::make_work_guard(io_context)};
     std::thread io_thread;
 
     std::mutex acceptors_mutex;
@@ -165,14 +161,14 @@ void StreamServer::Private::stop()
                       {
                           tcp_acceptor->cancel(ec);
                           tcp_acceptor->close(ec);
-                          // tcp_acceptor.reset();
+                          tcp_acceptor.reset();
                       }
 
                       if (ipc_acceptor && ipc_acceptor->is_open())
                       {
                           ipc_acceptor->cancel(ec);
                           ipc_acceptor->close(ec);
-                          // ipc_acceptor.reset();
+                          ipc_acceptor.reset();
                       }
                       spdlog::debug("end of posted acceptor close");
                   });
@@ -193,43 +189,17 @@ void StreamServer::Private::stop()
                       spdlog::debug("end of posted client close");
                   });
 
-    while (!io_context.stopped())
-    {
-        auto hanlder_count = io_context.poll();
-        spdlog::debug("io_context.poll() processed {} handlers", hanlder_count);
-        if (hanlder_count == 0)
-            break;
-    }
 
-    spdlog::debug("processed all pending handlers, stopping io_context");
+    spdlog::debug("stopping io_context");
     io_context.stop();
-    spdlog::debug("io_context stop called");
-
-    while (!io_context.stopped())
-    {
-        auto hanlder_count = io_context.poll();
-        spdlog::debug("io_context.poll() processed {} handlers (part two)", hanlder_count);
-        if (hanlder_count == 0)
-            break;
-    }
-
-    // post_and_wait(io_context,
-    //               [this]()
-    //               {
-    //                   HANDLER_LOCATION;
-    //                   spdlog::debug("in posted io_context foobar");
-    //                   spdlog::debug("end of posted io_context foobar");
-    //               });
+    spdlog::debug("resetting work guard");
+    work_guard.reset();
 
     spdlog::debug("joining io_context thread");
     if (io_thread.joinable())
     {
         io_thread.join();
     }
-
-    std::lock_guard<std::mutex> lock(acceptors_mutex);
-    tcp_acceptor.reset();
-    ipc_acceptor.reset();
 }
 
 bool StreamServer::listen(const std::string &url)
