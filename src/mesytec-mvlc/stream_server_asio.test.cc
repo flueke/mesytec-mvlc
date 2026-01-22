@@ -14,14 +14,13 @@
 #include "mesytec-mvlc/util/string_util.h"
 
 #include "gtest/gtest.h"
-#include <asio.hpp>
 
 using namespace mesytec::mvlc;
 using namespace std::chrono_literals;
 
 TEST(StreamServerTest, CanListenAndStop)
 {
-    StreamServerAsio server;
+    StreamServer server;
     EXPECT_FALSE(server.isListening());
 
     auto ipcPath =
@@ -36,15 +35,15 @@ TEST(StreamServerTest, CanListenAndStop)
         ASSERT_TRUE(server.listen("tcp://127.0.0.1:0"));
         ASSERT_TRUE(server.listen(ipcPath));
 
-        spdlog::info("Listening URIs: {}", fmt::join(server.listenUris(), ", "));
+        spdlog::info("Listening URIs: {}", fmt::join(server.listenAddresses(), ", "));
 
         EXPECT_TRUE(server.isListening());
-        ASSERT_EQ(server.listenUris().size(), 3u);
+        ASSERT_EQ(server.listenAddresses().size(), 3u);
 
         server.stop();
 
         ASSERT_FALSE(server.isListening());
-        ASSERT_EQ(server.listenUris().size(), 0u);
+        ASSERT_EQ(server.listenAddresses().size(), 0u);
     }
 }
 
@@ -52,7 +51,7 @@ TEST(StreamServerTest, CanListenWithNewInstance)
 {
     for (size_t j = 0; j < 10; ++j)
     {
-        StreamServerAsio server;
+        StreamServer server;
         EXPECT_FALSE(server.isListening());
 
         auto ipcPath = fmt::format("ipc://{}.ipc",
@@ -66,15 +65,15 @@ TEST(StreamServerTest, CanListenWithNewInstance)
             ASSERT_TRUE(server.listen("tcp://127.0.0.1:43334"));
             ASSERT_TRUE(server.listen(ipcPath));
 
-            spdlog::info("Listening URIs: {}", fmt::join(server.listenUris(), ", "));
+            spdlog::info("Listening URIs: {}", fmt::join(server.listenAddresses(), ", "));
 
             EXPECT_TRUE(server.isListening());
-            ASSERT_EQ(server.listenUris().size(), 3u);
+            ASSERT_EQ(server.listenAddresses().size(), 3u);
 
             server.stop();
 
             ASSERT_FALSE(server.isListening());
-            ASSERT_EQ(server.listenUris().size(), 0u);
+            ASSERT_EQ(server.listenAddresses().size(), 0u);
         }
     }
 }
@@ -85,9 +84,12 @@ class StreamServerTestBase: public ::testing::TestWithParam<std::vector<std::str
   protected:
     void SetUp() override
     {
-        server = std::make_unique<StreamServerAsio>();
-        ASSERT_TRUE(server->listen(GetParam()));
-        ASSERT_TRUE(server->isListening());
+        server = std::make_unique<StreamServer>();
+        for (const auto &url: GetParam())
+        {
+            ASSERT_TRUE(server->listen(url));
+            ASSERT_TRUE(server->isListening());
+        }
     }
 
     void TearDown() override
@@ -99,7 +101,7 @@ class StreamServerTestBase: public ::testing::TestWithParam<std::vector<std::str
         }
     }
 
-    std::unique_ptr<StreamServerAsio> server;
+    std::unique_ptr<StreamServer> server;
     static constexpr size_t TEST_BUFFER_SIZE = 1024;
 };
 
@@ -108,7 +110,7 @@ class StreamServerTestBase: public ::testing::TestWithParam<std::vector<std::str
 #if 0
 TEST_P(StreamServerTestBase, OneSenderOneClient)
 {
-    auto uri = server->listenUris().front();
+    auto uri = server->listenAddresses().front();
 
     if (!util::startswith(uri, "tcp://"))
     {

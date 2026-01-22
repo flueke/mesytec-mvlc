@@ -242,11 +242,6 @@ if (MVLC_BUILD_TESTS)
     endif(ZMQ_FOUND)
     add_gtest(test_mvlc_factory mvlc_factory.test.cc)
 
-    # TODO: revive us!
-    #add_gtest(test_stream_server stream_server_asio.test.cc)
-    #target_link_libraries(test_stream_server PRIVATE asio pthread)
-    #if (WIN32)
-    #    target_link_libraries(test_stream_server PRIVATE ws2_32 winmm mswsock)
-    #endif(WIN32)
-    #set_tests_properties(test_stream_server PROPERTIES LABELS "not_in_docker")
+    add_gtest(test_stream_server stream_server_asio.test.cc)
+    set_tests_properties(test_stream_server PROPERTIES LABELS "not_in_docker")
 endif(MVLC_BUILD_TESTS)
