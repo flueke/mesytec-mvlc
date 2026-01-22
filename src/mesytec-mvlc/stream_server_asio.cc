@@ -136,9 +136,9 @@ void StreamServer::Private::ensure_io_thread_running()
         io_thread = std::thread(
             [this]()
             {
-                spdlog::info("StreamServer IO context thread started");
+                spdlog::debug("StreamServer IO context thread started");
                 io_context.run();
-                spdlog::info("StreamServer IO context thread stopped");
+                spdlog::debug("StreamServer IO context thread stopped");
             });
     }
 }
@@ -428,7 +428,6 @@ size_t StreamServer::sendToAllClients(const IOV *iov, size_t n_iov)
     return state->failed_clients.size();
 }
 
-// void StreamServer::setPreamble(const uint8_t *data, size_t size)
 void StreamServer::setPreamble(const IOV *iov, size_t n_iov)
 {
     std::lock_guard<std::mutex> lock(d->preamble_mutex);
