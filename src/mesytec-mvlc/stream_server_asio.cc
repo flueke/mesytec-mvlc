@@ -96,8 +96,10 @@ struct StreamServer::Private
     std::thread io_thread;
 
     std::mutex acceptors_mutex;
-    std::unique_ptr<tcp::acceptor> tcp_acceptor;
-    std::unique_ptr<stream_protocol::acceptor> ipc_acceptor;
+    std::vector<std::unique_ptr<tcp::acceptor>> tcp_acceptors;
+#ifdef ENABLE_UNIX_DOMAIN_SOCKETS
+    std::vector<std::unique_ptr<stream_protocol::acceptor>> ipc_acceptors;
+#endif
 
     std::mutex clients_mutex;
     std::list<std::shared_ptr<Client>> clients;
@@ -114,12 +116,14 @@ struct StreamServer::Private
     void stop();
 
     bool listenTcp(const std::string &host, const std::string &port);
-    void startAcceptTcp();
-    void handleAcceptTcp(std::shared_ptr<Client> client, const asio::error_code &error);
+    void startAcceptTcp(tcp::acceptor *acceptor);
+    void handleAcceptTcp(std::shared_ptr<Client> client, tcp::acceptor *acceptor,
+                         const asio::error_code &error);
 
     bool listenIpc(const std::string &path);
-    void startAcceptIpc();
-    void handleAcceptIpc(std::shared_ptr<Client> client, const asio::error_code &error);
+    void startAcceptIpc(stream_protocol::acceptor *acceptor);
+    void handleAcceptIpc(std::shared_ptr<Client> client, stream_protocol::acceptor *acceptor,
+                         const asio::error_code &error);
 };
 
 StreamServer::StreamServer()
@@ -157,19 +161,26 @@ void StreamServer::Private::stop()
                       spdlog::debug("in posted acceptor close");
                       asio::error_code ec;
                       std::lock_guard<std::mutex> lock(acceptors_mutex);
-                      if (tcp_acceptor && tcp_acceptor->is_open())
-                      {
-                          tcp_acceptor->cancel(ec);
-                          tcp_acceptor->close(ec);
-                          tcp_acceptor.reset();
-                      }
 
-                      if (ipc_acceptor && ipc_acceptor->is_open())
+                      for (auto &tcp_acceptor: tcp_acceptors)
                       {
-                          ipc_acceptor->cancel(ec);
-                          ipc_acceptor->close(ec);
-                          ipc_acceptor.reset();
+                          if (tcp_acceptor && tcp_acceptor->is_open())
+                          {
+                              tcp_acceptor->cancel(ec);
+                              tcp_acceptor->close(ec);
+                          }
                       }
+                      tcp_acceptors.clear();
+
+                      for (auto &ipc_acceptor: ipc_acceptors)
+                      {
+                          if (ipc_acceptor && ipc_acceptor->is_open())
+                          {
+                              ipc_acceptor->cancel(ec);
+                              ipc_acceptor->close(ec);
+                          }
+                      }
+                      ipc_acceptors.clear();
                       spdlog::debug("end of posted acceptor close");
                   });
 
@@ -255,8 +266,7 @@ bool StreamServer::listen(const std::string &url)
 bool StreamServer::isListening() const
 {
     std::lock_guard<std::mutex> lock(d->acceptors_mutex);
-    return (d->tcp_acceptor && d->tcp_acceptor->is_open()) ||
-           (d->ipc_acceptor && d->ipc_acceptor->is_open());
+    return !d->tcp_acceptors.empty() || !d->ipc_acceptors.empty();
 }
 
 bool StreamServer::stop()
@@ -321,14 +331,20 @@ std::vector<std::string> StreamServer::listenAddresses() const
     std::lock_guard<std::mutex> lock(d->acceptors_mutex);
     std::vector<std::string> addresses;
 
-    if (d->tcp_acceptor && d->tcp_acceptor->is_open())
+    for (auto &tcp_acceptor: d->tcp_acceptors)
     {
-        addresses.push_back(get_local_address(*d->tcp_acceptor));
+        if (tcp_acceptor && tcp_acceptor->is_open())
+        {
+            addresses.push_back(get_local_address(*tcp_acceptor));
+        }
     }
 
-    if (d->ipc_acceptor && d->ipc_acceptor->is_open())
+    for (auto &ipc_acceptor: d->ipc_acceptors)
     {
-        addresses.push_back(get_local_address(*d->ipc_acceptor));
+        if (ipc_acceptor && ipc_acceptor->is_open())
+        {
+            addresses.push_back(get_local_address(*ipc_acceptor));
+        }
     }
 
     return addresses;
@@ -450,23 +466,20 @@ bool StreamServer::Private::listenTcp(const std::string &host, const std::string
 {
     try
     {
+        tcp::acceptor *the_acceptor = nullptr;
         {
             std::lock_guard<std::mutex> lock(acceptors_mutex);
-            if (tcp_acceptor && tcp_acceptor->is_open())
-            {
-                spdlog::warn("StreamServer is already listening on a TCP address");
-                return false;
-            }
             spdlog::debug("Attempting to listen on TCP {}:{}", host, port);
             auto address = asio::ip::make_address(host);
             unsigned short port_num = static_cast<unsigned short>(std::stoi(port));
             tcp::endpoint endpoint(address, port_num);
 
-            tcp_acceptor = std::make_unique<tcp::acceptor>(io_context, endpoint);
+            tcp_acceptors.emplace_back(std::make_unique<tcp::acceptor>(io_context, endpoint));
+            the_acceptor = tcp_acceptors.back().get();
         }
 
         HANDLER_LOCATION;
-        startAcceptTcp();
+        startAcceptTcp(the_acceptor);
         ensure_io_thread_running();
         return true;
     }
@@ -477,7 +490,7 @@ bool StreamServer::Private::listenTcp(const std::string &host, const std::string
     }
 }
 
-void StreamServer::Private::startAcceptTcp()
+void StreamServer::Private::startAcceptTcp(tcp::acceptor *tcp_acceptor)
 {
     HANDLER_LOCATION;
 
@@ -489,12 +502,14 @@ void StreamServer::Private::startAcceptTcp()
     std::lock_guard<std::mutex> lock(acceptors_mutex);
     if (tcp_acceptor && tcp_acceptor->is_open())
     {
-        tcp_acceptor->async_accept(client->socket, [this, client](const asio::error_code &error)
-                                   { handleAcceptTcp(client, error); });
+        tcp_acceptor->async_accept(client->socket,
+                                   [this, client, tcp_acceptor](const asio::error_code &error)
+                                   { handleAcceptTcp(client, tcp_acceptor, error); });
     }
 }
 
 void StreamServer::Private::handleAcceptTcp(std::shared_ptr<Client> client,
+                                            tcp::acceptor *tcp_acceptor,
                                             const asio::error_code &error)
 {
     HANDLER_LOCATION;
@@ -526,7 +541,7 @@ void StreamServer::Private::handleAcceptTcp(std::shared_ptr<Client> client,
                     client->socket.close(close_ec);
 
                     // Continue accepting new connections
-                    startAcceptTcp();
+                    startAcceptTcp(tcp_acceptor);
                     return;
                 }
 
@@ -546,19 +561,14 @@ void StreamServer::Private::handleAcceptTcp(std::shared_ptr<Client> client,
         }
 
         // Continue accepting new connections
-        startAcceptTcp();
+        startAcceptTcp(tcp_acceptor);
     }
     else
     {
         if (error != asio::error::operation_aborted)
         {
             spdlog::error("Accept error: {}", error.message());
-
-            // Continue accepting if acceptor is still valid
-            if (tcp_acceptor && tcp_acceptor->is_open())
-            {
-                startAcceptTcp();
-            }
+            startAcceptTcp(tcp_acceptor);
         }
     }
 }
@@ -571,13 +581,11 @@ bool StreamServer::Private::listenIpc(const std::string &path)
 #else
     try
     {
+        stream_protocol::acceptor *the_acceptor = nullptr;
+
         {
             std::lock_guard<std::mutex> lock(acceptors_mutex);
-            if (ipc_acceptor && ipc_acceptor->is_open())
-            {
-                spdlog::warn("StreamServer is already listening on a unix domain socket");
-                return false;
-            }
+            spdlog::debug("Attempting to listen on unix domain socket {}", path);
 
             struct stat st;
             if (stat(path.c_str(), &st) == 0)
@@ -602,12 +610,13 @@ bool StreamServer::Private::listenIpc(const std::string &path)
                 }
             }
 
-            spdlog::debug("Attempting to listen on unix domain socket {}", path);
-            ipc_acceptor = std::make_unique<stream_protocol::acceptor>(
-                io_context, stream_protocol::endpoint(path));
+            ipc_acceptors.emplace_back(std::make_unique<stream_protocol::acceptor>(
+                io_context, stream_protocol::endpoint(path)));
+            the_acceptor = ipc_acceptors.back().get();
         }
+
         HANDLER_LOCATION;
-        startAcceptIpc();
+        startAcceptIpc(the_acceptor);
         ensure_io_thread_running();
         return true;
     }
@@ -621,7 +630,7 @@ bool StreamServer::Private::listenIpc(const std::string &path)
 #endif
 }
 
-void StreamServer::Private::startAcceptIpc()
+void StreamServer::Private::startAcceptIpc(stream_protocol::acceptor *ipc_acceptor)
 {
     HANDLER_LOCATION;
 
@@ -633,12 +642,14 @@ void StreamServer::Private::startAcceptIpc()
     std::lock_guard<std::mutex> lock(acceptors_mutex);
     if (ipc_acceptor && ipc_acceptor->is_open())
     {
-        ipc_acceptor->async_accept(client->socket, [this, client](const asio::error_code &error)
-                                   { handleAcceptIpc(client, error); });
+        ipc_acceptor->async_accept(client->socket,
+                                   [this, client, ipc_acceptor](const asio::error_code &error)
+                                   { handleAcceptIpc(client, ipc_acceptor, error); });
     }
 }
 
 void StreamServer::Private::handleAcceptIpc(std::shared_ptr<Client> client,
+    stream_protocol::acceptor *ipc_acceptor,
                                             const asio::error_code &error)
 {
     HANDLER_LOCATION;
@@ -670,7 +681,7 @@ void StreamServer::Private::handleAcceptIpc(std::shared_ptr<Client> client,
                     client->socket.close(close_ec);
 
                     // Continue accepting new connections
-                    startAcceptTcp();
+                    startAcceptIpc(ipc_acceptor);
                     return;
                 }
 
@@ -690,7 +701,7 @@ void StreamServer::Private::handleAcceptIpc(std::shared_ptr<Client> client,
         }
 
         // Continue accepting new connections
-        startAcceptIpc();
+        startAcceptIpc(ipc_acceptor);
     }
     else
     {
@@ -699,10 +710,7 @@ void StreamServer::Private::handleAcceptIpc(std::shared_ptr<Client> client,
             spdlog::error("Accept error: {}", error.message());
 
             // Continue accepting if acceptor is still valid
-            if (ipc_acceptor && ipc_acceptor->is_open())
-            {
-                startAcceptIpc();
-            }
+            startAcceptIpc(ipc_acceptor);
         }
     }
 }

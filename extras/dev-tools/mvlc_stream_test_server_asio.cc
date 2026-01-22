@@ -16,7 +16,9 @@ using namespace mesytec::mvlc;
 // can extend this to multiple addresses per protocol if needed later
 static const std::vector<std::string> listenUris = {
     "tcp4://127.0.0.1:42333",
+    "tcp4://127.0.0.1:42334",
     "ipc:///tmp/mvlc_stream_test_server_asio.ipc",
+    "ipc:///tmp/mvlc_stream_test_server_asio.ipc2",
 };
 
 int main(int argc, char **argv)
