@@ -12,8 +12,6 @@
 using namespace mesytec;
 using namespace mesytec::mvlc;
 
-// one address per protocol type is currently supported by the server implementation
-// can extend this to multiple addresses per protocol if needed later
 static const std::vector<std::string> listenUris = {
     "tcp4://127.0.0.1:42333",
     "tcp4://127.0.0.1:42334",
@@ -155,12 +153,13 @@ int main(int argc, char **argv)
             }
             else if (clientCount == 0)
             {
-                //spdlog::trace("No clients connected, not sending data, sleeping a bit because I can");
+                // spdlog::trace("No clients connected, not sending data, sleeping a bit because I
+                // can");
                 std::this_thread::sleep_for(std::chrono::milliseconds(10));
             }
 
-            //spdlog::trace("Sent buffer {} of size {} bytes to {} clients", iteration,
-            //              sendBuffer.size(), server.clientCount());
+            // spdlog::trace("Sent buffer {} of size {} bytes to {} clients", iteration,
+            //               sendBuffer.size(), server.clientCount());
 
             ++iteration;
         }
