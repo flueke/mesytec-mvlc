@@ -15,9 +15,6 @@ class MESYTEC_MVLC_EXPORT StreamServer: public IStreamServer
     explicit StreamServer();
     ~StreamServer() override;
 
-    using IStreamServer::sendToAllClients;
-    using IStreamServer::setPreamble;
-
     bool listen(const std::string &uri) override;
     bool isListening() const override;
     bool stop() override;
@@ -26,8 +23,13 @@ class MESYTEC_MVLC_EXPORT StreamServer: public IStreamServer
     std::vector<std::string> listenAddresses() const override;
     std::vector<std::string> clientAddresses() const override;
 
+
     size_t sendToAllClients(const IOV *iov, size_t n_iov) override;
+    using IStreamServer::sendToAllClients;
+
     void setPreamble(const IOV *data, size_t n_iov) override;
+    using IStreamServer::setPreamble;
+    std::vector<std::uint8_t> getPreamble() const;
 
   private:
     struct Private;

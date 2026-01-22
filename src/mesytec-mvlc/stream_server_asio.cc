@@ -462,6 +462,12 @@ void StreamServer::setPreamble(const IOV *iov, size_t n_iov)
     spdlog::debug("Preamble set, size: {} bytes", d->preamble.size());
 }
 
+std::vector<std::uint8_t> StreamServer::getPreamble() const
+{
+    std::lock_guard<std::mutex> lock(d->preamble_mutex);
+    return d->preamble;
+}
+
 bool StreamServer::Private::listenTcp(const std::string &host, const std::string &port)
 {
     try
