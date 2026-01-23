@@ -17,6 +17,8 @@
 #include <spdlog/spdlog.h>
 #include <thread>
 
+#include "util/logging.h"
+
 using asio::ip::tcp;
 using asio::local::stream_protocol;
 #define HANDLER_LOCATION ASIO_HANDLER_LOCATION((__FILE__, __LINE__, __func__))
@@ -91,6 +93,8 @@ struct Client: std::enable_shared_from_this<Client>
 
 struct StreamServer::Private
 {
+    std::shared_ptr<spdlog::logger> logger;
+
     asio::io_context io_context;
     std::optional<asio::executor_work_guard<asio::io_context::executor_type>> work_guard;
     std::thread io_thread;
@@ -135,48 +139,50 @@ struct StreamServer::Private
 StreamServer::StreamServer()
     : d(std::make_unique<Private>())
 {
+    d->logger = get_logger("mvlc_stream_server_asio");
+    d->logger->set_level(spdlog::level::trace);
 }
 
 StreamServer::~StreamServer()
 {
-    spdlog::trace("entering ~StreamServer()");
+    d->logger->trace("entering ~StreamServer()");
     d->stop();
-    spdlog::trace("leaving ~StreamServer()");
+    d->logger->trace("leaving ~StreamServer()");
 }
 
 void StreamServer::Private::ensure_asio_running()
 {
-    spdlog::trace("entering ensure_asio_running()");
+    logger->trace("entering ensure_asio_running()");
     if (io_context.stopped())
     {
-        spdlog::trace("  ensure_asio_running(): io_context was stopped, restarting");
+        logger->trace("  ensure_asio_running(): io_context was stopped, restarting");
         io_context.restart();
     }
 
     if (!work_guard.has_value())
     {
-        spdlog::trace("  ensure_asio_running(): (re)creating work_guard");
+        logger->trace("  ensure_asio_running(): (re)creating work_guard");
         work_guard.emplace(asio::make_work_guard(io_context));
     }
 
     if (!io_thread.joinable())
     {
-        spdlog::trace(" ensure_asio_running(): starting io_context thread");
+        logger->trace(" ensure_asio_running(): starting io_context thread");
         io_thread = std::thread(
             [this]()
             {
-                spdlog::trace("StreamServer IO context thread started");
+                logger->trace("StreamServer IO context thread started");
                 io_context.run();
-                spdlog::trace("StreamServer IO context thread stopped");
+                logger->trace("StreamServer IO context thread stopped");
             });
     }
-    spdlog::trace("leaving ensure_asio_running()");
+    logger->trace("leaving ensure_asio_running()");
 }
 
 void StreamServer::Private::stop()
 {
     HANDLER_LOCATION;
-    spdlog::trace("entering StreamServer::Private::stop()");
+    logger->trace("entering StreamServer::Private::stop()");
     accepting = false;
     in_shutdown = true;
 
@@ -188,12 +194,12 @@ void StreamServer::Private::stop()
     // two cases to handle: the io thread itself and this thread.
     ensure_asio_running();
 
-    spdlog::trace("posting acceptor close");
+    logger->trace("posting acceptor close");
     post_and_wait(io_context,
                   [this]()
                   {
                       HANDLER_LOCATION;
-                      spdlog::trace("in posted acceptor close");
+                      logger->trace("in posted acceptor close");
                       asio::error_code ec;
                       std::lock_guard<std::mutex> lock(acceptors_mutex);
 
@@ -216,15 +222,15 @@ void StreamServer::Private::stop()
                           }
                       }
                       ipc_acceptors.clear();
-                      spdlog::trace("end of posted acceptor close");
+                      logger->trace("end of posted acceptor close");
                   });
 
-    spdlog::trace("posting client close");
+    logger->trace("posting client close");
     post_and_wait(io_context,
                   [this]()
                   {
                       HANDLER_LOCATION;
-                      spdlog::trace("in posted client close");
+                      logger->trace("in posted client close");
                       asio::error_code ec;
                       std::lock_guard<std::mutex> lock(clients_mutex);
 
@@ -233,21 +239,21 @@ void StreamServer::Private::stop()
                           client->socket.close(ec);
                       }
                       clients.clear();
-                      spdlog::trace("end of posted client close");
+                      logger->trace("end of posted client close");
                   });
 
-    spdlog::trace("stopping io_context");
+    logger->trace("stopping io_context");
     io_context.stop();
-    spdlog::trace("resetting work guard");
+    logger->trace("resetting work guard");
     work_guard.reset();
 
-    spdlog::trace("joining io_context thread");
+    logger->trace("joining io_context thread");
     if (io_thread.joinable())
     {
         io_thread.join();
     }
     in_shutdown = false;
-    spdlog::trace("leaving StreamServer::Private::stop()");
+    logger->trace("leaving StreamServer::Private::stop()");
 }
 
 bool StreamServer::listen(const std::string &url)
@@ -394,7 +400,7 @@ size_t StreamServer::sendToAllClients(const IOV *iov, size_t n_iov)
 
     if (!d->accepting)
     {
-        spdlog::warn("sendToAllClients() called while not accepting, aborting send");
+        d->logger->warn("sendToAllClients() called while not accepting, aborting send");
         return std::numeric_limits<size_t>::max();
     }
 
@@ -425,7 +431,7 @@ size_t StreamServer::sendToAllClients(const IOV *iov, size_t n_iov)
             // auto buffer = asio::buffer(data, size);
             asio::async_write(
                 client->socket, d->send_buffers,
-                [state, client](const asio::error_code &ec, std::size_t /*bytes_transferred*/)
+                [this, state, client](const asio::error_code &ec, std::size_t /*bytes_transferred*/)
                 {
                     HANDLER_LOCATION;
                     std::lock_guard<std::mutex> lock(state->mutex);
@@ -437,17 +443,17 @@ size_t StreamServer::sendToAllClients(const IOV *iov, size_t n_iov)
 
                         try
                         {
-                            spdlog::warn("Error sending to client '{}', will disconnect: {}",
+                            d->logger->warn("Error sending to client '{}', will disconnect: {}",
                                          to_string(client->socket.remote_endpoint()), ec.message());
                         }
                         catch (const std::exception &e)
                         {
-                            spdlog::warn("Error sending to unknown client, will disconnect: {}",
+                            d->logger->warn("Error sending to unknown client, will disconnect: {}",
                                          e.what());
                         }
                         catch (...)
                         {
-                            spdlog::warn("Error sending to unknown client, will disconnect: {}",
+                            d->logger->warn("Error sending to unknown client, will disconnect: {}",
                                          ec.message());
                         }
                     }
@@ -503,7 +509,7 @@ void StreamServer::setPreamble(const IOV *iov, size_t n_iov)
         offset += iov[i].len;
     }
 
-    spdlog::trace("Preamble set, size: {} bytes", d->preamble.size());
+    d->logger->trace("Preamble set, size: {} bytes", d->preamble.size());
 }
 
 std::vector<std::uint8_t> StreamServer::getPreamble() const
@@ -522,7 +528,7 @@ bool StreamServer::Private::listenTcp(const std::string &host, const std::string
         tcp::acceptor *the_acceptor = nullptr;
         {
             std::lock_guard<std::mutex> lock(acceptors_mutex);
-            spdlog::trace("Attempting to listen on TCP {}:{}", host, port);
+            logger->trace("Attempting to listen on TCP {}:{}", host, port);
             auto address = asio::ip::make_address(host);
             unsigned short port_num = static_cast<unsigned short>(std::stoi(port));
             tcp::endpoint endpoint(address, port_num);
@@ -532,13 +538,14 @@ bool StreamServer::Private::listenTcp(const std::string &host, const std::string
         }
 
         HANDLER_LOCATION;
+        accepting = true;
         startAcceptTcp(the_acceptor);
         ensure_asio_running();
         return true;
     }
     catch (const std::exception &e)
     {
-        spdlog::error("Failed to listen on TCP {}:{}: {}", host, port, e.what());
+        logger->error("Failed to listen on TCP {}:{}: {}", host, port, e.what());
         return false;
     }
 }
@@ -588,7 +595,7 @@ void StreamServer::Private::handleAcceptTcp(std::shared_ptr<Client> client,
 
                 if (ec)
                 {
-                    spdlog::warn("Failed to send preamble to client {}, disconnecting: {}",
+                    logger->warn("Failed to send preamble to client {}, disconnecting: {}",
                                  to_string(client->socket.remote_endpoint()), ec.message());
                     asio::error_code close_ec;
                     client->socket.close(close_ec);
@@ -598,7 +605,7 @@ void StreamServer::Private::handleAcceptTcp(std::shared_ptr<Client> client,
                     return;
                 }
 
-                spdlog::trace("Sent preamble ({} bytes) to client {}", preamble_copy.size(),
+                logger->trace("Sent preamble ({} bytes) to client {}", preamble_copy.size(),
                               to_string(client->socket.remote_endpoint()));
             }
 
@@ -610,7 +617,7 @@ void StreamServer::Private::handleAcceptTcp(std::shared_ptr<Client> client,
         }
         catch (const std::exception &e)
         {
-            spdlog::error("Error handling new client: {}", e.what());
+            logger->error("Error handling new client: {}", e.what());
         }
 
         // Continue accepting new connections
@@ -620,7 +627,7 @@ void StreamServer::Private::handleAcceptTcp(std::shared_ptr<Client> client,
     {
         if (error != asio::error::operation_aborted)
         {
-            spdlog::error("Accept error: {}", error.message());
+            logger->error("Accept error: {}", error.message());
             startAcceptTcp(tcp_acceptor);
         }
     }
@@ -629,7 +636,7 @@ void StreamServer::Private::handleAcceptTcp(std::shared_ptr<Client> client,
 bool StreamServer::Private::listenIpc(const std::string &path)
 {
 #ifndef ENABLE_UNIX_DOMAIN_SOCKETS
-    spdlog::error("Unix domain sockets are not supported on this platform");
+    logger->error("Unix domain sockets are not supported on this platform");
     return false;
 #else
 
@@ -642,7 +649,7 @@ bool StreamServer::Private::listenIpc(const std::string &path)
 
         {
             std::lock_guard<std::mutex> lock(acceptors_mutex);
-            spdlog::trace("Attempting to listen on unix domain socket {}", path);
+            logger->trace("Attempting to listen on unix domain socket {}", path);
 
             struct stat st;
             if (stat(path.c_str(), &st) == 0)
@@ -653,13 +660,13 @@ bool StreamServer::Private::listenIpc(const std::string &path)
                     {
                         asio::local::stream_protocol::socket tmp_socket(io_context);
                         tmp_socket.connect(asio::local::stream_protocol::endpoint(path));
-                        spdlog::warn("StreamServer: socket file {} already exists and is in use",
+                        logger->warn("StreamServer: socket file {} already exists and is in use",
                                      path);
                         return false;
                     }
                     catch (...)
                     {
-                        spdlog::trace(
+                        logger->trace(
                             "StreamServer: socket file {} exists but is not in use, removing",
                             path);
                         ::unlink(path.c_str());
@@ -673,13 +680,14 @@ bool StreamServer::Private::listenIpc(const std::string &path)
         }
 
         HANDLER_LOCATION;
+        accepting = true;
         startAcceptIpc(the_acceptor);
         ensure_asio_running();
         return true;
     }
     catch (const std::exception &e)
     {
-        spdlog::error("Error starting unix domain socket server on {}: {}", path, e.what());
+        logger->error("Error starting unix domain socket server on {}: {}", path, e.what());
         return false;
     }
 
@@ -732,7 +740,7 @@ void StreamServer::Private::handleAcceptIpc(std::shared_ptr<Client> client,
 
                 if (ec)
                 {
-                    spdlog::warn("Failed to send preamble to client {}, disconnecting: {}",
+                    logger->warn("Failed to send preamble to client {}, disconnecting: {}",
                                  to_string(client->socket.remote_endpoint()), ec.message());
                     asio::error_code close_ec;
                     client->socket.close(close_ec);
@@ -742,7 +750,7 @@ void StreamServer::Private::handleAcceptIpc(std::shared_ptr<Client> client,
                     return;
                 }
 
-                spdlog::trace("Sent preamble ({} bytes) to client {}", preamble_copy.size(),
+                logger->trace("Sent preamble ({} bytes) to client {}", preamble_copy.size(),
                               to_string(client->socket.remote_endpoint()));
             }
 
@@ -754,7 +762,7 @@ void StreamServer::Private::handleAcceptIpc(std::shared_ptr<Client> client,
         }
         catch (const std::exception &e)
         {
-            spdlog::error("Error handling new client: {}", e.what());
+            logger->error("Error handling new client: {}", e.what());
         }
 
         // Continue accepting new connections
@@ -764,7 +772,7 @@ void StreamServer::Private::handleAcceptIpc(std::shared_ptr<Client> client,
     {
         if (error != asio::error::operation_aborted)
         {
-            spdlog::error("Accept error: {}", error.message());
+            logger->error("Accept error: {}", error.message());
 
             // Continue accepting if acceptor is still valid
             startAcceptIpc(ipc_acceptor);
