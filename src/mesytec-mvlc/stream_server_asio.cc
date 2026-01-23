@@ -113,6 +113,10 @@ struct StreamServer::Private
     // Controls the acceptor loops and sendToAllClients(). If set to false no
     // new async accepts will be enqueued.
     std::atomic<bool> accepting = true;
+    // Controls the shutdown sequence and state. If this is set to new acceptors
+    // will be created, no new clients will be accepted and existing clients
+    // will be disconnected.
+    std::atomic<bool> in_shutdown = false;
 
     void ensure_asio_running();
     void stop();
@@ -173,6 +177,8 @@ void StreamServer::Private::stop()
 {
     HANDLER_LOCATION;
     spdlog::trace("entering StreamServer::Private::stop()");
+    accepting = false;
+    in_shutdown = true;
 
     // At this point the io_context has to run otherwise the posts will not
     // return. Attempt to restart it in case it's stopped already, e.g. through
@@ -240,6 +246,7 @@ void StreamServer::Private::stop()
     {
         io_thread.join();
     }
+    in_shutdown = false;
     spdlog::trace("leaving StreamServer::Private::stop()");
 }
 
@@ -507,6 +514,9 @@ std::vector<std::uint8_t> StreamServer::getPreamble() const
 
 bool StreamServer::Private::listenTcp(const std::string &host, const std::string &port)
 {
+    if (in_shutdown)
+        return false;
+
     try
     {
         tcp::acceptor *the_acceptor = nullptr;
@@ -622,6 +632,10 @@ bool StreamServer::Private::listenIpc(const std::string &path)
     spdlog::error("Unix domain sockets are not supported on this platform");
     return false;
 #else
+
+    if (in_shutdown)
+        return false;
+
     try
     {
         stream_protocol::acceptor *the_acceptor = nullptr;
