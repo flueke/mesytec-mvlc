@@ -13,6 +13,7 @@
 #include <memory>
 #include <mutex>
 #include <numeric>
+#include <optional>
 #include <spdlog/spdlog.h>
 #include <thread>
 
@@ -91,8 +92,7 @@ struct Client: std::enable_shared_from_this<Client>
 struct StreamServer::Private
 {
     asio::io_context io_context;
-    asio::executor_work_guard<asio::io_context::executor_type> work_guard{
-        asio::make_work_guard(io_context)};
+    std::optional<asio::executor_work_guard<asio::io_context::executor_type>> work_guard;
     std::thread io_thread;
 
     std::mutex acceptors_mutex;
@@ -110,9 +110,11 @@ struct StreamServer::Private
     // IOV data is stored by sendToAllClients() to save on allocations.
     std::vector<asio::const_buffer> send_buffers;
 
+    // Controls the acceptor loops and sendToAllClients(). If set to false no
+    // new async accepts will be enqueued.
     std::atomic<bool> accepting = true;
 
-    void ensure_io_thread_running();
+    void ensure_asio_running();
     void stop();
 
     bool listenTcp(const std::string &host, const std::string &port);
@@ -131,34 +133,61 @@ StreamServer::StreamServer()
 {
 }
 
-StreamServer::~StreamServer() { d->stop(); }
-
-void StreamServer::Private::ensure_io_thread_running()
+StreamServer::~StreamServer()
 {
+    spdlog::trace("entering ~StreamServer()");
+    d->stop();
+    spdlog::trace("leaving ~StreamServer()");
+}
+
+void StreamServer::Private::ensure_asio_running()
+{
+    spdlog::trace("entering ensure_asio_running()");
+    if (io_context.stopped())
+    {
+        spdlog::trace("  ensure_asio_running(): io_context was stopped, restarting");
+        io_context.restart();
+    }
+
+    if (!work_guard.has_value())
+    {
+        spdlog::trace("  ensure_asio_running(): (re)creating work_guard");
+        work_guard.emplace(asio::make_work_guard(io_context));
+    }
+
     if (!io_thread.joinable())
     {
+        spdlog::trace(" ensure_asio_running(): starting io_context thread");
         io_thread = std::thread(
             [this]()
             {
-                spdlog::debug("StreamServer IO context thread started");
+                spdlog::trace("StreamServer IO context thread started");
                 io_context.run();
-                spdlog::debug("StreamServer IO context thread stopped");
+                spdlog::trace("StreamServer IO context thread stopped");
             });
     }
+    spdlog::trace("leaving ensure_asio_running()");
 }
 
 void StreamServer::Private::stop()
 {
     HANDLER_LOCATION;
+    spdlog::trace("entering StreamServer::Private::stop()");
 
-    accepting = false;
+    // At this point the io_context has to run otherwise the posts will not
+    // return. Attempt to restart it in case it's stopped already, e.g. through
+    // multiple calls to stop() in a row. This might cause useless thread
+    // creation but I don't care right now.  An alternative would be to post
+    // stuff, then run the io_context directly in this thread but then there are
+    // two cases to handle: the io thread itself and this thread.
+    ensure_asio_running();
 
-    spdlog::debug("posting acceptor close");
+    spdlog::trace("posting acceptor close");
     post_and_wait(io_context,
                   [this]()
                   {
                       HANDLER_LOCATION;
-                      spdlog::debug("in posted acceptor close");
+                      spdlog::trace("in posted acceptor close");
                       asio::error_code ec;
                       std::lock_guard<std::mutex> lock(acceptors_mutex);
 
@@ -181,15 +210,15 @@ void StreamServer::Private::stop()
                           }
                       }
                       ipc_acceptors.clear();
-                      spdlog::debug("end of posted acceptor close");
+                      spdlog::trace("end of posted acceptor close");
                   });
 
-    spdlog::debug("posting client close");
+    spdlog::trace("posting client close");
     post_and_wait(io_context,
                   [this]()
                   {
                       HANDLER_LOCATION;
-                      spdlog::debug("in posted client close");
+                      spdlog::trace("in posted client close");
                       asio::error_code ec;
                       std::lock_guard<std::mutex> lock(clients_mutex);
 
@@ -198,19 +227,20 @@ void StreamServer::Private::stop()
                           client->socket.close(ec);
                       }
                       clients.clear();
-                      spdlog::debug("end of posted client close");
+                      spdlog::trace("end of posted client close");
                   });
 
-    spdlog::debug("stopping io_context");
+    spdlog::trace("stopping io_context");
     io_context.stop();
-    spdlog::debug("resetting work guard");
+    spdlog::trace("resetting work guard");
     work_guard.reset();
 
-    spdlog::debug("joining io_context thread");
+    spdlog::trace("joining io_context thread");
     if (io_thread.joinable())
     {
         io_thread.join();
     }
+    spdlog::trace("leaving StreamServer::Private::stop()");
 }
 
 bool StreamServer::listen(const std::string &url)
@@ -355,6 +385,12 @@ size_t StreamServer::sendToAllClients(const IOV *iov, size_t n_iov)
 {
     HANDLER_LOCATION;
 
+    if (!d->accepting)
+    {
+        spdlog::warn("sendToAllClients() called while not accepting, aborting send");
+        return std::numeric_limits<size_t>::max();
+    }
+
     // Shared state for tracking async operations
     struct SendState
     {
@@ -460,7 +496,7 @@ void StreamServer::setPreamble(const IOV *iov, size_t n_iov)
         offset += iov[i].len;
     }
 
-    spdlog::debug("Preamble set, size: {} bytes", d->preamble.size());
+    spdlog::trace("Preamble set, size: {} bytes", d->preamble.size());
 }
 
 std::vector<std::uint8_t> StreamServer::getPreamble() const
@@ -476,7 +512,7 @@ bool StreamServer::Private::listenTcp(const std::string &host, const std::string
         tcp::acceptor *the_acceptor = nullptr;
         {
             std::lock_guard<std::mutex> lock(acceptors_mutex);
-            spdlog::debug("Attempting to listen on TCP {}:{}", host, port);
+            spdlog::trace("Attempting to listen on TCP {}:{}", host, port);
             auto address = asio::ip::make_address(host);
             unsigned short port_num = static_cast<unsigned short>(std::stoi(port));
             tcp::endpoint endpoint(address, port_num);
@@ -487,7 +523,7 @@ bool StreamServer::Private::listenTcp(const std::string &host, const std::string
 
         HANDLER_LOCATION;
         startAcceptTcp(the_acceptor);
-        ensure_io_thread_running();
+        ensure_asio_running();
         return true;
     }
     catch (const std::exception &e)
@@ -552,7 +588,7 @@ void StreamServer::Private::handleAcceptTcp(std::shared_ptr<Client> client,
                     return;
                 }
 
-                spdlog::debug("Sent preamble ({} bytes) to client {}", preamble_copy.size(),
+                spdlog::trace("Sent preamble ({} bytes) to client {}", preamble_copy.size(),
                               to_string(client->socket.remote_endpoint()));
             }
 
@@ -592,7 +628,7 @@ bool StreamServer::Private::listenIpc(const std::string &path)
 
         {
             std::lock_guard<std::mutex> lock(acceptors_mutex);
-            spdlog::debug("Attempting to listen on unix domain socket {}", path);
+            spdlog::trace("Attempting to listen on unix domain socket {}", path);
 
             struct stat st;
             if (stat(path.c_str(), &st) == 0)
@@ -609,7 +645,7 @@ bool StreamServer::Private::listenIpc(const std::string &path)
                     }
                     catch (...)
                     {
-                        spdlog::debug(
+                        spdlog::trace(
                             "StreamServer: socket file {} exists but is not in use, removing",
                             path);
                         ::unlink(path.c_str());
@@ -624,7 +660,7 @@ bool StreamServer::Private::listenIpc(const std::string &path)
 
         HANDLER_LOCATION;
         startAcceptIpc(the_acceptor);
-        ensure_io_thread_running();
+        ensure_asio_running();
         return true;
     }
     catch (const std::exception &e)
@@ -656,7 +692,7 @@ void StreamServer::Private::startAcceptIpc(stream_protocol::acceptor *ipc_accept
 }
 
 void StreamServer::Private::handleAcceptIpc(std::shared_ptr<Client> client,
-    stream_protocol::acceptor *ipc_acceptor,
+                                            stream_protocol::acceptor *ipc_acceptor,
                                             const asio::error_code &error)
 {
     HANDLER_LOCATION;
@@ -692,7 +728,7 @@ void StreamServer::Private::handleAcceptIpc(std::shared_ptr<Client> client,
                     return;
                 }
 
-                spdlog::debug("Sent preamble ({} bytes) to client {}", preamble_copy.size(),
+                spdlog::trace("Sent preamble ({} bytes) to client {}", preamble_copy.size(),
                               to_string(client->socket.remote_endpoint()));
             }
 

@@ -11,6 +11,7 @@
 
 #include "mesytec-mvlc/mvlc_stream_test_support.h"
 #include "mesytec-mvlc/stream_server_asio.h"
+#include "mesytec-mvlc/util/logging.h"
 #include "mesytec-mvlc/util/string_util.h"
 
 #include "gtest/gtest.h"
@@ -35,7 +36,7 @@ TEST(StreamServerTest, CanListenAndStop)
         ASSERT_TRUE(server.listen("tcp://127.0.0.1:0"));
         ASSERT_TRUE(server.listen(ipcPath));
 
-        spdlog::info("Listening URIs: {}", fmt::join(server.listenAddresses(), ", "));
+        spdlog::trace("Listening URIs: {}", fmt::join(server.listenAddresses(), ", "));
 
         EXPECT_TRUE(server.isListening());
         ASSERT_EQ(server.listenAddresses().size(), 3u);
@@ -65,7 +66,7 @@ TEST(StreamServerTest, CanListenWithNewInstance)
             ASSERT_TRUE(server.listen("tcp://127.0.0.1:43334"));
             ASSERT_TRUE(server.listen(ipcPath));
 
-            spdlog::info("Listening URIs: {}", fmt::join(server.listenAddresses(), ", "));
+            spdlog::trace("Listening URIs: {}", fmt::join(server.listenAddresses(), ", "));
 
             EXPECT_TRUE(server.isListening());
             ASSERT_EQ(server.listenAddresses().size(), 3u);
@@ -107,6 +108,10 @@ class StreamServerTestBase: public ::testing::TestWithParam<std::vector<std::str
 
 #endif
 
+// TODO: revive this. currently needs asio directly which is not exposed by libmesytec-mvlc.so
+// Need a client api that resides in the library and can be used here or test
+// the case with a second copy of asio built into this test. Prefering the
+// former as the latter leads to hard to debug issues.
 #if 0
 TEST_P(StreamServerTestBase, OneSenderOneClient)
 {
