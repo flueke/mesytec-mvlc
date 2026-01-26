@@ -213,6 +213,7 @@ void StreamServer::Private::stop()
                       }
                       tcp_acceptors.clear();
 
+#ifdef ENABLE_UNIX_DOMAIN_SOCKETS
                       for (auto &ipc_acceptor: ipc_acceptors)
                       {
                           if (ipc_acceptor && ipc_acceptor->is_open())
@@ -222,6 +223,7 @@ void StreamServer::Private::stop()
                           }
                       }
                       ipc_acceptors.clear();
+                      #endif
                       logger->trace("end of posted acceptor close");
                   });
 
@@ -310,7 +312,11 @@ bool StreamServer::listen(const std::string &url)
 bool StreamServer::isListening() const
 {
     std::lock_guard<std::mutex> lock(d->acceptors_mutex);
+#ifdef ENABLE_UNIX_DOMAIN_SOCKETS
     return !d->tcp_acceptors.empty() || !d->ipc_acceptors.empty();
+    #else
+    return !d->tcp_acceptors.empty();
+    #endif
 }
 
 bool StreamServer::stop()
@@ -383,6 +389,7 @@ std::vector<std::string> StreamServer::listenAddresses() const
         }
     }
 
+#ifdef ENABLE_UNIX_DOMAIN_SOCKETS
     for (auto &ipc_acceptor: d->ipc_acceptors)
     {
         if (ipc_acceptor && ipc_acceptor->is_open())
@@ -390,6 +397,7 @@ std::vector<std::string> StreamServer::listenAddresses() const
             addresses.push_back(get_local_address(*ipc_acceptor));
         }
     }
+    #endif
 
     return addresses;
 }
@@ -695,6 +703,7 @@ bool StreamServer::Private::listenIpc(const std::string &path)
 #endif
 }
 
+#ifdef ENABLE_UNIX_DOMAIN_SOCKETS
 void StreamServer::Private::startAcceptIpc(stream_protocol::acceptor *ipc_acceptor)
 {
     HANDLER_LOCATION;
@@ -779,5 +788,6 @@ void StreamServer::Private::handleAcceptIpc(std::shared_ptr<Client> client,
         }
     }
 }
+#endif
 
 } // namespace mesytec::mvlc
