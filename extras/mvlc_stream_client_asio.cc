@@ -43,6 +43,7 @@ std::error_code reconnect_tcp(asio::ip::tcp::socket &socket, const std::string &
 {
     if (socket.is_open())
         socket.close();
+    set_timeout(socket, std::chrono::milliseconds(500));
     spdlog::info("Connecting to TCP URL: {}:{}", tcpHost, tcpPort);
     auto &io_context = static_cast<asio::io_context &>(socket.get_executor().context());
     asio::ip::tcp::resolver resolver(io_context);
@@ -206,22 +207,39 @@ int run_client(Sock &socket, ReconnectFun reconnect, ClientContext &ctx)
                     }
                     else if (!ec && ctx.destBufferUsed >= totalBytesNeeded)
                     {
-                        spdlog::trace("Received full frame of size {} bytes, {} words", totalBytesNeeded, totalBytesNeeded / sizeof(u32));
+                        spdlog::trace("Received full frame of size {} bytes, {} words",
+                                      totalBytesNeeded, totalBytesNeeded / sizeof(u32));
                         ++ctx.totalFramesReceived;
                         ++ctx.framesReceivedInInterval;
+
+                        size_t wordsConsumed =
+                            process_data(ctx, std::basic_string_view<u32>(
+                                                  reinterpret_cast<u32 *>(ctx.destBuffer.data()),
+                                                  ctx.currentFrameHeader->wordsInFrame));
+
+                        auto bytesConsumed = wordsConsumed * sizeof(u32);
+
+                        if (wordsConsumed != ctx.currentFrameHeader->wordsInFrame)
+                        {
+                            spdlog::error("process_data() consumed {} words, expected {} words",
+                                          wordsConsumed, ctx.currentFrameHeader->wordsInFrame);
+                        }
+
                         ctx.currentFrameHeader.reset();
-                        size_t bytesConsumed = process_data(ctx, std::basic_string_view<u32>(
-                                            reinterpret_cast<u32 *>(ctx.destBuffer.data()),
-                                            totalBytesNeeded / sizeof(u32)));
 
                         if (bytesConsumed < ctx.destBufferUsed)
                         {
-                            spdlog::warn("moving {} trailing bytes to front of destBuffer",
-                                         ctx.destBufferUsed - bytesConsumed);
+                            auto bytesToMove = ctx.destBufferUsed - bytesConsumed;
+                            spdlog::warn(
+                                "moving {} trailing bytes ({} words) to front of destBuffer",
+                                bytesToMove, bytesToMove / sizeof(u32));
                             ctx.destBufferUsed = ctx.destBufferUsed - bytesConsumed;
                             std::memmove(ctx.destBuffer.data(),
                                          ctx.destBuffer.data() + bytesConsumed, ctx.destBufferUsed);
-                            ctx.currentFrameHeader = {};
+                        }
+                        else
+                        {
+                            ctx.destBufferUsed = 0;
                         }
                     }
                 }
@@ -255,8 +273,7 @@ int run_client(Sock &socket, ReconnectFun reconnect, ClientContext &ctx)
 
                     ctx.totalBytesReceived / util::Megabytes(1) * 1.0,
 
-                    ctx.totalReads * 1.0 / ctx.totalFramesReceived,
-                    ctx.totalFramesReceived);
+                    ctx.totalReads * 1.0 / ctx.totalFramesReceived, ctx.totalFramesReceived);
 
                 ctx.swReport.interval();
                 ctx.bytesReceivedInInterval = 0;
