@@ -6,11 +6,6 @@
 #include <string>
 #include <vector>
 
-// TODO: add network byte order handling?
-// TODO: return size_t::max() in sendToAllClei
-
-    // Note: this needs a 'using' declaration in subclasses.
-
 namespace mesytec::mvlc
 {
 
@@ -18,7 +13,7 @@ class MESYTEC_MVLC_EXPORT IStreamServer
 {
   public:
     // Note: for setPreamble() and sendToAllClients() to be visible in
-    // subclasses they need the corresponding 'using' delcarations, e.g.  'using
+    // subclasses they need the corresponding 'using' delcarations, e.g. 'using
     // IStreamServer::listen' in the subclass.
 
     // IO vector for gathered writes.

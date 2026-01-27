@@ -1,6 +1,5 @@
-#ifndef STREAM_SERVER_ASIO_H
-#define STREAM_SERVER_ASIO_H
-
+#ifndef C14948AC_3867_4F71_A5DA_E39765D9A95C
+#define C14948AC_3867_4F71_A5DA_E39765D9A95C
 
 #include "mesytec-mvlc/mesytec-mvlc_export.h"
 #include "mesytec-mvlc/stream_server_interface.h"
@@ -23,7 +22,6 @@ class MESYTEC_MVLC_EXPORT StreamServer: public IStreamServer
     std::vector<std::string> listenAddresses() const override;
     std::vector<std::string> clientAddresses() const override;
 
-
     size_t sendToAllClients(const IOV *iov, size_t n_iov) override;
     using IStreamServer::sendToAllClients;
 
@@ -40,4 +38,4 @@ class MESYTEC_MVLC_EXPORT StreamServer: public IStreamServer
 
 } // namespace mesytec::mvlc
 
-#endif // STREAM_SERVER_ASIO_H
+#endif /* C14948AC_3867_4F71_A5DA_E39765D9A95C */
