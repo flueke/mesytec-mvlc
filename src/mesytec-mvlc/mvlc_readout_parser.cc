@@ -1106,7 +1106,7 @@ ParseResult parse_readout_buffer(
                 break;
 
             case ConnectionType::USB:
-                result =  parse_readout_buffer_usb(
+                result = parse_readout_buffer_usb(
                     state, callbacks, counters, bufferNumber, buffer, bufferWords);
                 break;
 

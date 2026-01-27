@@ -1,78 +1,38 @@
 #include <argh.h>
 #include <asio.hpp>
+#include <boost/endian/conversion.hpp>
 #include <cassert>
 #include <chrono>
 #include <cstdint>
 #include <iostream>
+#include <mesytec-mvlc/mesytec-mvlc.h>
 #include <optional>
 #include <string>
 #include <thread>
 #include <vector>
 
-// Simple logger - replace with spdlog if needed
-namespace log
-{
-template <typename... Args> void info(const char *fmt, Args &&...args)
-{
-    printf("[INFO] ");
-    if constexpr (sizeof...(Args) > 0)
-    {
-        printf(fmt, std::forward<Args>(args)...);
-    }
-    else
-    {
-        printf("%s", fmt);
-    }
-    printf("\n");
-}
+// TODO:
+// - always handle systemframes with crateconfig info. the client has to update
+//    the config as a different file/run might be streamed.
+// - also reset state when detecting the endRun or endOfFile type system events.
 
-template <typename... Args> void warn(const char *fmt, Args &&...args)
-{
-    printf("[WARN] ");
-    if constexpr (sizeof...(Args) > 0)
-    {
-        printf(fmt, std::forward<Args>(args)...);
-    }
-    else
-    {
-        printf("%s", fmt);
-    }
-    printf("\n");
-}
-
-template <typename... Args> void error(const char *fmt, Args &&...args)
-{
-    printf("[ERROR] ");
-    if constexpr (sizeof...(Args) > 0)
-    {
-        printf(fmt, std::forward<Args>(args)...);
-    }
-    else
-    {
-        printf("%s", fmt);
-    }
-    printf("\n");
-}
-
-template <typename... Args> void debug(const char *fmt, Args &&...args)
-{
-#if 0
-        printf("[DEBUG] ");
-        if constexpr (sizeof...(Args) > 0) {
-            printf(fmt, std::forward<Args>(args)...);
-        } else {
-            printf("%s", fmt);
-        }
-        printf("\n");
-#endif
-}
-} // namespace log
+using namespace mesytec;
 
 // Frame header for framed format
 struct FrameHeader
 {
     uint32_t seqNum;
     uint32_t wordsInFrame;
+};
+
+struct MvlcParsingState
+{
+    std::vector<uint32_t> crateConfigBuffer;
+    std::optional<mvlc::CrateConfig> crateConfig;
+    std::optional<mvlc::readout_parser::ReadoutParserState> parserState;
+    mvlc::readout_parser::ReadoutParserCounters parserCounters;
+    // Local buffer sequence number for the raw format case.
+    size_t rawFormatSequenceNumber = 1;
 };
 
 // Client state and statistics
@@ -92,6 +52,8 @@ struct ClientContext
     size_t bytesReceivedInInterval = 0;
     size_t framesReceivedInInterval = 0;
     std::chrono::steady_clock::time_point lastReportTime;
+
+    MvlcParsingState mvlcState;
 
     ClientContext()
         : lastReportTime(std::chrono::steady_clock::now())
@@ -120,7 +82,7 @@ std::error_code connect_tcp(asio::ip::tcp::socket &socket, const std::string &ho
 
     set_socket_timeout(socket, std::chrono::milliseconds(2000));
 
-    log::info("Connecting to TCP: %s:%s", host.c_str(), port.c_str());
+    spdlog::info("Connecting to TCP: {}:{}", host, port);
 
     auto &io_context = static_cast<asio::io_context &>(socket.get_executor().context());
     asio::ip::tcp::resolver resolver(io_context);
@@ -142,7 +104,7 @@ std::error_code connect_unix(asio::local::stream_protocol::socket &socket, const
 
     set_socket_timeout(socket, std::chrono::milliseconds(2000));
 
-    log::info("Connecting to Unix socket: %s", path.c_str());
+    spdlog::info("Connecting to Unix socket: {}", path);
 
     asio::local::stream_protocol::endpoint endpoint(path);
     std::error_code ec;
@@ -164,34 +126,155 @@ size_t read_exact(Socket &socket, uint8_t *dest, size_t bytesNeeded, std::error_
     return bytesRead;
 }
 
-// Process raw unframed data. Returns the number of words processed or -1 on error.
-ssize_t process_raw_data(ClientContext &ctx, std::basic_string_view<uint32_t> data)
+void event_data_callback(void *userContext, int crateIndex, int triggerEventIndex,
+                         const mvlc::readout_parser::ModuleData *moduleDataList,
+                         unsigned moduleCount)
 {
-    // fake it and never make it
-    return data.size();
+    spdlog::info("Event data callback: crateIndex={}, triggerEventIndex={}, moduleCount={}",
+                 crateIndex, triggerEventIndex, moduleCount);
+
+    for (unsigned i = 0; i < moduleCount; ++i)
+    {
+        const auto &modData = moduleDataList[i];
+        spdlog::info("  Module {}: prefixSize={}, dynamicSize={}, suffixSize={}, hasDynamic={}", i,
+                     modData.prefixSize, modData.dynamicSize, modData.suffixSize,
+                     modData.hasDynamic);
+    }
+}
+
+void system_event_callback(void *userContext, int crateIndex, const uint32_t *header, uint32_t size)
+{
+    spdlog::info("System event callback: crateIndex={}, size={}", crateIndex, size);
+}
+
+// Process raw unframed data. Returns the number of words processed or -1 on error.
+ssize_t process_raw_data(ClientContext &ctx, uint32_t bufferNumber,
+                         std::basic_string_view<uint32_t> data)
+{
+    if (data.empty())
+        return 0;
+
+    const auto origDataSize = data.size();
+    auto &mvlcState = ctx.mvlcState;
+
+    // If we directly land on a known header it must be MVLC USB formatted data
+    // without the additional ETH header words.
+    // TODO: move this into the parser code itself. This detection happens
+    // everywhere and is annoying.
+    const auto connectionType = mvlc::is_known_frame_header(data[0]) ? mvlc::ConnectionType::USB
+                                                                     : mvlc::ConnectionType::ETH;
+
+    mvlc::readout_parser::ReadoutParserCallbacks parserCallbacks = {event_data_callback,
+                                                                    system_event_callback};
+
+    bool done = false;
+
+    while (!done && !data.empty())
+    {
+        if (mvlcState.parserState)
+        {
+            try
+            {
+                auto parseResult = mvlc::readout_parser::parse_readout_buffer(
+                    connectionType, *mvlcState.parserState, parserCallbacks,
+                    mvlcState.parserCounters, bufferNumber, data.data(), data.size());
+                // TODO: handle parseResult. count it, print it, log errors, ...
+
+                if (parseResult != mvlc::readout_parser::ParseResult::Ok)
+                {
+                    spdlog::error("Readout parsing error: {}",
+                                  mvlc::readout_parser::get_parse_result_name(parseResult));
+                }
+            }
+            catch (const std::exception &e)
+            {
+                spdlog::error("Exception during readout parsing: {}", e.what());
+            }
+            data.remove_prefix(data.size()); // consume it all
+        }
+        else
+        {
+            // Read the MVLCCrateConfig parts of the preamble if it's being
+            // streamed.
+            // Otherwise just follow the mvlc framing format/ eth packet headers and
+            // print a bit of info.
+            while (!data.empty())
+            {
+                assert(mvlc::is_known_frame_header(data[0]));
+                auto headerInfo = mvlc::extract_frame_info(data[0]);
+                assert(data.size() >= headerInfo.len + 1); // should be guaranteed by the caller
+
+                if (data.size() >= headerInfo.len + 1)
+                {
+                    if (headerInfo.type == mvlc::frame_headers::SystemEvent &&
+                        headerInfo.sysEventSubType == mvlc::system_event::subtype::MVLCCrateConfig)
+                    {
+                        std::copy(data.begin() + 1, data.begin() + 1 + headerInfo.len,
+                                  std::back_inserter(mvlcState.crateConfigBuffer));
+
+                        if (!(headerInfo.flags & mvlc::frame_flags::Continue))
+                        {
+                            try
+                            {
+                                mvlcState.crateConfig = mvlc::crate_config_from_yaml(std::string(
+                                    reinterpret_cast<const char *>(
+                                        mvlcState.crateConfigBuffer.data()),
+                                    mvlcState.crateConfigBuffer.size() * sizeof(uint32_t)));
+
+                                mvlcState.parserState = mvlc::readout_parser::make_readout_parser(
+                                    mvlcState.crateConfig->stacks);
+                            }
+                            catch (const std::exception &e)
+                            {
+                                spdlog::error("Failed to parse crate config YAML: {}", e.what());
+                            }
+                        }
+                    }
+                    else
+                    {
+                        // TODO: print generic frame info, type, len, flags, start of contents,
+                        // syseventsubtype if applicable
+                    }
+
+                    data.remove_prefix(headerInfo.len + 1);
+                }
+                else
+                {
+                    spdlog::error("Incomplete frame detected during preamble parsing");
+                    done = true;
+                    break;
+                }
+            }
+        }
+    }
+
+    // Returns the number of words processed. original size - remaining size
+    return origDataSize - data.size();
 }
 
 // Process one complete frame. Returns the number of words processed or -1 on error.
-ssize_t process_frame(ClientContext &ctx, const FrameHeader &header, std::basic_string_view<uint32_t> frameView)
+ssize_t process_frame(ClientContext &ctx, const FrameHeader &header,
+                      std::basic_string_view<uint32_t> frameView)
 {
-    // Check for sequence number gaps
+    // Check for sequence number gaps and warn. The parser also handles this
+    // internally, resets its state and resumes parsing when new data arrives.
     if (ctx.lastSeqNum != -1 && header.seqNum != static_cast<uint32_t>(ctx.lastSeqNum + 1))
     {
-        log::warn("Frame loss detected: last=%lld, current=%u",
-                  static_cast<long long>(ctx.lastSeqNum), header.seqNum);
-        // TODO: have to reset parser state etc in here to make sure the loss is handled properly
+        spdlog::warn("Frame loss detected: last={}, current={}",
+                     static_cast<long long>(ctx.lastSeqNum), header.seqNum);
     }
 
     ctx.lastSeqNum = header.seqNum;
 
     if (frameView.size() != header.wordsInFrame)
     {
-        log::error("Frame size mismatch: expected %zu words, got %zu words", header.wordsInFrame, frameView.size());
+        spdlog::error("Frame size mismatch: expected {} words, got {} words", header.wordsInFrame,
+                      frameView.size());
         return -1;
     }
 
     // Process the frame payload
-    return process_raw_data(ctx, frameView);
+    return process_raw_data(ctx, header.seqNum, frameView);
 }
 
 // Print statistics periodically
@@ -207,8 +290,8 @@ void maybe_print_stats(ClientContext &ctx)
         double mbps = mbReceived / elapsedSec;
         double fps = ctx.framesReceivedInInterval / elapsedSec;
 
-        log::info("Stats: %.2f MB/s, %.2f frames/s (total: %zu frames, %zu bytes)", mbps, fps,
-                  ctx.totalFramesReceived, ctx.totalBytesReceived);
+        spdlog::info("Stats: {:.2f} MB/s, {:.2f} frames/s (total: {} frames, {} bytes)", mbps, fps,
+                     ctx.totalFramesReceived, ctx.totalBytesReceived);
 
         ctx.bytesReceivedInInterval = 0;
         ctx.framesReceivedInInterval = 0;
@@ -242,12 +325,12 @@ int run_client_framed(Socket &socket, ConnectFunc reconnect, ClientContext &ctx)
             ec = reconnect();
             if (ec)
             {
-                log::warn("Failed to connect: %s", ec.message().c_str());
+                spdlog::warn("Failed to connect: {}", ec.message().c_str());
                 std::this_thread::sleep_for(std::chrono::milliseconds(250));
             }
             else
             {
-                log::info("Connected");
+                spdlog::info("Connected");
                 state = State::Connected;
                 ctx.lastSeqNum = -1;
                 ctx.bufferUsed = 0; // Reset buffer on reconnect
@@ -259,20 +342,20 @@ int run_client_framed(Socket &socket, ConnectFunc reconnect, ClientContext &ctx)
         {
             // Bulk read from socket into buffer after existing data
             size_t bytesToRead = ctx.buffer.size() - ctx.bufferUsed;
-            log::debug("Attempting to read up to %zu bytes", bytesToRead);
+            spdlog::debug("Attempting to read up to {} bytes", bytesToRead);
             size_t bytesRead =
                 socket.read_some(asio::buffer(ctx.buffer.data() + ctx.bufferUsed, bytesToRead), ec);
 
             if (ec && ec != asio::error::timed_out)
             {
-                log::warn("Read error: %s", ec.message().c_str());
+                spdlog::warn("Read error: {}", ec.message().c_str());
                 state = State::Connecting;
                 ctx.bufferUsed = 0; // Discard partial data on error
                 break;
             }
             else if (ec && ec == asio::error::timed_out)
             {
-                log::warn("Read timed out with {} bytes read, trying again", bytesRead);
+                spdlog::warn("Read timed out with {} bytes read, trying again", bytesRead);
             }
 
             ctx.bytesReceivedInInterval += bytesRead;
@@ -294,18 +377,18 @@ int run_client_framed(Socket &socket, ConnectFunc reconnect, ClientContext &ctx)
                 // Check if we have the complete frame
                 if (remaining < totalFrameBytes)
                 {
-                    log::debug("Incomplete frame: have %zu bytes, need %zu bytes.", remaining,
-                               totalFrameBytes);
+                    spdlog::debug("Incomplete frame: have {} bytes, need {} bytes.", remaining,
+                                  totalFrameBytes);
                     if (ctx.buffer.size() < totalFrameBytes)
                     {
-                        log::debug("Resizing buffer to %zu bytes", totalFrameBytes);
+                        spdlog::debug("Resizing buffer to {} bytes", totalFrameBytes);
                         ctx.buffer.resize(totalFrameBytes);
                     }
                     break; // Incomplete frame - wait for more data
                 }
 
-                log::debug("Complete frame received: seqNum=%u, wordsInFrame=%u", header->seqNum,
-                           header->wordsInFrame);
+                spdlog::debug("Complete frame received: seqNum={}, wordsInFrame={}", header->seqNum,
+                              header->wordsInFrame);
                 ++ctx.framesReceivedInInterval;
                 ++ctx.totalFramesReceived;
 
@@ -313,25 +396,25 @@ int run_client_framed(Socket &socket, ConnectFunc reconnect, ClientContext &ctx)
                     reinterpret_cast<const uint32_t *>(data + consumed + sizeof(FrameHeader)),
                     header->wordsInFrame);
 
-                auto result = process_frame(ctx, *header, frameView);
+                auto wordsProcessed = process_frame(ctx, *header, frameView);
 
-                if (result < 0)
+                if (wordsProcessed < 0)
                 {
-                    log::warn("Error processing frame, resetting connection.");
+                    spdlog::warn("Error processing frame, resetting connection.");
                     state = State::Connecting;
                     ctx.bufferUsed = 0;
                     break;
                 }
 
                 // Advance to next frame
-                consumed += totalFrameBytes;
-                remaining -= totalFrameBytes;
+                consumed += wordsProcessed * sizeof(uint32_t) + sizeof(FrameHeader);
+                remaining -= wordsProcessed * sizeof(uint32_t) + sizeof(FrameHeader);
             }
 
-            // Move any leftover partial data to front of buffer
+            // Move any leftover partial data to the front of the buffer.
             if (remaining > 0 && consumed > 0)
             {
-                log::warn("Moving %zu bytes of leftover data to front of buffer", remaining);
+                spdlog::warn("Moving {} bytes of leftover data to front of buffer", remaining);
                 std::memmove(ctx.buffer.data(), data + consumed, remaining);
             }
             ctx.bufferUsed = remaining;
@@ -370,14 +453,15 @@ int run_client_raw(Socket &socket, ConnectFunc reconnect, ClientContext &ctx)
             ec = reconnect();
             if (ec)
             {
-                log::warn("Failed to connect: %s", ec.message().c_str());
+                spdlog::warn("Failed to connect: {}", ec.message().c_str());
                 std::this_thread::sleep_for(std::chrono::milliseconds(250));
             }
             else
             {
-                log::info("Connected");
+                spdlog::info("Connected");
                 state = State::Connected;
                 ctx.bufferUsed = 0; // Reset buffer on reconnect
+                ctx.mvlcState.rawFormatSequenceNumber = 1;
             }
             break;
         }
@@ -386,18 +470,19 @@ int run_client_raw(Socket &socket, ConnectFunc reconnect, ClientContext &ctx)
         {
             // Read whatever data is available
             auto bytesToRead = ctx.buffer.size() - ctx.bufferUsed;
-            size_t bytesRead = socket.read_some(asio::buffer(ctx.buffer.data() + ctx.bufferUsed, bytesToRead), ec);
+            size_t bytesRead =
+                socket.read_some(asio::buffer(ctx.buffer.data() + ctx.bufferUsed, bytesToRead), ec);
 
             if (ec && ec != asio::error::timed_out)
             {
-                log::warn("Read error: %s", ec.message().c_str());
+                spdlog::warn("Read error: {}", ec.message().c_str());
                 state = State::Connecting;
                 ctx.bufferUsed = 0; // Discard partial data on error
                 break;
             }
             else if (ec && ec == asio::error::timed_out)
             {
-                log::warn("Read timed out with {} bytes read, trying again", bytesRead);
+                spdlog::warn("Read timed out with {} bytes read, trying again", bytesRead);
             }
 
             ctx.bufferUsed += bytesRead;
@@ -405,14 +490,20 @@ int run_client_raw(Socket &socket, ConnectFunc reconnect, ClientContext &ctx)
             ctx.totalBytesReceived += bytesRead;
 
             std::basic_string_view<uint32_t> dataView(
-                reinterpret_cast<const uint32_t *>(ctx.buffer.data()), ctx.bufferUsed / sizeof(uint32_t));
+                reinterpret_cast<const uint32_t *>(ctx.buffer.data()),
+                ctx.bufferUsed / sizeof(uint32_t));
 
-            auto wordsConsumed = process_raw_data(ctx, dataView);
+            auto wordsConsumed =
+                process_raw_data(ctx, ctx.mvlcState.rawFormatSequenceNumber, dataView);
 
             if (wordsConsumed == 0)
             {
-                log::debug("No complete data processed yet, waiting for more data");
+                spdlog::debug("No complete data processed yet, waiting for more data");
                 break;
+            }
+            else
+            {
+                ++ctx.mvlcState.rawFormatSequenceNumber;
             }
 
             // Move leftover data to the front of the buffer
@@ -420,7 +511,7 @@ int run_client_raw(Socket &socket, ConnectFunc reconnect, ClientContext &ctx)
             if (bytesConsumed < ctx.bufferUsed)
             {
                 size_t bytesLeftover = ctx.bufferUsed - bytesConsumed;
-                log::debug("Moving %zu bytes of leftover data to front of buffer", bytesLeftover);
+                spdlog::debug("Moving {} bytes of leftover data to front of buffer", bytesLeftover);
                 std::memmove(ctx.buffer.data(), ctx.buffer.data() + bytesConsumed, bytesLeftover);
                 ctx.bufferUsed = bytesLeftover;
             }
@@ -534,7 +625,7 @@ int main(int argc, char *argv[])
     }
     catch (const std::exception &e)
     {
-        log::error("Exception: %s", e.what());
+        spdlog::error("Exception: {}", e.what());
         return 1;
     }
 }
