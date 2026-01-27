@@ -1,20 +1,106 @@
 #include <argh.h>
 #include <asio.hpp>
-#include <boost/endian/conversion.hpp>
 #include <cassert>
 #include <chrono>
+#include <cstdint>
 #include <iostream>
-#include <spdlog/spdlog.h>
+#include <optional>
 #include <string>
+#include <thread>
+#include <vector>
 
-#include <mesytec-mvlc/util/int_types.h>
-#include <mesytec-mvlc/util/stopwatch.h>
-#include <mesytec-mvlc/util/storage_sizes.h>
-#include <mesytec-mvlc/util/string_util.h>
+// Simple logger - replace with spdlog if needed
+namespace log
+{
+template <typename... Args> void info(const char *fmt, Args &&...args)
+{
+    printf("[INFO] ");
+    if constexpr (sizeof...(Args) > 0)
+    {
+        printf(fmt, std::forward<Args>(args)...);
+    }
+    else
+    {
+        printf("%s", fmt);
+    }
+    printf("\n");
+}
 
-using namespace mesytec::mvlc;
+template <typename... Args> void warn(const char *fmt, Args &&...args)
+{
+    printf("[WARN] ");
+    if constexpr (sizeof...(Args) > 0)
+    {
+        printf(fmt, std::forward<Args>(args)...);
+    }
+    else
+    {
+        printf("%s", fmt);
+    }
+    printf("\n");
+}
 
-template <typename Socket> void set_timeout(Socket &sock, std::chrono::milliseconds timeout)
+template <typename... Args> void error(const char *fmt, Args &&...args)
+{
+    printf("[ERROR] ");
+    if constexpr (sizeof...(Args) > 0)
+    {
+        printf(fmt, std::forward<Args>(args)...);
+    }
+    else
+    {
+        printf("%s", fmt);
+    }
+    printf("\n");
+}
+
+template <typename... Args> void debug(const char *fmt, Args &&...args)
+{
+#if 0
+        printf("[DEBUG] ");
+        if constexpr (sizeof...(Args) > 0) {
+            printf(fmt, std::forward<Args>(args)...);
+        } else {
+            printf("%s", fmt);
+        }
+        printf("\n");
+#endif
+}
+} // namespace log
+
+// Frame header for framed format
+struct FrameHeader
+{
+    uint32_t seqNum;
+    uint32_t wordsInFrame;
+};
+
+// Client state and statistics
+struct ClientContext
+{
+    bool isRawFormat = false;
+    std::vector<uint8_t> buffer;
+    size_t bufferUsed = 0;
+
+    int64_t lastSeqNum = -1;
+    size_t totalBytesReceived = 0;
+    // This counts the stream protocol frames if the framed format is used, not
+    // inner MVLC data frames.
+    size_t totalFramesReceived = 0;
+
+    // Statistics for periodic reporting
+    size_t bytesReceivedInInterval = 0;
+    size_t framesReceivedInInterval = 0;
+    std::chrono::steady_clock::time_point lastReportTime;
+
+    ClientContext()
+        : lastReportTime(std::chrono::steady_clock::now())
+    {
+    }
+};
+
+// Set socket timeouts for send and receive operations
+template <typename Socket> void set_socket_timeout(Socket &sock, std::chrono::milliseconds timeout)
 {
     struct timeval tv
     {
@@ -25,318 +111,370 @@ template <typename Socket> void set_timeout(Socket &sock, std::chrono::milliseco
     setsockopt(sock.native_handle(), SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
 }
 
-std::error_code reconnect_ipc(asio::local::stream_protocol::socket &socket,
-                              const std::string &socketPath)
+// TCP connection helper
+std::error_code connect_tcp(asio::ip::tcp::socket &socket, const std::string &host,
+                            const std::string &port)
 {
     if (socket.is_open())
         socket.close();
-    set_timeout(socket, std::chrono::milliseconds(500));
-    spdlog::info("Connecting to IPC socket: {}", socketPath);
-    asio::local::stream_protocol::endpoint endpoint(socketPath);
+
+    set_socket_timeout(socket, std::chrono::milliseconds(2000));
+
+    log::info("Connecting to TCP: %s:%s", host.c_str(), port.c_str());
+
+    auto &io_context = static_cast<asio::io_context &>(socket.get_executor().context());
+    asio::ip::tcp::resolver resolver(io_context);
+
+    std::error_code ec;
+    auto endpoints = resolver.resolve(host, port, ec);
+    if (ec)
+        return ec;
+
+    asio::connect(socket, endpoints, ec);
+    return ec;
+}
+
+// Unix domain socket connection helper
+std::error_code connect_unix(asio::local::stream_protocol::socket &socket, const std::string &path)
+{
+    if (socket.is_open())
+        socket.close();
+
+    set_socket_timeout(socket, std::chrono::milliseconds(2000));
+
+    log::info("Connecting to Unix socket: %s", path.c_str());
+
+    asio::local::stream_protocol::endpoint endpoint(path);
     std::error_code ec;
     socket.connect(endpoint, ec);
     return ec;
 }
 
-std::error_code reconnect_tcp(asio::ip::tcp::socket &socket, const std::string &tcpHost,
-                              const std::string &tcpPort)
-{
-    if (socket.is_open())
-        socket.close();
-    set_timeout(socket, std::chrono::milliseconds(500));
-    spdlog::info("Connecting to TCP URL: {}:{}", tcpHost, tcpPort);
-    auto &io_context = static_cast<asio::io_context &>(socket.get_executor().context());
-    asio::ip::tcp::resolver resolver(io_context);
-    std::error_code ec;
-    auto endpoints = resolver.resolve(tcpHost, tcpPort, ec);
-    if (ec)
-        return ec;
-    asio::connect(socket, endpoints, ec);
-    return ec;
-}
-
-struct FrameHeader
-{
-    u32 seqNum;
-    u32 wordsInFrame;
-};
-
-struct ClientContext
-{
-    bool isRawFormat = false;
-    std::vector<u8> destBuffer;
-    size_t destBufferUsed = 0;
-    ssize_t lastSeqNum = -1;
-    size_t totalBytesReceived = 0;
-    size_t bytesReceivedInInterval = 0;
-    size_t framesReceivedInInterval = 0;
-    size_t totalReads = 0;
-    size_t totalFramesReceived = 0;
-    util::Stopwatch swReport;
-    std::optional<FrameHeader> currentFrameHeader;
-};
-
-size_t process_data(ClientContext &ctx, std::basic_string_view<u32> data);
-size_t process_raw_data(ClientContext &ctx, std::basic_string_view<u32> data);
-size_t process_framed_data(ClientContext &ctx, std::basic_string_view<u32> frameBody);
-
-template <typename Sock>
-size_t read_at_least(Sock &socket, u8 *dest, size_t bytesNeeded, std::error_code &ec)
+// Read exactly the requested number of bytes from socket
+template <typename Socket>
+size_t read_exact(Socket &socket, uint8_t *dest, size_t bytesNeeded, std::error_code &ec)
 {
     size_t bytesRead = 0;
     while (bytesRead < bytesNeeded && !ec)
     {
         auto asioDest = asio::buffer(dest + bytesRead, bytesNeeded - bytesRead);
-        bytesRead += asio::read(socket, asioDest, asio::transfer_at_least(asioDest.size()), ec);
+        size_t n = asio::read(socket, asioDest, asio::transfer_at_least(asioDest.size()), ec);
+        bytesRead += n;
     }
     return bytesRead;
 }
 
-template <typename Sock>
-std::optional<FrameHeader> read_frame_header(Sock &socket, std::error_code &ec)
+// Process raw unframed data. Returns the number of words processed or -1 on error.
+ssize_t process_raw_data(ClientContext &ctx, std::basic_string_view<uint32_t> data)
 {
-    std::array<u32, 2> dest;
-    size_t bytesRead =
-        read_at_least(socket, reinterpret_cast<u8 *>(dest.data()), dest.size() * sizeof(u32), ec);
-
-    if (ec)
-        return std::nullopt;
-
-    if (bytesRead < sizeof(FrameHeader))
-        return std::nullopt;
-
-    if (bytesRead > sizeof(FrameHeader))
-    {
-        spdlog::warn("read_frame_header(): read {} bytes, expected {}", bytesRead,
-                     sizeof(FrameHeader));
-    }
-
-    boost::endian::little_to_native_inplace(dest[0]);
-    boost::endian::little_to_native_inplace(dest[1]);
-
-    return FrameHeader{dest[0], dest[1]};
+    // fake it and never make it
+    return data.size();
 }
 
-template <typename Sock, typename ReconnectFun>
-int run_client(Sock &socket, ReconnectFun reconnect, ClientContext &ctx)
+// Process one complete frame. Returns the number of words processed or -1 on error.
+ssize_t process_frame(ClientContext &ctx, const FrameHeader &header, std::basic_string_view<uint32_t> frameView)
+{
+    // Check for sequence number gaps
+    if (ctx.lastSeqNum != -1 && header.seqNum != static_cast<uint32_t>(ctx.lastSeqNum + 1))
+    {
+        log::warn("Frame loss detected: last=%lld, current=%u",
+                  static_cast<long long>(ctx.lastSeqNum), header.seqNum);
+        // TODO: have to reset parser state etc in here to make sure the loss is handled properly
+    }
+
+    ctx.lastSeqNum = header.seqNum;
+
+    if (frameView.size() != header.wordsInFrame)
+    {
+        log::error("Frame size mismatch: expected %zu words, got %zu words", header.wordsInFrame, frameView.size());
+        return -1;
+    }
+
+    // Process the frame payload
+    return process_raw_data(ctx, frameView);
+}
+
+// Print statistics periodically
+void maybe_print_stats(ClientContext &ctx)
+{
+    auto now = std::chrono::steady_clock::now();
+    auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - ctx.lastReportTime);
+
+    if (elapsed >= std::chrono::seconds(1))
+    {
+        double elapsedSec = elapsed.count() / 1000.0;
+        double mbReceived = ctx.bytesReceivedInInterval / (1024.0 * 1024.0);
+        double mbps = mbReceived / elapsedSec;
+        double fps = ctx.framesReceivedInInterval / elapsedSec;
+
+        log::info("Stats: %.2f MB/s, %.2f frames/s (total: %zu frames, %zu bytes)", mbps, fps,
+                  ctx.totalFramesReceived, ctx.totalBytesReceived);
+
+        ctx.bytesReceivedInInterval = 0;
+        ctx.framesReceivedInInterval = 0;
+        ctx.lastReportTime = now;
+    }
+}
+
+// Main client loop for framed protocol using bulk reading
+template <typename Socket, typename ConnectFunc>
+int run_client_framed(Socket &socket, ConnectFunc reconnect, ClientContext &ctx)
 {
     enum class State
     {
         Connecting,
-        Connected,
-    } state = State::Connecting;
+        Connected
+    };
+    State state = State::Connecting;
 
     std::error_code ec;
+    const size_t readBufferSize = 1u << 20; // 1 MB
+    ctx.buffer.resize(readBufferSize);
 
     while (true)
     {
+        maybe_print_stats(ctx);
+
         switch (state)
         {
         case State::Connecting:
-            if ((ec = reconnect()))
+        {
+            ec = reconnect();
+            if (ec)
             {
-                spdlog::warn("Failed to connect to server: {}", ec.message());
+                log::warn("Failed to connect: %s", ec.message().c_str());
                 std::this_thread::sleep_for(std::chrono::milliseconds(250));
             }
             else
             {
+                log::info("Connected");
                 state = State::Connected;
-                spdlog::info("Connected to server");
                 ctx.lastSeqNum = -1;
-                ctx.destBufferUsed = 0;
-                ctx.framesReceivedInInterval = 0;
-                ctx.bytesReceivedInInterval = 0;
+                ctx.bufferUsed = 0; // Reset buffer on reconnect
             }
             break;
+        }
 
         case State::Connected:
         {
-            ctx.destBuffer.resize(util::Megabytes(1));
+            // Bulk read from socket into buffer after existing data
+            size_t bytesToRead = ctx.buffer.size() - ctx.bufferUsed;
+            log::debug("Attempting to read up to %zu bytes", bytesToRead);
+            size_t bytesRead =
+                socket.read_some(asio::buffer(ctx.buffer.data() + ctx.bufferUsed, bytesToRead), ec);
 
-            if (!ctx.isRawFormat)
+            if (ec && ec != asio::error::timed_out)
             {
-                if (!ctx.currentFrameHeader)
-                {
-                    ctx.currentFrameHeader = read_frame_header(socket, ec);
-                    ctx.totalReads += 1;
-
-                    if (ec)
-                    {
-                        assert(!ctx.currentFrameHeader);
-                        spdlog::warn("Error while reading frame header: {}", ec.message());
-                        state = State::Connecting;
-                        ctx.destBufferUsed = 0;
-                        break;
-                    }
-                    else
-                    {
-                        ctx.totalBytesReceived += sizeof(FrameHeader);
-                    }
-                }
-                else if (ctx.currentFrameHeader)
-                {
-                    size_t totalBytesNeeded = ctx.currentFrameHeader->wordsInFrame * sizeof(u32);
-                    ctx.destBuffer.resize(totalBytesNeeded);
-
-                    while (ctx.destBufferUsed < totalBytesNeeded && !ec)
-                    {
-                        size_t bytesToRead = totalBytesNeeded - ctx.destBufferUsed;
-                        size_t bytesRead = read_at_least(
-                            socket, ctx.destBuffer.data() + ctx.destBufferUsed, bytesToRead, ec);
-
-                        spdlog::debug(
-                            "read_at_least() returned {} bytes, bytesToRead was {}, ec={}",
-                            bytesRead, bytesToRead, ec.message());
-
-                        if (ec)
-                            break;
-
-                        ctx.destBufferUsed += bytesRead;
-                        ctx.totalBytesReceived += bytesRead;
-                        ctx.totalReads += 1;
-                    }
-
-                    // FIXME: leftoff here. this returns "Bad address". no clue yet...
-                    if (ctx.destBufferUsed < totalBytesNeeded || ec)
-                    {
-                        spdlog::warn("Error while reading frame data: {}", ec.message());
-                        state = State::Connecting;
-                        ctx.destBufferUsed = 0;
-                        ctx.currentFrameHeader.reset();
-                        break;
-                    }
-                    else if (!ec && ctx.destBufferUsed >= totalBytesNeeded)
-                    {
-                        spdlog::trace("Received full frame of size {} bytes, {} words",
-                                      totalBytesNeeded, totalBytesNeeded / sizeof(u32));
-                        ++ctx.totalFramesReceived;
-                        ++ctx.framesReceivedInInterval;
-
-                        size_t wordsConsumed =
-                            process_data(ctx, std::basic_string_view<u32>(
-                                                  reinterpret_cast<u32 *>(ctx.destBuffer.data()),
-                                                  ctx.currentFrameHeader->wordsInFrame));
-
-                        auto bytesConsumed = wordsConsumed * sizeof(u32);
-
-                        if (wordsConsumed != ctx.currentFrameHeader->wordsInFrame)
-                        {
-                            spdlog::error("process_data() consumed {} words, expected {} words",
-                                          wordsConsumed, ctx.currentFrameHeader->wordsInFrame);
-                        }
-
-                        ctx.currentFrameHeader.reset();
-
-                        if (bytesConsumed < ctx.destBufferUsed)
-                        {
-                            auto bytesToMove = ctx.destBufferUsed - bytesConsumed;
-                            spdlog::warn(
-                                "moving {} trailing bytes ({} words) to front of destBuffer",
-                                bytesToMove, bytesToMove / sizeof(u32));
-                            ctx.destBufferUsed = ctx.destBufferUsed - bytesConsumed;
-                            std::memmove(ctx.destBuffer.data(),
-                                         ctx.destBuffer.data() + bytesConsumed, ctx.destBufferUsed);
-                        }
-                        else
-                        {
-                            ctx.destBufferUsed = 0;
-                        }
-                    }
-                }
+                log::warn("Read error: %s", ec.message().c_str());
+                state = State::Connecting;
+                ctx.bufferUsed = 0; // Discard partial data on error
+                break;
+            }
+            else if (ec && ec == asio::error::timed_out)
+            {
+                log::warn("Read timed out with {} bytes read, trying again", bytesRead);
             }
 
-            if (auto interval = ctx.swReport.get_interval(); interval >= std::chrono::seconds(1))
+            ctx.bytesReceivedInInterval += bytesRead;
+            ctx.totalBytesReceived += bytesRead;
+            ctx.bufferUsed += bytesRead;
+
+            // Parse all complete frames from the buffer
+            const uint8_t *data = ctx.buffer.data();
+            size_t consumed = 0;
+            size_t remaining = ctx.bufferUsed;
+
+            while (remaining >= sizeof(FrameHeader))
             {
-                auto stateStr = (state == State::Connected) ? "connected" : "connecting";
-                spdlog::info(
-                    "State: {}, "
-                    "Received in the last {} ms: {:.2f} MB ({} frames), rate={:.2f} MB/s "
-                    ", {:.2f} frames/s"
-                    "(total {} MB received), avg {:.2f} reads per frame, {} total "
-                    "frames",
+                // Read frame header inline
+                const FrameHeader *header = reinterpret_cast<const FrameHeader *>(data + consumed);
+                size_t bytesInFrame = header->wordsInFrame * sizeof(uint32_t);
+                size_t totalFrameBytes = sizeof(FrameHeader) + bytesInFrame;
 
-                    stateStr,
+                // Check if we have the complete frame
+                if (remaining < totalFrameBytes)
+                {
+                    log::debug("Incomplete frame: have %zu bytes, need %zu bytes.", remaining,
+                               totalFrameBytes);
+                    if (ctx.buffer.size() < totalFrameBytes)
+                    {
+                        log::debug("Resizing buffer to %zu bytes", totalFrameBytes);
+                        ctx.buffer.resize(totalFrameBytes);
+                    }
+                    break; // Incomplete frame - wait for more data
+                }
 
-                    std::chrono::duration_cast<std::chrono::milliseconds>(interval).count(),
+                log::debug("Complete frame received: seqNum=%u, wordsInFrame=%u", header->seqNum,
+                           header->wordsInFrame);
+                ++ctx.framesReceivedInInterval;
+                ++ctx.totalFramesReceived;
 
-                    ctx.bytesReceivedInInterval / util::Megabytes(1) * 1.0,
+                std::basic_string_view<uint32_t> frameView(
+                    reinterpret_cast<const uint32_t *>(data + consumed + sizeof(FrameHeader)),
+                    header->wordsInFrame);
 
-                    ctx.framesReceivedInInterval,
+                auto result = process_frame(ctx, *header, frameView);
 
-                    ctx.bytesReceivedInInterval / util::Megabytes(1) * 1.0 /
-                        (std::chrono::duration_cast<std::chrono::milliseconds>(interval).count() *
-                         1.0 / 1000.0),
+                if (result < 0)
+                {
+                    log::warn("Error processing frame, resetting connection.");
+                    state = State::Connecting;
+                    ctx.bufferUsed = 0;
+                    break;
+                }
 
-                    ctx.framesReceivedInInterval /
-                        (std::chrono::duration_cast<std::chrono::milliseconds>(interval).count() *
-                         1.0 / 1000.0),
-
-                    ctx.totalBytesReceived / util::Megabytes(1) * 1.0,
-
-                    ctx.totalReads * 1.0 / ctx.totalFramesReceived, ctx.totalFramesReceived);
-
-                ctx.swReport.interval();
-                ctx.bytesReceivedInInterval = 0;
-                ctx.framesReceivedInInterval = 0;
+                // Advance to next frame
+                consumed += totalFrameBytes;
+                remaining -= totalFrameBytes;
             }
+
+            // Move any leftover partial data to front of buffer
+            if (remaining > 0 && consumed > 0)
+            {
+                log::warn("Moving %zu bytes of leftover data to front of buffer", remaining);
+                std::memmove(ctx.buffer.data(), data + consumed, remaining);
+            }
+            ctx.bufferUsed = remaining;
+
             break;
         }
         }
     }
+
+    return 0;
 }
 
+// Main client loop for raw (unframed) protocol
+template <typename Socket, typename ConnectFunc>
+int run_client_raw(Socket &socket, ConnectFunc reconnect, ClientContext &ctx)
+{
+    enum class State
+    {
+        Connecting,
+        Connected
+    };
+    State state = State::Connecting;
+
+    std::error_code ec;
+    const size_t readBufferSize = 1u << 20; // 1 MB
+    ctx.buffer.resize(readBufferSize);
+
+    while (true)
+    {
+        maybe_print_stats(ctx);
+
+        switch (state)
+        {
+        case State::Connecting:
+        {
+            ec = reconnect();
+            if (ec)
+            {
+                log::warn("Failed to connect: %s", ec.message().c_str());
+                std::this_thread::sleep_for(std::chrono::milliseconds(250));
+            }
+            else
+            {
+                log::info("Connected");
+                state = State::Connected;
+                ctx.bufferUsed = 0; // Reset buffer on reconnect
+            }
+            break;
+        }
+
+        case State::Connected:
+        {
+            // Read whatever data is available
+            auto bytesToRead = ctx.buffer.size() - ctx.bufferUsed;
+            size_t bytesRead = socket.read_some(asio::buffer(ctx.buffer.data() + ctx.bufferUsed, bytesToRead), ec);
+
+            if (ec && ec != asio::error::timed_out)
+            {
+                log::warn("Read error: %s", ec.message().c_str());
+                state = State::Connecting;
+                ctx.bufferUsed = 0; // Discard partial data on error
+                break;
+            }
+            else if (ec && ec == asio::error::timed_out)
+            {
+                log::warn("Read timed out with {} bytes read, trying again", bytesRead);
+            }
+
+            ctx.bufferUsed += bytesRead;
+            ctx.bytesReceivedInInterval += bytesRead;
+            ctx.totalBytesReceived += bytesRead;
+
+            std::basic_string_view<uint32_t> dataView(
+                reinterpret_cast<const uint32_t *>(ctx.buffer.data()), ctx.bufferUsed / sizeof(uint32_t));
+
+            auto wordsConsumed = process_raw_data(ctx, dataView);
+
+            if (wordsConsumed == 0)
+            {
+                log::debug("No complete data processed yet, waiting for more data");
+                break;
+            }
+
+            // Move leftover data to the front of the buffer
+            size_t bytesConsumed = wordsConsumed * sizeof(uint32_t);
+            if (bytesConsumed < ctx.bufferUsed)
+            {
+                size_t bytesLeftover = ctx.bufferUsed - bytesConsumed;
+                log::debug("Moving %zu bytes of leftover data to front of buffer", bytesLeftover);
+                std::memmove(ctx.buffer.data(), ctx.buffer.data() + bytesConsumed, bytesLeftover);
+                ctx.bufferUsed = bytesLeftover;
+            }
+            else
+            {
+                ctx.bufferUsed = 0;
+            }
+
+            break;
+        }
+        }
+    }
+
+    return 0;
+}
+
+// Main entry point
 int main(int argc, char *argv[])
 {
-    spdlog::set_level(spdlog::level::trace);
-    argh::parser parser({"-h", "--help", "--log-level", "--tcp", "--ipc", "--raw"});
+    argh::parser parser({"-h", "--help", "--tcp", "--unix", "--raw"});
     parser.parse(argc, argv);
-
-    {
-        std::string logLevelName;
-        if (parser("--log-level") >> logLevelName)
-            logLevelName = util::str_tolower(logLevelName);
-        else if (parser["--trace"])
-            logLevelName = "trace";
-        else if (parser["--debug"])
-            logLevelName = "debug";
-        else if (parser["--info"])
-            logLevelName = "info";
-        else if (parser["--warn"])
-            logLevelName = "warn";
-
-        if (!logLevelName.empty())
-            spdlog::set_level(spdlog::level::from_str(logLevelName));
-    }
 
     if (parser[{"-h", "--help"}])
     {
-        std::cout << "Usage: " << argv[0] << " [--tcp [host:port]|--ipc [socket_path]] [--raw]"
-                  << " [--log-level level][--trace][--debug][--info][--warn]\n\n";
-
-        std::cout
-            << " --raw: Expect raw data format without { bufferNumber, bufferSize } headers.\n";
+        std::cout << "Usage: " << argv[0] << " [OPTIONS]\n\n";
+        std::cout << "Options:\n";
+        std::cout << "  --tcp [host:port]    Connect via TCP (default: 127.0.0.1:42333)\n";
+        std::cout << "  --unix [path]        Connect via Unix domain socket (default: "
+                     "/tmp/mvme_stream_server.sock)\n";
+        std::cout << "  --raw                Use raw (unframed) protocol\n";
+        std::cout << "  -h, --help           Show this help\n";
         return 0;
     }
 
-    std::string tcpHost = "127.0.0.1";
-    std::string tcpPort = "42333";
-    std::string socketPath = "/tmp/mvme_stream_server.sock";
-    bool isRawFormat = false;
+    // Parse connection parameters
     enum class Transport
     {
         TCP,
-        IPC
-    } method = Transport::TCP;
+        Unix
+    };
+    Transport transport = Transport::TCP;
+
+    std::string tcpHost = "127.0.0.1";
+    std::string tcpPort = "42333";
+    std::string unixPath = "/tmp/mvme_stream_server.sock";
+    bool rawFormat = parser["--raw"];
 
     std::string tmp;
 
-    if (parser["--ipc"] || parser("--ipc") >> tmp)
+    if (parser["--unix"] || parser("--unix") >> tmp)
     {
         if (!tmp.empty())
-        {
-            socketPath = tmp;
-        }
-        method = Transport::IPC;
+            unixPath = tmp;
+        transport = Transport::Unix;
     }
     else if (parser["--tcp"] || parser("--tcp") >> tmp)
     {
@@ -353,116 +491,50 @@ int main(int argc, char *argv[])
                 tcpHost = tmp;
             }
         }
-        method = Transport::TCP;
+        transport = Transport::TCP;
     }
 
-    if (parser["--raw"])
-    {
-        isRawFormat = true;
-    }
-
-    ClientContext clientContext;
-    clientContext.isRawFormat = isRawFormat;
-    int ret = 0;
+    // Create client context
+    ClientContext ctx;
+    ctx.isRawFormat = rawFormat;
 
     try
     {
         asio::io_context io_context;
+        int ret = 0;
 
-        switch (method)
+        switch (transport)
         {
-        case Transport::IPC:
-        {
-            asio::local::stream_protocol::socket socket(io_context);
-            auto reconnectFun = std::bind(reconnect_ipc, std::ref(socket), std::ref(socketPath));
-            ret = run_client(socket, reconnectFun, clientContext);
-        }
-        break;
         case Transport::TCP:
         {
             asio::ip::tcp::socket socket(io_context);
-            auto reconnectFun =
-                std::bind(reconnect_tcp, std::ref(socket), std::ref(tcpHost), std::ref(tcpPort));
-            ret = run_client(socket, reconnectFun, clientContext);
+            auto reconnect = [&]() { return connect_tcp(socket, tcpHost, tcpPort); };
+
+            if (rawFormat)
+                ret = run_client_raw(socket, reconnect, ctx);
+            else
+                ret = run_client_framed(socket, reconnect, ctx);
+            break;
         }
-        break;
+
+        case Transport::Unix:
+        {
+            asio::local::stream_protocol::socket socket(io_context);
+            auto reconnect = [&]() { return connect_unix(socket, unixPath); };
+
+            if (rawFormat)
+                ret = run_client_raw(socket, reconnect, ctx);
+            else
+                ret = run_client_framed(socket, reconnect, ctx);
+            break;
         }
+        }
+
+        return ret;
     }
     catch (const std::exception &e)
     {
-        std::cerr << e.what() << '\n';
+        log::error("Exception: %s", e.what());
+        return 1;
     }
-}
-
-// Unframed readout data. Cannot distinguish server created loss from UDP packet
-// loss that occured at the readout side.
-//
-// Returns the number of words consumed.
-size_t process_raw_data(ClientContext &ctx, std::basic_string_view<u32> data)
-{
-    if (data.empty())
-        return 0;
-    return data.size(); // fake it and never make it
-    // return 0;
-}
-
-size_t process_data(ClientContext &ctx, std::basic_string_view<u32> data)
-{
-    if (!ctx.isRawFormat)
-        return process_framed_data(ctx, data);
-    return process_raw_data(ctx, data);
-}
-
-// Process as much input data as possible. Must return the number of bytes
-// consumed.
-//
-// Framed format: bufferNumber: u32, bufferSize: u32, buffer: u32[]
-//
-// Allows to detect buffers skipped by the server based on the sequence number.
-// E.g. if the server operates on a best-effort basis and at least one connected
-// client is too slow to keep up with the data volume the server will drop
-// buffers.
-// Also allows to distinguish between server created loss and UDP packet loss at
-// the readout side.
-//
-// Returns the number of words consumed.
-size_t process_framed_data(ClientContext &ctx, std::basic_string_view<u32> frameBody)
-{
-    if (!ctx.currentFrameHeader)
-    {
-        spdlog::error("process_framed_data() called without valid currentFrameHeader");
-        return 0;
-    }
-
-    size_t totalBytesNeeded = ctx.currentFrameHeader->wordsInFrame * sizeof(u32);
-
-    if (ctx.destBufferUsed < totalBytesNeeded)
-    {
-        spdlog::error(
-            "process_framed_data(): not enough data in destBuffer, expected {} bytes, have "
-            "{} bytes",
-            totalBytesNeeded, ctx.destBufferUsed);
-        return 0;
-    }
-
-    if (ctx.currentFrameHeader->seqNum != -1 && ctx.lastSeqNum != -1 &&
-        ctx.currentFrameHeader->seqNum != static_cast<u32>(ctx.lastSeqNum + 1u))
-    {
-        spdlog::warn("Buffer loss detected: last seq num {}, current seq num {}", ctx.lastSeqNum,
-                     ctx.currentFrameHeader->seqNum);
-    }
-
-    auto wordsProcessed = process_raw_data(ctx, frameBody);
-
-    if (wordsProcessed != ctx.currentFrameHeader->wordsInFrame)
-    {
-        // This should not happen. The server should guarantee that only complete frames are
-        // sent.
-        spdlog::error("Format error: framed buffer with seq num {} contains {} words, but only {} "
-                      "words could be processed.",
-                      ctx.currentFrameHeader->seqNum, ctx.currentFrameHeader->wordsInFrame,
-                      wordsProcessed);
-    }
-
-    return 2 + wordsProcessed;
 }

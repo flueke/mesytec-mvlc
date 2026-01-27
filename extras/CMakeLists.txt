@@ -34,14 +34,3 @@ target_sources(mvlc_stream_client_asio PRIVATE
  ${MESYTEC_MVLC_SOURCE_DIR}/external/asio-1.36.0/src/asio.cpp)
 # hide asio symbols to prevent clashes (perplexity.ai, check if actually required)
 set_target_properties(mvlc_stream_client_asio PROPERTIES CXX_VISIBILITY_PRESET hidden)
-
-add_executable(mvlc_stream_client_asio2 mvlc_stream_client_asio2.cc)
-target_link_libraries(mvlc_stream_client_asio2 PRIVATE mesytec-mvlc Threads::Threads)
-install(TARGETS mvlc_stream_client_asio2 RUNTIME DESTINATION bin)
-target_compile_definitions(mvlc_stream_client_asio2 PRIVATE ASIO_SEPARATE_COMPILATION)
-target_include_directories(mvlc_stream_client_asio2 SYSTEM PRIVATE
- ${MESYTEC_MVLC_SOURCE_DIR}/external/asio-1.36.0/include)
-target_sources(mvlc_stream_client_asio2 PRIVATE
- ${MESYTEC_MVLC_SOURCE_DIR}/external/asio-1.36.0/src/asio.cpp)
-# hide asio symbols to prevent clashes (perplexity.ai, check if actually required)
-set_target_properties(mvlc_stream_client_asio2 PROPERTIES CXX_VISIBILITY_PRESET hidden)
