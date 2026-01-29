@@ -47,7 +47,6 @@
 //     ProcessContents
 // }
 
-
 using namespace mesytec;
 
 // Frame header for framed format
@@ -72,7 +71,9 @@ struct ClientContext
 {
     bool isFramedFormat = true;
     std::vector<uint8_t> buffer;
+    size_t bufferStart = 0;
     size_t bufferUsed = 0;
+    std::optional<FrameHeader> frameHeader;
 
     int64_t lastSeqNum = -1;
     size_t totalBytesReceived = 0;
@@ -95,11 +96,80 @@ struct ClientContext
     }
 };
 
+size_t free_space(const ClientContext &ctx)
+{
+    auto result = ctx.bufferUsed - ctx.bufferStart;
+    assert(ctx.buffer.size() >= result);
+    return result;
+}
+
+void compact_buffer(ClientContext &ctx)
+{
+    if (ctx.bufferStart > 0 && ctx.bufferUsed > ctx.bufferStart)
+    {
+        size_t remaining = free_space(ctx);
+        spdlog::trace("compat_buffer: moving {} bytes of trailing data to start of buffer",
+                      remaining);
+        std::memmove(ctx.buffer.data(), ctx.buffer.data() + ctx.bufferStart, remaining);
+        ctx.bufferStart = 0;
+        ctx.bufferUsed = remaining;
+    }
+    else if (ctx.bufferUsed == ctx.bufferStart)
+    {
+        ctx.bufferStart = 0;
+        ctx.bufferUsed = 0;
+    }
+}
+
+void ensure_free_space(ClientContext &ctx, size_t needed)
+{
+    compact_buffer(ctx);
+
+    if (free_space(ctx) < needed)
+    {
+        ctx.buffer.resize(ctx.bufferUsed + needed);
+    }
+}
+
+template <typename Socket>
+size_t read_at_least(ClientContext &ctx, Socket &socket, size_t needed, std::error_code &ec)
+{
+    ensure_free_space(ctx, needed);
+    assert(ctx.bufferStart == 0); // ensure_free_space -> compat_buffer -> invariant must hold
+
+    size_t bytesRead = asio::read(
+        socket,
+        asio::buffer(ctx.buffer.data() + ctx.bufferUsed, ctx.buffer.size() - ctx.bufferUsed),
+        asio::transfer_at_least(needed), ec);
+
+    ctx.bufferUsed += bytesRead;
+    ctx.bytesReceivedInInterval += bytesRead;
+    ctx.readsInInterval++;
+
+    return bytesRead;
+}
+
+void reset_state(ClientContext &ctx)
+{
+    ctx.bufferStart = 0;
+    ctx.bufferUsed = 0;
+    ctx.lastSeqNum = -1;
+    ctx.totalBytesReceived = 0;
+    ctx.totalFramesReceived = 0;
+    ctx.bytesReceivedInInterval = 0;
+    ctx.framesReceivedInInterval = 0;
+    ctx.readsInInterval = 0;
+    ctx.lastReportTime = std::chrono::steady_clock::now();
+}
+
 // Set socket timeouts for send and receive operations
 template <typename Socket> void set_socket_timeout(Socket &sock, std::chrono::milliseconds timeout)
 {
-    struct timeval tv{static_cast<time_t>(timeout.count() / 1000),
-                      static_cast<suseconds_t>((timeout.count() % 1000) * 1000)};
+    struct timeval tv
+    {
+        static_cast<time_t>(timeout.count() / 1000),
+            static_cast<suseconds_t>((timeout.count() % 1000) * 1000)
+    };
     setsockopt(sock.native_handle(), SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
     setsockopt(sock.native_handle(), SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
 }
@@ -143,20 +213,6 @@ std::error_code connect_unix(asio::local::stream_protocol::socket &socket, const
     return ec;
 }
 
-// Read exactly the requested number of bytes from socket
-template <typename Socket>
-size_t read_exact(Socket &socket, uint8_t *dest, size_t bytesNeeded, std::error_code &ec)
-{
-    size_t bytesRead = 0;
-    while (bytesRead < bytesNeeded && !ec)
-    {
-        auto asioDest = asio::buffer(dest + bytesRead, bytesNeeded - bytesRead);
-        size_t n = asio::read(socket, asioDest, asio::transfer_at_least(asioDest.size()), ec);
-        bytesRead += n;
-    }
-    return bytesRead;
-}
-
 void mvlc_event_data_callback(void *userContext, int crateIndex, int triggerEventIndex,
                               const mvlc::readout_parser::ModuleData *moduleDataList,
                               unsigned moduleCount)
@@ -179,11 +235,13 @@ void mvlc_system_event_callback(void *userContext, int crateIndex, const uint32_
     spdlog::info("System event callback: crateIndex={}, size={}", crateIndex, size);
 }
 
-// Process raw unframed data. Returns -1 on error, 0 to indicate more data is
-// needed or the number of words processed.
+// Process raw unframed mvlc readout data. Returns -1 on error, 0 to indicate
+// more data is needed and the number of words processed otherwise.
 ssize_t process_mvlc_data(ClientContext &ctx, uint32_t bufferNumber,
                           std::basic_string_view<uint32_t> data)
 {
+    return 0;
+#if 0
     if (data.empty())
         return 0;
 
@@ -229,8 +287,8 @@ ssize_t process_mvlc_data(ClientContext &ctx, uint32_t bufferNumber,
         {
             // Read the MVLCCrateConfig parts of the preamble if it's being
             // streamed.
-            // Otherwise just follow the mvlc framing format/ eth packet headers and
-            // print a bit of info.
+            // Otherwise just follow the mvlc framing format/eth packet headers
+            // and print a bit of info.
             while (!data.empty())
             {
                 assert(mvlc::is_known_frame_header(data[0]));
@@ -283,6 +341,7 @@ ssize_t process_mvlc_data(ClientContext &ctx, uint32_t bufferNumber,
 
     // Returns the number of words processed. original size - remaining size
     return origDataSize - data.size();
+#endif
 }
 
 // Process one complete frame. Returns the number of words processed or -1 on error.
@@ -335,20 +394,6 @@ void maybe_print_stats(ClientContext &ctx)
     }
 }
 
-#if 0
-void reset_state(ClientContext &ctx)
-{
-    ctx.bufferUsed = 0;
-    ctx.lastSeqNum = -1;
-    ctx.totalBytesReceived = 0;
-    ctx.totalFramesReceived = 0;
-    ctx.bytesReceivedInInterval = 0;
-    ctx.framesReceivedInInterval = 0;
-    ctx.readsInInterval = 0;
-    ctx.lastReportTime = std::chrono::steady_clock::now();
-}
-#endif
-
 // Main client loop for framed protocol using bulk reading
 template <typename Socket, typename ConnectFunc>
 int run_client(Socket &socket, ConnectFunc reconnect, ClientContext &ctx)
@@ -366,7 +411,7 @@ int run_client(Socket &socket, ConnectFunc reconnect, ClientContext &ctx)
 
     std::error_code ec;
     const size_t readBufferSize = 1u << 20; // 1 MB
-    ctx.buffer.resize(readBufferSize);
+    ensure_free_space(ctx, readBufferSize);
 
     while (true)
     {
@@ -386,16 +431,53 @@ int run_client(Socket &socket, ConnectFunc reconnect, ClientContext &ctx)
             else
             {
                 spdlog::info("Connected");
-                state = State::Connected;
                 state = ctx.isFramedFormat ? State::ReadFrameHeader : State::ReadRawData;
                 ctx.lastSeqNum = -1;
                 ctx.bufferUsed = 0; // Reset buffer on reconnect
             }
-            break;
         }
+        break;
 
-        case State::Connected:
+        case State::ReadFrameHeader:
         {
+            std::error_code ec;
+            while (!ec && ctx.bufferUsed < sizeof(FrameHeader))
+            {
+                read_at_least(ctx, socket, sizeof(FrameHeader), ec);
+            }
+
+            if (ec)
+            {
+                spdlog::error("Error reading frame header: {}, reconnecting", ec.message().c_str());
+                state = State::Connecting;
+            }
+            else
+            {
+                state = State::ReadFrameContents;
+                ctx.frameHeader = *reinterpret_cast<const FrameHeader *>(ctx.buffer.data());
+                ctx.bufferStart += sizeof(FrameHeader); // consume the header
+                boost::endian::little_to_native_inplace(header->seqNum);
+                boost::endian::little_to_native_inplace(header->wordsInFrame);
+                spdlog::trace("Received frame header: seqNum={}, wordsInFrame={}", header->seqNum,
+                              header->wordsInFrame);
+            }
+        }
+        break;
+
+        case State::ReadFrameContents:
+        {
+            assert(ctx.frameHeader.has_value());
+            FrameHeader &header = *ctx.frameHeader;
+            while (!ec && ctx.bufferUsed <
+            read_at_least(ctx, socket, header.wordsInFrame * sizeof(uint32_t), ec);
+        }
+        break;
+
+        case State::ReadRawData:
+        {
+        }
+        break;
+#if 0
             size_t bytesToRead = ctx.buffer.size() - ctx.bufferUsed;
             spdlog::debug("Attempting to read up to {} bytes", bytesToRead);
 
@@ -469,6 +551,7 @@ int run_client(Socket &socket, ConnectFunc reconnect, ClientContext &ctx)
 
 #endif
             }
+#endif
 
 #if 0
             // Move any leftover partial data to the front of the buffer.
@@ -484,10 +567,10 @@ int run_client(Socket &socket, ConnectFunc reconnect, ClientContext &ctx)
 
             break;
         }
-        }
     }
+}
 
-    return 0;
+return 0;
 }
 
 // Main entry point
