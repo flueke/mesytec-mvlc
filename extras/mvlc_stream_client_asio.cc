@@ -103,6 +103,11 @@ size_t free_space(const ClientContext &ctx)
     return result;
 }
 
+size_t used_space(const ClientContext &ctx)
+{
+    return ctx.bufferUsed - ctx.bufferStart;
+}
+
 void compact_buffer(ClientContext &ctx)
 {
     if (ctx.bufferStart > 0 && ctx.bufferUsed > ctx.bufferStart)
@@ -468,7 +473,7 @@ int run_client(Socket &socket, ConnectFunc reconnect, ClientContext &ctx)
         {
             assert(ctx.frameHeader.has_value());
             FrameHeader &header = *ctx.frameHeader;
-            while (!ec && ctx.bufferUsed <
+            //while (!ec && ctx.bufferUsed
             read_at_least(ctx, socket, header.wordsInFrame * sizeof(uint32_t), ec);
         }
         break;
@@ -568,9 +573,6 @@ int run_client(Socket &socket, ConnectFunc reconnect, ClientContext &ctx)
             break;
         }
     }
-}
-
-return 0;
 }
 
 // Main entry point
