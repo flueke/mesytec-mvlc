@@ -97,6 +97,7 @@ target_link_libraries(mesytec-mvlc
     PRIVATE minizip
     PRIVATE nlohmann_json::nlohmann_json
     PRIVATE pthread
+    PRIVATE uri-parser
     PRIVATE yaml-cpp
     PUBLIC argh
     PUBLIC spdlog::spdlog
@@ -217,6 +218,7 @@ if (MVLC_BUILD_TESTS)
             PRIVATE mesytec-mvlc
             PRIVATE gtest
             PRIVATE gtest_main
+            PRIVATE uri-parser
             )
 
         add_test(NAME ${exe_name} COMMAND $<TARGET_FILE:${exe_name}>)
@@ -244,4 +246,8 @@ if (MVLC_BUILD_TESTS)
 
     add_gtest(test_stream_server stream_server_asio.test.cc)
     set_tests_properties(test_stream_server PROPERTIES LABELS "not_in_docker")
+    target_link_libraries(test_stream_server PRIVATE asio pthread)
+    if (WIN32)
+        target_link_libraries(test_stream_server PRIVATE ws2_32 winmm mswsock)
+    endif(WIN32)
 endif(MVLC_BUILD_TESTS)

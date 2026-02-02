@@ -51,18 +51,32 @@ if (MVLC_BUILD_DEV_TOOLS)
     # This does not directly use asio. Instead the StreamServer api is used
     # which hides asio completely.
     add_mvlc_dev_tool(mvlc_stream_test_server_asio mvlc_stream_test_server_asio.cc)
+    target_link_libraries(mvlc_stream_test_server_asio PRIVATE asio pthread)
+
+    if (WIN32)
+        target_link_libraries(mvlc_stream_test_client_asio PRIVATE ws2_32 winmm)
+        target_link_libraries(mvlc_stream_test_server_asio PRIVATE ws2_32 winmm)
+    endif(WIN32)
 endif(MVLC_BUILD_DEV_TOOLS)
 
 if (MVLC_BUILD_TOOLS)
-    add_mvlc_dev_tool(mvlc-listfile-info mvlc_listfile_info.cc)
+    function(add_mvlc_tool exe_name exe_source)
+        add_executable(${exe_name} ${exe_source})
+        target_link_libraries(${exe_name}
+            PRIVATE mesytec-mvlc
+            PRIVATE BFG::Lyra
+            PRIVATE spdlog::spdlog
+        )
+    endfunction()
+
+    add_mvlc_tool(mvlc-listfile-info mvlc_listfile_info.cc)
     install(TARGETS mvlc-listfile-info RUNTIME DESTINATION bin)
 
     if(MVLC_ENABLE_ZMQ)
-        add_mvlc_dev_tool(mvlc-zmq-test-receiver mvlc_zmq_test_receiver.cc)
+        add_mvlc_tool(mvlc-zmq-test-receiver mvlc_zmq_test_receiver.cc)
         target_link_libraries(mvlc-zmq-test-receiver PRIVATE mesytec-mvlc)
 
-        add_mvlc_dev_tool(mvlc-zmq-listfile-sender mvlc_zmq_listfile_sender.cc)
+        add_mvlc_tool(mvlc-zmq-listfile-sender mvlc_zmq_listfile_sender.cc)
         target_link_libraries(mvlc-zmq-listfile-sender PRIVATE mesytec-mvlc PRIVATE BFG::Lyra)
     endif(MVLC_ENABLE_ZMQ)
-
 endif(MVLC_BUILD_TOOLS)

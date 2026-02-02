@@ -66,7 +66,7 @@ starts. The total packet size is always a multiple of 32-bits.
 
 **Header0**: `{ 0b00, packet_channel[1:0], packet_number[11:0], ctrl_id[2:0], data_word_count[12:0] }`
 
-**Header1**: `{ udp_timestamp[18:0], next_header_pointer[12:0] }`
+**Header1**: `{ udp_timestamp[19:0], next_header_pointer[11:0] }`
 
 * `packet_channel`:
   - `0 = Command`: Low level command responses.
@@ -84,7 +84,7 @@ starts. The total packet size is always a multiple of 32-bits.
 * `udp_timestamp`: currently not used.
 
 * `next_header_pointer`: Offset from `Header1` to the first outer frame header
-  (`0xF3, 0xF9`) in the packet. `0` is the first word in the payload. `0xffff`
+  (`0xF3, 0xF9`) in the packet. `0` is the first word in the payload. `0xfff`
   indicates that no frame header is present in the packet.
 
   This field can be used to safely resume parsing on a frame header after packet

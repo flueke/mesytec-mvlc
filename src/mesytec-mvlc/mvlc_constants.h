@@ -486,8 +486,7 @@ namespace eth
         static const u32 PacketNumberMask  = 0xfff;
         static const u32 PacketNumberShift = 16;
 
-        // 3 Reserved Bits
-        // TODO: this should contain the ctrl_id
+        // 3 bit controller/crate id. Set via registers::controller_id (0x1304).
         static const u32 CtrlIdMask        = 0x7;
         static const u32 CtrlIdShift       = 13;
 
