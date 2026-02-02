@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <iostream>
 #include <mesytec-mvlc/mesytec-mvlc.h>
+#include <mesytec-mvlc/util/string_util.h>
 #include <optional>
 #include <string>
 #include <thread>
@@ -136,6 +137,7 @@ void ensure_free_space(ClientContext &ctx, size_t needed)
     }
 }
 
+// FIXME: bufferStart and bufferUsed are not used correctly in all places yet. => frame header is broken _after_ read_at_least().
 template <typename Socket>
 size_t read_at_least(ClientContext &ctx, Socket &socket, size_t needed, std::error_code &ec)
 {
@@ -146,6 +148,13 @@ size_t read_at_least(ClientContext &ctx, Socket &socket, size_t needed, std::err
         socket,
         asio::buffer(ctx.buffer.data() + ctx.bufferUsed, ctx.buffer.size() - ctx.bufferUsed),
         asio::transfer_at_least(needed), ec);
+
+    spdlog::trace("read_at_least: requested {} bytes, read {} bytes, ec={}", needed, bytesRead, ec.message());
+
+    if (!ec && bytesRead >= 4)
+    {
+        spdlog::trace("  first 4 bytes: 0x{:08x}", *reinterpret_cast<const uint32_t *>(ctx.buffer.data() + ctx.bufferUsed));
+    }
 
     ctx.bufferUsed += bytesRead;
     ctx.bytesReceivedInInterval += bytesRead;
@@ -245,7 +254,8 @@ void mvlc_system_event_callback(void *userContext, int crateIndex, const uint32_
 ssize_t process_mvlc_data(ClientContext &ctx, uint32_t bufferNumber,
                           std::basic_string_view<uint32_t> data)
 {
-    return 0;
+    return data.size();
+    //return 0;
 #if 0
     if (data.empty())
         return 0;
@@ -459,12 +469,15 @@ int run_client(Socket &socket, ConnectFunc reconnect, ClientContext &ctx)
             else
             {
                 state = State::ReadFrameContents;
-                ctx.frameHeader = *reinterpret_cast<const FrameHeader *>(ctx.buffer.data());
+                ctx.frameHeader = *reinterpret_cast<const FrameHeader *>(ctx.buffer.data() + ctx.bufferStart);
                 ctx.bufferStart += sizeof(FrameHeader); // consume the header
+                spdlog::trace("Received frame header (pre endian conversion): seqNum={}, wordsInFrame={}", header->seqNum,
+                              header->wordsInFrame);
                 boost::endian::little_to_native_inplace(header->seqNum);
                 boost::endian::little_to_native_inplace(header->wordsInFrame);
-                spdlog::trace("Received frame header: seqNum={}, wordsInFrame={}", header->seqNum,
+                spdlog::trace("Received frame header (post endian conversion): seqNum={}, wordsInFrame={}", header->seqNum,
                               header->wordsInFrame);
+                assert(header->wordsInFrame > 0);
             }
         }
         break;
@@ -473,7 +486,6 @@ int run_client(Socket &socket, ConnectFunc reconnect, ClientContext &ctx)
         {
             assert(ctx.frameHeader.has_value());
             FrameHeader &header = *ctx.frameHeader;
-            //while (!ec && ctx.bufferUsed
             read_at_least(ctx, socket, header.wordsInFrame * sizeof(uint32_t), ec);
         }
         break;
@@ -578,7 +590,7 @@ int run_client(Socket &socket, ConnectFunc reconnect, ClientContext &ctx)
 // Main entry point
 int main(int argc, char *argv[])
 {
-    argh::parser parser({"-h", "--help", "--tcp", "--unix", "--raw"});
+    argh::parser parser({"-h", "--help", "--log-level", "--tcp", "--unix", "--raw"});
     parser.parse(argc, argv);
 
     if (parser[{"-h", "--help"}])
@@ -590,7 +602,25 @@ int main(int argc, char *argv[])
                      "/tmp/mvme_stream_server.sock)\n";
         std::cout << "  --raw                Use raw (unframed) protocol\n";
         std::cout << "  -h, --help           Show this help\n";
+        std::cout << "  --log-level <level> [--trace][--debug][--info][--warn]\n";
         return 0;
+    }
+
+    {
+        std::string logLevelName;
+        if (parser("--log-level") >> logLevelName)
+            logLevelName = mvlc::str_tolower(logLevelName);
+        else if (parser["--trace"])
+            logLevelName = "trace";
+        else if (parser["--debug"])
+            logLevelName = "debug";
+        else if (parser["--info"])
+            logLevelName = "info";
+        else if (parser["--warn"])
+            logLevelName = "warn";
+
+        if (!logLevelName.empty())
+            spdlog::set_level(spdlog::level::from_str(logLevelName));
     }
 
     // Parse connection parameters
