@@ -45,6 +45,7 @@
 #ifdef MVLC_HAVE_ZMQ
 #include "mvlc_listfile_zmq_ganil.h"
 #endif
+#include "mvlc_listfile_stream_server.h"
 #include "mvlc_eth_interface.h"
 #include "mvlc_readout.h"
 #include "mvlc_readout_parser.h"
