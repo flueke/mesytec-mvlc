@@ -17,6 +17,10 @@
 #include <spdlog/spdlog.h>
 #include <thread>
 
+#ifdef __linux__
+#include <sys/prctl.h>
+#endif
+
 #include "util/logging.h"
 
 using asio::ip::tcp;
@@ -194,6 +198,9 @@ void StreamServer::Private::ensure_asio_running()
         io_thread = std::thread(
             [this]()
             {
+                #ifdef __linux__
+                    prctl(PR_SET_NAME,"stream_server_asio_io",0,0,0);
+                #endif
                 logger->trace("StreamServer IO context thread started");
                 io_context.run();
                 logger->trace("StreamServer IO context thread stopped");
@@ -503,7 +510,10 @@ size_t StreamServer::sendToAllClients(const IOV *iov, size_t n_iov)
         }
     }
 
-    // Wait for all async writes to complete
+    // TODO: could implement a timeout here and cancel pending operations if
+    // needed. alternatively an asio deadline timer could be used i guess.
+
+    // Wait for all async writes to complete. This is where we block.
     {
         std::unique_lock<std::mutex> lock(state->mutex);
         state->cv.wait(lock, [&state]() { return state->pending == 0; });
@@ -815,4 +825,3 @@ void StreamServer::Private::handleAcceptIpc(std::shared_ptr<Client> client,
 #endif
 
 } // namespace mesytec::mvlc
-
