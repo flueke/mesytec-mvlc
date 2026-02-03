@@ -3,10 +3,10 @@
 #include <boost/endian/conversion.hpp>
 #include <cassert>
 #include <chrono>
+#include <cstring>
 #include <cstdint>
 #include <iostream>
 #include <mesytec-mvlc/mesytec-mvlc.h>
-#include <mesytec-mvlc/util/string_util.h>
 #include <optional>
 #include <string>
 #include <thread>
@@ -71,11 +71,8 @@ struct MvlcParsingState
 struct ClientContext
 {
     bool isFramedFormat = true;
-    std::vector<uint8_t> buffer;
-    size_t bufferStart = 0;
-    size_t bufferUsed = 0;
+    mvlc::LinearBuffer buffer;
     std::optional<FrameHeader> frameHeader;
-
     int64_t lastSeqNum = -1;
     size_t totalBytesReceived = 0;
 
@@ -97,66 +94,19 @@ struct ClientContext
     }
 };
 
-size_t free_space(const ClientContext &ctx)
-{
-    auto result = ctx.bufferUsed - ctx.bufferStart;
-    assert(ctx.buffer.size() >= result);
-    return result;
-}
-
-size_t used_space(const ClientContext &ctx)
-{
-    return ctx.bufferUsed - ctx.bufferStart;
-}
-
-void compact_buffer(ClientContext &ctx)
-{
-    if (ctx.bufferStart > 0 && ctx.bufferUsed > ctx.bufferStart)
-    {
-        size_t remaining = free_space(ctx);
-        spdlog::trace("compat_buffer: moving {} bytes of trailing data to start of buffer",
-                      remaining);
-        std::memmove(ctx.buffer.data(), ctx.buffer.data() + ctx.bufferStart, remaining);
-        ctx.bufferStart = 0;
-        ctx.bufferUsed = remaining;
-    }
-    else if (ctx.bufferUsed == ctx.bufferStart)
-    {
-        ctx.bufferStart = 0;
-        ctx.bufferUsed = 0;
-    }
-}
-
-void ensure_free_space(ClientContext &ctx, size_t needed)
-{
-    compact_buffer(ctx);
-
-    if (free_space(ctx) < needed)
-    {
-        ctx.buffer.resize(ctx.bufferUsed + needed);
-    }
-}
-
-// FIXME: bufferStart and bufferUsed are not used correctly in all places yet. => frame header is broken _after_ read_at_least().
 template <typename Socket>
 size_t read_at_least(ClientContext &ctx, Socket &socket, size_t needed, std::error_code &ec)
 {
-    ensure_free_space(ctx, needed);
-    assert(ctx.bufferStart == 0); // ensure_free_space -> compat_buffer -> invariant must hold
+    ctx.buffer.ensureAvailable(needed);
+    auto dest = asio::buffer(ctx.buffer.writePtr(), ctx.buffer.available());
 
-    size_t bytesRead = asio::read(
-        socket,
-        asio::buffer(ctx.buffer.data() + ctx.bufferUsed, ctx.buffer.size() - ctx.bufferUsed),
-        asio::transfer_at_least(needed), ec);
+    size_t bytesRead = asio::read(socket, dest, asio::transfer_at_least(needed), ec);
 
-    spdlog::trace("read_at_least: requested {} bytes, read {} bytes, ec={}", needed, bytesRead, ec.message());
+    spdlog::trace("read_at_least: requested {} bytes, read {} bytes, ec={}", needed, bytesRead,
+                  ec.message());
 
-    if (!ec && bytesRead >= 4)
-    {
-        spdlog::trace("  first 4 bytes: 0x{:08x}", *reinterpret_cast<const uint32_t *>(ctx.buffer.data() + ctx.bufferUsed));
-    }
-
-    ctx.bufferUsed += bytesRead;
+    ctx.buffer.commit(bytesRead);
+    ctx.totalBytesReceived += bytesRead;
     ctx.bytesReceivedInInterval += bytesRead;
     ctx.readsInInterval++;
 
@@ -165,8 +115,7 @@ size_t read_at_least(ClientContext &ctx, Socket &socket, size_t needed, std::err
 
 void reset_state(ClientContext &ctx)
 {
-    ctx.bufferStart = 0;
-    ctx.bufferUsed = 0;
+    ctx.buffer.reset();
     ctx.lastSeqNum = -1;
     ctx.totalBytesReceived = 0;
     ctx.totalFramesReceived = 0;
@@ -255,7 +204,7 @@ ssize_t process_mvlc_data(ClientContext &ctx, uint32_t bufferNumber,
                           std::basic_string_view<uint32_t> data)
 {
     return data.size();
-    //return 0;
+    // return 0;
 #if 0
     if (data.empty())
         return 0;
@@ -367,7 +316,7 @@ ssize_t process_frame(ClientContext &ctx, const FrameHeader &header,
     // internally, resets its state and resumes parsing when new data arrives.
     if (ctx.lastSeqNum != -1 && header.seqNum != static_cast<uint32_t>(ctx.lastSeqNum + 1))
     {
-        spdlog::warn("Frame loss detected: last={}, current={}",
+        spdlog::warn("Source frame loss detected: last={}, current={}",
                      static_cast<long long>(ctx.lastSeqNum), header.seqNum);
     }
 
@@ -422,11 +371,10 @@ int run_client(Socket &socket, ConnectFunc reconnect, ClientContext &ctx)
     };
 
     State state = State::Connecting;
-    std::optional<FrameHeader> header;
 
     std::error_code ec;
     const size_t readBufferSize = 1u << 20; // 1 MB
-    ensure_free_space(ctx, readBufferSize);
+    ctx.buffer.ensureAvailable(readBufferSize);
 
     while (true)
     {
@@ -448,7 +396,7 @@ int run_client(Socket &socket, ConnectFunc reconnect, ClientContext &ctx)
                 spdlog::info("Connected");
                 state = ctx.isFramedFormat ? State::ReadFrameHeader : State::ReadRawData;
                 ctx.lastSeqNum = -1;
-                ctx.bufferUsed = 0; // Reset buffer on reconnect
+                ctx.buffer.reset();
             }
         }
         break;
@@ -456,133 +404,106 @@ int run_client(Socket &socket, ConnectFunc reconnect, ClientContext &ctx)
         case State::ReadFrameHeader:
         {
             std::error_code ec;
-            while (!ec && ctx.bufferUsed < sizeof(FrameHeader))
+            size_t n_reads = 0;
+
+            while (!ec && ctx.buffer.used() < sizeof(FrameHeader))
             {
-                read_at_least(ctx, socket, sizeof(FrameHeader), ec);
+                read_at_least(ctx, socket, sizeof(FrameHeader) - ctx.buffer.used(), ec);
+                ++n_reads;
             }
 
-            if (ec)
+            spdlog::trace("ReadFrameHeader: performed {} reads, ec={}", n_reads, ec.message());
+
+            if (ec || ctx.buffer.used() < sizeof(FrameHeader))
             {
                 spdlog::error("Error reading frame header: {}, reconnecting", ec.message().c_str());
                 state = State::Connecting;
+                break;
             }
-            else
-            {
-                state = State::ReadFrameContents;
-                ctx.frameHeader = *reinterpret_cast<const FrameHeader *>(ctx.buffer.data() + ctx.bufferStart);
-                ctx.bufferStart += sizeof(FrameHeader); // consume the header
-                spdlog::trace("Received frame header (pre endian conversion): seqNum={}, wordsInFrame={}", header->seqNum,
-                              header->wordsInFrame);
-                boost::endian::little_to_native_inplace(header->seqNum);
-                boost::endian::little_to_native_inplace(header->wordsInFrame);
-                spdlog::trace("Received frame header (post endian conversion): seqNum={}, wordsInFrame={}", header->seqNum,
-                              header->wordsInFrame);
-                assert(header->wordsInFrame > 0);
-            }
+
+            auto wordsToPrint = std::min<size_t>(ctx.buffer.viewU32().size(), 8);
+            //spdlog::trace("start of buffer contents before consuming FrameHeader: {:#010x}", fmt::join(ctx.buffer.viewU32().substr(0, wordsToPrint), ", "));
+
+            ctx.frameHeader = FrameHeader{};
+            std::memcpy(&ctx.frameHeader.value(), ctx.buffer.data(), sizeof(FrameHeader));
+            ctx.buffer.consume(sizeof(FrameHeader));
+
+            //spdlog::trace("start of buffer contents after consuming FrameHeader: {:#010x}", fmt::join(ctx.buffer.viewU32().substr(0, wordsToPrint), ", "));
+            auto &header = ctx.frameHeader;
+            boost::endian::little_to_native_inplace(header->seqNum);
+            boost::endian::little_to_native_inplace(header->wordsInFrame);
+            spdlog::trace("Received frame header: seqNum={} ({:#06x}), wordsInFrame={}, ({:#06x})",
+                          header->seqNum, header->seqNum, header->wordsInFrame,
+                          header->wordsInFrame);
+            assert(header->wordsInFrame > 0); // The source (e.g. mvme) never emits empty frames.
+            state = State::ReadFrameContents;
         }
         break;
 
         case State::ReadFrameContents:
         {
             assert(ctx.frameHeader.has_value());
-            FrameHeader &header = *ctx.frameHeader;
-            read_at_least(ctx, socket, header.wordsInFrame * sizeof(uint32_t), ec);
+            auto &header = ctx.frameHeader;
+            std::error_code ec;
+
+            size_t neededBytes = header->wordsInFrame * sizeof(uint32_t);
+            size_t n_reads = 0;
+
+            spdlog::trace("ReadFrameContents: reading contents for frame seqNum={}, wordsInFrame={}, have {} bytes in buffer, need {} bytes",
+                          header->seqNum, header->wordsInFrame, ctx.buffer.used(), neededBytes);
+
+            while (!ec && ctx.buffer.used() < neededBytes)
+            {
+                auto bytesToRead = neededBytes - ctx.buffer.used();
+                spdlog::trace("ReadFrameContents: need {} bytes, have {} bytes, reading at least {} bytes", neededBytes, ctx.buffer.used(), bytesToRead);
+                read_at_least(ctx, socket, bytesToRead, ec);
+                ++n_reads;
+            }
+
+            spdlog::trace("ReadFrameContents: performed {} reads, ec={}", n_reads, ec.message());
+
+            if (ec || ctx.buffer.used() < header->wordsInFrame * sizeof(uint32_t))
+            {
+                spdlog::error("Error reading frame contents: {}, reconnecting",
+                              ec.message().c_str());
+                state = State::Connecting;
+                break;
+            }
+
+            assert(ctx.buffer.viewU32().size() >= header->wordsInFrame);
+            auto frameView = ctx.buffer.viewU32().substr(0, header->wordsInFrame);
+            //spdlog::trace("frameview: {:#010x}", fmt::join(frameView, ", "));
+            spdlog::trace("Processing frame: seqNum={}, wordsInFrame={}, wordsInBuffer={}", header->seqNum,
+                          header->wordsInFrame, ctx.buffer.used() / sizeof(uint32_t));
+
+            auto wordsConsumed = process_frame(ctx, *header, frameView);
+
+            if (wordsConsumed < 0 || static_cast<size_t>(wordsConsumed) != header->wordsInFrame)
+            {
+                spdlog::error("Error processing frame (seqNum={}, wordsInFrame={}), reconnecting",
+                              header->seqNum, header->wordsInFrame);
+                state = State::Connecting;
+                break;
+            }
+
+            ctx.buffer.consume(wordsConsumed * sizeof(uint32_t));
+            ++ctx.totalFramesReceived;
+            ++ctx.framesReceivedInInterval;
+
+            spdlog::trace("Processed frame: seqNum={}, wordsInFrame={}, bytes remaining in buffer={}", header->seqNum,
+                          header->wordsInFrame, ctx.buffer.used());
+
+            ctx.frameHeader.reset();
+            state = State::ReadFrameHeader;
         }
         break;
 
         case State::ReadRawData:
         {
+            // TODO: read up to 1MB of data, try to process it.
+            // if processing indicates more data is needed, enlarge the buffer and read more
         }
         break;
-#if 0
-            size_t bytesToRead = ctx.buffer.size() - ctx.bufferUsed;
-            spdlog::debug("Attempting to read up to {} bytes", bytesToRead);
-
-            size_t bytesRead =
-                socket.read_some(asio::buffer(ctx.buffer.data() + ctx.bufferUsed, bytesToRead), ec);
-
-            if (ec && ec != asio::error::timed_out)
-            {
-                spdlog::warn("Read error: {}", ec.message().c_str());
-                state = State::Connecting;
-                ctx.bufferUsed = 0; // Discard partial data on error
-                break;
-            }
-            else if (ec && ec == asio::error::timed_out)
-            {
-                spdlog::warn("Read timed out with {} bytes read, trying again", bytesRead);
-            }
-
-            ctx.bufferUsed += bytesRead;
-            ctx.bytesReceivedInInterval += bytesRead;
-            ctx.totalBytesReceived += bytesRead;
-
-            size_t consumed = 0;
-
-            while (ctx.bufferUsed - consumed >= sizeof(FrameHeader))
-            {
-                header = *reinterpret_cast<const FrameHeader *>(ctx.buffer.data() + consumed);
-                consumed += sizeof(FrameHeader);
-                boost::endian::little_to_native_inplace(header.seqNum);
-                boost::endian::little_to_native_inplace(header.wordsInFrame);
-                const size_t bytesInFrame = header.wordsInFrame * sizeof(uint32_t);
-
-                if (ctx.bufferUsed - consumed < bytesInFrame)
-                {
-                    spdlog::debug("Incomplete frame: have {} bytes, need {} bytes.",
-                                  ctx.bufferUsed - consumed, bytesInFrame);
-
-                    if (ctx.buffer.size() < bytesInFrame)
-                    {
-                        spdlog::debug("Resizing buffer to {} bytes/{} words", bytesInFrame,
-                                      bytesInFrame / sizeof(uint32_t));
-                        ctx.buffer.resize(bytesInFrame);
-                    }
-                    break; // Incomplete frame - wait for more data
-                }
-
-                spdlog::debug("Complete frame received: seqNum={}, wordsInFrame={}", header->seqNum,
-                              header->wordsInFrame);
-                ++ctx.framesReceivedInInterval;
-                ++ctx.totalFramesReceived;
-
-#if 0
-                std::basic_string_view<uint32_t> frameView(
-                    reinterpret_cast<const uint32_t *>(data + consumed + sizeof(FrameHeader)),
-                    header->wordsInFrame);
-
-                auto wordsProcessed = process_frame(ctx, *header, frameView);
-
-                if (wordsProcessed < 0)
-                {
-                    spdlog::warn("Error processing frame, resetting connection.");
-                    state = State::Connecting;
-                    ctx.bufferUsed = 0;
-                    break;
-                }
-
-                // Advance to next frame
-                consumed += wordsProcessed * sizeof(uint32_t) + sizeof(FrameHeader);
-                remaining -= wordsProcessed * sizeof(uint32_t) + sizeof(FrameHeader);
-#else
-
-#endif
-            }
-#endif
-
-#if 0
-            // Move any leftover partial data to the front of the buffer.
-            if (remaining > 0 && consumed > 0)
-            {
-                spdlog::warn("Moving {} bytes of leftover data to front of buffer", remaining);
-                std::memmove(ctx.buffer.data(), data + consumed, remaining);
-            }
-            ctx.bufferUsed = remaining;
-#else
-
-#endif
-
-            break;
         }
     }
 }
@@ -605,6 +526,8 @@ int main(int argc, char *argv[])
         std::cout << "  --log-level <level> [--trace][--debug][--info][--warn]\n";
         return 0;
     }
+
+    spdlog::set_level(spdlog::level::trace);
 
     {
         std::string logLevelName;

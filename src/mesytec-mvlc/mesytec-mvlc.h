@@ -63,6 +63,7 @@
 #include "util/fmt.h"
 #include "util/int_types.h"
 #include "util/io_util.h"
+#include "util/linear_buffer.h"
 #include "util/logging.h"
 #include "util/signal_handling.h"
 #include "util/stopwatch.h"
