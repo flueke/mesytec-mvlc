@@ -1084,6 +1084,22 @@ ParseResult parse_eth_packet(
 }
 
 ParseResult parse_readout_buffer(
+    ReadoutParserState &state,
+    ReadoutParserCallbacks &callbacks,
+    ReadoutParserCounters &counters,
+    u32 bufferNumber, const u32 *buffer, size_t bufferWords)
+{
+    if (bufferWords == 0)
+        return ParseResult::NoHeaderPresent;
+
+    const auto bufferType = is_known_frame_header(buffer[0]) ? ConnectionType::USB : ConnectionType::ETH;
+
+    return parse_readout_buffer(
+        bufferType, state, callbacks, counters,
+        bufferNumber, buffer, bufferWords);
+}
+
+ParseResult parse_readout_buffer(
     ConnectionType bufferType,
     ReadoutParserState &state,
     ReadoutParserCallbacks &callbacks,

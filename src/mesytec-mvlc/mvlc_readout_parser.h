@@ -57,9 +57,9 @@ namespace readout_parser
 //   single_read when accu is used  -> dynamic part (0xF5 framed)
 //
 // Restrictions applying to the structure of each stack command group:
-//   - an optional fixed size prefix part (single value read and marker commands)
+//   - an optional fixed size prefix part (single value reads and marker commands)
 //   - an optional dynamic block part (a single block read command)
-//   - an optional fixed size suffix part (single value read and marker commands)
+//   - an optional fixed size suffix part (single value reads and marker commands)
 //
 // A stack group is typically used to read out a single VME module, so groups
 // are synonymous with VME modules in the parser code.
@@ -185,6 +185,8 @@ struct ReadoutParserCallbacks
     EventData eventData;
     SystemEvent systemEvent;
 };
+
+using Callbacks = ReadoutParserCallbacks;
 
 struct ModuleReadoutStructure
 {
@@ -450,6 +452,14 @@ inline ParseResult parse_readout_buffer(
         static_cast<ConnectionType>(bufferType),
         state, callbacks, counters, bufferNumber, buffer, bufferWords);
 }
+
+// New in 2026: overloads without the bufferType parameter. It's guessed by the
+// parser so does not need to be passed explicitly anymore.
+MESYTEC_MVLC_EXPORT ParseResult parse_readout_buffer(
+    ReadoutParserState &state,
+    ReadoutParserCallbacks &callbacks,
+    ReadoutParserCounters &counters,
+    u32 bufferNumber, const u32 *buffer, size_t bufferWords);
 
 inline ParseResult parse_readout_buffer(
     const ReadoutBuffer &buffer,
