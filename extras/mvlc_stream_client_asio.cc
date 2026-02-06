@@ -90,6 +90,9 @@ struct ClientContext
     // inner MVLC data frames.
     size_t totalFramesReceived = 0;
 
+    // This counts the number of received buffers in raw format mode.
+    size_t totalBuffersReceived = 0;
+
     // Statistics for periodic reporting
     size_t bytesReceivedInInterval = 0;
     size_t framesReceivedInInterval = 0;
@@ -214,74 +217,200 @@ void mvlc_system_event_callback(void *userContext, int crateIndex, const uint32_
     spdlog::info("System event callback: crateIndex={}, size={}", crateIndex, size);
 }
 
-// Process raw unframed mvlc readout data. Returns -1 on error, 0 to indicate
-// more data is needed and the number of words processed otherwise.
-ssize_t process_mvlc_data(ClientContext &ctx, uint32_t bufferNumber,
-                          std::basic_string_view<uint32_t> data)
+// Handle any relevant system_event frames transmitted by the source. Most
+// important is the MVLCCrateConfig event which contains the information needed
+// to construct the readout_parser instance.
+// Returns the number of words processed from data, -1 on error, 0 to indicate
+// more data is needed.
+ssize_t try_handle_system_events(ClientContext &ctx, std::basic_string_view<uint32_t> data)
 {
-    auto orig_data_size = data.size();
+    using time_point = std::chrono::system_clock::time_point;
+    using seconds = std::chrono::seconds;
+
+    spdlog::trace("try_handle_system_events: data.size()={} words", data.size());
+    const auto origDataSize = data.size();
 
     while (!data.empty())
     {
-        if (ctx.mvlcState.parserState)
+        if (mvlc::is_known_frame_header(data[0]))
         {
-            try
-            {
-                mvlc::readout_parser::Callbacks callbacks = { mvlc_event_data_callback, mvlc_system_event_callback };
-                auto parseResult = mvlc::readout_parser::parse_readout_buffer(
-                    *ctx.mvlcState.parserState, callbacks,
-                    ctx.mvlcState.parserCounters, bufferNumber, data.data(), data.size());
-            }
-            catch (const std::exception &e)
-            {
-                spdlog::error("Exception during readout parsing: {}", e.what());
-            }
-            data.remove_prefix(data.size()); // consume it all
-        }
-        else
-        {
-            // No parser yet. Check for the CrateConfig system event to set it up.
-            assert(mvlc::is_known_frame_header(data[0])); // must start with a frame header, otherwise we're lost
             auto headerInfo = mvlc::extract_frame_info(data[0]);
-            assert(data.size() >= headerInfo.len + 1); // the caller should only pass complete frames
 
+            // the sender/caller should only pass complete frames
             if (data.size() < headerInfo.len + 1)
             {
-                spdlog::error("Incomplete frame detected during preamble parsing");
-                return 0; // need more data
+                spdlog::error(
+                    "try_handle_system_events: Incomplete frame detected. Need more data. data.size()={}, frameLen={}, frameInfo={}, frameHeader={:#010x}",
+                    data.size(), headerInfo.len, mvlc::decode_frame_header(data[0]), data[0]);
+                return 0;
             }
 
-            if (headerInfo.type == mvlc::frame_headers::SystemEvent &&
-                headerInfo.sysEventSubType == mvlc::system_event::subtype::MVLCCrateConfig)
+            if (headerInfo.type != mvlc::frame_headers::SystemEvent)
+            {
+                data.remove_prefix(headerInfo.len + 1); // consume the frame
+                continue;
+            }
+
+            if (headerInfo.sysEventSubType == mvlc::system_event::subtype::MVLCCrateConfig)
             {
                 auto &mvlcState = ctx.mvlcState;
+
                 std::copy(data.begin() + 1, data.begin() + 1 + headerInfo.len,
                           std::back_inserter(mvlcState.crateConfigBuffer));
 
                 if (!(headerInfo.flags & mvlc::frame_flags::Continue))
                 {
+                    // No more follow-up frames -> have the complete MVLCrateConfig YAML data in
+                    // the buffer. Parse it, then use it to create the readout_parser instance.
+
+                    std::string yamlText(
+                        reinterpret_cast<const char *>(mvlcState.crateConfigBuffer.data()),
+                        mvlcState.crateConfigBuffer.size() * sizeof(uint32_t));
+
                     try
                     {
-                        // No more follow-up frames -> have the complete MVLCrateConfig YAML data in
-                        // the buffer. Parse it, then use it to create the readout_parser instance.
-                        mvlcState.crateConfig = mvlc::crate_config_from_yaml(std::string(
-                            reinterpret_cast<const char *>(mvlcState.crateConfigBuffer.data()),
-                            mvlcState.crateConfigBuffer.size() * sizeof(uint32_t)));
-
+                        mvlcState.crateConfig = mvlc::crate_config_from_yaml(yamlText);
                         mvlcState.parserState = mvlc::readout_parser::make_readout_parser(
                             mvlcState.crateConfig->stacks);
+
+                        spdlog::info("Received new CrateConfig and created readout_parser:\n{}", mvlc::to_yaml(*mvlcState.crateConfig));
                     }
                     catch (const std::exception &e)
                     {
-                        spdlog::error("Failed to parse crate config YAML: {}", e.what());
+                        spdlog::error("Failed to parse CrateConfig YAML: {}", e.what());
+                        spdlog::error("YAML Data:\n{}", yamlText);
                     }
                 }
             }
+            else if (headerInfo.sysEventSubType == mvlc::system_event::subtype::BeginRun)
+            {
+                if (headerInfo.len >= 2 && data.size() >= 3)
+                {
+                    uint64_t unixTimestamp = 0;
+                    std::memcpy(&unixTimestamp, &data[1], sizeof(uint64_t));
+                    auto tp = time_point(seconds(unixTimestamp));
+                    spdlog::info("BeginRun event received. Timestamp: {}", tp);
+                }
+                else
+                {
+                    spdlog::info("BeginRun event received.");
+                }
+
+                // TODO: should reset stats here, not the whole state. The sequence is
+                // CrateConfig, [MVMEConfig,] BeginRun, (data frames...), EndRun.
+                // This means we get the crateconfig and construct the parser
+                // before the BeginRun frame.
+            }
+            else if (headerInfo.sysEventSubType == mvlc::system_event::subtype::EndRun)
+            {
+                if (headerInfo.len >= 2 && data.size() >= 3)
+                {
+                    uint64_t unixTimestamp = 0;
+                    std::memcpy(&unixTimestamp, &data[1], sizeof(uint64_t));
+                    auto tp = time_point(seconds(unixTimestamp));
+                    spdlog::info("EndRun event received. Timestamp: {}", tp);
+                }
+                else
+                {
+                    spdlog::info("EndRun event received.");
+                }
+
+                // TODO: print run stats
+                reset_state(ctx);
+            }
+            else if (headerInfo.sysEventSubType == mvlc::system_event::subtype::UnixTimetick)
+            {
+                if (headerInfo.len >= 2 && data.size() >= 3)
+                {
+                    uint64_t unixTimestamp = 0;
+                    std::memcpy(&unixTimestamp, &data[1], sizeof(uint64_t));
+                    auto tp = time_point(seconds(unixTimestamp));
+                    spdlog::info("UnixTimetick event received. Timestamp: {}", tp);
+                }
+                else
+                {
+                    spdlog::info("UnixTimetick event received.");
+                }
+            }
+
             data.remove_prefix(headerInfo.len + 1); // consume the frame
+        }
+        else if (mvlc::is_eth_header0(data[0]) && data.size() >= mvlc::eth::HeaderWords)
+        {
+            // Check for eth packets (0b00 prefix in the first word) and skip
+            // those. The senders (mvme, mesytec-mvlc) do not produce mixed
+            // sequences of system events and eth headers like this but we still
+            // need to handle the case here to not get stuck.
+            mvlc::eth::PayloadHeaderInfo ethHdrs{data[0], data[1]};
+            data.remove_prefix(mvlc::eth::HeaderWords +
+                               ethHdrs.dataWordCount()); // consume the ETH packet
+        }
+        else {}
+    }
+
+    return static_cast<ssize_t>(origDataSize - data.size());
+}
+
+// Process raw unframed mvlc readout data. Returns -1 on error, 0 to indicate
+// more data is needed and the number of words processed otherwise.
+ssize_t process_mvlc_data(ClientContext &ctx, uint32_t bufferNumber,
+                          std::basic_string_view<uint32_t> data)
+{
+    const auto origDataSize = data.size();
+
+    // Limit what we process to complete frames only.
+    auto framesBytes = mvlc::calculate_complete_frames_bytes(ctx.mvlcState.crateConfig->connectionType, data);
+
+    auto framesView = std::basic_string_view<uint32_t>(
+        data.data(), framesBytes / sizeof(uint32_t));
+
+    spdlog::trace("process_mvlc_data: framesView.size()={} bytes ({} words)", framesBytes, framesView.size());
+
+    auto sysEventRet = try_handle_system_events(ctx, framesView);
+
+    if (sysEventRet == 0)
+        return 0; // need more data
+
+    spdlog::trace("process_mvlc_data: done with try_handle_system_events, retval={}", sysEventRet);
+
+    while (!framesView.empty())
+    {
+        if (ctx.mvlcState.parserState && ctx.mvlcState.crateConfig)
+        {
+            try
+            {
+                mvlc::readout_parser::Callbacks callbacks = {mvlc_event_data_callback,
+                                                             mvlc_system_event_callback};
+
+                auto parseResult = mvlc::readout_parser::parse_readout_buffer(
+                    ctx.mvlcState.crateConfig->connectionType,
+                    *ctx.mvlcState.parserState,
+                    callbacks, ctx.mvlcState.parserCounters,
+                    bufferNumber, framesView.data(), framesView.size());
+
+                if (parseResult != mvlc::readout_parser::ParseResult::Ok)
+                {
+                    spdlog::error("Error parsing readout buffer: {}",
+                                  mvlc::readout_parser::get_parse_result_name(parseResult));
+                    return -1;
+                }
+
+                data.remove_prefix(framesView.size()); // consume the frames we just parsed
+            }
+            catch (const std::exception &e)
+            {
+                spdlog::error("Exception during readout parsing: {}", e.what());
+                return -1;
+            }
+        }
+        else
+        {
+            // No parser yet
+            data.remove_prefix(data.size()); // consume it all
         }
     }
 
-    return orig_data_size - data.size();
+    return origDataSize - data.size();
 }
 
 // Process one complete frame. Returns the number of words processed or -1 on error.
@@ -337,7 +466,7 @@ void maybe_print_stats(ClientContext &ctx)
     }
 }
 
-// Main client loop for framed protocol using bulk reading
+// Main client loop for framed protocol using bulk reading.
 template <typename Socket, typename ConnectFunc>
 int run_client(Socket &socket, ConnectFunc reconnect, ClientContext &ctx)
 {
@@ -373,9 +502,8 @@ int run_client(Socket &socket, ConnectFunc reconnect, ClientContext &ctx)
             else
             {
                 spdlog::info("Connected");
+                reset_state(ctx);
                 state = ctx.isFramedFormat ? State::ReadFrameHeader : State::ReadRawData;
-                ctx.lastSeqNum = -1;
-                ctx.buffer.reset();
             }
         }
         break;
@@ -400,10 +528,6 @@ int run_client(Socket &socket, ConnectFunc reconnect, ClientContext &ctx)
                 break;
             }
 
-            auto wordsToPrint = std::min<size_t>(ctx.buffer.viewU32().size(), 8);
-            // spdlog::trace("start of buffer contents before consuming FrameHeader: {:#010x}",
-            // fmt::join(ctx.buffer.viewU32().substr(0, wordsToPrint), ", "));
-
             ctx.frameHeader = FrameHeader{};
             std::memcpy(&ctx.frameHeader.value(), ctx.buffer.data(), sizeof(FrameHeader));
             ctx.buffer.consume(sizeof(FrameHeader));
@@ -413,11 +537,22 @@ int run_client(Socket &socket, ConnectFunc reconnect, ClientContext &ctx)
             auto &header = ctx.frameHeader;
             boost::endian::little_to_native_inplace(header->seqNum);
             boost::endian::little_to_native_inplace(header->wordsInFrame);
-            spdlog::trace("Received frame header: seqNum={} ({:#06x}), wordsInFrame={}, ({:#06x})",
+            auto wordsToPrint = std::min<size_t>(header->wordsInFrame, 8);
+            spdlog::trace("Received frame header: seqNum={} ({:#06x}), wordsInFrame={}, ({:#06x}): "
+                          "first {} words in buffer: {:#010x}",
                           header->seqNum, header->seqNum, header->wordsInFrame,
-                          header->wordsInFrame);
-            assert(header->wordsInFrame > 0); // The source (e.g. mvme) never emits empty frames.
-            state = State::ReadFrameContents;
+                          header->wordsInFrame, wordsToPrint,
+                          fmt::join(ctx.buffer.viewU32().substr(0, wordsToPrint), ", "));
+
+            if (header->wordsInFrame == 0)
+            {
+                spdlog::error("Received empty frame (seqNum={}), reconnecting", header->seqNum);
+                state = State::Connecting;
+            }
+            else
+            {
+                state = State::ReadFrameContents;
+            }
         }
         break;
 
@@ -490,33 +625,26 @@ int run_client(Socket &socket, ConnectFunc reconnect, ClientContext &ctx)
 
             std::error_code ec;
 
-            while (!ec)
-            {
-                ctx.buffer.ensureAvailable(readBufferSize);
-                auto dest = asio::buffer(ctx.buffer.writePtr(), ctx.buffer.available());
-                size_t bytesRead = read_at_least(ctx, socket, 1, ec);
-                auto res = process_mvlc_data(ctx, ctx.mvlcState.rawFormatSequenceNumber++, ctx.buffer.viewU32());
+            ctx.buffer.ensureAvailable(readBufferSize);
+            size_t bytesRead = read_at_least(ctx, socket, 4, ec);
+            auto wordsConsumed = process_mvlc_data(ctx, ctx.mvlcState.rawFormatSequenceNumber++,
+                                                   ctx.buffer.viewU32());
 
-                if (res < 0)
-                {
-                    spdlog::error("Error processing raw data, reconnecting");
-                    state = State::Connecting;
-                    break;
-                }
-                else if (res == 0)
-                {
-                    // Need more data
+            if (wordsConsumed < 0)
+            {
+                spdlog::error("Error processing raw data, reconnecting");
+                state = State::Connecting;
+                break;
+            }
+            else if (wordsConsumed >= 0)
+            {
+                if (wordsConsumed == 0)
                     spdlog::trace("Need more raw data to proceed");
-                    break;
-                }
-                else
-                {
-                    size_t bytesConsumed = res * sizeof(uint32_t);
-                    ctx.buffer.consume(bytesConsumed);
-                    spdlog::trace("Processed raw data: consumed {} bytes, {} bytes remaining in buffer",
-                                  bytesConsumed, ctx.buffer.used());
-                // XXX: leftoff here
-                }
+
+                size_t bytesConsumed = wordsConsumed * sizeof(uint32_t);
+                ctx.buffer.consume(bytesConsumed);
+                spdlog::trace("Processed raw data: consumed {} bytes, {} bytes remaining in buffer",
+                              bytesConsumed, ctx.buffer.used());
             }
         }
         break;

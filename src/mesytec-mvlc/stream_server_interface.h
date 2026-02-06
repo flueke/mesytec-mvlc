@@ -53,13 +53,19 @@ class MESYTEC_MVLC_EXPORT IStreamServer
 
     // Non-gather version of sendToAllClients.
     size_t sendToAllClients(const uint8_t *data, size_t size);
+    size_t sendToAllClients(const std::vector<uint8_t> &data);
 
     // Set a preamble that is sent to newly connected clients before any other
-    // data.
+    // data. Typically used to hold configuration data that clients can use to
+    // correctly handle the incoming data stream.
+    // Clients that are connected at the time setPreamble() is called will also
+    // receive the new preamble. This ensures both new and existing clients see
+    // the same state and state changes.
     virtual void setPreamble(const IOV *data, size_t n_iov) = 0;
 
     // Non-gather version of setPreamble.
     void setPreamble(const std::uint8_t *data, size_t size);
+    void setPreamble(const std::vector<std::uint8_t> &data);
 
     IStreamServer(const IStreamServer &) = delete;
     IStreamServer &operator=(const IStreamServer &) = delete;

@@ -297,10 +297,11 @@ std::optional<int> MESYTEC_MVLC_EXPORT get_trigger_irq_value(const u16 triggerVa
 // The input buffer must start with a frame header (skip_count will be called
 // with the first word of the input buffer on the first iteration).
 //
-// The SkipCountFunc must return the number of words to skip to get to the next
+// The SkipCountFunc must return the number of bytes to skip to get to the next
 // frame header or 0 if there is not enough data left in the input iterator to
 // determine the frames size.
 // Signature of SkipCountFunc:  u32 skip_count(const basic_string_view<const u8> &view);
+//
 // Returns the number of trailing bytes copied from msgBuf into tmpBuf.
 template<typename SkipCountFunc>
 size_t fixup_buffer(
@@ -315,7 +316,7 @@ size_t fixup_buffer(
     {
         if (view.size() >= sizeof(u32))
         {
-            u32 wordsToSkip = skip_count(view);
+            u32 wordsToSkip = skip_count(view) * sizeof(u32);
 
             //std::cout << "   wordsToSkip=" << wordsToSkip << ", view.size()=" << view.size() << ", in words:" << view.size() / sizeof(u32) << "\n";
 
@@ -338,51 +339,140 @@ size_t fixup_buffer(
     return 0u;
 }
 
+u32 skip_one_frame_usb(const std::basic_string_view<const u8> &view)
+{
+    if (view.size() < sizeof(u32))
+        return 0u;
+
+    u32 header = *reinterpret_cast<const u32 *>(view.data());
+    spdlog::trace("skip_one_frame_usb: header=0x{:08x}, frameInfo={}", header, decode_frame_header(header));
+    u32 result = 1u + extract_frame_info(header).len;
+    return result;
+}
+
+u32 skip_one_frame_eth(const std::basic_string_view<const u8> &view)
+{
+    if (view.size() < sizeof(u32))
+        return 0u;
+
+    // Either a SystemEvent header or the first of the two ETH packet headers
+    u32 header = *reinterpret_cast<const u32 *>(view.data());
+
+    if (get_frame_type(header) == frame_headers::SystemEvent)
+    {
+        spdlog::trace("skip_one_frame_eth: SystemEvent header=0x{:08x}, frameInfo={}", header, decode_frame_header(header));
+        return 1u + extract_frame_info(header).len;
+    }
+
+    if (view.size() >= 2 * sizeof(u32))
+    {
+        u32 header1 = *reinterpret_cast<const u32 *>(view.data() + sizeof(u32));
+        eth::PayloadHeaderInfo ethHdrs{ header, header1 };
+        spdlog::trace("skip_one_frame_eth: ethHdrs: packetChannel={}, packetNumber={}, crateId={}, dataWordCount={}, nextHeaderPointer=0x{:04x}",
+            ethHdrs.packetChannel(), ethHdrs.packetNumber(), ethHdrs.controllerId(), ethHdrs.dataWordCount(), ethHdrs.nextHeaderPointer());
+        return eth::HeaderWords + ethHdrs.dataWordCount();
+    }
+
+    // Not enough data to get the 2nd ETH header word.
+    return 0u;
+}
+
 size_t fixup_buffer_mvlc_usb(const u8 *buf, size_t bufUsed, std::vector<u8> &tmpBuf)
 {
-    using namespace nonstd;
-    auto skip_func = [] (const basic_string_view<const u8> &view) -> u32
-    {
-        if (view.size() < sizeof(u32))
-            return 0u;
-
-        u32 header = *reinterpret_cast<const u32 *>(view.data());
-        //spdlog::warn("fixup_buffer_mvlc_usb: header=0x{:08x}", header);
-        u32 result = 1u + extract_frame_info(header).len;
-        return result;
-    };
-
-    return fixup_buffer(buf, bufUsed, tmpBuf, skip_func);
+    return fixup_buffer(buf, bufUsed, tmpBuf, skip_one_frame_usb);
 }
 
 size_t fixup_buffer_mvlc_eth(const u8 *buf, size_t bufUsed, std::vector<u8> &tmpBuf)
 {
-    using namespace nonstd;
-    auto skip_func = [](const basic_string_view<const u8> &view) -> u32
+    return fixup_buffer(buf, bufUsed, tmpBuf, skip_one_frame_eth);
+}
+
+std::optional<ConnectionType> detect_buffer_type(const u8 *buffer, size_t bufferBytes)
+{
+    return detect_buffer_type(
+        reinterpret_cast<const u32 *>(buffer),
+        bufferBytes / sizeof(u32));
+}
+
+std::optional<ConnectionType> detect_buffer_type(const u32 *buffer, size_t bufferWords)
+{
+    if (bufferWords == 0)
+        return std::nullopt;
+
+    auto view = std::basic_string_view<u32>(buffer, bufferWords);
+
+    // Check if it's the first of the two eth header words. The 0b00 prefix does
+    // not collide with anything else the MVLC or our software emits.
+    if (is_eth_header0(view[0]))
+        return ConnectionType::ETH;
+
+    // It's a known header but not a software generated system event => USB format.
+    if (is_known_frame_header(view[0]) && !is_system_event(view[0]))
+        return ConnectionType::USB;
+
+    // Still ambiguous: system event frames are part of the listfile/streaming
+    // format and appear alongside ETH packets and readout frames in the data stream.
+    // Walk the buffer until we find a non-system-event frame header or eth header0.
+    while (!view.empty())
     {
-        if (view.size() < sizeof(u32))
-            return 0u;
-
-        // Either a SystemEvent header or the first of the two ETH packet headers
-        u32 header = *reinterpret_cast<const u32 *>(view.data());
-
-        if (get_frame_type(header) == frame_headers::SystemEvent)
-            return 1u + extract_frame_info(header).len;
-
-        if (view.size() >= 2 * sizeof(u32))
+        if (is_system_event(view[0]))
         {
-            u32 header1 = *reinterpret_cast<const u32 *>(view.data() + sizeof(u32));
-            eth::PayloadHeaderInfo ethHdrs{ header, header1 };
-            spdlog::trace("fixup_buffer_mvlc_eth: ethHdrs: packetChannel={}, packetNumber={}, crateId={}, dataWordCount={}, nextHeaderPointer=0x{:04x}",
-                ethHdrs.packetChannel(), ethHdrs.packetNumber(), ethHdrs.controllerId(), ethHdrs.dataWordCount(), ethHdrs.nextHeaderPointer());
-            return eth::HeaderWords + ethHdrs.dataWordCount();
+            auto frameInfo = extract_frame_info(view[0]);
+            if (view.size() < frameInfo.len + 1u)
+                return std::nullopt;
+            view.remove_prefix(frameInfo.len + 1);
         }
+        else if (is_eth_header0(view[0]))
+        {
+            return ConnectionType::ETH;
+        }
+        else if (is_known_frame_header(view[0]))
+        {
+            return ConnectionType::USB;
+        }
+        else
+        {
+            break;
+        }
+    }
 
-        // Not enough data to get the 2nd ETH header word.
-        return 0u;
-    };
+    return std::nullopt;
+}
 
-    return fixup_buffer(buf, bufUsed, tmpBuf, skip_func);
+size_t calculate_complete_frames_bytes(ConnectionType bufferType, const u8 *buf, size_t bufUsed)
+{
+    auto view = std::basic_string_view<const u8>(buf, bufUsed);
+    size_t totalSize = 0;
+
+    spdlog::trace("calculate_complete_frames_bytes: bufferType={}, bufUsed={} bytes ({} words)",
+                  (bufferType == ConnectionType::ETH) ? "ETH" : "USB", bufUsed,
+                  bufUsed / sizeof(u32));
+
+    while (!view.empty())
+    {
+        u32 bytesToSkip = 0;
+
+        if (bufferType == ConnectionType::USB)
+            bytesToSkip = skip_one_frame_usb(view) * sizeof(u32);
+        else
+            bytesToSkip = skip_one_frame_eth(view) * sizeof(u32);
+
+        if (bytesToSkip == 0 || bytesToSkip > view.size())
+            break;
+
+        totalSize += bytesToSkip;
+        view.remove_prefix(bytesToSkip);
+    }
+
+    spdlog::trace("calculate_complete_frames_bytes: frameSize={} bytes ({} words), leftover={} bytes ({} words)", totalSize,
+                  totalSize / sizeof(u32), view.size(), view.size() / sizeof(u32));
+
+    return totalSize;
+}
+
+size_t calculate_complete_frames_bytes(ConnectionType bufferType, std::basic_string_view<u32> view)
+{
+    return calculate_complete_frames_bytes(bufferType, reinterpret_cast<const u8 *>(view.data()), view.size() * sizeof(u32));
 }
 
 bool is_super_command(u32 dataWord)

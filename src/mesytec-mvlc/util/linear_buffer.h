@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "int_types.h"
+#include "logging.h"
 
 namespace mesytec::mvlc
 {
@@ -87,7 +88,6 @@ class LinearBuffer
         }
         else if (begin_ == end_)
         {
-            spdlog::trace("Compacted buffer: buffer empty, resetting indices");
             begin_ = 0;
             end_ = 0;
         }

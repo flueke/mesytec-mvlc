@@ -100,6 +100,11 @@ std::string MESYTEC_MVLC_EXPORT trigger_to_string(const stacks::Trigger &trigger
 std::optional<int> MESYTEC_MVLC_EXPORT get_trigger_irq_value(const stacks::Trigger &trigger);
 std::optional<int> MESYTEC_MVLC_EXPORT get_trigger_irq_value(const u16 triggerValue);
 
+inline bool is_eth_header0(u32 header)
+{
+    return ((header >> eth::header0::MagicShift) & eth::header0::MagicMask) ==  eth::header0::MagicValue;
+}
+
 size_t MESYTEC_MVLC_EXPORT fixup_buffer_mvlc_usb(const u8 *buf, size_t bufUsed,
                                                  std::vector<u8> &tmpBuf);
 size_t MESYTEC_MVLC_EXPORT fixup_buffer_mvlc_eth(const u8 *buf, size_t bufUsed,
@@ -113,6 +118,21 @@ inline size_t fixup_buffer(ConnectionType bufferType, const u8 *msgBuf, size_t m
 
     return fixup_buffer_mvlc_usb(msgBuf, msgUsed, tmpBuf);
 }
+
+// Returns the number of bytes to skip ahead to get to the next frame header.
+u32 skip_one_frame_usb(const std::basic_string_view<const u8> &view);
+u32 skip_one_frame_eth(const std::basic_string_view<const u8> &view);
+
+std::optional<ConnectionType> MESYTEC_MVLC_EXPORT detect_buffer_type(const u8 *buffer, size_t bufferBytes);
+std::optional<ConnectionType> MESYTEC_MVLC_EXPORT detect_buffer_type(const u32 *buffer, size_t bufferWords);
+
+// Returns the number of bytes that make up complete MVLC frames or UDP packets
+// in the input buffer. So retval <= bufUsed. If no complete frame/packet is
+// found, 0 is returned.
+// This like the fixup_buffer* functions but instead of moving incomplete data
+// it just returns the size of the complete frames.
+size_t MESYTEC_MVLC_EXPORT calculate_complete_frames_bytes(ConnectionType bufferType, const u8 *buf, size_t bufUsed);
+size_t MESYTEC_MVLC_EXPORT calculate_complete_frames_bytes(ConnectionType bufferType, std::basic_string_view<u32> view);
 
 bool MESYTEC_MVLC_EXPORT is_super_command(u32 dataWord);
 bool MESYTEC_MVLC_EXPORT is_stack_command(u32 dataWord);

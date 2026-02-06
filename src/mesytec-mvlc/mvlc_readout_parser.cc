@@ -1089,13 +1089,13 @@ ParseResult parse_readout_buffer(
     ReadoutParserCounters &counters,
     u32 bufferNumber, const u32 *buffer, size_t bufferWords)
 {
-    if (bufferWords == 0)
-        return ParseResult::NoHeaderPresent;
+    auto bufferType = detect_buffer_type(buffer, bufferWords);
 
-    const auto bufferType = is_known_frame_header(buffer[0]) ? ConnectionType::USB : ConnectionType::ETH;
+    if (bufferType == std::nullopt)
+        return ParseResult::UnknownBufferType;
 
     return parse_readout_buffer(
-        bufferType, state, callbacks, counters,
+        *bufferType, state, callbacks, counters,
         bufferNumber, buffer, bufferWords);
 }
 
@@ -1216,7 +1216,11 @@ ParseResult parse_readout_buffer_eth(
             size_t packetWords = eth::HeaderWords + ethHdrs.dataWordCount();
 
             if (input.size() < packetWords)
-                throw end_of_buffer("ETH packet data exceeds input buffer size");
+            {
+                throw end_of_buffer(fmt::format(
+                    "ETH packet data exceeds input buffer size, input.size()={}, packetWords={}",
+                    input.size(), packetWords));
+            }
 
             if (state.lastPacketNumber >= 0)
             {

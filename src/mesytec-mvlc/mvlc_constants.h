@@ -475,6 +475,11 @@ namespace eth
 
     namespace header0
     {
+        // For matching the 2bit 0b00 prefix of eth header0.
+        static const u32 MagicMask          = 0b11;
+        static const u32 MagicShift         = 30;
+        static const u32 MagicValue         = 0b00;
+
         // 2 bit packet channel number. Values represent different streams of
         // data each with its own packet number counter (see PacketChannel enum
         // below).

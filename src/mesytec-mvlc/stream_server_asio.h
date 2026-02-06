@@ -32,8 +32,6 @@ class MESYTEC_MVLC_EXPORT StreamServer: public IStreamServer
   private:
     struct Private;
     std::unique_ptr<Private> d;
-    friend struct TcpAcceptor;
-    friend struct UnixAcceptor;
 };
 
 } // namespace mesytec::mvlc
