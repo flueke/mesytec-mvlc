@@ -69,6 +69,7 @@
 #include "util/signal_handling.h"
 #include "util/stopwatch.h"
 #include "util/string_util.h"
+#include "util/word_cursor.h"
 #include "vme_constants.h"
 
 #endif /* __MESYTEC_MVLC_H__ */

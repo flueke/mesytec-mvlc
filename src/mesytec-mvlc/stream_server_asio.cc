@@ -539,22 +539,26 @@ size_t StreamServer::sendToAllClients(const IOV *iov, size_t n_iov)
 void StreamServer::setPreamble(const IOV *iov, size_t n_iov)
 {
     // Create a copy of the preamble data to be sent to new clients.
-    // Then immediately send the new preamble to all existing clients.
+    // Then immediately send the new preamble to all existing clients so
+    // everyone is up-to-date.
 
-    std::lock_guard<std::mutex> lock(d->preamble_mutex);
-
-    auto totalSize =
-        std::accumulate(iov, iov + n_iov, 0ul,
-                        [](unsigned long accu, const IOV &entry) { return accu + entry.len; });
-
-    d->preamble.resize(totalSize);
-    for (size_t i = 0, offset = 0; i < n_iov; ++i)
     {
-        std::memcpy(d->preamble.data() + offset, iov[i].buf, iov[i].len);
-        offset += iov[i].len;
-    }
+        std::lock_guard<std::mutex> lock(d->preamble_mutex);
 
-    d->logger->trace("Preamble set, size: {} bytes, sending to {} clients", d->preamble.size(), clientCount());
+        auto totalSize =
+            std::accumulate(iov, iov + n_iov, 0ul,
+                            [](unsigned long accu, const IOV &entry) { return accu + entry.len; });
+
+        d->preamble.resize(totalSize);
+        for (size_t i = 0, offset = 0; i < n_iov; ++i)
+        {
+            std::memcpy(d->preamble.data() + offset, iov[i].buf, iov[i].len);
+            offset += iov[i].len;
+        }
+
+        d->logger->trace("Preamble set, size: {} bytes, sending to {} clients", d->preamble.size(), clientCount());
+    }
+    // Directly and blockingly send the preamble data.
     sendToAllClients(iov, n_iov);
 }
 

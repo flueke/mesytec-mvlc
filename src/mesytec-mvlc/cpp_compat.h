@@ -1,8 +1,1 @@
-#ifndef B17FFF71_A464_443F_AB55_BABC924EE061
-#define B17FFF71_A464_443F_AB55_BABC924EE061
-
-#define TCB_SPAN_NAMESPACE_NAME mesytec::mvlc::util
-#include "util/span.hpp"
-#undef TCB_SPAN_NAMESPACE_NAME
-
-#endif /* B17FFF71_A464_443F_AB55_BABC924EE061 */
+#include "util/cpp_compat.h"

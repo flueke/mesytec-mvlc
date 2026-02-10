@@ -55,17 +55,24 @@
 using namespace mesytec;
 
 // Header structure for the framed format.
+enum class FrameType: uint8_t
+{
+    Config = 0b01,
+    Data   = 0b10,
+};
+
 struct FrameHeader
 {
-    uint32_t seqNum;
-    uint32_t wordsInFrame;
+    FrameType type: 2;
+    uint32_t seq_or_version: 15; // sequence number for data frames, version for config frames
+    uint32_t wordsInFrame: 15;   // number of 32-bit words in the frame (excluding the header)
 };
 
 // Holds MVLC parsing related state including the crate config, parser state and
 // counters.
 struct MvlcParsingState
 {
-    std::vector<uint32_t> crateConfigBuffer;
+    mvlc::util::LinearBuffer crateConfigBuffer;
     std::optional<mvlc::CrateConfig> crateConfig;
     std::optional<mvlc::readout_parser::ReadoutParserState> parserState;
     mvlc::readout_parser::ReadoutParserCounters parserCounters;
@@ -79,10 +86,10 @@ struct MvlcParsingState
 // Client state and statistics
 struct ClientContext
 {
-    bool isFramedFormat = true;
-    mvlc::LinearBuffer buffer;
-    std::optional<FrameHeader> frameHeader;
-    int64_t lastSeqNum = -1;
+    bool isFramedFormat = true;             // true if the sender adds its own outer framing
+    mvlc::util::LinearBuffer buffer;        // buffer for incoming data
+    std::optional<FrameHeader> frameHeader; // set to the current frame header if isFramedFormat, otherwise std::nullopt
+    int64_t lastSeqNum = -1;                // tracks the framed format buffer sequence number
 
     size_t totalBytesReceived = 0;
 
@@ -255,8 +262,9 @@ ssize_t try_handle_system_events(ClientContext &ctx, std::basic_string_view<uint
             {
                 auto &mvlcState = ctx.mvlcState;
 
-                std::copy(data.begin() + 1, data.begin() + 1 + headerInfo.len,
-                          std::back_inserter(mvlcState.crateConfigBuffer));
+                mvlcState.crateConfigBuffer.ensureAvailable((headerInfo.len) * sizeof(uint32_t));
+                std::copy(data.begin() + 1, data.begin() + 1 + headerInfo.len, mvlcState.crateConfigBuffer.writePtr());
+                mvlcState.crateConfigBuffer.commit(headerInfo.len * sizeof(uint32_t));
 
                 if (!(headerInfo.flags & mvlc::frame_flags::Continue))
                 {
@@ -265,7 +273,7 @@ ssize_t try_handle_system_events(ClientContext &ctx, std::basic_string_view<uint
 
                     std::string yamlText(
                         reinterpret_cast<const char *>(mvlcState.crateConfigBuffer.data()),
-                        mvlcState.crateConfigBuffer.size() * sizeof(uint32_t));
+                        mvlcState.crateConfigBuffer.used() * sizeof(uint32_t));
 
                     try
                     {
@@ -395,7 +403,7 @@ ssize_t process_mvlc_data(ClientContext &ctx, uint32_t bufferNumber,
                     return -1;
                 }
 
-                data.remove_prefix(framesView.size()); // consume the frames we just parsed
+                framesView.remove_prefix(framesView.size()); // consume the frames we just parsed
             }
             catch (const std::exception &e)
             {
@@ -406,7 +414,7 @@ ssize_t process_mvlc_data(ClientContext &ctx, uint32_t bufferNumber,
         else
         {
             // No parser yet
-            data.remove_prefix(data.size()); // consume it all
+            framesView.remove_prefix(framesView.size()); // consume it all
         }
     }
 

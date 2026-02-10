@@ -8,8 +8,9 @@
 
 #include "int_types.h"
 #include "logging.h"
+#include "span.hpp"
 
-namespace mesytec::mvlc
+namespace mesytec::mvlc::util
 {
 
 // Linear buffer with begin/end indices for efficient consumption of data from
