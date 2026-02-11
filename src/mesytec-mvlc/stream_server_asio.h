@@ -5,7 +5,7 @@
 #include "mesytec-mvlc/stream_server_interface.h"
 #include <memory>
 
-namespace mesytec::mvlc
+namespace mesytec::mvlc::stream
 {
 
 class MESYTEC_MVLC_EXPORT StreamServer: public IStreamServer

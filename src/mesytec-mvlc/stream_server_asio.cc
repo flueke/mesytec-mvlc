@@ -27,7 +27,7 @@ using asio::ip::tcp;
 using asio::local::stream_protocol;
 #define HANDLER_LOCATION ASIO_HANDLER_LOCATION((__FILE__, __LINE__, __func__))
 
-namespace mesytec::mvlc
+namespace mesytec::mvlc::stream
 {
 
 using GenericSocket = asio::generic::stream_protocol::socket;

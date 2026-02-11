@@ -10,7 +10,7 @@ namespace mesytec::mvlc::listfile
 
 struct StreamServerListfileWriteHandle::Private
 {
-    mvlc::StreamServer streamServer_;
+    mvlc::stream::StreamServer streamServer_;
 };
 
 StreamServerListfileWriteHandle::StreamServerListfileWriteHandle(const std::string &bindAddress)

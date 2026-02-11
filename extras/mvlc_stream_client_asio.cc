@@ -15,7 +15,7 @@
 // TODO:
 // - always handle systemframes with crateconfig info. the client has to update
 //    the config as a different file/run might be streamed.
-// - write about source sequence numbers and the framed format.
+// - write about source sequence numbers, config version numbers and the framed format.
 // - parsing: could always manually look at frames/print them and also pass
 //   them to the parser if one was created. right now it's either printing +
 //   looking for crateconfig or parsing but not both.
@@ -54,25 +54,11 @@
 
 using namespace mesytec;
 
-// Header structure for the framed format.
-enum class FrameType: uint8_t
-{
-    Config = 0b01,
-    Data   = 0b10,
-};
-
-struct FrameHeader
-{
-    FrameType type: 2;
-    uint32_t seq_or_version: 15; // sequence number for data frames, version for config frames
-    uint32_t wordsInFrame: 15;   // number of 32-bit words in the frame (excluding the header)
-};
-
 // Holds MVLC parsing related state including the crate config, parser state and
 // counters.
 struct MvlcParsingState
 {
-    mvlc::util::LinearBuffer crateConfigBuffer;
+    mvlc::ReadoutBuffer crateConfigBuffer;;
     std::optional<mvlc::CrateConfig> crateConfig;
     std::optional<mvlc::readout_parser::ReadoutParserState> parserState;
     mvlc::readout_parser::ReadoutParserCounters parserCounters;
@@ -86,10 +72,11 @@ struct MvlcParsingState
 // Client state and statistics
 struct ClientContext
 {
-    bool isFramedFormat = true;             // true if the sender adds its own outer framing
-    mvlc::util::LinearBuffer buffer;        // buffer for incoming data
-    std::optional<FrameHeader> frameHeader; // set to the current frame header if isFramedFormat, otherwise std::nullopt
-    int64_t lastSeqNum = -1;                // tracks the framed format buffer sequence number
+    bool isFramedFormat = true; // true if the sender adds its own outer framing
+    mvlc::ReadoutBuffer buffer; // buffer for incoming data
+    // set to the current frame header if isFramedFormat, otherwise std::nullopt
+    std::optional<mvlc::stream::FrameHeader> frameHeader;
+    int64_t lastSeqNum = -1; // tracks the framed format buffer sequence number
 
     size_t totalBytesReceived = 0;
 
@@ -118,14 +105,14 @@ template <typename Socket>
 size_t read_at_least(ClientContext &ctx, Socket &socket, size_t needed, std::error_code &ec)
 {
     ctx.buffer.ensureAvailable(needed);
-    auto dest = asio::buffer(ctx.buffer.writePtr(), ctx.buffer.available());
+    auto dest = asio::buffer(ctx.buffer.writePtr(), ctx.buffer.free());
 
     size_t bytesRead = asio::read(socket, dest, asio::transfer_at_least(needed), ec);
 
     spdlog::trace("read_at_least: requested {} bytes, read {} bytes, ec={}", needed, bytesRead,
                   ec.message());
 
-    ctx.buffer.commit(bytesRead);
+    ctx.buffer.use(bytesRead);
     ctx.totalBytesReceived += bytesRead;
     ctx.bytesReceivedInInterval += bytesRead;
     ctx.readsInInterval++;
@@ -264,7 +251,7 @@ ssize_t try_handle_system_events(ClientContext &ctx, std::basic_string_view<uint
 
                 mvlcState.crateConfigBuffer.ensureAvailable((headerInfo.len) * sizeof(uint32_t));
                 std::copy(data.begin() + 1, data.begin() + 1 + headerInfo.len, mvlcState.crateConfigBuffer.writePtr());
-                mvlcState.crateConfigBuffer.commit(headerInfo.len * sizeof(uint32_t));
+                mvlcState.crateConfigBuffer.use(headerInfo.len * sizeof(uint32_t));
 
                 if (!(headerInfo.flags & mvlc::frame_flags::Continue))
                 {
@@ -424,29 +411,29 @@ ssize_t process_mvlc_data(ClientContext &ctx, uint32_t bufferNumber,
 // Process one complete frame. Returns the number of words processed or -1 on error.
 // Only called if the framed format is used. Processing of the MVLC payload is
 // done in process_mvlc_data() just like in the unframed case.
-ssize_t process_frame(ClientContext &ctx, const FrameHeader &header,
+ssize_t process_frame(ClientContext &ctx, const mvlc::stream::FrameHeader &header,
                       std::basic_string_view<uint32_t> frameView)
 {
     // Check for sequence number gaps and warn. The parser also handles this
     // internally, resets its state and resumes parsing when new data arrives.
     // See the note at the top of the file for the meaning of the sequence numbers.
-    if (ctx.lastSeqNum != -1 && header.seqNum != static_cast<uint32_t>(ctx.lastSeqNum + 1))
+    if (header.frameType() == mvlc::stream::FrameType::Data && ctx.lastSeqNum != -1 && header.seqOrVersion() != static_cast<uint32_t>(ctx.lastSeqNum + 1))
     {
         spdlog::warn("Source frame loss detected: last={}, current={}",
-                     static_cast<long long>(ctx.lastSeqNum), header.seqNum);
+                     static_cast<long long>(ctx.lastSeqNum), header.seqOrVersion());
     }
 
-    ctx.lastSeqNum = header.seqNum;
+    ctx.lastSeqNum = header.seqOrVersion();
 
-    if (frameView.size() != header.wordsInFrame)
+    if (frameView.size() != header.wordsInFrame())
     {
-        spdlog::error("Frame size mismatch: expected {} words, got {} words", header.wordsInFrame,
+        spdlog::error("Frame size mismatch: expected {} words, got {} words", header.wordsInFrame(),
                       frameView.size());
         return -1;
     }
 
     // Process the frame payload
-    return process_mvlc_data(ctx, header.seqNum, frameView);
+    return process_mvlc_data(ctx, header.seqOrVersion(), frameView);
 }
 
 // Print statistics periodically
@@ -518,6 +505,7 @@ int run_client(Socket &socket, ConnectFunc reconnect, ClientContext &ctx)
 
         case State::ReadFrameHeader:
         {
+            using FrameHeader = mvlc::stream::FrameHeader;
             std::error_code ec;
             size_t n_reads = 0;
 
@@ -543,18 +531,18 @@ int run_client(Socket &socket, ConnectFunc reconnect, ClientContext &ctx)
             // spdlog::trace("start of buffer contents after consuming FrameHeader: {:#010x}",
             // fmt::join(ctx.buffer.viewU32().substr(0, wordsToPrint), ", "));
             auto &header = ctx.frameHeader;
-            boost::endian::little_to_native_inplace(header->seqNum);
-            boost::endian::little_to_native_inplace(header->wordsInFrame);
-            auto wordsToPrint = std::min<size_t>(header->wordsInFrame, 8);
+            boost::endian::little_to_native_inplace(header->word0);
+            boost::endian::little_to_native_inplace(header->word1);
+            auto wordsToPrint = std::min<size_t>(header->wordsInFrame(), 8);
             spdlog::trace("Received frame header: seqNum={} ({:#06x}), wordsInFrame={}, ({:#06x}): "
                           "first {} words in buffer: {:#010x}",
-                          header->seqNum, header->seqNum, header->wordsInFrame,
-                          header->wordsInFrame, wordsToPrint,
+                          header->seqOrVersion(), header->seqOrVersion(), header->wordsInFrame(),
+                          header->wordsInFrame(), wordsToPrint,
                           fmt::join(ctx.buffer.viewU32().substr(0, wordsToPrint), ", "));
 
-            if (header->wordsInFrame == 0)
+            if (header->wordsInFrame() == 0)
             {
-                spdlog::error("Received empty frame (seqNum={}), reconnecting", header->seqNum);
+                spdlog::error("Received empty frame (seqNum={}), reconnecting", header->seqOrVersion());
                 state = State::Connecting;
             }
             else
@@ -570,12 +558,12 @@ int run_client(Socket &socket, ConnectFunc reconnect, ClientContext &ctx)
             auto &header = ctx.frameHeader;
             std::error_code ec;
 
-            size_t neededBytes = header->wordsInFrame * sizeof(uint32_t);
+            size_t neededBytes = header->wordsInFrame() * sizeof(uint32_t);
             size_t n_reads = 0;
 
             spdlog::trace("ReadFrameContents: reading contents for frame seqNum={}, "
                           "wordsInFrame={}, have {} bytes in buffer, need {} bytes",
-                          header->seqNum, header->wordsInFrame, ctx.buffer.used(), neededBytes);
+                          header->seqOrVersion(), header->wordsInFrame(), ctx.buffer.used(), neededBytes);
 
             while (!ec && ctx.buffer.used() < neededBytes)
             {
@@ -589,7 +577,7 @@ int run_client(Socket &socket, ConnectFunc reconnect, ClientContext &ctx)
 
             spdlog::trace("ReadFrameContents: performed {} reads, ec={}", n_reads, ec.message());
 
-            if (ec || ctx.buffer.used() < header->wordsInFrame * sizeof(uint32_t))
+            if (ec || ctx.buffer.used() < header->wordsInFrame() * sizeof(uint32_t))
             {
                 spdlog::error("Error reading frame contents: {}, reconnecting",
                               ec.message().c_str());
@@ -597,8 +585,8 @@ int run_client(Socket &socket, ConnectFunc reconnect, ClientContext &ctx)
                 break;
             }
 
-            assert(ctx.buffer.viewU32().size() >= header->wordsInFrame);
-            auto frameView = ctx.buffer.viewU32().substr(0, header->wordsInFrame);
+            assert(ctx.buffer.viewU32().size() >= header->wordsInFrame());
+            auto frameView = ctx.buffer.viewU32().substr(0, header->wordsInFrame());
             // spdlog::trace("frameview: {:#010x}", fmt::join(frameView, ", "));
             spdlog::trace("Processing frame: seqNum={}, wordsInFrame={}, wordsInBuffer={}",
                           header->seqNum, header->wordsInFrame,

@@ -76,7 +76,7 @@ int main(int argc, char **argv)
                  bufferSizeWords * sizeof(u32) / (util::Megabytes(1) * 1.0));
 
     {
-        StreamServer server;
+        stream::StreamServer server;
 
         for (const auto &uri: listenUris)
         {

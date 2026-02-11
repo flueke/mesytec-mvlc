@@ -6,7 +6,7 @@
 #include <string>
 #include <vector>
 
-namespace mesytec::mvlc
+namespace mesytec::mvlc::stream
 {
 
 class MESYTEC_MVLC_EXPORT IStreamServer

@@ -1,6 +1,6 @@
 #include "stream_server_interface.h"
 
-namespace mesytec::mvlc
+namespace mesytec::mvlc::stream
 {
 
 IStreamServer::~IStreamServer() = default;
