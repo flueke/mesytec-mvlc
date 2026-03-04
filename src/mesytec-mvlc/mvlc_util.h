@@ -132,7 +132,7 @@ std::optional<ConnectionType> MESYTEC_MVLC_EXPORT detect_buffer_type(const u32 *
 // This like the fixup_buffer* functions but instead of moving incomplete data
 // it just returns the size of the complete frames.
 size_t MESYTEC_MVLC_EXPORT calculate_complete_frames_bytes(ConnectionType bufferType, const u8 *buf, size_t bufUsed);
-size_t MESYTEC_MVLC_EXPORT calculate_complete_frames_bytes(ConnectionType bufferType, std::basic_string_view<u32> view);
+size_t MESYTEC_MVLC_EXPORT calculate_complete_frames_bytes(ConnectionType bufferType, std::basic_string_view<const u32> view);
 
 bool MESYTEC_MVLC_EXPORT is_super_command(u32 dataWord);
 bool MESYTEC_MVLC_EXPORT is_stack_command(u32 dataWord);

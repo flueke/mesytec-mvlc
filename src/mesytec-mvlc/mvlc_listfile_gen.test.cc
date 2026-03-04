@@ -49,7 +49,7 @@ namespace
         std::cerr << "end buffer" << std::endl;
     }
 
-    using BufferView = nonstd::basic_string_view<u32>;
+    using BufferView = nonstd::basic_string_view<const u32>;
 }
 
 // Tests using block reads/dynamic data only. No prefix or suffix data.

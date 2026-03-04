@@ -104,7 +104,7 @@ struct ClientContext
 template <typename Socket>
 size_t read_at_least(ClientContext &ctx, Socket &socket, size_t needed, std::error_code &ec)
 {
-    ctx.buffer.ensureAvailable(needed);
+    ctx.buffer.ensureFreeSpace(needed);
     auto dest = asio::buffer(ctx.buffer.writePtr(), ctx.buffer.free());
 
     size_t bytesRead = asio::read(socket, dest, asio::transfer_at_least(needed), ec);
@@ -122,7 +122,7 @@ size_t read_at_least(ClientContext &ctx, Socket &socket, size_t needed, std::err
 
 void reset_state(ClientContext &ctx)
 {
-    ctx.buffer.reset();
+    ctx.buffer.clear();
     ctx.lastSeqNum = -1;
     ctx.totalBytesReceived = 0;
     ctx.totalFramesReceived = 0;
@@ -249,7 +249,7 @@ ssize_t try_handle_system_events(ClientContext &ctx, std::basic_string_view<uint
             {
                 auto &mvlcState = ctx.mvlcState;
 
-                mvlcState.crateConfigBuffer.ensureAvailable((headerInfo.len) * sizeof(uint32_t));
+                mvlcState.crateConfigBuffer.ensureFreeSpace((headerInfo.len) * sizeof(uint32_t));
                 std::copy(data.begin() + 1, data.begin() + 1 + headerInfo.len, mvlcState.crateConfigBuffer.writePtr());
                 mvlcState.crateConfigBuffer.use(headerInfo.len * sizeof(uint32_t));
 
@@ -349,7 +349,7 @@ ssize_t try_handle_system_events(ClientContext &ctx, std::basic_string_view<uint
 // Process raw unframed mvlc readout data. Returns -1 on error, 0 to indicate
 // more data is needed and the number of words processed otherwise.
 ssize_t process_mvlc_data(ClientContext &ctx, uint32_t bufferNumber,
-                          std::basic_string_view<uint32_t> data)
+                          std::basic_string_view<const mvlc::u32> data)
 {
     const auto origDataSize = data.size();
 
@@ -412,7 +412,7 @@ ssize_t process_mvlc_data(ClientContext &ctx, uint32_t bufferNumber,
 // Only called if the framed format is used. Processing of the MVLC payload is
 // done in process_mvlc_data() just like in the unframed case.
 ssize_t process_frame(ClientContext &ctx, const mvlc::stream::FrameHeader &header,
-                      std::basic_string_view<uint32_t> frameView)
+                      std::basic_string_view<const mvlc::u32> frameView)
 {
     // Check for sequence number gaps and warn. The parser also handles this
     // internally, resets its state and resumes parsing when new data arrives.
@@ -477,7 +477,7 @@ int run_client(Socket &socket, ConnectFunc reconnect, ClientContext &ctx)
 
     std::error_code ec;
     const size_t readBufferSize = 1u << 20; // 1 MB
-    ctx.buffer.ensureAvailable(readBufferSize);
+    ctx.buffer.ensureFreeSpace(readBufferSize);
 
     while (true)
     {
@@ -621,7 +621,7 @@ int run_client(Socket &socket, ConnectFunc reconnect, ClientContext &ctx)
 
             std::error_code ec;
 
-            ctx.buffer.ensureAvailable(readBufferSize);
+            ctx.buffer.ensureFreeSpace(readBufferSize);
             size_t bytesRead = read_at_least(ctx, socket, 4, ec);
             auto wordsConsumed = process_mvlc_data(ctx, ctx.mvlcState.rawFormatSequenceNumber++,
                                                    ctx.buffer.viewU32());

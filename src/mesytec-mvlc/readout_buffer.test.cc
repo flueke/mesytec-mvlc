@@ -26,11 +26,4 @@ TEST(ReadoutBuffer, BasicUsage)
     buffer.consume(7);
     EXPECT_EQ(buffer.used(), 6);
     EXPECT_EQ(std::string((const char *)buffer.data(), buffer.used()), "world!");
-    EXPECT_NE(buffer.data(), buffer.buffer().data());
-
-    // Compact the buffer
-    buffer.compact();
-    EXPECT_EQ(buffer.used(), 6);
-    EXPECT_EQ(std::string((const char *)buffer.data(), buffer.used()), "world!");
-    EXPECT_EQ(buffer.data(), buffer.buffer().data());
 }

@@ -470,7 +470,7 @@ size_t calculate_complete_frames_bytes(ConnectionType bufferType, const u8 *buf,
     return totalSize;
 }
 
-size_t calculate_complete_frames_bytes(ConnectionType bufferType, std::basic_string_view<u32> view)
+size_t calculate_complete_frames_bytes(ConnectionType bufferType, std::basic_string_view<const u32> view)
 {
     return calculate_complete_frames_bytes(bufferType, reinterpret_cast<const u8 *>(view.data()), view.size() * sizeof(u32));
 }
