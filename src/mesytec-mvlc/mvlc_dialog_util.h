@@ -123,7 +123,7 @@ read_stack_info(DIALOG_API &mvlc, u8 id)
 template<typename DIALOG_API>
 std::error_code enable_daq_mode(DIALOG_API &mvlc)
 {
-    return mvlc.writeRegister(registers::daq_mode, 1);
+    return mvlc.writeRegister(registers::daq_mode, 0xF);
 }
 
 template<typename DIALOG_API>
