@@ -1,254 +1,299 @@
 #include "stream_server_asio.h"
 
-#include <algorithm>
-#include <atomic>
-#include <condition_variable>
+#include <asio.hpp>
+
+// Enable local (unix domain) sockets on non-Windows platforms if the toolchain
+// claims to support them.
+#if defined(ASIO_HAS_LOCAL_SOCKETS) and (not defined(_WIN32))
+#define ENABLE_UNIX_DOMAIN_SOCKETS
+#include <asio/local/stream_protocol.hpp>
+#endif
+
+#include <list>
+#include <memory>
 #include <mutex>
+#include <numeric>
+#include <optional>
 #include <spdlog/spdlog.h>
 #include <thread>
 
-#include <asio.hpp>
+#include "util/logging.h"
 
-#ifdef ASIO_HAS_LOCAL_SOCKETS
-#include <asio/local/stream_protocol.hpp>
-#endif
+using asio::ip::tcp;
+using asio::local::stream_protocol;
+#define HANDLER_LOCATION ASIO_HANDLER_LOCATION((__FILE__, __LINE__, __func__))
 
 namespace mesytec::mvlc
 {
 
-struct ClientBase
-{
-    using WriteHandler = std::function<void(const asio::error_code &ec, size_t bytesTransferred)>;
+using GenericSocket = asio::generic::stream_protocol::socket;
+using GenericEndpoint = asio::generic::stream_protocol::endpoint;
 
-    virtual ~ClientBase() = default;
-    virtual std::string remoteAddress() const = 0;
-    virtual void asyncWrite(const std::vector<asio::const_buffer> &buffers,
-                            WriteHandler handler) = 0;
-    virtual void close() = 0;
+struct GenericSocketAddress
+{
+    std::string protocol, address, port;
 };
 
-struct TcpAcceptor;
-#ifdef ASIO_HAS_LOCAL_SOCKETS
-struct UnixAcceptor;
+GenericSocketAddress make_socket_address(const GenericEndpoint &endpoint)
+{
+    const auto *data = endpoint.data();
+    socklen_t len = endpoint.size();
+
+    switch (data->sa_family)
+    {
+    case AF_INET:
+        return {"tcp4", inet_ntoa(((sockaddr_in *)data)->sin_addr),
+                std::to_string(ntohs(((sockaddr_in *)data)->sin_port))};
+    case AF_INET6:
+        // inet_ntop + port...
+        break;
+    case AF_UNIX:
+        return {"ipc",
+                std::string(((sockaddr_un *)data)->sun_path, len - offsetof(sockaddr_un, sun_path)),
+                ""};
+    }
+    return {"unknown", "", ""};
+}
+
+std::string to_string(const GenericSocketAddress &addr)
+{
+    return addr.protocol + "://" + addr.address + (addr.port.empty() ? "" : ":" + addr.port);
+}
+
+std::string to_string(const GenericEndpoint &endpoint)
+{
+    return to_string(make_socket_address(endpoint));
+}
+
+bool is_tcp_socket(GenericSocket &socket)
+{
+    struct sockaddr_storage addr;
+    socklen_t len = sizeof(addr);
+    if (getsockname(socket.native_handle(), (struct sockaddr *)&addr, &len) == 0)
+    {
+        return addr.ss_family == AF_INET || addr.ss_family == AF_INET6;
+    }
+
+    return false;
+}
+
+GenericEndpoint get_source_endpoint(GenericSocket &socket)
+{
+    if (is_tcp_socket(socket))
+    {
+        return socket.remote_endpoint();
+    }
+
+    // remote_endpoint does not contain anything useful for local ipc sockets
+    return socket.local_endpoint();
+}
+
+// Executor can be an io_context or a strand or similar
+template <typename Func, typename Executor> void post_and_wait(Executor &executor, Func &&func)
+{
+    std::promise<void> promise;
+    auto future = promise.get_future();
+
+    asio::post(executor,
+               [func = std::forward<Func>(func), &promise]() mutable
+               {
+                   func();
+                   promise.set_value();
+               });
+
+    future.wait();
+}
+
+struct Client: std::enable_shared_from_this<Client>
+{
+    GenericSocket socket;
+
+    explicit Client(GenericSocket &&s)
+        : socket(std::move(s))
+    {
+    }
+};
+
+struct StreamServer::Private
+{
+    std::shared_ptr<spdlog::logger> logger;
+
+    asio::io_context io_context;
+    std::optional<asio::executor_work_guard<asio::io_context::executor_type>> work_guard;
+    std::thread io_thread;
+
+    std::mutex acceptors_mutex;
+    std::vector<std::unique_ptr<tcp::acceptor>> tcp_acceptors;
+#ifdef ENABLE_UNIX_DOMAIN_SOCKETS
+    std::vector<std::unique_ptr<stream_protocol::acceptor>> ipc_acceptors;
 #endif
 
-struct StreamServerAsio::Private
-{
-    void addClient(std::unique_ptr<ClientBase> client);
-    bool listenTcp(const std::string &uri);
+    std::mutex clients_mutex;
+    std::list<std::shared_ptr<Client>> clients;
+
+    std::mutex preamble_mutex;
+    std::vector<uint8_t> preamble;
+
+    // IOV data is stored by sendToAllClients() to save on allocations.
+    std::vector<asio::const_buffer> send_buffers;
+
+    // Controls the acceptor loops and sendToAllClients(). If set to false no
+    // new async accepts will be enqueued.
+    std::atomic<bool> accepting = true;
+    // Controls the shutdown sequence and state. If this is set to new acceptors
+    // will be created, no new clients will be accepted and existing clients
+    // will be disconnected.
+    std::atomic<bool> in_shutdown = false;
+
+    void ensure_asio_running();
+    void stop();
+
+    bool listenTcp(const std::string &host, const std::string &port);
+    void startAcceptTcp(tcp::acceptor *acceptor);
+    void handleAcceptTcp(std::shared_ptr<Client> client, tcp::acceptor *acceptor,
+                         const asio::error_code &error);
+
     bool listenIpc(const std::string &path);
-    void start(size_t num_threads = StreamServerAsio::DefaultIoThreads);
-
-    std::mutex send_mutex;
-    asio::io_context io_context_;
-    std::unique_ptr<asio::io_context::work> work_guard_;
-    std::mutex acceptors_lock;
-    std::vector<std::unique_ptr<TcpAcceptor>> tcp_acceptors_;
-#ifdef ASIO_HAS_LOCAL_SOCKETS
-    std::vector<std::unique_ptr<UnixAcceptor>> unix_acceptors_;
-#endif
-    std::vector<std::unique_ptr<ClientBase>> clients_;
-    std::mutex mutable clients_mutex_;
-    std::vector<std::thread> io_threads_;
-    std::atomic<bool> running_{false};
-
-    // Reusable buffers for sendToAllClients to avoid allocations
-    std::vector<asio::const_buffer> send_buffers_;
-    std::vector<ClientBase *> send_failed_;
-
-    struct WriteResult
-    {
-        asio::error_code ec = {};
-        size_t bytes_transferred = 0;
-    };
-    std::vector<WriteResult> send_results_;
-    std::mutex send_results_mutex_;
-    std::condition_variable send_results_cv_;
-    size_t send_results_pending_ = 0;
+    void startAcceptIpc(stream_protocol::acceptor *acceptor);
+    void handleAcceptIpc(std::shared_ptr<Client> client, stream_protocol::acceptor *acceptor,
+                         const asio::error_code &error);
 };
 
-struct TcpClient: ClientBase
+StreamServer::StreamServer()
+    : d(std::make_unique<Private>())
 {
-    asio::ip::tcp::socket socket;
+    d->logger = get_logger("mvlc_stream_server_asio");
+    d->logger->set_level(spdlog::level::trace);
+}
 
-    explicit TcpClient(asio::ip::tcp::socket s)
-        : socket(std::move(s))
-    {
-    }
-
-    std::string remoteAddress() const override
-    {
-        try
-        {
-            return socket.remote_endpoint().address().to_string() + ":" +
-                   std::to_string(socket.remote_endpoint().port());
-        }
-        catch (...)
-        {
-            return "unknown";
-        }
-    }
-
-    void asyncWrite(const std::vector<asio::const_buffer> &buffers, WriteHandler handler)
-    {
-        asio::async_write(socket, buffers, handler);
-    }
-
-    void close() override
-    {
-        asio::error_code ec;
-        socket.close(ec);
-    }
-};
-
-#ifdef ASIO_HAS_LOCAL_SOCKETS
-struct UnixClient: ClientBase
+StreamServer::~StreamServer()
 {
-    asio::local::stream_protocol::socket socket;
+    d->logger->trace("entering ~StreamServer()");
+    d->stop();
+    d->logger->trace("leaving ~StreamServer()");
+}
 
-    explicit UnixClient(asio::local::stream_protocol::socket s)
-        : socket(std::move(s))
-    {
-    }
-
-    std::string remoteAddress() const override { return "unix:local_client"; }
-
-    void asyncWrite(const std::vector<asio::const_buffer> &buffers, WriteHandler handler)
-    {
-        asio::async_write(socket, buffers, handler);
-    }
-
-    void close() override
-    {
-        asio::error_code ec;
-        socket.close(ec);
-    }
-};
-#endif
-
-struct TcpAcceptor
+void StreamServer::Private::ensure_asio_running()
 {
-    asio::ip::tcp::acceptor acceptor;
-    asio::ip::tcp::socket socket;
-    StreamServerAsio::Private *server;
-
-    TcpAcceptor(asio::io_context &io, const asio::ip::tcp::endpoint &ep,
-                StreamServerAsio::Private *srv)
-        : acceptor(io, ep)
-        , socket(io)
-        , server(srv)
+    logger->trace("entering ensure_asio_running()");
+    if (io_context.stopped())
     {
+        logger->trace("  ensure_asio_running(): io_context was stopped, restarting");
+        io_context.restart();
     }
 
-    void startAccept()
+    if (!work_guard.has_value())
     {
-        acceptor.async_accept(
-            socket,
-            [this](const asio::error_code &ec)
+        logger->trace("  ensure_asio_running(): (re)creating work_guard");
+        work_guard.emplace(asio::make_work_guard(io_context));
+    }
+
+    if (!io_thread.joinable())
+    {
+        logger->trace(" ensure_asio_running(): starting io_context thread");
+        io_thread = std::thread(
+            [this]()
             {
-                if (!ec)
-                {
-                    // Set socket options for better performance
-                    asio::error_code opt_ec;
-                    socket.set_option(asio::ip::tcp::no_delay(true), opt_ec);
-                    socket.set_option(asio::socket_base::send_buffer_size(2 * 1024 * 1024), opt_ec);
-                    socket.set_option(asio::socket_base::receive_buffer_size(2 * 1024 * 1024), opt_ec);
-
-                    auto client = std::make_unique<TcpClient>(std::move(socket));
-                    server->addClient(std::move(client));
-                }
-                if (acceptor.is_open())
-                    startAccept();
+                logger->trace("StreamServer IO context thread started");
+                io_context.run();
+                logger->trace("StreamServer IO context thread stopped");
             });
     }
-};
+    logger->trace("leaving ensure_asio_running()");
+}
 
-#ifdef ASIO_HAS_LOCAL_SOCKETS
-struct UnixAcceptor
+void StreamServer::Private::stop()
 {
-    asio::local::stream_protocol::acceptor acceptor;
-    asio::local::stream_protocol::socket socket;
-    StreamServerAsio::Private *server;
-    std::string path;
+    HANDLER_LOCATION;
+    logger->trace("entering StreamServer::Private::stop()");
+    accepting = false;
+    in_shutdown = true;
 
-    UnixAcceptor(asio::io_context &io, const std::string &path_, StreamServerAsio::Private *srv)
-        : acceptor(io, asio::local::stream_protocol::endpoint(path_))
-        , socket(io)
-        , server(srv)
-        , path(path_)
-    {
-    }
+    // At this point the io_context has to run otherwise the posts will not
+    // return. Attempt to restart it in case it's stopped already, e.g. through
+    // multiple calls to stop() in a row. This might cause useless thread
+    // creation but I don't care right now.  An alternative would be to post
+    // stuff, then run the io_context directly in this thread but then there are
+    // two cases to handle: the io thread itself and this thread.
+    ensure_asio_running();
 
-    ~UnixAcceptor()
-    {
-        // Clean up socket file
-        ::unlink(path.c_str());
-    }
+    logger->trace("posting acceptor close");
+    post_and_wait(io_context,
+                  [this]()
+                  {
+                      HANDLER_LOCATION;
+                      logger->trace("in posted acceptor close");
+                      asio::error_code ec;
+                      std::lock_guard<std::mutex> lock(acceptors_mutex);
 
-    void startAccept()
-    {
-        acceptor.async_accept(
-            socket,
-            [this](const asio::error_code &ec)
-            {
-                if (!ec)
-                {
-                    asio::error_code opt_ec;
-                    socket.set_option(asio::socket_base::send_buffer_size(2 * 1024 * 1024), opt_ec);
-                    socket.set_option(asio::socket_base::receive_buffer_size(2 * 1024 * 1024), opt_ec);
+                      for (auto &tcp_acceptor: tcp_acceptors)
+                      {
+                          if (tcp_acceptor && tcp_acceptor->is_open())
+                          {
+                              tcp_acceptor->cancel(ec);
+                              tcp_acceptor->close(ec);
+                          }
+                      }
+                      tcp_acceptors.clear();
 
-                    auto client = std::make_unique<UnixClient>(std::move(socket));
-                    server->addClient(std::move(client));
-                }
-                if (acceptor.is_open())
-                    startAccept();
-            });
-    }
-};
+#ifdef ENABLE_UNIX_DOMAIN_SOCKETS
+                      for (auto &ipc_acceptor: ipc_acceptors)
+                      {
+                          if (ipc_acceptor && ipc_acceptor->is_open())
+                          {
+                              ipc_acceptor->cancel(ec);
+                              ipc_acceptor->close(ec);
+                          }
+                      }
+                      ipc_acceptors.clear();
 #endif
+                      logger->trace("end of posted acceptor close");
+                  });
 
-StreamServerAsio::StreamServerAsio()
-    : IStreamServer()
-    , d(std::make_unique<Private>())
-{
-}
+    logger->trace("posting client close");
+    post_and_wait(io_context,
+                  [this]()
+                  {
+                      HANDLER_LOCATION;
+                      logger->trace("in posted client close");
+                      asio::error_code ec;
+                      std::lock_guard<std::mutex> lock(clients_mutex);
 
-StreamServerAsio::~StreamServerAsio() { stop(); }
+                      for (auto &client: clients)
+                      {
+                          client->socket.close(ec);
+                      }
+                      clients.clear();
+                      logger->trace("end of posted client close");
+                  });
 
-void StreamServerAsio::Private::addClient(std::unique_ptr<ClientBase> client)
-{
-    std::lock_guard<std::mutex> lock(clients_mutex_);
-    spdlog::info("New client connected: {}", client->remoteAddress());
-    clients_.push_back(std::move(client));
-}
+    logger->trace("stopping io_context");
+    io_context.stop();
+    logger->trace("resetting work guard");
+    work_guard.reset();
 
-void StreamServerAsio::Private::start(size_t num_threads)
-{
-    if (running_)
-        return;
-
-    running_ = true;
-    work_guard_ = std::make_unique<asio::io_context::work>(io_context_);
-
-    for (size_t i = 0; i < num_threads; ++i)
+    logger->trace("joining io_context thread");
+    if (io_thread.joinable())
     {
-        io_threads_.emplace_back([this]() { io_context_.run(); });
+        io_thread.join();
     }
+    in_shutdown = false;
+    logger->trace("leaving StreamServer::Private::stop()");
 }
 
-bool StreamServerAsio::Private::listenTcp(const std::string &uri)
+bool StreamServer::listen(const std::string &url)
 {
-    try
+    if (url.find("tcp://") == 0 || url.find("tcp4://") == 0 || url.find("tcp6://") == 0)
     {
-        // Parse URI: tcp://host:port or tcp4://host:port or tcp6://host:port
+        // Parse url: tcp://host:port or tcp4://host:port or tcp6://host:port
         std::string scheme, host_port;
-        size_t scheme_end = uri.find("://");
+        size_t scheme_end = url.find("://");
 
         if (scheme_end == std::string::npos)
             return false;
 
-        scheme = uri.substr(0, scheme_end);
-        host_port = uri.substr(scheme_end + 3);
+        scheme = url.substr(0, scheme_end);
+        host_port = url.substr(scheme_end + 3);
 
         size_t colon = host_port.rfind(':');
         if (colon == std::string::npos)
@@ -260,262 +305,514 @@ bool StreamServerAsio::Private::listenTcp(const std::string &uri)
         if (host.empty() || host == "*")
             host = "0.0.0.0";
 
-        asio::ip::tcp::resolver resolver(io_context_);
-        asio::ip::tcp::resolver::query query(host, port);
-        auto endpoints = resolver.resolve(query);
-
-        for (const auto &endpoint: endpoints)
-        {
-            // Skip IPv6 if scheme is tcp4, skip IPv4 if scheme is tcp6
-            if (scheme == "tcp4" && endpoint.endpoint().address().is_v6())
-                continue;
-            if (scheme == "tcp6" && endpoint.endpoint().address().is_v4())
-                continue;
-
-            auto acceptor = std::make_unique<TcpAcceptor>(io_context_, endpoint.endpoint(), this);
-            acceptor->acceptor.set_option(asio::socket_base::reuse_address(true));
-
-            spdlog::info("Listening on TCP {}:{}", endpoint.endpoint().address().to_string(),
-                         endpoint.endpoint().port());
-            acceptor->startAccept();
-            std::lock_guard<std::mutex> lock(acceptors_lock);
-            tcp_acceptors_.push_back(std::move(acceptor));
-
-            if (scheme == "tcp4" || scheme == "tcp6")
-                break; // Only bind once for specific protocol version
-        }
-
-        return true;
+        return d->listenTcp(host, port);
     }
-    catch (const std::exception &e)
+    else if (url.find("ipc://") == 0)
     {
-        spdlog::error("Failed to listen on TCP {}: {}", uri, e.what());
-        return false;
+        std::string path = url.substr(6); // Remove "ipc://" prefix
+        return d->listenIpc(path);
     }
+    else if (url.find("unix://") == 0)
+    {
+        std::string path = url.substr(7); // Remove "unix://" prefix
+        return d->listenIpc(path);
+    }
+    else if (auto colon_pos = url.rfind(':'); colon_pos != std::string::npos)
+    {
+        // Assume host:port format
+        std::string host = url.substr(0, colon_pos);
+        std::string port = url.substr(colon_pos + 1);
+
+        if (host.empty() || host == "*")
+            host = "127.0.0.1";
+
+        return d->listenTcp(host, port);
+    }
+
+    return false;
 }
 
-bool StreamServerAsio::Private::listenIpc(const std::string &path)
+bool StreamServer::isListening() const
 {
-#ifdef ASIO_HAS_LOCAL_SOCKETS
+    std::lock_guard<std::mutex> lock(d->acceptors_mutex);
+#ifdef ENABLE_UNIX_DOMAIN_SOCKETS
+    return !d->tcp_acceptors.empty() || !d->ipc_acceptors.empty();
+#else
+    return !d->tcp_acceptors.empty();
+#endif
+}
+
+bool StreamServer::stop()
+{
+    if (isListening())
+    {
+        d->stop();
+        return true;
+    }
+    return false;
+}
+
+size_t StreamServer::clientCount() const
+{
+    std::lock_guard<std::mutex> lock(d->clients_mutex);
+    return d->clients.size();
+}
+
+std::vector<std::string> StreamServer::clientAddresses() const
+{
+    std::vector<std::string> addresses;
+    std::lock_guard<std::mutex> lock(d->clients_mutex);
+
+    for (const auto &client: d->clients)
+    {
+        try
+        {
+            auto addr_str = to_string(client->socket.remote_endpoint());
+            // Unix domain sockets do not return a useful string for
+            // remote_endpoint() so just use the local endpoint here.
+            if (addr_str == "ipc://")
+                addr_str = to_string(client->socket.local_endpoint());
+
+            if (addr_str.empty())
+                addr_str = "<unknown>";
+
+            addresses.push_back(addr_str);
+        }
+        catch (...)
+        {
+            addresses.push_back("<unknown>");
+        }
+    }
+
+    return addresses;
+}
+
+template <typename Acceptor> std::string get_local_address(Acceptor &acceptor)
+{
     try
     {
-        // Remove existing socket file if present
-        ::unlink(path.c_str());
+        return to_string(acceptor.local_endpoint());
+    }
+    catch (...)
+    {
+        return "<unknown>";
+    }
+}
 
-        auto acceptor = std::make_unique<UnixAcceptor>(io_context_, path, this);
+std::vector<std::string> StreamServer::listenAddresses() const
+{
+    std::lock_guard<std::mutex> lock(d->acceptors_mutex);
+    std::vector<std::string> addresses;
 
-        spdlog::info("Listening on IPC {}", path);
-        acceptor->startAccept();
-        std::lock_guard<std::mutex> lock(acceptors_lock);
-        unix_acceptors_.push_back(std::move(acceptor));
+    for (auto &tcp_acceptor: d->tcp_acceptors)
+    {
+        if (tcp_acceptor && tcp_acceptor->is_open())
+        {
+            addresses.push_back(get_local_address(*tcp_acceptor));
+        }
+    }
 
+#ifdef ENABLE_UNIX_DOMAIN_SOCKETS
+    for (auto &ipc_acceptor: d->ipc_acceptors)
+    {
+        if (ipc_acceptor && ipc_acceptor->is_open())
+        {
+            addresses.push_back(get_local_address(*ipc_acceptor));
+        }
+    }
+#endif
+
+    return addresses;
+}
+
+size_t StreamServer::sendToAllClients(const IOV *iov, size_t n_iov)
+{
+    HANDLER_LOCATION;
+
+    if (!d->accepting)
+    {
+        d->logger->warn("sendToAllClients() called while not accepting, aborting send");
+        return std::numeric_limits<size_t>::max();
+    }
+
+    // Shared state for tracking async operations
+    struct SendState
+    {
+        std::mutex mutex;
+        std::condition_variable cv;
+        size_t pending = 0;
+        size_t successful = 0;
+        std::vector<std::shared_ptr<Client>> failed_clients;
+    };
+
+    auto state = std::make_shared<SendState>();
+
+    // Start async writes to all clients
+    {
+        std::lock_guard<std::mutex> lock(d->clients_mutex);
+
+        d->send_buffers.resize(n_iov);
+        std::transform(iov, iov + n_iov, d->send_buffers.begin(),
+                       [](const IOV &entry) { return asio::buffer(entry.buf, entry.len); });
+
+        for (auto &client: d->clients)
+        {
+            state->pending++;
+
+            // auto buffer = asio::buffer(data, size);
+            asio::async_write(
+                client->socket, d->send_buffers,
+                [this, state, client](const asio::error_code &ec, std::size_t /*bytes_transferred*/)
+                {
+                    HANDLER_LOCATION;
+                    std::lock_guard<std::mutex> lock(state->mutex);
+
+                    if (ec)
+                    {
+                        // Mark client for removal
+                        state->failed_clients.push_back(client);
+
+                        try
+                        {
+                            d->logger->warn("Error sending to client '{}', will disconnect: {}",
+                                            to_string(get_source_endpoint(client->socket)),
+                                            ec.message());
+                        }
+                        catch (const std::exception &e)
+                        {
+                            d->logger->warn("Error sending to unknown client, will disconnect: {}",
+                                            e.what());
+                        }
+                        catch (...)
+                        {
+                            d->logger->warn("Error sending to unknown client, will disconnect: {}",
+                                            ec.message());
+                        }
+                    }
+                    else
+                    {
+                        state->successful++;
+                    }
+
+                    state->pending--;
+                    if (state->pending == 0)
+                    {
+                        state->cv.notify_one();
+                    }
+                });
+        }
+    }
+
+    // Wait for all async writes to complete
+    {
+        std::unique_lock<std::mutex> lock(state->mutex);
+        state->cv.wait(lock, [&state]() { return state->pending == 0; });
+    }
+
+    // Clean up failed clients
+    if (!state->failed_clients.empty())
+    {
+        std::lock_guard<std::mutex> lock(d->clients_mutex);
+
+        for (auto &failed_client: state->failed_clients)
+        {
+            asio::error_code close_ec;
+            failed_client->socket.close(close_ec);
+
+            d->clients.remove(failed_client);
+        }
+    }
+
+    return state->failed_clients.size();
+}
+
+void StreamServer::setPreamble(const IOV *iov, size_t n_iov)
+{
+    std::lock_guard<std::mutex> lock(d->preamble_mutex);
+
+    auto totalSize =
+        std::accumulate(iov, iov + n_iov, 0ul,
+                        [](unsigned long accu, const IOV &entry) { return accu + entry.len; });
+
+    d->preamble.resize(totalSize);
+    for (size_t i = 0, offset = 0; i < n_iov; ++i)
+    {
+        std::memcpy(d->preamble.data() + offset, iov[i].buf, iov[i].len);
+        offset += iov[i].len;
+    }
+
+    d->logger->trace("Preamble set, size: {} bytes", d->preamble.size());
+}
+
+std::vector<std::uint8_t> StreamServer::getPreamble() const
+{
+    std::lock_guard<std::mutex> lock(d->preamble_mutex);
+    return d->preamble;
+}
+
+bool StreamServer::Private::listenTcp(const std::string &host, const std::string &port)
+{
+    if (in_shutdown)
+        return false;
+
+    try
+    {
+        tcp::acceptor *the_acceptor = nullptr;
+        {
+            std::lock_guard<std::mutex> lock(acceptors_mutex);
+            logger->trace("Attempting to listen on TCP {}:{}", host, port);
+            auto address = asio::ip::make_address(host);
+            unsigned short port_num = static_cast<unsigned short>(std::stoi(port));
+            tcp::endpoint endpoint(address, port_num);
+
+            tcp_acceptors.emplace_back(std::make_unique<tcp::acceptor>(io_context, endpoint));
+            the_acceptor = tcp_acceptors.back().get();
+        }
+
+        HANDLER_LOCATION;
+        accepting = true;
+        startAcceptTcp(the_acceptor);
+        ensure_asio_running();
         return true;
     }
     catch (const std::exception &e)
     {
-        spdlog::error("Failed to listen on IPC {}: {}", path, e.what());
+        logger->error("Failed to listen on TCP {}:{}: {}", host, port, e.what());
         return false;
     }
-#else
-    spdlog::error("Unix domain sockets not supported on this platform");
-    return false;
-#endif
 }
 
-bool StreamServerAsio::listen(const std::string &uri)
+void StreamServer::Private::startAcceptTcp(tcp::acceptor *tcp_acceptor)
 {
-    if (uri.find("tcp://") == 0 || uri.find("tcp4://") == 0 || uri.find("tcp6://") == 0)
-    {
-        bool result = d->listenTcp(uri);
+    HANDLER_LOCATION;
 
-        if (!d->running_ && result)
-            d->start();
-
-        return result;
-    }
-    else if (uri.find("ipc://") == 0)
-    {
-        std::string path = uri.substr(6); // Remove "ipc://" prefix
-        bool result = d->listenIpc(path);
-
-        if (!d->running_ && result)
-            d->start();
-
-        return result;
-    }
-    else if (uri.find("unix://") == 0)
-    {
-        std::string path = uri.substr(7); // Remove "unix://" prefix
-        bool result = d->listenIpc(path);
-
-        if (!d->running_ && result)
-            d->start();
-
-        return result;
-    }
-
-    spdlog::error("Unsupported URI scheme: {}", uri);
-    return false;
-}
-
-void StreamServerAsio::stop()
-{
-    if (!d->running_)
+    if (!accepting)
         return;
 
-    std::lock_guard<std::mutex> send_lock(d->send_mutex);
+    auto client = std::make_shared<Client>(GenericSocket(io_context));
 
-    d->running_ = false;
-
-    // Close all acceptors
-    std::lock_guard<std::mutex> acceptors_lock(d->acceptors_lock);
-
-    for (auto &acceptor: d->tcp_acceptors_)
-        acceptor->acceptor.close();
-
-#ifdef ASIO_HAS_LOCAL_SOCKETS
-    for (auto &acceptor: d->unix_acceptors_)
-        acceptor->acceptor.close();
-#endif
-
-    // Close all client connections
+    std::lock_guard<std::mutex> lock(acceptors_mutex);
+    if (tcp_acceptor && tcp_acceptor->is_open())
     {
-        std::lock_guard<std::mutex> lock(d->clients_mutex_);
-        for (auto &client: d->clients_)
-            client->close();
+        tcp_acceptor->async_accept(client->socket,
+                                   [this, client, tcp_acceptor](const asio::error_code &error)
+                                   { handleAcceptTcp(client, tcp_acceptor, error); });
     }
-
-    // Stop io_context and wait for threads
-    d->work_guard_.reset();
-    d->io_context_.stop();
-    for (auto &thread: d->io_threads_)
-    {
-        if (thread.joinable())
-            thread.join();
-    }
-    d->io_threads_.clear();
-
-    // Clear everything
-    d->tcp_acceptors_.clear();
-#ifdef ASIO_HAS_LOCAL_SOCKETS
-    d->unix_acceptors_.clear();
-#endif
-    d->clients_.clear();
 }
 
-bool StreamServerAsio::isListening() const
+void StreamServer::Private::handleAcceptTcp(std::shared_ptr<Client> client,
+                                            tcp::acceptor *tcp_acceptor,
+                                            const asio::error_code &error)
 {
-    std::lock_guard<std::mutex> lock(d->acceptors_lock);
-    return !d->tcp_acceptors_.empty()
-#ifdef ASIO_HAS_LOCAL_SOCKETS
-           || !d->unix_acceptors_.empty()
-#endif
-        ;
-}
-
-std::vector<std::string> StreamServerAsio::listenUris() const
-{
-    std::lock_guard<std::mutex> lock(d->acceptors_lock);
-    std::vector<std::string> result;
-    for (auto &acceptor: d->tcp_acceptors_)
+    HANDLER_LOCATION;
+    if (!error)
     {
-        result.emplace_back(fmt::format("tcp://{}:{}",
-            acceptor->acceptor.local_endpoint().address().to_string(),
-            acceptor->acceptor.local_endpoint().port()));
-    }
-#ifdef ASIO_HAS_LOCAL_SOCKETS
-    for (auto &acceptor: d->unix_acceptors_)
-    {
-        result.emplace_back(fmt::format("ipc://{}", acceptor->acceptor.local_endpoint().path()));
-    }
-#endif
-    return result;;
-}
-
-std::vector<std::string> StreamServerAsio::clients() const
-{
-    std::lock_guard<std::mutex> lock(d->clients_mutex_);
-    std::vector<std::string> result;
-    result.reserve(d->clients_.size());
-
-    for (const auto &client: d->clients_)
-        result.push_back(client->remoteAddress());
-
-    return result;
-}
-
-ssize_t StreamServerAsio::sendToAllClients(const IOV *iov, size_t n_iov)
-{
-    std::lock_guard<std::mutex> send_locklock(d->send_mutex);
-
-    // Reuse vectors from Private to avoid allocations
-    d->send_buffers_.clear();
-    d->send_failed_.clear();
-    d->send_results_.clear();
-
-    d->send_buffers_.reserve(n_iov);
-    for (size_t i = 0; i < n_iov; ++i)
-        d->send_buffers_.push_back(asio::buffer(iov[i].buf, iov[i].len));
-
-    {
-        std::lock_guard<std::mutex> lock(d->clients_mutex_);
-
-        if (d->clients_.empty())
-            return 0;
-
-        d->send_results_.resize(d->clients_.size());
-        d->send_results_pending_ = d->clients_.size();
-
-        for (size_t i = 0; i < d->clients_.size(); ++i)
+        try
         {
-            auto &client = d->clients_[i];
+            spdlog::info("Client connected from {}, to {}",
+                         to_string(get_source_endpoint(client->socket)),
+                         to_string(client->socket.local_endpoint()));
 
-            auto handler = [this, i](const asio::error_code &ec, size_t bytes_transferred)
+            // Send preamble if set (synchronously, before adding to client list)
+            std::vector<uint8_t> preamble_copy;
             {
+                std::lock_guard<std::mutex> lock(preamble_mutex);
+                preamble_copy = preamble;
+            }
+
+            if (!preamble_copy.empty())
+            {
+                asio::error_code ec;
+                asio::write(client->socket, asio::buffer(preamble_copy), ec);
+
+                if (ec)
                 {
-                    std::unique_lock<std::mutex> lock(d->send_results_mutex_);
-                    d->send_results_[i].ec = ec;
-                    d->send_results_[i].bytes_transferred = bytes_transferred;
-                    d->send_results_pending_--;
-                    lock.unlock();
-                    d->send_results_cv_.notify_one();
+                    logger->warn("Failed to send preamble to client {}, disconnecting: {}",
+                                 to_string(get_source_endpoint(client->socket)), ec.message());
+                    asio::error_code close_ec;
+                    client->socket.close(close_ec);
+
+                    // Continue accepting new connections
+                    startAcceptTcp(tcp_acceptor);
+                    return;
                 }
-            };
 
-            client->asyncWrite(d->send_buffers_, handler);
+                logger->trace("Sent preamble ({} bytes) to client {}", preamble_copy.size(),
+                              to_string(get_source_endpoint(client->socket)));
+            }
+
+            // Only add client to list after successful preamble send (or if no preamble)
+            {
+                std::lock_guard<std::mutex> lock(clients_mutex);
+                clients.emplace_back(client);
+            }
         }
-    }
-
-    std::unique_lock<std::mutex> lock(d->send_results_mutex_);
-    d->send_results_cv_.wait(lock, [this]() { return d->send_results_pending_ == 0; });
-    size_t completed = 0;
-
-    for (size_t i = 0; i < d->send_results_.size(); ++i)
-    {
-        if (d->send_results_[i].ec)
+        catch (const std::exception &e)
         {
-            d->send_failed_.push_back(d->clients_[i].get());
+            logger->error("Error handling new client: {}", e.what());
         }
-        else
-            ++completed;
-    }
 
-    // Remove failed clients
-    if (!d->send_failed_.empty())
+        // Continue accepting new connections
+        startAcceptTcp(tcp_acceptor);
+    }
+    else
     {
-        std::lock_guard<std::mutex> lock(d->clients_mutex_);
-        spdlog::info("Removing {} clients due to send errors", d->send_failed_.size());
-        auto new_end =
-            std::remove_if(d->clients_.begin(), d->clients_.end(),
-                           [this](const std::unique_ptr<ClientBase> &c)
-                           {
-                               return std::find(d->send_failed_.begin(), d->send_failed_.end(),
-                                                c.get()) != d->send_failed_.end();
-                           });
-        d->clients_.erase(new_end, d->clients_.end());
+        if (error != asio::error::operation_aborted)
+        {
+            logger->error("Accept error: {}", error.message());
+            startAcceptTcp(tcp_acceptor);
+        }
+    }
+}
+
+bool StreamServer::Private::listenIpc(const std::string &path)
+{
+#ifndef ENABLE_UNIX_DOMAIN_SOCKETS
+    logger->error("Unix domain sockets are not supported on this platform");
+    return false;
+#else
+
+    if (in_shutdown)
+        return false;
+
+    try
+    {
+        stream_protocol::acceptor *the_acceptor = nullptr;
+
+        {
+            std::lock_guard<std::mutex> lock(acceptors_mutex);
+            logger->trace("Attempting to listen on unix domain socket {}", path);
+
+            struct stat st;
+            if (stat(path.c_str(), &st) == 0)
+            {
+                if (S_ISSOCK(st.st_mode))
+                {
+                    try
+                    {
+                        asio::local::stream_protocol::socket tmp_socket(io_context);
+                        tmp_socket.connect(asio::local::stream_protocol::endpoint(path));
+                        logger->warn("StreamServer: socket file {} already exists and is in use",
+                                     path);
+                        return false;
+                    }
+                    catch (...)
+                    {
+                        logger->trace(
+                            "StreamServer: socket file {} exists but is not in use, removing",
+                            path);
+                        ::unlink(path.c_str());
+                    }
+                }
+            }
+
+            ipc_acceptors.emplace_back(std::make_unique<stream_protocol::acceptor>(
+                io_context, stream_protocol::endpoint(path)));
+            the_acceptor = ipc_acceptors.back().get();
+        }
+
+        HANDLER_LOCATION;
+        accepting = true;
+        startAcceptIpc(the_acceptor);
+        ensure_asio_running();
+        return true;
+    }
+    catch (const std::exception &e)
+    {
+        logger->error("Error starting unix domain socket server on {}: {}", path, e.what());
+        return false;
     }
 
-    return completed;
+    return false;
+#endif
 }
+
+#ifdef ENABLE_UNIX_DOMAIN_SOCKETS
+void StreamServer::Private::startAcceptIpc(stream_protocol::acceptor *ipc_acceptor)
+{
+    HANDLER_LOCATION;
+
+    if (!accepting)
+        return;
+
+    auto client = std::make_shared<Client>(GenericSocket(io_context));
+
+    std::lock_guard<std::mutex> lock(acceptors_mutex);
+    if (ipc_acceptor && ipc_acceptor->is_open())
+    {
+        ipc_acceptor->async_accept(client->socket,
+                                   [this, client, ipc_acceptor](const asio::error_code &error)
+                                   { handleAcceptIpc(client, ipc_acceptor, error); });
+    }
+}
+
+void StreamServer::Private::handleAcceptIpc(std::shared_ptr<Client> client,
+                                            stream_protocol::acceptor *ipc_acceptor,
+                                            const asio::error_code &error)
+{
+    HANDLER_LOCATION;
+    if (!error)
+    {
+        try
+        {
+            spdlog::info("Client connected from {}, to {}",
+                         to_string(get_source_endpoint(client->socket)),
+                         to_string(client->socket.local_endpoint()));
+
+            // Send preamble if set (synchronously, before adding to client list)
+            std::vector<uint8_t> preamble_copy;
+            {
+                std::lock_guard<std::mutex> lock(preamble_mutex);
+                preamble_copy = preamble;
+            }
+
+            if (!preamble_copy.empty())
+            {
+                asio::error_code ec;
+                asio::write(client->socket, asio::buffer(preamble_copy), ec);
+
+                if (ec)
+                {
+                    logger->warn("Failed to send preamble to client {}, disconnecting: {}",
+                                 to_string(get_source_endpoint(client->socket)), ec.message());
+                    asio::error_code close_ec;
+                    client->socket.close(close_ec);
+
+                    // Continue accepting new connections
+                    startAcceptIpc(ipc_acceptor);
+                    return;
+                }
+
+                logger->trace("Sent preamble ({} bytes) to client {}", preamble_copy.size(),
+                              to_string(get_source_endpoint(client->socket)));
+            }
+
+            // Only add client to list after successful preamble send (or if no preamble)
+            {
+                std::lock_guard<std::mutex> lock(clients_mutex);
+                clients.emplace_back(client);
+            }
+        }
+        catch (const std::exception &e)
+        {
+            logger->error("Error handling new client: {}", e.what());
+        }
+
+        // Continue accepting new connections
+        startAcceptIpc(ipc_acceptor);
+    }
+    else
+    {
+        if (error != asio::error::operation_aborted)
+        {
+            logger->error("Accept error: {}", error.message());
+
+            // Continue accepting if acceptor is still valid
+            startAcceptIpc(ipc_acceptor);
+        }
+    }
+}
+#endif
 
 } // namespace mesytec::mvlc
+

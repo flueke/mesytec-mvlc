@@ -1,4 +1,4 @@
-find_package(Threads)
+find_package(Threads REQUIRED)
 
 configure_file("git_version.cc.in" "git_version.cc" @ONLY)
 
@@ -94,7 +94,6 @@ target_include_directories(mesytec-mvlc
     )
 
 target_link_libraries(mesytec-mvlc
-    PRIVATE asio
     PRIVATE minizip
     PRIVATE nlohmann_json::nlohmann_json
     PRIVATE pthread
@@ -137,7 +136,35 @@ target_compile_features(mesytec-mvlc PUBLIC cxx_std_17)
 if (WIN32)
     target_link_libraries(mesytec-mvlc PRIVATE ws2_32 winmm mswsock)
     target_compile_options(mesytec-mvlc PRIVATE -Wno-format)
+    target_compile_definitions(mesytec-mvlc PRIVATE _WIN32_WINNT=0x0601)
 endif(WIN32)
+
+# asio configuration and compilation
+
+# Enable if you want to use asio with io_uring on Linux.
+# Requires liburing-dev to be installed.
+option(MVLC_ASIO_USE_IO_URING "Enable io_uring support in asio" OFF)
+# Buffer and handler tracking for debugging
+option(MVLC_ASIO_ENABLE_BUFFER_DEBUGGING "Enable asio buffer debugging features" OFF)
+option(MVLC_ASIO_ENABLE_HANDLER_TRACKING "Enable asio handler tracking features" OFF)
+
+if (MVLC_ASIO_USE_IO_URING)
+    target_link_libraries(mesytec-mvlc PRIVATE uring)
+    target_compile_definitions(mesytec-mvlc PRIVATE ASIO_HAS_IO_URING ASIO_DISABLE_EPOLL)
+endif()
+
+if (MVLC_ASIO_ENABLE_BUFFER_DEBUGGING)
+    target_compile_definitions(mesytec-mvlc PRIVATE ASIO_ENABLE_BUFFER_DEBUGGING)
+endif()
+
+if (MVLC_ASIO_ENABLE_HANDLER_TRACKING)
+    target_compile_definitions(mesytec-mvlc PRIVATE ASIO_ENABLE_HANDLER_TRACKING)
+endif()
+
+target_compile_definitions(mesytec-mvlc PRIVATE ASIO_SEPARATE_COMPILATION)
+target_include_directories(mesytec-mvlc SYSTEM PRIVATE ${MESYTEC_MVLC_SOURCE_DIR}/external/asio-1.36.0/include)
+target_sources(mesytec-mvlc PRIVATE ${MESYTEC_MVLC_SOURCE_DIR}/external/asio-1.36.0/src/asio.cpp)
+set_target_properties(mesytec-mvlc PROPERTIES CXX_VISIBILITY_PRESET hidden) # hide asio symbols to prevent clashes (perplexity.ai)
 
 include(GenerateExportHeader)
 generate_export_header(mesytec-mvlc)
@@ -216,9 +243,10 @@ if (MVLC_BUILD_TESTS)
         add_gtest(test_mvlc_listfile_zmq_ganil mvlc_listfile_zmq_ganil.test.cc)
     endif(ZMQ_FOUND)
     add_gtest(test_mvlc_factory mvlc_factory.test.cc)
+
     add_gtest(test_stream_server stream_server_asio.test.cc)
-    target_link_libraries(test_stream_server PRIVATE asio pthread)
     set_tests_properties(test_stream_server PROPERTIES LABELS "not_in_docker")
+    target_link_libraries(test_stream_server PRIVATE asio pthread)
     if (WIN32)
         target_link_libraries(test_stream_server PRIVATE ws2_32 winmm mswsock)
     endif(WIN32)

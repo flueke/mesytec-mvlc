@@ -1,6 +1,5 @@
-#ifndef STREAM_SERVER_ASIO_H
-#define STREAM_SERVER_ASIO_H
-
+#ifndef C14948AC_3867_4F71_A5DA_E39765D9A95C
+#define C14948AC_3867_4F71_A5DA_E39765D9A95C
 
 #include "mesytec-mvlc/mesytec-mvlc_export.h"
 #include "mesytec-mvlc/stream_server_interface.h"
@@ -9,29 +8,26 @@
 namespace mesytec::mvlc
 {
 
-class MESYTEC_MVLC_EXPORT StreamServerAsio: public IStreamServer
+class MESYTEC_MVLC_EXPORT StreamServer: public IStreamServer
 {
   public:
-    static const size_t DefaultIoThreads = 1;
+    explicit StreamServer();
+    ~StreamServer() override;
 
-    StreamServerAsio();
-    ~StreamServerAsio() override;
+    bool listen(const std::string &uri) override;
+    bool isListening() const override;
+    bool stop() override;
 
-    using IStreamServer::listen;
+    size_t clientCount() const override;
+    std::vector<std::string> listenAddresses() const override;
+    std::vector<std::string> clientAddresses() const override;
+
+    size_t sendToAllClients(const IOV *iov, size_t n_iov) override;
     using IStreamServer::sendToAllClients;
 
-    // True if the server is able to listen on the given uri.
-    bool listen(const std::string &uri) override;
-
-
-    // Stop listening and disconnect all clients. Idempotent.
-    void stop();
-
-    bool isListening() const override;
-    std::vector<std::string> listenUris() const override;
-    std::vector<std::string> clients() const override;
-
-    virtual ssize_t sendToAllClients(const IOV *iov, size_t n_iov) override;
+    void setPreamble(const IOV *data, size_t n_iov) override;
+    using IStreamServer::setPreamble;
+    std::vector<std::uint8_t> getPreamble() const;
 
   private:
     struct Private;
@@ -42,4 +38,4 @@ class MESYTEC_MVLC_EXPORT StreamServerAsio: public IStreamServer
 
 } // namespace mesytec::mvlc
 
-#endif // STREAM_SERVER_ASIO_H
+#endif /* C14948AC_3867_4F71_A5DA_E39765D9A95C */

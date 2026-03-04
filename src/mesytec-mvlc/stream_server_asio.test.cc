@@ -11,23 +11,86 @@
 
 #include "mesytec-mvlc/mvlc_stream_test_support.h"
 #include "mesytec-mvlc/stream_server_asio.h"
+#include "mesytec-mvlc/util/logging.h"
 #include "mesytec-mvlc/util/string_util.h"
 
 #include "gtest/gtest.h"
-#include <asio.hpp>
-#include <uri_parser.h>
 
 using namespace mesytec::mvlc;
 using namespace std::chrono_literals;
 
+TEST(StreamServerTest, CanListenAndStop)
+{
+    StreamServer server;
+    EXPECT_FALSE(server.isListening());
+
+    auto ipcPath =
+        fmt::format("ipc://{}.ipc", (std::filesystem::temp_directory_path() /
+                                     ("mvlc_test_stream_server_asio-" + std::to_string(getpid())))
+                                        .string());
+
+    for (size_t i = 0; i < 10; ++i)
+    {
+        // for tcp let the OS pick a port
+        ASSERT_TRUE(server.listen("tcp://127.0.0.1:0"));
+        ASSERT_TRUE(server.listen("tcp://127.0.0.1:0"));
+        ASSERT_TRUE(server.listen(ipcPath));
+
+        spdlog::trace("Listening URIs: {}", fmt::join(server.listenAddresses(), ", "));
+
+        EXPECT_TRUE(server.isListening());
+        ASSERT_EQ(server.listenAddresses().size(), 3u);
+
+        server.stop();
+
+        ASSERT_FALSE(server.isListening());
+        ASSERT_EQ(server.listenAddresses().size(), 0u);
+    }
+}
+
+TEST(StreamServerTest, CanListenWithNewInstance)
+{
+    for (size_t j = 0; j < 10; ++j)
+    {
+        StreamServer server;
+        EXPECT_FALSE(server.isListening());
+
+        auto ipcPath = fmt::format("ipc://{}.ipc",
+                                   (std::filesystem::temp_directory_path() /
+                                    ("mvlc_test_stream_server_asio-" + std::to_string(getpid())))
+                                       .string());
+
+        for (size_t i = 0; i < 10; ++i)
+        {
+            ASSERT_TRUE(server.listen("tcp://127.0.0.1:43333"));
+            ASSERT_TRUE(server.listen("tcp://127.0.0.1:43334"));
+            ASSERT_TRUE(server.listen(ipcPath));
+
+            spdlog::trace("Listening URIs: {}", fmt::join(server.listenAddresses(), ", "));
+
+            EXPECT_TRUE(server.isListening());
+            ASSERT_EQ(server.listenAddresses().size(), 3u);
+
+            server.stop();
+
+            ASSERT_FALSE(server.isListening());
+            ASSERT_EQ(server.listenAddresses().size(), 0u);
+        }
+    }
+}
+
+#if 1
 class StreamServerTestBase: public ::testing::TestWithParam<std::vector<std::string>>
 {
   protected:
     void SetUp() override
     {
-        server = std::make_unique<StreamServerAsio>();
-        ASSERT_TRUE(server->listen(GetParam()));
-        ASSERT_TRUE(server->isListening());
+        server = std::make_unique<StreamServer>();
+        for (const auto &url: GetParam())
+        {
+            ASSERT_TRUE(server->listen(url));
+            ASSERT_TRUE(server->isListening());
+        }
     }
 
     void TearDown() override
@@ -39,48 +102,22 @@ class StreamServerTestBase: public ::testing::TestWithParam<std::vector<std::str
         }
     }
 
-    std::unique_ptr<StreamServerAsio> server;
+    std::unique_ptr<StreamServer> server;
     static constexpr size_t TEST_BUFFER_SIZE = 1024;
 };
 
-TEST(StreamServerTest, CanListen)
-{
-    StreamServerAsio server;
-    EXPECT_FALSE(server.isListening());
+#endif
 
-    auto ipcPath =
-        fmt::format("ipc://{}.ipc", (std::filesystem::temp_directory_path() /
-                                     ("mvlc_test_stream_server_asio-" + std::to_string(getpid())))
-                                        .string());
-
-    for (size_t i = 0; i < 1; ++i)
-    {
-        // for tcp let the OS pick a port
-        ASSERT_TRUE(server.listen("tcp://127.0.0.1:0"));
-        ASSERT_TRUE(server.listen("tcp://127.0.0.1:0"));
-        ASSERT_TRUE(server.listen(ipcPath));
-
-        spdlog::info("Listening URIs: {}", fmt::join(server.listenUris(), ", "));
-
-        EXPECT_TRUE(server.isListening());
-        ASSERT_EQ(server.listenUris().size(), 3u);
-
-        server.stop();
-
-        ASSERT_FALSE(server.isListening());
-        ASSERT_EQ(server.listenUris().size(), 0u);
-    }
-}
-
+// TODO: revive this. currently needs asio directly which is not exposed by libmesytec-mvlc.so
+// Need a client api that resides in the library and can be used here or test
+// the case with a second copy of asio built into this test. Prefering the
+// former as the latter leads to hard to debug issues.
+#if 0
 TEST_P(StreamServerTestBase, OneSenderOneClient)
 {
-    auto param = GetParam();
-    ASSERT_TRUE(param.size() >= 1);
+    auto uri = server->listenAddresses().front();
 
-    auto string_uri = server->listenUris().front();
-    auto parsed_uri = uri::parse_uri(string_uri);
-
-    if (parsed_uri.scheme != "tcp")
+    if (!util::startswith(uri, "tcp://"))
     {
         GTEST_SKIP() << "Skipping non-tcp transport test (for now)";
     }
@@ -88,12 +125,11 @@ TEST_P(StreamServerTestBase, OneSenderOneClient)
     std::atomic<bool> quitClient = false;
 
     std::thread clientThread(
-        [&parsed_uri, &quitClient]()
+        [&uri, &quitClient]()
         {
             asio::io_context io_context;
             asio::ip::tcp::resolver resolver(io_context);
-            asio::ip::tcp::resolver::query query(parsed_uri.authority.host,
-                                                 std::to_string(parsed_uri.authority.port));
+            asio::ip::tcp::resolver::query query("localhost", "42333");
             auto endpoints = resolver.resolve(query);
             ASSERT_FALSE(endpoints.empty());
             asio::ip::tcp::socket socket(io_context);
@@ -120,7 +156,7 @@ TEST_P(StreamServerTestBase, OneSenderOneClient)
 }
 
 INSTANTIATE_TEST_SUITE_P(StreamServerTest, StreamServerTestBase,
-                         ::testing::Values(std::vector<std::string>{"tcp://localhost:42337"},
+                         ::testing::Values(std::vector<std::string>{"tcp://localhost:42333"},
                                            std::vector<std::string>{
                                                "ipc:///tmp/mvlc_test_stream_server_asio.ipc"}),
                          [](const auto &info)
@@ -131,3 +167,5 @@ INSTANTIATE_TEST_SUITE_P(StreamServerTest, StreamServerTestBase,
                                  return "Ipc";
                          } /* name generator */
 );
+#endif
+

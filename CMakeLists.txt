@@ -9,6 +9,7 @@ set(MESYTEC_MVLC_MASTER_PROJECT OFF)
 if (CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
     set(MESYTEC_MVLC_MASTER_PROJECT ON)
 endif()
+set(MESYTEC_MVLC_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 
 # Taken from nng/CMakeLists.txt
 if (CMAKE_SYSTEM_NAME MATCHES "Linux")
@@ -91,13 +92,16 @@ if (MVLC_BUILD_TESTS OR MVLC_BUILD_CONTROLLER_TESTS)
     enable_testing()
 endif ()
 
-add_subdirectory(external)
-
 # Create our binaries in the root of the build directory. It's just more convenient.
 if (MESYTEC_MVLC_MASTER_PROJECT)
     set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
     set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 endif()
+
+
+add_subdirectory(external)
+add_subdirectory(extras)
+add_subdirectory(src)
 
 option(MVLC_BUILD_DOCS "Build the documentation (requires sphinx, breathe and doxygen)"
     ${MESYTEC_MVLC_MASTER_PROJECT})
@@ -105,6 +109,3 @@ option(MVLC_BUILD_DOCS "Build the documentation (requires sphinx, breathe and do
 if (MVLC_BUILD_DOCS)
     add_subdirectory(doc)
 endif (MVLC_BUILD_DOCS)
-
-add_subdirectory(extras)
-add_subdirectory(src)
