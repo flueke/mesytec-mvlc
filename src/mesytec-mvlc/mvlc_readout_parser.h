@@ -193,6 +193,12 @@ struct ModuleReadoutStructure
     bool hasDynamic;    // true if a dynamic part (block read) is present
     std::string name;   // name of the stack group/module that produced the data.
 
+    // copy of the readout commands that produced the data for this module
+    std::vector<StackCommand> commands;
+
+    // copy of the optional meta info attached to the readout group that defines the module
+    std::map<std::string, std::string> meta;
+
     // Set to true if the module is from mesytec and a 2eSST transfer mode is used for the readout.
     // This is used to detect trailing 0xff..ff words produced by modules that do not have the 'retry'
     // VME line connected.
