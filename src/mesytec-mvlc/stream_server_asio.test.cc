@@ -17,6 +17,7 @@
 #include "gtest/gtest.h"
 
 using namespace mesytec::mvlc;
+using namespace mesytec::mvlc::stream;
 using namespace std::chrono_literals;
 
 TEST(StreamServerTest, CanListenAndStop)
@@ -168,4 +169,3 @@ INSTANTIATE_TEST_SUITE_P(StreamServerTest, StreamServerTestBase,
                          } /* name generator */
 );
 #endif
-

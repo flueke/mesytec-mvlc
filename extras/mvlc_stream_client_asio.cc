@@ -589,15 +589,15 @@ int run_client(Socket &socket, ConnectFunc reconnect, ClientContext &ctx)
             auto frameView = ctx.buffer.viewU32().substr(0, header->wordsInFrame());
             // spdlog::trace("frameview: {:#010x}", fmt::join(frameView, ", "));
             spdlog::trace("Processing frame: seqNum={}, wordsInFrame={}, wordsInBuffer={}",
-                          header->seqNum, header->wordsInFrame,
+                          header->seqOrVersion(), header->wordsInFrame(),
                           ctx.buffer.used() / sizeof(uint32_t));
 
             auto wordsConsumed = process_frame(ctx, *header, frameView);
 
-            if (wordsConsumed < 0 || static_cast<size_t>(wordsConsumed) != header->wordsInFrame)
+            if (wordsConsumed < 0 || static_cast<size_t>(wordsConsumed) != header->wordsInFrame())
             {
                 spdlog::error("Error processing frame (seqNum={}, wordsInFrame={}), reconnecting",
-                              header->seqNum, header->wordsInFrame);
+                              header->seqOrVersion(), header->wordsInFrame());
                 state = State::Connecting;
                 break;
             }
@@ -608,7 +608,7 @@ int run_client(Socket &socket, ConnectFunc reconnect, ClientContext &ctx)
 
             spdlog::trace(
                 "Processed frame: seqNum={}, wordsInFrame={}, bytes remaining in buffer={}",
-                header->seqNum, header->wordsInFrame, ctx.buffer.used());
+                header->seqOrVersion(), header->wordsInFrame(), ctx.buffer.used());
 
             ctx.frameHeader.reset();
             state = State::ReadFrameHeader;
