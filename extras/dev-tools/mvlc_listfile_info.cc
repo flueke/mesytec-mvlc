@@ -12,6 +12,7 @@ struct ProcessOptions
 {
     bool printEventHeaders = false;
     bool printEventData = false;
+    bool printCrateConfig = false;
 };
 
 bool process_listfile(const std::string &listfile, const ProcessOptions &options);
@@ -30,6 +31,7 @@ int main(int argc, char *argv[])
         | lyra::opt(opt_logTrace)["--trace"]("enable trace logging")
         | lyra::opt(processOptions.printEventHeaders)["--print-event-headers"]("print event headers")
         | lyra::opt(processOptions.printEventData)["--print-event-data"]("print event data (very verbose!)")
+        | lyra::opt(processOptions.printCrateConfig)["--print-crate-config"]("print the crate config YAML data found in the listfiles and exit")
         | lyra::arg([&] (std::string arg) { arg_listfiles.emplace_back(arg); }, "zipped listfiles")
             ("zip listfiles").cardinality(1, 0xffff)
         ;
@@ -99,6 +101,13 @@ bool process_listfile(const std::string &listfile, const ProcessOptions &options
 
     if (auto configEvent = readerHelper.preamble.findCrateConfig())
     {
+        if (options.printCrateConfig)
+        {
+            std::cout << "Found MVLC CrateConfig YAML:\n";
+            std::cout << configEvent->contentsToString() << "\n";
+            return true;
+        }
+
         try
         {
             crateConfig = mvlc::crate_config_from_yaml(configEvent->contentsToString());
