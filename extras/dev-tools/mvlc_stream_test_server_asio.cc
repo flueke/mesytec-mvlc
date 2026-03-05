@@ -101,7 +101,7 @@ int main(int argc, char **argv)
             verify_test_data({sendBuffer.data(), sendBuffer.size()}, static_cast<u32>(iteration)));
 
         util::Stopwatch swRunning;
-        while (swRunning.get_elapsed() < timeToRun)
+        while (timeToRun.count() == 0 || swRunning.get_elapsed() < timeToRun)
         {
             if (auto interval = swReport.get_interval(); interval >= std::chrono::seconds(1))
             {
