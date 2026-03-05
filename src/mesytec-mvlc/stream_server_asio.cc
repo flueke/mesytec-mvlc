@@ -111,6 +111,8 @@ template <typename Func, typename Executor> void post_and_wait(Executor &executo
 struct Client: std::enable_shared_from_this<Client>
 {
     GenericSocket socket;
+    // Copy of the remote endpoint as a string. This info is lost on client connection error.
+    std::string remoteEndpoint = "<unknown>";
 
     explicit Client(GenericSocket &&s)
         : socket(std::move(s))
@@ -198,9 +200,9 @@ void StreamServer::Private::ensure_asio_running()
         io_thread = std::thread(
             [this]()
             {
-                #ifdef __linux__
-                    prctl(PR_SET_NAME,"stream_server_asio_io",0,0,0);
-                #endif
+#ifdef __linux__
+                prctl(PR_SET_NAME, "stream_server_asio_io", 0, 0, 0);
+#endif
                 logger->trace("StreamServer IO context thread started");
                 io_context.run();
                 logger->trace("StreamServer IO context thread stopped");
@@ -479,22 +481,8 @@ size_t StreamServer::sendToAllClients(const IOV *iov, size_t n_iov)
                         // Mark client for removal
                         state->failed_clients.push_back(client);
 
-                        try
-                        {
-                            d->logger->warn("Error sending to client '{}', will disconnect: {}",
-                                            to_string(get_source_endpoint(client->socket)),
-                                            ec.message());
-                        }
-                        catch (const std::exception &e)
-                        {
-                            d->logger->warn("Error sending to unknown client, will disconnect: {}",
-                                            e.what());
-                        }
-                        catch (...)
-                        {
-                            d->logger->warn("Error sending to unknown client, will disconnect: {}",
-                                            ec.message());
-                        }
+                        d->logger->warn("Error sending to client '{}', will disconnect: {}",
+                                        client->remoteEndpoint, ec.message());
                     }
                     else
                     {
@@ -556,7 +544,8 @@ void StreamServer::setPreamble(const IOV *iov, size_t n_iov)
             offset += iov[i].len;
         }
 
-        d->logger->trace("Preamble set, size: {} bytes, sending to {} clients", d->preamble.size(), clientCount());
+        d->logger->trace("Preamble set, size: {} bytes, sending to {} clients", d->preamble.size(),
+                         clientCount());
     }
     // Directly and blockingly send the preamble data.
     sendToAllClients(iov, n_iov);
@@ -627,8 +616,10 @@ void StreamServer::Private::handleAcceptTcp(std::shared_ptr<Client> client,
     {
         try
         {
-            spdlog::info("Client connected from {}, to {}",
-                         to_string(get_source_endpoint(client->socket)),
+            if (auto epstr = to_string(get_source_endpoint(client->socket)); !epstr.empty())
+                client->remoteEndpoint = epstr;
+
+            spdlog::info("Client connected from {}, to {}", client->remoteEndpoint,
                          to_string(client->socket.local_endpoint()));
 
             // Send preamble if set (synchronously, before adding to client list)
@@ -646,7 +637,7 @@ void StreamServer::Private::handleAcceptTcp(std::shared_ptr<Client> client,
                 if (ec)
                 {
                     logger->warn("Failed to send preamble to client {}, disconnecting: {}",
-                                 to_string(get_source_endpoint(client->socket)), ec.message());
+                                 client->remoteEndpoint, ec.message());
                     asio::error_code close_ec;
                     client->socket.close(close_ec);
 
@@ -656,7 +647,7 @@ void StreamServer::Private::handleAcceptTcp(std::shared_ptr<Client> client,
                 }
 
                 logger->trace("Sent preamble ({} bytes) to client {}", preamble_copy.size(),
-                              to_string(get_source_endpoint(client->socket)));
+                              client->remoteEndpoint);
             }
 
             // Only add client to list after successful preamble send (or if no preamble)
@@ -773,8 +764,10 @@ void StreamServer::Private::handleAcceptIpc(std::shared_ptr<Client> client,
     {
         try
         {
-            spdlog::info("Client connected from {}, to {}",
-                         to_string(get_source_endpoint(client->socket)),
+            if (auto epstr = to_string(get_source_endpoint(client->socket)); !epstr.empty())
+                client->remoteEndpoint = epstr;
+
+            spdlog::info("Client connected from {}, to {}", client->remoteEndpoint,
                          to_string(client->socket.local_endpoint()));
 
             // Send preamble if set (synchronously, before adding to client list)
@@ -792,7 +785,7 @@ void StreamServer::Private::handleAcceptIpc(std::shared_ptr<Client> client,
                 if (ec)
                 {
                     logger->warn("Failed to send preamble to client {}, disconnecting: {}",
-                                 to_string(get_source_endpoint(client->socket)), ec.message());
+                                 client->remoteEndpoint, ec.message());
                     asio::error_code close_ec;
                     client->socket.close(close_ec);
 
@@ -802,7 +795,7 @@ void StreamServer::Private::handleAcceptIpc(std::shared_ptr<Client> client,
                 }
 
                 logger->trace("Sent preamble ({} bytes) to client {}", preamble_copy.size(),
-                              to_string(get_source_endpoint(client->socket)));
+                              client->remoteEndpoint);
             }
 
             // Only add client to list after successful preamble send (or if no preamble)
@@ -832,4 +825,4 @@ void StreamServer::Private::handleAcceptIpc(std::shared_ptr<Client> client,
 }
 #endif
 
-} // namespace mesytec::mvlc
+} // namespace mesytec::mvlc::stream
