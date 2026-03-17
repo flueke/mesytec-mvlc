@@ -32,10 +32,8 @@ target_compile_options(minizip
 target_include_directories(minizip
     PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/minizip-ng-3.0.10>)
 
-# pybind11
-if (MVLC_ENABLE_PYTHON)
-    add_subdirectory(pybind11-2.5.0)
-endif(MVLC_ENABLE_PYTHON)
+set(PYBIND11_FINDPYTHON ON)
+add_subdirectory(pybind11-3.0.1)
 
 # yaml-cpp
 option(YAML_CPP_BUILD_TESTS "Enable testing" OFF)
@@ -69,7 +67,7 @@ if (NOT MESYTEC_MVLC_PLATFORM_WINDOWS OR (NOT DEFINED VCPKG_TARGET_TRIPLET))
 endif()
 
 # Lyra command line parser
-add_subdirectory(Lyra)
+add_subdirectory(lyra-1.7.0)
 
 # spdlog
 if (NOT TARGET spdlog)

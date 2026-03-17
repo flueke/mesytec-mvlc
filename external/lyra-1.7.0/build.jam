@@ -1,0 +1,36 @@
+# Copyright René Ferdinand Rivera Morell
+# Distributed under the Boost Software License, Version 1.0.
+# (See accompanying file LICENSE.txt or copy at
+# http://www.boost.org/LICENSE_1_0.txt)
+
+#|
+This B2 project provides support for using the Lyra library externally as
+a standalone project or by embedding in your B2 project tree. To use
+externally you would need a `use-project` declaration and to use the
+project as a dependency where needed:
+
+----
+project-search /bfg_lyra : /path/to/bfg_lyra ;
+
+exe my_thing : main.cpp : <library>/bfg_lyra//bfg_lyra ;
+----
+|#
+
+require-b2 5.2.1 ;
+import project ;
+
+project /bfg_lyra ;
+
+if [ project.is-jamroot-module $(__name__) ]
+{
+	local attributes = [ project.attributes $(__name__) ] ;
+	$(attributes).set "build-dir" : .bin ;
+}
+
+alias bfg_lyra
+	: usage-requirements
+		<include>include ;
+
+explicit
+	[ alias all : data docs examples tests ]
+	;
