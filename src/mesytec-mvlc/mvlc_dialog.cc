@@ -166,7 +166,7 @@ std::error_code MVLCDialog_internal::readWords(u32 *dest, size_t count, size_t &
         m_logger->trace("readWords(): mvlc->read() returned {}, bytesTransferred={}",
             ec.message(), bytesTransferred);
 
-        //std::cout << __PRETTY_FUNCTION__
+        //std::cout << PRETTY_FUNCTION
         //    << " attempt=" << usedAttempts + 1
         //    << ", ec=" << ec.message()
         //    << ", bytesTransferred=" << bytesTransferred

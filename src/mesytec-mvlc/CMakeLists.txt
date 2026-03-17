@@ -88,6 +88,8 @@ else()
     #target_link_libraries(mesytec-mvlc PRIVATE ${LZ4_LIBRARIES})
 endif()
 
+target_compile_features(mesytec-mvlc PUBLIC cxx_std_17)
+
 target_include_directories(mesytec-mvlc
     PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/..>
     PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/..>
@@ -134,9 +136,12 @@ target_compile_options(mesytec-mvlc
 #target_compile_options(mesytec-mvlc PUBLIC -Wno-dangling-reference) # to silence spdlog warnings with some gcc-14
 target_compile_features(mesytec-mvlc PUBLIC cxx_std_17)
 
+if (MSYS OR NOT WIN32)
+    target_compile_options(mesytec-mvlc PRIVATE -Wno-format)
+endif()
+
 if (WIN32)
     target_link_libraries(mesytec-mvlc PRIVATE ws2_32 winmm mswsock)
-    target_compile_options(mesytec-mvlc PRIVATE -Wno-format)
     target_compile_definitions(mesytec-mvlc PRIVATE _WIN32_WINNT=0x0601)
 endif(WIN32)
 

@@ -42,7 +42,10 @@ option(YAML_CPP_BUILD_CONTRIB "Enable contrib stuff in library" OFF)
 option(YAML_CPP_INSTALL "Enable generation of install target" OFF)
 option(YAML_BUILD_SHARED_LIBS "Build Shared Libraries" OFF)
 add_subdirectory(yaml-cpp)
-target_compile_options(yaml-cpp PRIVATE -Wno-shadow)
+
+if (MSYS OR NOT WIN32)
+    target_compile_options(yaml-cpp PRIVATE -Wno-shadow)
+endif()
 
 # nlohmann/json
 set(JSON_BuildTests OFF CACHE INTERNAL "")

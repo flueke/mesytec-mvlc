@@ -84,7 +84,7 @@ std::error_code Impl::closeHandle()
 std::error_code Impl::connect()
 {
     auto logger = get_logger("mvlc_usb");
-    logger->trace("begin {}", __PRETTY_FUNCTION__);
+    logger->trace("begin {}", PRETTY_FUNCTION);
 
     if (isConnected())
         return make_error_code(MVLCErrorCode::IsConnected);
@@ -215,7 +215,7 @@ std::error_code Impl::connect()
 
     logger->trace("linux: CommandPipe read timeout set to 0");
 
-    logger->trace("end {}", __PRETTY_FUNCTION__);
+    logger->trace("end {}", PRETTY_FUNCTION);
 
     return {};
 }

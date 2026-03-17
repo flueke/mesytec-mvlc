@@ -4,7 +4,7 @@ if (MVLC_BUILD_DEV_TOOLS)
         add_executable(${exe_name} ${exe_source})
         target_link_libraries(${exe_name}
             PRIVATE mesytec-mvlc
-            PRIVATE BFG::Lyra
+            PRIVATE bfg::lyra
             PRIVATE spdlog::spdlog
         )
     endfunction()
@@ -64,7 +64,7 @@ if (MVLC_BUILD_TOOLS)
         add_executable(${exe_name} ${exe_source})
         target_link_libraries(${exe_name}
             PRIVATE mesytec-mvlc
-            PRIVATE BFG::Lyra
+            PRIVATE bfg::lyra
             PRIVATE spdlog::spdlog
         )
     endfunction()
@@ -77,6 +77,6 @@ if (MVLC_BUILD_TOOLS)
         target_link_libraries(mvlc-zmq-test-receiver PRIVATE mesytec-mvlc)
 
         add_mvlc_tool(mvlc-zmq-listfile-sender mvlc_zmq_listfile_sender.cc)
-        target_link_libraries(mvlc-zmq-listfile-sender PRIVATE mesytec-mvlc PRIVATE BFG::Lyra)
+        target_link_libraries(mvlc-zmq-listfile-sender PRIVATE mesytec-mvlc PRIVATE bfg::lyra)
     endif(MVLC_ENABLE_ZMQ)
 endif(MVLC_BUILD_TOOLS)

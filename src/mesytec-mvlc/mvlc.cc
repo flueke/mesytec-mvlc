@@ -1525,7 +1525,7 @@ MVLC::MVLC()
 MVLC::MVLC(std::unique_ptr<MVLCBasicInterface> &&impl)
     : d(std::make_shared<Private>(std::move(impl)))
 {
-    get_logger("mvlc")->trace(__PRETTY_FUNCTION__);
+    get_logger("mvlc")->trace(PRETTY_FUNCTION);
 }
 
 MVLC::~MVLC()
