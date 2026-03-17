@@ -46,15 +46,23 @@ GenericSocketAddress make_socket_address(const GenericEndpoint &endpoint)
     switch (data->sa_family)
     {
     case AF_INET:
-        return {"tcp4", inet_ntoa(((sockaddr_in *)data)->sin_addr),
-                std::to_string(ntohs(((sockaddr_in *)data)->sin_port))};
+    {
+        char buf[1024];
+        inet_ntop(AF_INET, &((sockaddr_in *)data)->sin_addr, buf, sizeof(buf));
+        return {"tcp4", buf, std::to_string(ntohs(((sockaddr_in *)data)->sin_port))};
+    }
     case AF_INET6:
-        // inet_ntop + port...
-        break;
+    {
+        char buf[1024];
+        inet_ntop(AF_INET, &((sockaddr_in6 *)data)->sin6_addr, buf, sizeof(buf));
+        return {"tcp6", buf, std::to_string(ntohs(((sockaddr_in6 *)data)->sin6_port))};
+    }
+#ifdef ENABLE_UNIX_DOMAIN_SOCKETS
     case AF_UNIX:
         return {"ipc",
                 std::string(((sockaddr_un *)data)->sun_path, len - offsetof(sockaddr_un, sun_path)),
                 ""};
+#endif
     }
     return {"unknown", "", ""};
 }

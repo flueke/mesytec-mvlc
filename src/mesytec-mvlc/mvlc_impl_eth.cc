@@ -10,6 +10,7 @@
 #include "mvlc_util.h"
 #include "util/io_util.h"
 #include "util/logging.h"
+#include "util/pretty_function.h"
 #include "util/storage_sizes.h"
 #include "util/string_view.hpp"
 

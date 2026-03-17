@@ -42,6 +42,7 @@
 #include "mvlc_eth_interface.h"
 #include "mvlc_usb_interface.h"
 #include "util/logging.h"
+#include "util/pretty_function.h"
 #include "util/storage_sizes.h"
 #include "vme_constants.h"
 

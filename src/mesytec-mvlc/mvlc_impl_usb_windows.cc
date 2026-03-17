@@ -34,6 +34,7 @@
 #include "mvlc_error.h"
 #include "mvlc_util.h"
 #include "util/logging.h"
+#include "util/pretty_function.h"
 
 #define USB_WIN_USE_ASYNC 0
 // TODO: remove the non-ex code paths
