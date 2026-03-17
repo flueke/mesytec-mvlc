@@ -10,6 +10,10 @@
 
 using namespace mesytec::mvlc;
 
+#ifdef MESYTEC_MVLC_PLATFORM_WINDOWS
+using ssize_t = std::uint64_t;
+#endif
+
 std::error_code reconnect_ipc(asio::local::stream_protocol::socket &socket,
                               const std::string &socketPath)
 {

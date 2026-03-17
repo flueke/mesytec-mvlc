@@ -128,7 +128,7 @@ int main(int argc, char *argv[])
 
     if (!parseResult)
     {
-        cout << parseResult.errorMessage() << endl;
+        cout << parseResult.message() << endl;
         return 1;
     }
 

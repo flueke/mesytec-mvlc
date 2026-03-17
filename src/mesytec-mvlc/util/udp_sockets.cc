@@ -39,18 +39,6 @@ static const unsigned DefaultReadTimeout_ms  = 500;
 // UDP header is 8 bytes
 static const size_t MaxPayloadSize = 1500 - 20 - 8;
 
-struct timeval ms_to_timeval(unsigned ms)
-{
-    unsigned seconds = ms / 1000;
-    ms -= seconds * 1000;
-
-    struct timeval tv;
-    tv.tv_sec  = seconds;
-    tv.tv_usec = ms * 1000;
-
-    return tv;
-}
-
 static bool socketSystemInitialized = false;
 
 void init_socket_system()
@@ -73,6 +61,19 @@ void init_socket_system()
 
 namespace mesytec::mvlc::eth
 {
+
+inline struct timeval ms_to_timeval(unsigned ms)
+{
+    unsigned seconds = ms / 1000;
+    ms -= seconds * 1000;
+
+    struct timeval tv;
+    tv.tv_sec  = seconds;
+    tv.tv_usec = ms * 1000;
+
+    return tv;
+}
+
 
 int connect_udp_socket(const std::string &host, u16 port, std::error_code *ecp)
 {

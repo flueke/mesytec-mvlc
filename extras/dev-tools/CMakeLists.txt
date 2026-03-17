@@ -51,11 +51,13 @@ if (MVLC_BUILD_DEV_TOOLS)
     # This does not directly use asio. Instead the StreamServer api is used
     # which hides asio completely.
     add_mvlc_dev_tool(mvlc_stream_test_server_asio mvlc_stream_test_server_asio.cc)
-    target_link_libraries(mvlc_stream_test_server_asio PRIVATE asio pthread)
+    target_link_libraries(mvlc_stream_test_server_asio PRIVATE asio)
 
     if (WIN32)
         target_link_libraries(mvlc_stream_test_client_asio PRIVATE ws2_32 winmm)
         target_link_libraries(mvlc_stream_test_server_asio PRIVATE ws2_32 winmm)
+    else()
+        target_link_libraies(mvlc_stream_test_server_asio PRIVATE pthread)
     endif(WIN32)
 endif(MVLC_BUILD_DEV_TOOLS)
 

@@ -225,6 +225,7 @@ if (MVLC_BUILD_TESTS)
             PRIVATE mesytec-mvlc
             PRIVATE gtest
             PRIVATE gtest_main
+            PRIVATE spdlog::spdlog
             PRIVATE uri-parser
             )
 
