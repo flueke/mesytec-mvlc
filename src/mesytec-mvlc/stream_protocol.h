@@ -11,7 +11,7 @@ namespace mesytec::mvlc::stream
 
 // Protocol definitions for the framed streaming protocol used by
 // MvmeStreamServer. If the unframed format is used, none of this applies and
-// raw readout data is streamed unmodified.
+// raw MVLC readout data is streamed unmodified.
 //
 // In framed format each frame is preceded by two header words in little endian
 // order. The first word contains a frame type field and the number of 32-bit

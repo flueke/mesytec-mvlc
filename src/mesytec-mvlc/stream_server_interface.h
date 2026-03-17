@@ -9,6 +9,17 @@
 namespace mesytec::mvlc::stream
 {
 
+// Interface for a streaming (readout) data server. An asio based implementation
+// can be found in stream_server_asio.{h,cc}.
+//
+// The interface is designed to allow for efficient "broadcasts" of data buffers
+// to all connected clients.
+//
+// Supported URL formats:
+// - TCP: tcp://<host>:<port>
+//        tcp4:// and tcp6:// can be used to force a specific IP version.
+//        Use '*' for the host part to listen on all interfaces, e.g. tcp://*:55333
+// - IPC: ipc://<socket_path> or unix://<socket_path> for Unix domain sockets, e.g. ipc:///tmp/mvlc_stream_server.ipc
 class MESYTEC_MVLC_EXPORT IStreamServer
 {
   public:
@@ -26,10 +37,10 @@ class MESYTEC_MVLC_EXPORT IStreamServer
     explicit IStreamServer() = default;
     virtual ~IStreamServer();
 
-    // True if the server is able to listen on the given url.
+    // Returns true if the server is able to listen on the given url.
     virtual bool listen(const std::string &url) = 0;
 
-    // True if the server i s listening on at least one address.
+    // True if the server is listening on at least one address.
     virtual bool isListening() const = 0;
 
     // Stop listening and disconnect all clients.
@@ -37,6 +48,7 @@ class MESYTEC_MVLC_EXPORT IStreamServer
     // otherwise.
     virtual bool stop() = 0;
 
+    // The number of currently connected clients.
     virtual size_t clientCount() const = 0;
 
     // List of active listening addresses.
