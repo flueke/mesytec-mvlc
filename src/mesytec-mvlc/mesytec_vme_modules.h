@@ -28,6 +28,7 @@ struct MESYTEC_MVLC_EXPORT HardwareIds
     static const u16 MDPP_32 = 0x5007;
     static const u16 MVLC    = 0x5008;
     static const u16 MVHV_4  = 0x5009;
+    static const u16 MDLL_v2 = 0x500a;
 };
 
 // Firmware type is encoded in the highest nibble of the firmware register
