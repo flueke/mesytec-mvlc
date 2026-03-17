@@ -4,7 +4,7 @@ if (MVLC_BUILD_DEV_TOOLS)
         add_executable(${exe_name} ${exe_source})
         target_link_libraries(${exe_name}
             PRIVATE mesytec-mvlc
-            PRIVATE BFG::Lyra
+            PRIVATE bfg::lyra
             PRIVATE spdlog::spdlog
         )
     endfunction()
@@ -51,11 +51,13 @@ if (MVLC_BUILD_DEV_TOOLS)
     # This does not directly use asio. Instead the StreamServer api is used
     # which hides asio completely.
     add_mvlc_dev_tool(mvlc_stream_test_server_asio mvlc_stream_test_server_asio.cc)
-    target_link_libraries(mvlc_stream_test_server_asio PRIVATE asio pthread)
+    target_link_libraries(mvlc_stream_test_server_asio PRIVATE asio)
 
     if (WIN32)
         target_link_libraries(mvlc_stream_test_client_asio PRIVATE ws2_32 winmm)
         target_link_libraries(mvlc_stream_test_server_asio PRIVATE ws2_32 winmm)
+    else()
+        target_link_libraies(mvlc_stream_test_server_asio PRIVATE pthread)
     endif(WIN32)
 endif(MVLC_BUILD_DEV_TOOLS)
 
@@ -64,7 +66,7 @@ if (MVLC_BUILD_TOOLS)
         add_executable(${exe_name} ${exe_source})
         target_link_libraries(${exe_name}
             PRIVATE mesytec-mvlc
-            PRIVATE BFG::Lyra
+            PRIVATE bfg::lyra
             PRIVATE spdlog::spdlog
         )
     endfunction()
@@ -77,6 +79,6 @@ if (MVLC_BUILD_TOOLS)
         target_link_libraries(mvlc-zmq-test-receiver PRIVATE mesytec-mvlc)
 
         add_mvlc_tool(mvlc-zmq-listfile-sender mvlc_zmq_listfile_sender.cc)
-        target_link_libraries(mvlc-zmq-listfile-sender PRIVATE mesytec-mvlc PRIVATE BFG::Lyra)
+        target_link_libraries(mvlc-zmq-listfile-sender PRIVATE mesytec-mvlc PRIVATE bfg::lyra)
     endif(MVLC_ENABLE_ZMQ)
 endif(MVLC_BUILD_TOOLS)

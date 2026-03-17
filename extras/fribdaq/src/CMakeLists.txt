@@ -6,14 +6,14 @@ set(NSCLDAQ_ROOT "_"  CACHE STRING "_")
 # 
 
 if (NSCLDAQ_ROOT STREQUAL "_")    # not defined.
-    
+
 else ()
     find_package(TCL REQUIRED)
 
     if (NOT ${TCL_FOUND})
         message(FATAL_ERROR, "TCl headers and libraries must be installed")
     endif()
-    add_executable(fribdaq-readout 
+    add_executable(fribdaq-readout
     fribdaq_readout.cc
     username.cc
     parser_callbacks.cc
@@ -52,7 +52,7 @@ else ()
     )
     target_link_libraries(fribdaq-readout
         PRIVATE mesytec-mvlc
-        PRIVATE BFG::Lyra
+        PRIVATE bfg::lyra
         PRIVATE spdlog::spdlog
         PRIVATE ${NSCLDAQ_ROOT}/lib/libdataformat.so
         PRIVATE ${NSCLDAQ_ROOT}/lib/liburl.so
@@ -62,10 +62,10 @@ else ()
         PRIVATE ${NSCLDAQ_ROOT}/lib/libException.so
         PRIVATE ${NSCLDAQ_ROOT}/lib/libConfigurableObject.so
         PRIVATE ${TCL_LIBRARY}
-    )  
+    )
     target_link_options(fribdaq-readout PRIVATE
         -ldl -Wl,-rpath=${NSCLDAQ_ROOT}/lib -lm
-    )  
+    )
     install(TARGETS fribdaq-readout)
 
     # Slow controls client library:
@@ -79,7 +79,7 @@ else ()
         ${NSCLDAQ_ROOT}/include
         ${TCL_INCLUDE_PATH}
     )
-    target_link_libraries(slowControlsClient 
+    target_link_libraries(slowControlsClient
         PRIVATE ${NSCLDAQ_ROOT}/lib/libtclPlus.so
         PRIVATE ${NSCLDAQ_ROOT}/lib/libException.so
         PRIVATE ${TCL_LIBRARY}
@@ -88,7 +88,7 @@ else ()
         -Wl,-rpath=${NSCLDAQ_ROOT}/lib -lm
     )
     set_target_properties(slowControlsClient PROPERTIES
-         PUBLIC_HEADER 
+         PUBLIC_HEADER
         "CVMEClient.h;SlowControlsDriver.h;SlowControlsModuleCommand.h"
     )
     #
@@ -105,6 +105,3 @@ else ()
 
 
 endif ()
-
-
-

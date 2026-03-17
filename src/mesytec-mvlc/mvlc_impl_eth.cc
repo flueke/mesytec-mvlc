@@ -10,6 +10,7 @@
 #include "mvlc_util.h"
 #include "util/io_util.h"
 #include "util/logging.h"
+#include "util/pretty_function.h"
 #include "util/storage_sizes.h"
 #include "util/string_view.hpp"
 
@@ -595,7 +596,7 @@ Impl::~Impl()
 std::error_code Impl::connect()
 {
     auto logger = get_logger("mvlc_eth");
-    logger->trace("begin {}", __PRETTY_FUNCTION__);
+    logger->trace("begin {}", PRETTY_FUNCTION);
 
     auto close_sockets = [this] ()
     {
@@ -865,7 +866,7 @@ std::error_code Impl::connect()
         std::ref(d->m_throttleCounters));
 #endif
 
-    spdlog::trace("end {}", __PRETTY_FUNCTION__);
+    spdlog::trace("end {}", PRETTY_FUNCTION);
 
     return {};
 }

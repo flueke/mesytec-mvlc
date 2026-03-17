@@ -59,6 +59,8 @@ std::error_code MESYTEC_MVLC_EXPORT get_socket_receive_buffer_size(
 std::error_code MESYTEC_MVLC_EXPORT set_socket_receive_buffer_size(
     int sockfd, int desiredBufferSize, int *actualBufferSize = 0);
 
+struct timeval ms_to_timeval(unsigned ms);
+
 }
 
 #endif /* B89C2539_0D86_4151_8EEE_87B5BBB2FA52 */

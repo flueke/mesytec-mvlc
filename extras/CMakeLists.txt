@@ -16,7 +16,7 @@ if (UNIX AND NOT APPLE)
     add_executable(netlink-monitor-rmem netlink-socket-mem-monitoring/netlink-monitor-rmem.cc)
     target_link_libraries(netlink-monitor-rmem
         PRIVATE mesytec-mvlc
-        PRIVATE BFG::Lyra)
+        PRIVATE bfg::lyra)
 endif()
 
 install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/cmake-example
@@ -24,8 +24,9 @@ install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/cmake-example
 
 find_package(Threads REQUIRED)
 
+find_package(Boost COMPONENTS endian REQUIRED)
 add_executable(mvlc_stream_client_asio mvlc_stream_client_asio.cc)
-target_link_libraries(mvlc_stream_client_asio PRIVATE mesytec-mvlc Threads::Threads)
+target_link_libraries(mvlc_stream_client_asio PRIVATE mesytec-mvlc Threads::Threads Boost::endian spdlog::spdlog)
 target_compile_definitions(mvlc_stream_client_asio PRIVATE ASIO_SEPARATE_COMPILATION)
 target_include_directories(mvlc_stream_client_asio SYSTEM PRIVATE ${MESYTEC_MVLC_SOURCE_DIR}/external/asio-1.36.0/include)
 target_sources(mvlc_stream_client_asio PRIVATE ${MESYTEC_MVLC_SOURCE_DIR}/external/asio-1.36.0/src/asio.cpp)

@@ -207,7 +207,7 @@ TEST(mvlc_listfile_zip, LZ4Data)
             ASSERT_EQ(outData0.size(), totalBytesRead);
             ASSERT_EQ(outData0, readBuffer);
 
-            //cout << __PRETTY_FUNCTION__ << " ReadChunkSize=" << ReadChunkSize
+            //cout << PRETTY_FUNCTION << " ReadChunkSize=" << ReadChunkSize
             //    << ", totalBytesRead=" << totalBytesRead
             //    << ", readCount=" << readCount
             //    << endl;

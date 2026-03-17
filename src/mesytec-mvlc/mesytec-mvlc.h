@@ -28,6 +28,7 @@
 #ifndef __MESYTEC_MVLC_H__
 #define __MESYTEC_MVLC_H__
 
+#include "util/pretty_function.h"
 #include "cpp_compat.h"
 #include "event_builder.h"
 #include "event_builder2.hpp"

@@ -12,6 +12,10 @@
 #include <thread>
 #include <vector>
 
+#ifdef MESYTEC_MVLC_PLATFORM_WINDOWS
+using ssize_t = std::uint64_t;
+#endif
+
 // TODO:
 // - always handle systemframes with crateconfig info. the client has to update
 //    the config as a different file/run might be streamed.
@@ -130,20 +134,37 @@ void reset_state(ClientContext &ctx)
     ctx.framesReceivedInInterval = 0;
     ctx.readsInInterval = 0;
     ctx.lastReportTime = std::chrono::steady_clock::now();
-    ctx.mvlcState = {};
+    ctx.mvlcState = MvlcParsingState();
 }
 
+inline struct timeval ms_to_timeval(unsigned ms)
+{
+    unsigned seconds = ms / 1000;
+    ms -= seconds * 1000;
+
+    struct timeval tv;
+    tv.tv_sec  = seconds;
+    tv.tv_usec = ms * 1000;
+
+    return tv;
+}
+
+#ifdef MESYTEC_MVLC_PLATFORM_WINDOWS
 // Set socket timeouts for send and receive operations
 template <typename Socket> void set_socket_timeout(Socket &sock, std::chrono::milliseconds timeout)
 {
-    struct timeval tv
-    {
-        static_cast<time_t>(timeout.count() / 1000),
-            static_cast<suseconds_t>((timeout.count() % 1000) * 1000)
-    };
+    DWORD optval = timeout.count();
+    setsockopt(sock.native_handle(), SOL_SOCKET, SO_RCVTIMEO, reinterpret_cast<const char *>(&optval), sizeof(optval));
+    setsockopt(sock.native_handle(), SOL_SOCKET, SO_SNDTIMEO, reinterpret_cast<const char *>(&optval), sizeof(optval));
+}
+#else
+template <typename Socket> void set_socket_timeout(Socket &sock, std::chrono::milliseconds timeout)
+{
+    struct timeval tv = ms_to_timeval(timeout.count());
     setsockopt(sock.native_handle(), SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
     setsockopt(sock.native_handle(), SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
 }
+#endif
 
 // TCP connection helper
 std::error_code connect_tcp(asio::ip::tcp::socket &socket, const std::string &host,

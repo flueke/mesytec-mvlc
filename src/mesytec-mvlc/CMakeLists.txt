@@ -88,6 +88,8 @@ else()
     #target_link_libraries(mesytec-mvlc PRIVATE ${LZ4_LIBRARIES})
 endif()
 
+target_compile_features(mesytec-mvlc PUBLIC cxx_std_17)
+
 target_include_directories(mesytec-mvlc
     PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/..>
     PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/..>
@@ -97,13 +99,16 @@ target_include_directories(mesytec-mvlc
 target_link_libraries(mesytec-mvlc
     PRIVATE minizip
     PRIVATE nlohmann_json::nlohmann_json
-    PRIVATE pthread
     PRIVATE uri-parser
     PRIVATE yaml-cpp
     PUBLIC argh
-    PUBLIC spdlog::spdlog
+    PRIVATE spdlog::spdlog
     PUBLIC Threads::Threads
     )
+
+if (NOT WIN32)
+    target_link_libraries(mesytec-mvlc PRIVATE pthread)
+endif()
 
 find_package(ZMQ)
 if(ZMQ_FOUND)
@@ -126,17 +131,18 @@ endif()
 set(MVLC_SPDLOG_ACTIVE_LEVEL "SPDLOG_LEVEL_WARN" CACHE STRING "Compile time spdlog level for the library")
 
 target_compile_definitions(mesytec-mvlc PRIVATE SPDLOG_ACTIVE_LEVEL=${MVLC_SPDLOG_ACTIVE_LEVEL})
-target_compile_options(mesytec-mvlc
-    PRIVATE $<${not-msvc}:-Wall -Wextra>
-    PRIVATE $<${not-msvc}:-Werror=return-type> # turn missing returns into errors. these cases lead to weird crashes.
-    )
-#target_compile_options(mesytec-mvlc PRIVATE -Wall -Wextra -Wimplicit-fallthrough)
-#target_compile_options(mesytec-mvlc PUBLIC -Wno-dangling-reference) # to silence spdlog warnings with some gcc-14
+
 target_compile_features(mesytec-mvlc PUBLIC cxx_std_17)
+
+if (MSYS OR NOT WIN32)
+    target_compile_options(mesytec-mvlc
+        PRIVATE $<${not-msvc}:-Wall -Wextra>
+        PRIVATE $<${not-msvc}:-Werror=return-type> # turn missing returns into errors. these cases lead to weird crashes.
+        )
+endif()
 
 if (WIN32)
     target_link_libraries(mesytec-mvlc PRIVATE ws2_32 winmm mswsock)
-    target_compile_options(mesytec-mvlc PRIVATE -Wno-format)
     target_compile_definitions(mesytec-mvlc PRIVATE _WIN32_WINNT=0x0601)
 endif(WIN32)
 
@@ -219,6 +225,7 @@ if (MVLC_BUILD_TESTS)
             PRIVATE mesytec-mvlc
             PRIVATE gtest
             PRIVATE gtest_main
+            PRIVATE spdlog::spdlog
             PRIVATE uri-parser
             )
 
@@ -249,8 +256,10 @@ if (MVLC_BUILD_TESTS)
 
     add_gtest(test_stream_server stream_server_asio.test.cc)
     set_tests_properties(test_stream_server PROPERTIES LABELS "not_in_docker")
-    target_link_libraries(test_stream_server PRIVATE asio pthread)
+    target_link_libraries(test_stream_server PRIVATE asio)
     if (WIN32)
         target_link_libraries(test_stream_server PRIVATE ws2_32 winmm mswsock)
-    endif(WIN32)
+    else()
+        target_link_libraries(test_stream_server PRIVATE pthread)
+    endif()
 endif(MVLC_BUILD_TESTS)

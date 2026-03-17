@@ -1,3 +1,3 @@
 add_executable(mvlc-cli mvlc-cli.cc)
-target_link_libraries(mvlc-cli PRIVATE mesytec-mvlc argh yaml-cpp)
+target_link_libraries(mvlc-cli PRIVATE mesytec-mvlc argh yaml-cpp spdlog::spdlog)
 install(TARGETS mvlc-cli RUNTIME DESTINATION bin)
