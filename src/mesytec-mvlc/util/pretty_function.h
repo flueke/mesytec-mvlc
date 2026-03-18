@@ -3,7 +3,7 @@
 
 #ifndef PRETTY_FUNCTION
     #if defined(__GNUC__) || (defined(__clang__) && !defined(_MSC_VER))
-        #define PRETTY_FUNCTION PRETTY_FUNCTION
+        #define PRETTY_FUNCTION __PRETTY_FUNCTION__
     #elif defined(_MSC_VER)
         #define PRETTY_FUNCTION __FUNCSIG__
     #else
