@@ -27,7 +27,7 @@ int main(int argc, char *argv[])
 
     if (!cliParseResult)
     {
-        cerr << "Error parsing command line arguments: " << cliParseResult.errorMessage() << "\n";
+        cerr << "Error parsing command line arguments: " << cliParseResult.message() << "\n";
         return 1;
     }
 

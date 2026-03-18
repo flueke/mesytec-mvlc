@@ -16,7 +16,8 @@ if (UNIX AND NOT APPLE)
     add_executable(netlink-monitor-rmem netlink-socket-mem-monitoring/netlink-monitor-rmem.cc)
     target_link_libraries(netlink-monitor-rmem
         PRIVATE mesytec-mvlc
-        PRIVATE bfg::lyra)
+        PRIVATE bfg::lyra
+        PRIVATE spdlog::spdlog)
 endif()
 
 install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/cmake-example

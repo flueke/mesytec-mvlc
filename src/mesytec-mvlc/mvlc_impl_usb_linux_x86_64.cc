@@ -34,6 +34,7 @@
 #include "mvlc_error.h"
 #include "mvlc_util.h"
 #include "util/logging.h"
+#include "util/pretty_function.h"
 
 namespace
 {
