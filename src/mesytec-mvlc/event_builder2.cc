@@ -4,6 +4,7 @@
 #include <sstream>
 #include <unordered_set>
 
+#include <mesytec-mvlc/util/protected.h>
 #include <mesytec-mvlc/util/ticketmutex.h>
 #include <spdlog/spdlog.h>
 
@@ -291,9 +292,17 @@ struct EventBuilder2::Private
     // Used for the callback interface which requires a flat ModuleData array.
     std::vector<ModuleData> outputModuleData_;
     std::vector<ModuleStorage> outputModuleStorage_;
-
     mvlc::TicketMutex mutex_;
+
+
+    // This is updated during runtime.
     BuilderCounters counters_;
+
+    // Copy of the counters protected by a mutex. This is returned from
+    // getCounters(). This deliberately has its own mutex to avoid deadlocks
+    // when calling getCounters() from within a callback invoked by the event
+    // builder.
+    Protected<BuilderCounters> protectedCounters_;
 
     bool checkConsistency(int eventIndex, const ModuleData *moduleDataList, unsigned moduleCount)
     {
@@ -419,13 +428,14 @@ struct EventBuilder2::Private
                 if (auto ts = eventData.moduleDatas[mi].back().timestamp; ts.has_value())
                 {
                     eventData.allTimestamps.push_back(*ts);
+                    eventCtrs.allStampsSize = eventData.allTimestamps.size();
 
                     if (!fillerTs.has_value())
                     {
                         fillerTs = ts;
-                        spdlog::trace(
-                            "recordModuleData: eventIndex={}, moduleIndex={} -> set fillerTs={}",
-                            eventIndex, mi, fillerTs.value());
+                        spdlog::trace("recordModuleData: eventIndex={}, moduleIndex={} -> provides "
+                                      "fillerTs={}",
+                                      eventIndex, mi, fillerTs.value());
                     }
                 }
             }
@@ -468,6 +478,10 @@ struct EventBuilder2::Private
                      eventIndex, moduleCount);
 
         ++eventCtrs.recordingFailed;
+
+        // counters lock is held by the public recordModuleData()
+        protectedCounters_.access().ref() = counters_;
+
         return false;
     }
 
@@ -496,7 +510,7 @@ struct EventBuilder2::Private
         const auto refTs = eventData.allTimestamps.front();
         bool haveData = false;
 
-        // check if the latest timestamps of all modules are "in the future",
+        // Check if the latest timestamps of all modules are "in the future",
         // e.g. too new to be in the match window of the current reference
         // stamp.
         for (size_t mi = 0; mi < moduleCount; ++mi)
@@ -757,7 +771,7 @@ EventBuilder2::EventBuilder2(const EventBuilderConfig &cfg, Callbacks callbacks,
         for (size_t mi = 0; mi < ec.moduleConfigs.size(); ++mi)
             ctrs.moduleNames[mi] = ec.moduleConfigs.at(mi).name;
 
-        ctrs.dtInputHistos  = create_dt_histograms(ec.moduleConfigs, cfg.dtHistoBinning);
+        ctrs.dtInputHistos = create_dt_histograms(ec.moduleConfigs, cfg.dtHistoBinning);
         ctrs.dtOutputHistos = create_dt_histograms(ec.moduleConfigs, cfg.dtHistoBinning);
         ctrs.eventName = ec.name;
     }
@@ -826,6 +840,9 @@ size_t EventBuilder2::flush(bool force)
             //     fmt::print("post tryFlush: {}\n", debugDump());
         }
     }
+
+    // counters lock is held by the public recordModuleData()
+    d->protectedCounters_.access().ref() = d->counters_;
 
     return flushed;
 }
@@ -897,8 +914,7 @@ bool EventBuilder2::isEnabledForAnyEvent() const
 
 BuilderCounters EventBuilder2::getCounters() const
 {
-    std::unique_lock<mvlc::TicketMutex> guard(d->mutex_);
-    return d->counters_;
+    return d->protectedCounters_.copy();
 }
 
 std::vector<std::vector<ModuleDeltaHisto>> BuilderCounters::getInputDtHistograms() const
