@@ -1,4 +1,5 @@
 #include "event_builder2.hpp"
+#include "util/logging.h"
 #include <gtest/gtest.h>
 #include <spdlog/spdlog.h>
 #include <vector>
@@ -158,6 +159,17 @@ std::optional<u32> simple_timestamp_extractor(const u32 *data, size_t size)
     if (size > 0)
         return data[0];
     return {};
+}
+
+const u32 MatchPrefix = 0x10000000;
+const u32 ExtractMask = 0x7FFFFFFF;
+
+std::optional<u32> bitprefixed_timestamp_extractor(const u32 *data, size_t size)
+{
+    if (size > 0 && (data[0] & MatchPrefix))
+        return (data[0] & ExtractMask) & ~MatchPrefix;
+    return {};
+
 }
 
 } // namespace
@@ -611,3 +623,120 @@ TEST(EventBuilder2, OneModuleEmptyEvents)
 #endif
 }
 #endif
+
+TEST(EventBuilder2, TwoModulesOneFailedStamp)
+{
+    set_global_log_level(spdlog::level::trace);
+    ModuleConfig mod0;
+    mod0.name = "mod0";
+    mod0.tsExtractor = bitprefixed_timestamp_extractor;
+    mod0.window = 20;
+    mod0.offset = 0;
+    mod0.prefixSize = 1;
+
+    ModuleConfig mod1;
+    mod0.name = "mod1";
+    mod1.tsExtractor = bitprefixed_timestamp_extractor;
+    mod1.window = 20;
+    mod1.offset = 0;
+    mod1.prefixSize = 1;
+
+    EventConfig eventConfig;
+    eventConfig.moduleConfigs = {mod0, mod1};
+    eventConfig.enabled = true;
+    EventBuilderConfig cfg;
+    cfg.eventConfigs.push_back(eventConfig);
+
+    size_t dataCallbackCount = 0;
+
+    auto eventDataCallback = [&](void *, int crateIndex, int eventIndex,
+                                 const ModuleData *moduleDataList, unsigned moduleCount)
+    {
+        ++dataCallbackCount;
+        spdlog::trace("eventDataCallback: crateIndex={}, eventIndex={}, moduleCount={}", crateIndex,
+                      eventIndex, moduleCount);
+        for (size_t i = 0; i < moduleCount; ++i)
+        {
+            spdlog::trace(
+                "eventDataCallback: module{}: size={}, data={}", i, moduleDataList[i].data.size,
+                fmt::join(moduleDataList[i].data.data,
+                          moduleDataList[i].data.data + moduleDataList[i].data.size, ", "));
+        }
+    };
+
+    auto systemEventCallback = [&](void *, int, const u32 *, u32) {};
+
+    EventBuilder2 eb(cfg, {eventDataCallback, systemEventCallback});
+
+    std::vector<ModuleDataStorage> moduleTestData;
+
+    // both modules produce ts=0
+    moduleTestData = {{{0u | MatchPrefix}}, {{0 | MatchPrefix}}};
+    eb.recordModuleData(0, to_module_data_list(moduleTestData).data(), moduleTestData.size());
+
+    fmt::print(eb.debugDump("0"));
+    ASSERT_EQ(eb.flush(), 0);
+    ASSERT_EQ(dataCallbackCount, 0);
+
+    // both modules produce ts=0
+    moduleTestData = {{{5 | MatchPrefix}}, {{5 | MatchPrefix}}};
+    eb.recordModuleData(0, to_module_data_list(moduleTestData).data(), moduleTestData.size());
+    fmt::print(eb.debugDump("1"));
+    ASSERT_EQ(eb.flush(), 0);
+    ASSERT_EQ(dataCallbackCount, 0);
+
+    // second module does not produce a stamp
+    moduleTestData = {{{10 | MatchPrefix}}, {{}}};
+    eb.recordModuleData(0, to_module_data_list(moduleTestData).data(), moduleTestData.size());
+    fmt::print(eb.debugDump("2"));
+    ASSERT_EQ(eb.flush(), 0);
+    ASSERT_EQ(dataCallbackCount, 0);
+
+    // second module is back
+    moduleTestData = {{{11 | MatchPrefix}}, {{11 | MatchPrefix}}};
+    eb.recordModuleData(0, to_module_data_list(moduleTestData).data(), moduleTestData.size());
+    fmt::print(eb.debugDump("3"));
+    //  0, 5, 10, 11 and 0, 5, 10, 11 -> yield
+    ASSERT_EQ(eb.flush(), 1);
+    ASSERT_EQ(dataCallbackCount, 1);
+
+    // and again no stamp
+    moduleTestData = {{{15 | MatchPrefix}}, {{}}};
+    eb.recordModuleData(0, to_module_data_list(moduleTestData).data(), moduleTestData.size());
+    fmt::print(eb.debugDump("4"));
+    // 5, 10, 11, 15 and 5, 10, 11, 15 -> cannot yield due to age
+    ASSERT_EQ(eb.flush(), 0);
+    ASSERT_EQ(dataCallbackCount, 1);
+
+    // no stamp either
+    moduleTestData = {{{16 | MatchPrefix}}, {{}}};
+    eb.recordModuleData(0, to_module_data_list(moduleTestData).data(), moduleTestData.size());
+    fmt::print(eb.debugDump("5"));
+
+    for (unsigned i=18; i<30; i+=2)
+    {
+        moduleTestData = {{{i | MatchPrefix}}, {{}}};
+        eb.recordModuleData(0, to_module_data_list(moduleTestData).data(), moduleTestData.size());
+        fmt::print(eb.debugDump(fmt::format("{}", i)));
+    }
+
+    ASSERT_EQ(eb.flush(), 5);
+    ASSERT_EQ(dataCallbackCount, 6);
+    fmt::print(eb.debugDump("6"));
+
+    // final flush
+    ASSERT_EQ(eb.flush(true), 6);
+    ASSERT_EQ(dataCallbackCount, 12);
+    fmt::print(eb.debugDump("final"));
+
+    for (unsigned i=30; i<40; i+=2)
+    {
+        moduleTestData = {{{i | MatchPrefix}}, {{}}};
+        eb.recordModuleData(0, to_module_data_list(moduleTestData).data(), moduleTestData.size());
+        fmt::print(eb.debugDump(fmt::format("{}", i)));
+    }
+
+    ASSERT_EQ(eb.flush(), 5);
+    ASSERT_EQ(dataCallbackCount, 6);
+    fmt::print(eb.debugDump("6"));
+}
