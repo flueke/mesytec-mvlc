@@ -102,7 +102,7 @@ target_link_libraries(mesytec-mvlc
     PRIVATE uri-parser
     PRIVATE yaml-cpp
     PUBLIC argh
-    PRIVATE spdlog::spdlog
+    PUBLIC spdlog::spdlog
     PUBLIC Threads::Threads
     )
 
