@@ -25,7 +25,7 @@ install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/cmake-example
 
 find_package(Threads REQUIRED)
 
-find_package(Boost)
+find_package(Boost CONFIG REQUIRED)
 add_executable(mvlc_stream_client_asio mvlc_stream_client_asio.cc)
 target_link_libraries(mvlc_stream_client_asio PRIVATE mesytec-mvlc Threads::Threads Boost::boost spdlog::spdlog)
 target_compile_definitions(mvlc_stream_client_asio PRIVATE ASIO_SEPARATE_COMPILATION)
