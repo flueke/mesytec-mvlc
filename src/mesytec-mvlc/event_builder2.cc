@@ -830,10 +830,15 @@ size_t EventBuilder2::flush(bool force)
     return flushed;
 }
 
-std::string EventBuilder2::debugDump() const
+std::string EventBuilder2::debugDump(const std::string &info) const
 {
     std::unique_lock<mvlc::TicketMutex> guard(d->mutex_);
     std::string result;
+
+    if (!info.empty())
+    {
+        result += fmt::format("EB2 debug dump: {}\n", info);
+    }
 
     for (size_t ei = 0; ei < d->perEventData_.size(); ++ei)
     {
@@ -844,9 +849,17 @@ std::string EventBuilder2::debugDump() const
         auto stampsBegin = std::begin(ed.allTimestamps);
         auto stampsEnd = stampsBegin;
         std::advance(stampsEnd, stampsToPrint);
+        auto stampsBegin2 = std::end(ed.allTimestamps);
+        std::advance(stampsBegin2, -stampsToPrint);
+
 
         result += fmt::format("  First {} timestamps of {}: {}\n", stampsToPrint,
                               ed.allTimestamps.size(), fmt::join(stampsBegin, stampsEnd, ", "));
+
+        result += fmt::format("  Last {} timestamps of {}: {}\n", stampsToPrint,
+                              ed.allTimestamps.size(), fmt::join(stampsBegin2, std::end(ed.allTimestamps), ", "));
+
+
 
         for (size_t mi = 0; mi < ed.moduleDatas.size(); ++mi)
         {
