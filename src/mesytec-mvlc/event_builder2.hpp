@@ -166,6 +166,7 @@ struct MESYTEC_MVLC_EXPORT EventCounters
 
     // non-module specific
     size_t recordingFailed = 0;
+    size_t allStampsSize = 0; // the size of the 'allTimestamps' queue
 
     // List of all dt histograms for this event. One histo for each module pair.
     // No duplicates.
@@ -209,8 +210,9 @@ class MESYTEC_MVLC_EXPORT EventBuilder2
     // if force is true all remaining events will be output until all module buffers are empty
     size_t flush(bool force = false);
 
-    std::string debugDump() const;
-    // std::string debugDumpConfig() const;
+    // Dump internal state to a string. Note: takes the internal mutex so it may
+    // not be called from within callbacks invoked by the event builder!
+    std::string debugDump(const std::string &info = {}) const;
 
     bool isEnabledForAnyEvent() const;
 

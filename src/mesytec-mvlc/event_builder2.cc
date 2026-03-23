@@ -205,6 +205,7 @@ std::string dump_counters(const EventCounters &counters)
 
     oss << fmt::format("currentMem:         {}\n", fmt::join(counters.currentMem, ", "));
     oss << fmt::format("maxMem:             {}\n", fmt::join(counters.maxMem, ", "));
+    oss << fmt::format("allStamps.size:     {}\n", counters.allStampsSize);
 
     return oss.str();
 }
