@@ -32,8 +32,10 @@ target_compile_options(minizip
 target_include_directories(minizip
     PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/minizip-ng-3.0.10>)
 
-set(PYBIND11_FINDPYTHON ON)
-add_subdirectory(pybind11-3.0.1)
+find_package(Python 3.8 COMPONENTS Interpreter Development)
+if (Python_FOUND)
+    add_subdirectory(pybind11-3.0.1)
+endif()
 
 # yaml-cpp
 option(YAML_CPP_BUILD_TESTS "Enable testing" OFF)
