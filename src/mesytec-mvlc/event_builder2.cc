@@ -1,6 +1,5 @@
 #include "event_builder2.hpp"
 
-#include <deque>
 #include <sstream>
 #include <unordered_set>
 
@@ -127,7 +126,6 @@ inline bool size_consistency_check(const ModuleStorage &md)
 
 struct PerEventData
 {
-
     // Timestamps of all modules of the incoming event are stored here.
     std::deque<TimestampType> allTimestamps;
     // Module data and extracted timestamps are stored here.
@@ -173,6 +171,7 @@ inline bool record_module_data(const ModuleData *moduleDataList, unsigned module
                 fmt::join(mdata.data.data, mdata.data.data + mdata.data.size, ", "));
         }
 
+        // this can push stamps without a value: the ones where the extraction failed.
         dest[mi].emplace_back(ModuleStorage(mdata, ts));
 
         ++counters.currentEvents[mi];
@@ -206,7 +205,21 @@ std::string dump_counters(const EventCounters &counters)
 
     oss << fmt::format("currentMem:         {}\n", fmt::join(counters.currentMem, ", "));
     oss << fmt::format("maxMem:             {}\n", fmt::join(counters.maxMem, ", "));
-    oss << fmt::format("allStamps.size:     {}\n", counters.allStampsSize);
+    oss << fmt::format("recordingFailed:    {}\n", counters.recordingFailed);
+    oss << fmt::format("discardsNoStamp:    {}\n", counters.discardsNoStamp);
+    oss << fmt::format("allTimestamps.size: {}\n", counters.allTimestamps.size());
+    oss << fmt::format("allTimestampsMaxSize: {}\n", counters.allTimestampsMaxSize);
+
+    oss << fmt::format("first 10 stamps:    {}\n",
+                       fmt::join(counters.allTimestamps.begin(),
+                                 counters.allTimestamps.begin() +
+                                     std::min<size_t>(10, counters.allTimestamps.size()),
+                                 ", "));
+
+    oss << fmt::format("last 10 stamps:     {}\n",
+                       fmt::join(counters.allTimestamps.end() -
+                                     std::min<size_t>(10, counters.allTimestamps.size()),
+                                 counters.allTimestamps.end(), ", "));
 
     return oss.str();
 }
@@ -389,10 +402,30 @@ struct EventBuilder2::Private
         // Record incoming module data and extracted timestamps.
         // If it returns false none of the ModuleStorages haven been modified.
         // Otherwise all of them have a new entry even if no timestamp could be extracted.
-        if (record_module_data(moduleDataList, moduleCount, eventCfg.moduleConfigs,
-                               eventData.moduleDatas, eventCtrs))
+
+        bool recordOk = record_module_data(moduleDataList, moduleCount, eventCfg.moduleConfigs,
+                               eventData.moduleDatas, eventCtrs);
+        if (recordOk)
         {
             // The back of each 'moduleDatas' queue now contains the newest data+timestamp.
+
+            // Check if all stamps are invalid. This means none of the modules
+            // yielded a stamp, either due to empty or corrupted data.
+            if (std::all_of(eventData.moduleDatas.begin(), eventData.moduleDatas.end(),
+                            [](const std::deque<ModuleStorage> &mds)
+                            { return mds.back().timestamp == std::nullopt; }))
+            {
+                // No stamps at all -> discard all data from this event. We
+                // wouldn't know when to yield it.
+                for (size_t mi = 0; mi < moduleCount; ++mi)
+                {
+                    ++eventCtrs.currentEvents[mi];
+                    const auto &mdata = eventData.moduleDatas[mi].back();
+                    eventCtrs.currentMem[mi] += mdata.data.size() * sizeof(u32);
+                    eventData.moduleDatas[mi].pop_back(); // discard
+                }
+                ++eventCtrs.discardsNoStamp; // count this once for the whole event
+            }
 
             // Fill input side dt histograms
             for (auto &dtHisto: eventCtrs.dtInputHistos)
@@ -420,16 +453,17 @@ struct EventBuilder2::Private
 
             // The filler stamp is used for modules that do not yield a valid
             // stamp. Makes flushing easier and keeps non-stamped modules together
-            // with their sister modules on output.
+            // with their sibling modules on output.
             std::optional<TimestampType> fillerTs;
 
             for (unsigned mi = 0; mi < moduleCount; ++mi)
             {
                 if (auto ts = eventData.moduleDatas[mi].back().timestamp; ts.has_value())
                 {
+                    // Record the stamps from all modules.
                     eventData.allTimestamps.push_back(*ts);
-                    eventCtrs.allStampsSize = eventData.allTimestamps.size();
 
+                    // Assign a filler stamp if we don't have one yet.
                     if (!fillerTs.has_value())
                     {
                         fillerTs = ts;
@@ -440,6 +474,7 @@ struct EventBuilder2::Private
                 }
             }
 
+            // Assign the filler stamp to modules that do not have a valid stamp.
             if (fillerTs.has_value())
             {
                 for (unsigned mi = 0; mi < moduleCount; ++mi)
@@ -464,25 +499,30 @@ struct EventBuilder2::Private
             }
             else
             {
+                // No filler stamp -> none of the modules in this event yielded a valid stamp.
+                // This is going to be fixed
                 spdlog::trace("recordModuleData: eventIndex={} -> no fillerTs available",
                               eventIndex);
             }
 
             spdlog::trace("leaving recordModuleData: eventIndex={}, moduleCount={} -> return true",
                           eventIndex, moduleCount);
-
-            return true;
+        }
+        else
+        {
+            // Some mismatch between config and actual readout data.
+            ++eventCtrs.recordingFailed;
         }
 
-        spdlog::warn("leaving recordModuleData: eventIndex={}, moduleCount={} -> return false",
-                     eventIndex, moduleCount);
+        spdlog::trace("leaving recordModuleData: eventIndex={}, moduleCount={} -> return {}",
+                     eventIndex, moduleCount, recordOk);
 
-        ++eventCtrs.recordingFailed;
+        eventCtrs.allTimestamps = eventData.allTimestamps;
+        eventCtrs.allTimestampsMaxSize = std::max(eventCtrs.allTimestampsMaxSize, eventData.allTimestamps.size());
 
-        // counters lock is held by the public recordModuleData()
-        protectedCounters_.access().ref() = counters_;
-
-        return false;
+        // Update the publicly accessible counters.
+        *protectedCounters_.access() = counters_;
+        return recordOk;
     }
 
     bool tryFlush(int eventIndex)
@@ -512,7 +552,8 @@ struct EventBuilder2::Private
 
         // Check if the latest timestamps of all modules are "in the future",
         // e.g. too new to be in the match window of the current reference
-        // stamp.
+        // stamp. This means we waited long enough for stamps to exceed the
+        // match window and that we can start flushing events.
         for (size_t mi = 0; mi < moduleCount; ++mi)
         {
             auto &mc = eventCfg.moduleConfigs[mi];
@@ -521,7 +562,6 @@ struct EventBuilder2::Private
             if (eventData.moduleDatas.at(mi).empty())
                 continue;
 
-            haveData = true;
             auto modTs = eventData.moduleDatas.at(mi).back().timestamp.value();
             auto matchResult = timestamp_match(refTs, modTs, mc.window);
             if (matchResult.match != WindowMatch::too_new)
@@ -532,6 +572,8 @@ struct EventBuilder2::Private
                               mi, refTs, modTs, mc.window, (int)matchResult.match);
                 return false;
             }
+
+            haveData = true;
         }
 
         if (!haveData)
@@ -586,7 +628,8 @@ struct EventBuilder2::Private
 
             outputModuleStorage_[mi] = ModuleStorage();
             // Set attributes from the config and resize data in case we do not
-            // actually get real input data for this module.
+            // actually get real input data for this module. This way the output
+            // arrays always have the expected size and structure.
             outputModuleStorage_[mi].prefixSize = moduleConfig.prefixSize;
             outputModuleStorage_[mi].hasDynamic = moduleConfig.hasDynamic;
             outputModuleStorage_[mi].data.resize(moduleConfig.prefixSize);
@@ -598,7 +641,7 @@ struct EventBuilder2::Private
                 auto modTs = moduleDatas.front().timestamp.value();
                 auto matchResult = timestamp_match(refTs, modTs, moduleConfig.window);
 
-                assert(matchResult.match != WindowMatch::too_old);
+                assert(matchResult.match != WindowMatch::too_old); // this data should've been popped above
                 s64 dt = refTs - modTs;
 
                 if (matchResult.match == WindowMatch::in_window)

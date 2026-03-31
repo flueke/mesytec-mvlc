@@ -1,6 +1,7 @@
 #ifndef BC399B1E_8B8A_42B2_8AD4_CB28FCE98B32
 #define BC399B1E_8B8A_42B2_8AD4_CB28FCE98B32
 
+#include <deque>
 #include <numeric>
 #include <optional>
 
@@ -39,6 +40,9 @@ static const auto DefaultMatchWindow = 8u;
 static const u32 TimestampMax = 0x3fffffffu; // 30 bits
 static const u32 TimestampHalf = TimestampMax >> 1;
 
+// Uses a bitlevel DataFilter and a word index to directly match and extract the
+// stamp from the indexed word. Negative indexes index from the end of the
+// module data: -1 means the last word of data.
 struct MESYTEC_MVLC_EXPORT IndexedTimestampFilterExtractor
 {
   public:
@@ -151,8 +155,8 @@ struct MESYTEC_MVLC_EXPORT EventCounters
     std::vector<size_t> inputHits;
     std::vector<size_t> outputHits;
     std::vector<size_t> emptyInputs;
-    std::vector<size_t> discardsAge; // number of event discarded due to stamp age
-    std::vector<size_t> stampFailed; // number of failed stamp extractions
+    std::vector<size_t> discardsAge;        // number of event discarded due to stamp age
+    std::vector<size_t> stampFailed;        // number of failed stamp extractions
     std::vector<std::string> moduleNames;
 
     // these can be determined from the contents of the data buffers
@@ -165,8 +169,10 @@ struct MESYTEC_MVLC_EXPORT EventCounters
     std::vector<size_t> maxMem;    // max mem usage so far (until flushed)
 
     // non-module specific
-    size_t recordingFailed = 0;
-    size_t allStampsSize = 0; // the size of the 'allTimestamps' queue
+    size_t recordingFailed = 0; // recording failed due to config vs data mismatch, e.g. unexpexted number of modules in an incoming event
+    size_t discardsNoStamp = 0; // number of incoming events that where discarded due to missing timestamp
+    std::deque<s64> allTimestamps; // copy of the internal timestamp buffer
+    size_t allTimestampsMaxSize = 0; // max size of the 'allTimestamps' queue so far
 
     // List of all dt histograms for this event. One histo for each module pair.
     // No duplicates.
