@@ -18,10 +18,18 @@ template<typename T>
 class [[nodiscard]] Access
 {
     public:
+        // explicit deref
         T &ref() { return m_obj; }
-        const T & ref() const { return m_obj; }
+        const T &ref() const { return m_obj; }
 
+        // * deref
+        T &operator*() { return m_obj; }
+        const T &operator*() const { return m_obj; }
+
+        // arrow
         T *operator->() { return &m_obj; }
+        const T *operator->() const { return &m_obj; }
+
         T copy() const { return m_obj; }
 
         Access(Access &&) = default;
