@@ -142,8 +142,10 @@ if (MSYS OR NOT WIN32)
 endif()
 
 if (WIN32)
-    target_link_libraries(mesytec-mvlc PRIVATE ws2_32 winmm mswsock)
-    target_compile_definitions(mesytec-mvlc PRIVATE _WIN32_WINNT=0x0601)
+    # These are public for now to avoid repetition. make private and adjust
+    # other targets if that causes problems.
+    target_link_libraries(mesytec-mvlc PUBLIC ws2_32 winmm mswsock bcrypt)
+    target_compile_definitions(mesytec-mvlc PUBLIC _WIN32_WINNT=0x0601)
 endif(WIN32)
 
 # asio configuration and compilation

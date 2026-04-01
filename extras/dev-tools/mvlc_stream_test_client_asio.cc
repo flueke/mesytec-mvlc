@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <iomanip>
 #include <iostream>
+#include <cstdint>
 
 #include <asio.hpp>
 
@@ -9,10 +10,6 @@
 #include <mesytec-mvlc/util/storage_sizes.h>
 
 using namespace mesytec::mvlc;
-
-#ifdef MESYTEC_MVLC_PLATFORM_WINDOWS
-using ssize_t = std::uint64_t;
-#endif
 
 std::error_code reconnect_ipc(asio::local::stream_protocol::socket &socket,
                               const std::string &socketPath)
@@ -47,7 +44,7 @@ struct ClientState
 {
     std::vector<u8> destBuffer;
     size_t destBufferUsed = 0;
-    ssize_t lastSeqNum = -1;
+    std::int64_t lastSeqNum = -1;
     size_t totalBytesReceived = 0;
     size_t bytesReceivedInInterval = 0;
     size_t buffersReceivedInInterval = 0;
