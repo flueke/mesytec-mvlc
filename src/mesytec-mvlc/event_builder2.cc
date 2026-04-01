@@ -170,6 +170,14 @@ inline bool record_module_data(const ModuleData *moduleDataList, unsigned module
                 mi, mdata.data.size,
                 fmt::join(mdata.data.data, mdata.data.data + mdata.data.size, ", "));
         }
+        else if (ts.has_value() && *ts == 0)
+        {
+            spdlog::trace(
+                "record_module_data: extracted timestamp is zero, module{}, data.size={}, "
+                "data={:#010x}",
+                mi, mdata.data.size,
+                fmt::join(mdata.data.data, mdata.data.data + mdata.data.size, ", "));
+        }
 
         // this can push stamps without a value: the ones where the extraction failed.
         dest[mi].emplace_back(ModuleStorage(mdata, ts));
@@ -407,7 +415,8 @@ struct EventBuilder2::Private
                                eventData.moduleDatas, eventCtrs);
         if (recordOk)
         {
-            // The back of each 'moduleDatas' queue now contains the newest data+timestamp.
+            // The back of each 'moduleDatas' queue now contains the newest data
+            // plus the optional timestamp.
 
             // Check if all stamps are invalid. This means none of the modules
             // yielded a stamp, either due to empty or corrupted data.
@@ -426,103 +435,112 @@ struct EventBuilder2::Private
                 }
                 ++eventCtrs.discardsNoStamp; // count this once for the whole event
             }
-            else
-            {
-                // Fill input side dt histograms
-                for (auto &dtHisto: eventCtrs.dtInputHistos)
-                {
-                    auto &mds0 = eventData.moduleDatas[dtHisto.moduleIndexes.first];
-                    auto &mds1 = eventData.moduleDatas[dtHisto.moduleIndexes.second];
-                    if (!mds0.empty() && !mds1.empty())
-                    {
-                        auto ts0 = eventData.moduleDatas[dtHisto.moduleIndexes.first].back().timestamp;
-                        auto ts1 = eventData.moduleDatas[dtHisto.moduleIndexes.second].back().timestamp;
-
-                        if (ts0.has_value() && ts1.has_value())
-                        {
-                            s64 dt = timestamp_difference(ts0.value(), ts1.value());
-                            fill(dtHisto.histo, dt);
-                        }
-                    }
-                }
-
-                // Apply offsets to the timestamps.
-                for (unsigned mi = 0; mi < moduleCount; ++mi)
-                {
-                    auto &mds = eventData.moduleDatas[mi];
-                    if (!mds.empty())
-                    {
-                        if (auto &ms = mds.back(); ms.timestamp.has_value())
-                        {
-                            *ms.timestamp =
-                                add_offset_to_timestamp(*ms.timestamp, eventCfg.moduleConfigs[mi].offset);
-                        }
-                    }
-                }
-
-                // The filler stamp is used for modules that do not yield a valid
-                // stamp. Makes flushing easier and keeps non-stamped modules together
-                // with their sibling modules on output.
-                std::optional<TimestampType> fillerTs;
-
-                for (unsigned mi = 0; mi < moduleCount; ++mi)
-                {
-                    if (auto ts = eventData.moduleDatas[mi].back().timestamp; ts.has_value())
-                    {
-                        // Record the stamps from all modules.
-                        eventData.allTimestamps.push_back(*ts);
-
-                        // Assign a filler stamp if we don't have one yet.
-                        if (!fillerTs.has_value())
-                        {
-                            fillerTs = ts;
-                            spdlog::trace("recordModuleData: eventIndex={}, moduleIndex={} -> provides "
-                                        "fillerTs={}",
-                                        eventIndex, mi, fillerTs.value());
-                        }
-                    }
-                }
-
-                // Assign the filler stamp to modules that do not have a valid stamp.
-                if (fillerTs.has_value())
-                {
-                    for (unsigned mi = 0; mi < moduleCount; ++mi)
-                    {
-                        if (!eventData.moduleDatas[mi].back().timestamp.has_value())
-                        {
-                            eventData.moduleDatas[mi].back().timestamp = fillerTs;
-                            spdlog::trace("recordModuleData: eventIndex={}, moduleIndex={} -> assign "
-                                        "fillerTs={}, data.size={}",
-                                        eventIndex, mi, fillerTs.value(),
-                                        eventData.moduleDatas[mi].back().data.size());
-                        }
-                        else
-                        {
-                            spdlog::trace("recordModuleData: eventIndex={}, moduleIndex={} -> module "
-                                        "has valid ts, ts={}, data.size={}",
-                                        eventIndex, mi,
-                                        eventData.moduleDatas[mi].back().timestamp.value(),
-                                        eventData.moduleDatas[mi].back().data.size());
-                        }
-                    }
-                }
-                else
-                {
-                    // No filler stamp -> none of the modules in this event yielded a valid stamp.
-                    // This is going to be fixed
-                    spdlog::trace("recordModuleData: eventIndex={} -> no fillerTs available",
-                                eventIndex);
-                }
-
-                spdlog::trace("leaving recordModuleData: eventIndex={}, moduleCount={} -> return true",
-                            eventIndex, moduleCount);
-            }
         }
         else
         {
             // Some mismatch between config and actual readout data.
             ++eventCtrs.recordingFailed;
         }
+
+        // Careful from here on out: it's not guaranteed that each modules event
+        // data queue is non-empty. If all or some of the modules never yielded
+        // a valid stamp their queue might still be empty.
+
+        // Fill input side dt histograms
+        for (auto &dtHisto: eventCtrs.dtInputHistos)
+        {
+            auto &mds0 = eventData.moduleDatas[dtHisto.moduleIndexes.first];
+            auto &mds1 = eventData.moduleDatas[dtHisto.moduleIndexes.second];
+
+            if (!mds0.empty() && !mds1.empty())
+            {
+                auto ts0 = eventData.moduleDatas[dtHisto.moduleIndexes.first].back().timestamp;
+                auto ts1 = eventData.moduleDatas[dtHisto.moduleIndexes.second].back().timestamp;
+
+                if (ts0.has_value() && ts1.has_value())
+                {
+                    s64 dt = timestamp_difference(ts0.value(), ts1.value());
+                    fill(dtHisto.histo, dt);
+                }
+            }
+        }
+
+        // Apply offsets to the timestamps.
+        for (unsigned mi = 0; mi < moduleCount; ++mi)
+        {
+            if (auto &mds = eventData.moduleDatas[mi]; !mds.empty())
+            {
+                if (auto &ms = mds.back(); ms.timestamp.has_value())
+                {
+                    *ms.timestamp =
+                        add_offset_to_timestamp(*ms.timestamp, eventCfg.moduleConfigs[mi].offset);
+                }
+            }
+        }
+
+        // Determine the filler stamp for this incoming event.
+        // The filler stamp is used for modules that do not yield a valid
+        // stamp. Makes flushing easier and keeps non-stamped modules together
+        // with their sibling modules on output.
+        std::optional<TimestampType> fillerTs;
+
+        for (unsigned mi = 0; mi < moduleCount; ++mi)
+        {
+            if (eventData.moduleDatas[mi].empty())
+                continue;
+
+            if (auto ts = eventData.moduleDatas[mi].back().timestamp; ts.has_value())
+            {
+                // Record the stamps from all modules.
+                eventData.allTimestamps.push_back(*ts);
+
+                // Assign a filler stamp if we don't have one yet.
+                if (!fillerTs.has_value())
+                {
+                    fillerTs = ts;
+                    spdlog::trace("recordModuleData: eventIndex={}, moduleIndex={} -> provides "
+                                "fillerTs={}",
+                                eventIndex, mi, fillerTs.value());
+                }
+            }
+        }
+
+        // Assign the filler stamp to modules that do not have a valid stamp.
+        if (fillerTs.has_value())
+        {
+            for (unsigned mi = 0; mi < moduleCount; ++mi)
+            {
+                if (eventData.moduleDatas[mi].empty())
+                    continue;
+
+                if (!eventData.moduleDatas[mi].back().timestamp.has_value())
+                {
+                    eventData.moduleDatas[mi].back().timestamp = fillerTs;
+                    spdlog::trace("recordModuleData: eventIndex={}, moduleIndex={} -> assign "
+                                "fillerTs={}, data.size={}",
+                                eventIndex, mi, fillerTs.value(),
+                                eventData.moduleDatas[mi].back().data.size());
+                }
+                else
+                {
+                    spdlog::trace("recordModuleData: eventIndex={}, moduleIndex={} -> module "
+                                "has valid ts, ts={}, data.size={}",
+                                eventIndex, mi,
+                                eventData.moduleDatas[mi].back().timestamp.value(),
+                                eventData.moduleDatas[mi].back().data.size());
+                }
+            }
+        }
+        else
+        {
+            // No filler stamp -> none of the modules in this event yielded a valid stamp.
+            // This is going to be fixed
+            spdlog::trace("recordModuleData: eventIndex={} -> no fillerTs available",
+                        eventIndex);
+        }
+
+        spdlog::trace("leaving recordModuleData: eventIndex={}, moduleCount={} -> return true",
+                    eventIndex, moduleCount);
 
         spdlog::trace("leaving recordModuleData: eventIndex={}, moduleCount={} -> return {}",
                      eventIndex, moduleCount, recordOk);
