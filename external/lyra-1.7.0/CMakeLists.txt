@@ -51,28 +51,25 @@ configure_package_config_file(
   INSTALL_DESTINATION ${CMAKE_INSTALL_DATADIR}/lyra
   )
 
-install(
-  TARGETS lyra
-  EXPORT lyraTarget
-  )
-
-install(
-  EXPORT lyraTarget
-  FILE  lyraTarget.cmake
-  NAMESPACE bfg::
-  DESTINATION ${CMAKE_INSTALL_DATADIR}/lyra/cmake
-  )
-
-install(
-  DIRECTORY ${PROJECT_SOURCE_DIR}/include
-  DESTINATION  ${CMAKE_INSTALL_PREFIX}
-  )
-
-install(
-  FILES
-  ${PROJECT_BINARY_DIR}/lyraConfig.cmake
-  DESTINATION ${CMAKE_INSTALL_DATADIR}/lyra/cmake/
-  )
-
-
-
+#install(
+#  TARGETS lyra
+#  EXPORT lyraTarget
+#  )
+#
+#install(
+#  EXPORT lyraTarget
+#  FILE  lyraTarget.cmake
+#  NAMESPACE bfg::
+#  DESTINATION ${CMAKE_INSTALL_DATADIR}/lyra/cmake
+#  )
+#
+#install(
+#  DIRECTORY ${PROJECT_SOURCE_DIR}/include
+#  DESTINATION  ${CMAKE_INSTALL_PREFIX}
+#  )
+#
+#install(
+#  FILES
+#  ${PROJECT_BINARY_DIR}/lyraConfig.cmake
+#  DESTINATION ${CMAKE_INSTALL_DATADIR}/lyra/cmake/
+#  )
