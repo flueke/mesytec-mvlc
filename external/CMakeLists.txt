@@ -32,8 +32,9 @@ target_compile_options(minizip
 target_include_directories(minizip
     PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/minizip-ng-3.0.10>)
 
-find_package(Python 3.8 COMPONENTS Interpreter Development)
+find_package(Python 3.12 COMPONENTS Interpreter Development GLOBAL)
 if (Python_FOUND)
+    # This sets pybind11_FOUND
     add_subdirectory(pybind11-3.0.1)
 endif()
 
