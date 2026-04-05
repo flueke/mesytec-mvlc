@@ -72,6 +72,16 @@ cmake --build .
 ctest .
 ```
 
+In a developer command prompt with vcpkg:
+```powershell
+cmake -GNinja -DCMAKE_BUILD_TYPE=Debug
+  "-DCMAKE_C_COMPILER:FILEPATH=C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Tools\Llvm\x64\bin\clang.exe"
+  "-DCMAKE_CXX_COMPILER:FILEPATH=C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Tools\Llvm\x64\bin\clang.exe"
+   -DCMAKE_TOOLCHAIN_FILE=S:/vcpkg/scripts/buildsystems/vcpkg.cmake ..
+cmake --build .
+ctest .
+```
+
 #### msys2 ucrt64
 
 ```
