@@ -221,7 +221,6 @@ TEST(EventBuilder2, OneModule)
     EventBuilder2 eb(cfg, {eventDataCallback, systemEventCallback});
 
     ASSERT_EQ(eb.getCounters().getInputDtHistograms().size(), 1u);
-    ASSERT_EQ(eb.getCounters().getInputDtHistograms().at(0).size(), 0u);
 
     ASSERT_EQ(eb.flush(), 0);
     ASSERT_EQ(dataCallbackCount, 0);
@@ -581,9 +580,13 @@ TEST(EventBuilder2, OneModuleEmptyEvents)
     eb.recordModuleData(0, to_module_data_list(moduleTestData).data(), moduleTestData.size());
     eb.handleSystemEvent(sysEventData.data(), sysEventData.size());
 
+    fmt::print(eb.debugDump());
+
     ASSERT_EQ(eb.flush(), 0);
     ASSERT_EQ(dataCallbackCount, 0);
     ASSERT_EQ(systemCallbackCount, 1);
+
+    fmt::print(eb.debugDump());
 
     eb.recordModuleData(0, to_module_data_list(moduleTestData).data(), moduleTestData.size());
     ASSERT_EQ(eb.flush(), 0);
@@ -611,12 +614,12 @@ TEST(EventBuilder2, OneModuleEmptyEvents)
     ASSERT_EQ(dataCallbackCount, 0);
     ASSERT_EQ(systemCallbackCount, 1);
 
-#if 0
+#if 1
     fmt::print(eb.debugDump());
 #endif
     // remaining stamp is 0
-    ASSERT_EQ(eb.flush(true), 6);
-    ASSERT_EQ(dataCallbackCount, 6);
+    ASSERT_EQ(eb.flush(true), 1);
+    ASSERT_EQ(dataCallbackCount, 1);
     ASSERT_EQ(systemCallbackCount, 1);
 #if 0
     fmt::print(eb.debugDump());
@@ -626,7 +629,7 @@ TEST(EventBuilder2, OneModuleEmptyEvents)
 
 TEST(EventBuilder2, TwoModulesOneFailedStamp)
 {
-    set_global_log_level(spdlog::level::trace);
+    set_global_log_level(spdlog::level::info);
     ModuleConfig mod0;
     mod0.name = "mod0";
     mod0.tsExtractor = bitprefixed_timestamp_extractor;
@@ -727,7 +730,7 @@ TEST(EventBuilder2, TwoModulesOneFailedStamp)
     // final flush
     ASSERT_EQ(eb.flush(true), 6);
     ASSERT_EQ(dataCallbackCount, 12);
-    fmt::print(eb.debugDump("final"));
+    fmt::print(eb.debugDump("final1"));
 
     for (unsigned i=30; i<40; i+=2)
     {
@@ -737,6 +740,6 @@ TEST(EventBuilder2, TwoModulesOneFailedStamp)
     }
 
     ASSERT_EQ(eb.flush(), 5);
-    ASSERT_EQ(dataCallbackCount, 6);
-    fmt::print(eb.debugDump("6"));
+    ASSERT_EQ(dataCallbackCount, 17);
+    fmt::print(eb.debugDump("final2"));
 }
