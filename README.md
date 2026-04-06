@@ -61,32 +61,19 @@ Pass `-DMVLC_BUILD_DEV_TOOLS=ON -DMVLC_BUILD_TOOLS=ON` to cmake to build additio
 
 #### vcpkg
 
-* Install the microsoft developer tools 2022 with c++ support and clang
-* Install vcpkg
-* Open 'x64 Native Tools Command Prompt for VS 2022'
-* cd into a build directory
+* Install the latest microsoft developer tools with c++ support, clang and vcpkg
+* Open 'x64 Native Tools Command Prompt for VS'
 
 ```powershell
-cmake -GNinja "-DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake" -DCMAKE_C_COMPILER="C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\Llvm\x64\bin\clang-cl.exe" -DCMAKE_CXX_COMPILER="C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\Llvm\x64\bin\clang-cl.exe" <path_to_source>
-cmake --build .
+for /f "delims=" %I in ('where clang-cl.exe') do set "CC=%I"
+for /f "delims=" %I in ('where clang-cl.exe') do set "CXX=%I"
+set CMAKE_GENERATOR=Ninja
+set CMAKE_TOOLCHAIN_FILE=%VCPKG_ROOT%\scripts\buildsystems\vcpkg.cmake
+mkdir build
+cd build
+cmake ..
+cmake --build . -j
 ctest .
-```
-
-In a developer command prompt with vcpkg:
-```powershell
-cmake -GNinja -DCMAKE_BUILD_TYPE=Debug
-  "-DCMAKE_C_COMPILER:FILEPATH=C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Tools\Llvm\x64\bin\clang.exe"
-  "-DCMAKE_CXX_COMPILER:FILEPATH=C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Tools\Llvm\x64\bin\clang.exe"
-   -DCMAKE_TOOLCHAIN_FILE=S:/vcpkg/scripts/buildsystems/vcpkg.cmake ..
-cmake --build .
-ctest .
-```
-
-#### msys2 ucrt64
-
-```
-cmake -G"MSYS Makefiles" -DCMAKE_BUILD_TYPE=Debug  ..
-cmake --build .
 ```
 
 ## Tools
