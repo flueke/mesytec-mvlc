@@ -35,12 +35,18 @@ TEST(StreamServerTest, CanListenAndStop)
         // for tcp let the OS pick a port
         ASSERT_TRUE(server.listen("tcp://127.0.0.1:0"));
         ASSERT_TRUE(server.listen("tcp://127.0.0.1:0"));
+        #ifndef MESYTEC_MVLC_PLATFORM_WINDOWS
         ASSERT_TRUE(server.listen(ipcPath));
+        #endif
 
         spdlog::trace("Listening URIs: {}", fmt::join(server.listenAddresses(), ", "));
 
         EXPECT_TRUE(server.isListening());
+        #ifndef MESYTEC_MVLC_PLATFORM_WINDOWS
         ASSERT_EQ(server.listenAddresses().size(), 3u);
+        else
+        ASSERT_EQ(server.listenAddresses().size(), 2u);
+        #endif
 
         server.stop();
 
@@ -65,12 +71,18 @@ TEST(StreamServerTest, CanListenWithNewInstance)
         {
             ASSERT_TRUE(server.listen("tcp://127.0.0.1:43333"));
             ASSERT_TRUE(server.listen("tcp://127.0.0.1:43334"));
+            #ifndef MESYTEC_MVLC_PLATFORM_WINDOWS
             ASSERT_TRUE(server.listen(ipcPath));
+            #endif
 
             spdlog::trace("Listening URIs: {}", fmt::join(server.listenAddresses(), ", "));
 
             EXPECT_TRUE(server.isListening());
+            #ifndef MESYTEC_MVLC_PLATFORM_WINDOWS
             ASSERT_EQ(server.listenAddresses().size(), 3u);
+            #else
+            ASSERT_EQ(server.listenAddresses().size(), 2u);
+            #endif
 
             server.stop();
 
