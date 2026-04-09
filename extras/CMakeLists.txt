@@ -24,9 +24,12 @@ install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/cmake-example
     DESTINATION share/mesytec-mvlc)
 
 find_package(Boost CONFIG)
+find_package(Threads REQUIRED)
 
 if (Boost_FOUND)
-    find_package(Threads REQUIRED)
+
+    # This one links against mesytec-mvlc, and tries to create and use a readout_parser to parse the stream.
+    # Supports framed format. Is buggy.
     add_executable(mvlc_stream_client_asio mvlc_stream_client_asio.cc)
     target_link_libraries(mvlc_stream_client_asio PRIVATE mesytec-mvlc Threads::Threads Boost::boost spdlog::spdlog)
     target_compile_definitions(mvlc_stream_client_asio PRIVATE ASIO_SEPARATE_COMPILATION)
@@ -35,4 +38,11 @@ if (Boost_FOUND)
     # hide asio symbols to prevent clashes (perplexity.ai, check if actually required)
     set_target_properties(mvlc_stream_client_asio PROPERTIES CXX_VISIBILITY_PRESET hidden)
     install(TARGETS mvlc_stream_client_asio RUNTIME DESTINATION bin)
+
+    add_executable(mvlc_stream_client_asio2 mvlc_stream_client_asio2.cc)
+    target_link_libraries(mvlc_stream_client_asio2 PRIVATE Threads::Threads Boost::boost spdlog::spdlog argh spdlog::spdlog)
+    target_compile_definitions(mvlc_stream_client_asio2 PRIVATE ASIO_SEPARATE_COMPILATION)
+    target_include_directories(mvlc_stream_client_asio2 SYSTEM PRIVATE ${MESYTEC_MVLC_SOURCE_DIR}/external/asio-1.36.0/include)
+    target_sources(mvlc_stream_client_asio2 PRIVATE ${MESYTEC_MVLC_SOURCE_DIR}/external/asio-1.36.0/src/asio.cpp)
+    install(TARGETS mvlc_stream_client_asio2 RUNTIME DESTINATION bin)
 endif(Boost_FOUND)
