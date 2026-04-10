@@ -33,8 +33,8 @@ target_include_directories(minizip
     PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/minizip-ng-3.0.10>)
 
 find_package(Python 3.12 COMPONENTS Interpreter Development GLOBAL)
-if (Python_FOUND)
-    # This sets pybind11_FOUND
+
+if (Python_FOUND AND NOT pybind11_FOUND)
     add_subdirectory(pybind11-3.0.1)
 endif()
 
@@ -73,7 +73,9 @@ if (NOT MESYTEC_MVLC_PLATFORM_WINDOWS OR (NOT DEFINED VCPKG_TARGET_TRIPLET))
 endif()
 
 # Lyra command line parser
-add_subdirectory(lyra-1.7.0)
+if (NOT TARGET lyra)
+    add_subdirectory(lyra-1.7.0)
+endif()
 
 # spdlog
 if (NOT TARGET spdlog)
