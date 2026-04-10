@@ -8,6 +8,7 @@
 #include <iostream>
 #include <optional>
 #include <spdlog/spdlog.h>
+#include <thread>
 
 inline std::string str_tolower(std::string s)
 {
@@ -312,7 +313,7 @@ std::pair<std::int64_t, std::string> analyze_buffer(const std::uint8_t *data, si
     return {static_cast<std::int64_t>(view.size() * sizeof(std::uint32_t)), "Frame complete"};
 }
 
-std::optional<AtomicPartView>
+//std::optional<AtomicPartView>
 
 template <typename Socket, typename ConnectFunc>
 int run_client(Socket &socket, ConnectFunc reconnect, ClientContext &ctx)
