@@ -34,7 +34,7 @@ target_include_directories(minizip
 
 find_package(Python 3.12 COMPONENTS Interpreter Development GLOBAL)
 
-if (Python_FOUND AND NOT pybind11_FOUND)
+if (Python_FOUND AND NOT TARGET pybind11::module)
     add_subdirectory(pybind11-3.0.1)
 endif()
 
