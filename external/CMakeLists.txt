@@ -84,6 +84,11 @@ if (NOT TARGET spdlog)
     option(SPDLOG_INSTALL "Generate the install target" ON)
     add_subdirectory(spdlog-1.14.0)
     set_target_properties(spdlog PROPERTIES POSITION_INDEPENDENT_CODE ON)
+    if (WIN32)
+        target_compile_definitions(spdlog PRIVATE _SILENCE_STDEXT_ARR_ITERS_DEPRECATION_WARNING)
+    else()
+        target_compile_options(spdlog PUBLIC -Wno-dangling-reference)
+    endif()
 endif()
 
 # argh command line parser
