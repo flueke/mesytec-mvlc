@@ -44,7 +44,7 @@ TEST(StreamServerTest, CanListenAndStop)
         EXPECT_TRUE(server.isListening());
         #ifndef MESYTEC_MVLC_PLATFORM_WINDOWS
         ASSERT_EQ(server.listenAddresses().size(), 3u);
-        else
+        #else
         ASSERT_EQ(server.listenAddresses().size(), 2u);
         #endif
 
