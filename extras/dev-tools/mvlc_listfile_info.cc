@@ -220,13 +220,21 @@ bool process_listfile(const std::string &listfile, const ProcessOptions &options
         {
             auto bufferView = buffer->viewU32();
 
-            mvlc::readout_parser::parse_readout_buffer(
+            auto parseResult = mvlc::readout_parser::parse_readout_buffer(
                 readerHelper.bufferFormat,
                 *parserState,
                 parserCallbacks,
                 parserCounters,
                 totalBuffersRead,
                 bufferView.data(), bufferView.size());
+
+            if (parseResult != mvlc::readout_parser::ParseResult::Ok)
+            {
+                std::cout << fmt::format("  Error parsing readout buffer #{}: {}\n",
+                                         totalBuffersRead,
+                                         mvlc::readout_parser::get_parse_result_name(parseResult));
+                return false;
+            }
         }
     }
 
