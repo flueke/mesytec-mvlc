@@ -105,7 +105,7 @@ inline ListfileReaderHelper make_listfile_reader_helper(ReadHandle *readHandle)
 
 inline const ReadoutBuffer *read_next_buffer(ListfileReaderHelper &rh)
 {
-    // If data has already been read the current tempBuf mayb contain temporary
+    // If data has already been read the current tempBuf may contain temporary
     // data => swap dest and temp buffers, clear the new temp buffer and read
     // into the new dest buffer taking into account that it may already contain
     // data.

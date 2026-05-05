@@ -316,11 +316,11 @@ size_t fixup_buffer(
     {
         if (view.size() >= sizeof(u32))
         {
-            u32 wordsToSkip = skip_count(view) * sizeof(u32);
+            u32 bytesToSkip = skip_count(view);
 
             //std::cout << "   wordsToSkip=" << wordsToSkip << ", view.size()=" << view.size() << ", in words:" << view.size() / sizeof(u32) << "\n";
 
-            if (wordsToSkip == 0 || wordsToSkip > view.size() / sizeof(u32))
+            if (bytesToSkip == 0 || bytesToSkip > view.size())
             {
                 tmpBuf.reserve(tmpBuf.size() + view.size());
                 std::copy(std::begin(view), std::end(view), std::back_inserter(tmpBuf));
@@ -332,13 +332,14 @@ size_t fixup_buffer(
             }
 
             // Skip over the SystemEvent frame or the ETH packet data.
-            view.remove_prefix(wordsToSkip * sizeof(u32));
+            view.remove_prefix(bytesToSkip);
         }
     }
 
     return 0u;
 }
 
+// Returns the number of bytes to skip.
 u32 skip_one_frame_usb(const std::basic_string_view<const u8> &view)
 {
     if (view.size() < sizeof(u32))
@@ -347,9 +348,10 @@ u32 skip_one_frame_usb(const std::basic_string_view<const u8> &view)
     u32 header = *reinterpret_cast<const u32 *>(view.data());
     spdlog::trace("skip_one_frame_usb: header=0x{:08x}, frameInfo={}", header, decode_frame_header(header));
     u32 result = 1u + extract_frame_info(header).len;
-    return result;
+    return result * sizeof(u32);
 }
 
+// Returns the number of bytes to skip.
 u32 skip_one_frame_eth(const std::basic_string_view<const u8> &view)
 {
     if (view.size() < sizeof(u32))
@@ -361,7 +363,7 @@ u32 skip_one_frame_eth(const std::basic_string_view<const u8> &view)
     if (get_frame_type(header) == frame_headers::SystemEvent)
     {
         spdlog::trace("skip_one_frame_eth: SystemEvent header=0x{:08x}, frameInfo={}", header, decode_frame_header(header));
-        return 1u + extract_frame_info(header).len;
+        return (1u + extract_frame_info(header).len) * sizeof(u32);
     }
 
     if (view.size() >= 2 * sizeof(u32))
@@ -370,7 +372,7 @@ u32 skip_one_frame_eth(const std::basic_string_view<const u8> &view)
         eth::PayloadHeaderInfo ethHdrs{ header, header1 };
         spdlog::trace("skip_one_frame_eth: ethHdrs: packetChannel={}, packetNumber={}, crateId={}, dataWordCount={}, nextHeaderPointer=0x{:04x}",
             ethHdrs.packetChannel(), ethHdrs.packetNumber(), ethHdrs.controllerId(), ethHdrs.dataWordCount(), ethHdrs.nextHeaderPointer());
-        return eth::HeaderWords + ethHdrs.dataWordCount();
+        return (eth::HeaderWords + ethHdrs.dataWordCount()) * sizeof(u32);
     }
 
     // Not enough data to get the 2nd ETH header word.
