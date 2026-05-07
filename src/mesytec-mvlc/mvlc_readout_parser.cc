@@ -74,6 +74,7 @@ namespace
         enum State { Prefix, Dynamic, Suffix };
         State state = Prefix;
         ModuleReadoutStructure modParts = {};
+        modParts.commands = cmdGroup.commands;
         modParts.meta = cmdGroup.meta;
 
         bool isMesytecModule = false;
