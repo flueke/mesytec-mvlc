@@ -530,6 +530,7 @@ ParseResult parse_readout_contents(
         while (!input.empty())
         {
             const u32 *lastIterPosition = input.data();
+            const auto inputOffset = input.data() - inputBegin;
 
             // Find a stack frame matching the current parser state. Return if no
             // matching frame is detected at the current iterator position.
@@ -537,8 +538,8 @@ ParseResult parse_readout_contents(
             {
                 // If there's no open stack frame there should be no open block
                 // frame either. Also data from any open blocks must've been
-                // consumed previously or the block frame should have been manually
-                // invalidated.
+                // consumed previously or the block frame should have been
+                // manually cleared.
                 assert(!state.curBlockFrame);
                 if (state.curBlockFrame)
                     return ParseResult::UnexpectedOpenBlockFrame;
@@ -575,7 +576,7 @@ ParseResult parse_readout_contents(
                                  state.curBlockFrame.wordsLeft,
                                  state.eventIndex,
                                  state.moduleIndex,
-                                 input.data() - inputBegin
+                                 inputOffset
                                  );
                         return ParseResult::NotAStackContinuation;
                     }
@@ -603,7 +604,7 @@ ParseResult parse_readout_contents(
                         // is set. To avoid this the block frame is cleared
                         // here.
                         //cout << "Hello empty stackFrame!" << endl;
-                        logger->warn("got an empty stack frame: 0x{:08x}",
+                        logger->trace("got an empty stack frame: 0x{:08x}",
                                  state.curStackFrame.header);
                         ++counters.emptyStackFrames;
                         state.curBlockFrame = ReadoutParserState::FrameParseState{};
@@ -617,6 +618,7 @@ ParseResult parse_readout_contents(
                     // We now need to find the next StackFrame header starting from
                     // the current iterator position and hand that to
                     // parser_begin_event().
+
                     const u32 *prevIterPtr = input.data();
 
                     const u32 *nextStackFrame = find_stack_frame_header(
@@ -639,9 +641,6 @@ ParseResult parse_readout_contents(
                     if (unusedWords)
                         logger->debug("skipped over {} words while searching for the next"
                                   " stack frame header", unusedWords);
-
-                    if (input.empty())
-                        throw end_of_buffer("stack frame header of new event");
 
                     auto pr = parser_begin_event(state, *nextStackFrame);
 
@@ -667,6 +666,38 @@ ParseResult parse_readout_contents(
 
             const auto &moduleReadoutInfos = state.readoutStructure[state.eventIndex];
             const auto moduleCount = moduleReadoutInfos.size();
+
+            if (get_frame_length(state.curStackFrame.header) == 0)
+            {
+                logger->warn("got an empty stack frame with length 0 for event {}, moduleReadoutInfos.size()={}, header=0x{:08x}",
+                         state.eventIndex, moduleReadoutInfos.size(), state.curStackFrame.header);
+                ++counters.emptyStackFrames;
+                // This can happen if unsupported commands are used in the
+                // readout stack, e.g. 'mblts' with firmware < FW0037. In this
+                // case a StackFrame with the 'SyntaxError' flag and length 0 is
+                // generated.
+                // Clear the module data for all modules, then invoke the event
+                // callback.
+
+                for (unsigned mi = 0; mi < moduleCount; ++mi)
+                {
+                    state.moduleDataBuffer[mi] = {};
+                }
+
+                auto frameInfo = extract_frame_info(state.curStackFrame.header);
+                auto crateId = frameInfo.ctrl;
+
+                callbacks.eventData(
+                    state.userContext,
+                    crateId, state.eventIndex,
+                    state.moduleDataBuffer.data(), moduleCount);
+
+                logger->trace("parser_clear_event_state because empty event is done, eventIndex={}",
+                          state.eventIndex);
+
+                parser_clear_event_state(state);
+                continue;
+            }
 
             // Check for the case where a stack frame for an event is produced but
             // the event does not contain any modules. This can happen for example
