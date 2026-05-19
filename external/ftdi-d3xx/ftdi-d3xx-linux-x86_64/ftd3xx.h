@@ -3,7 +3,6 @@
 
 #ifdef __cplusplus
 #include <cstddef>
-#include <cstdbool>
 #include <cstdint>
 #include <cstdio>
 #else
