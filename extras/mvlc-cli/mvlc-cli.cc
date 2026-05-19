@@ -400,6 +400,13 @@ DEF_EXEC_FUNC(scanbus_command)
     if (!mvlc || ec)
         return 1;
 
+    if (mvlc.firmwareRevision() < 0x0037)
+    {
+        std::cerr << fmt::format("Error: scanbus command requires MVLC firmware revision FW0037 or higher, found revision 0x{:04x}\n",
+            mvlc.firmwareRevision());
+        return 1;
+    }
+
     std::cout << fmt::format("scanbus scan range: [{:#06x}, {:#06x}), {} addresses, probeRegister={:#06x}"
         ", probeAmod={:#04x}, probeDataWidth={}, stackMaxWords={}\n",
         scanBegin, scanEnd, scanEnd - scanBegin, probeRegister,
