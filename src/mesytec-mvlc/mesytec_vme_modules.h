@@ -17,18 +17,19 @@ static const u32 MVHV4FirmwareRegister = 0x010e;
 // Full 16 bit values of the hardware id register (0x6008).
 struct MESYTEC_MVLC_EXPORT HardwareIds
 {
-    static const u16 MADC_32 = 0x5002;
-    static const u16 MQDC_32 = 0x5003;
-    static const u16 MTDC_32 = 0x5004;
-    static const u16 MDPP_16 = 0x5005;
+    static const u16 MADC_32 =      0x5002;
+    static const u16 MQDC_32 =      0x5003;
+    static const u16 MTDC_32 =      0x5004;
+    static const u16 MDPP_16 =      0x5005;
     // The VMMRs use the exact same software, so the hardware ids are equal.
     // VMMR-8 is a VMMR-16 with the 8 high busses not yielding data.
-    static const u16 VMMR_8  = 0x5006;
-    static const u16 VMMR_16 = 0x5006;
-    static const u16 MDPP_32 = 0x5007;
-    static const u16 MVLC    = 0x5008;
-    static const u16 MVHV_4  = 0x5009;
-    static const u16 MDLL_v2 = 0x500a;
+    static const u16 VMMR_8  =      0x5006;
+    static const u16 VMMR_16 =      0x5006;
+    static const u16 MDPP_32 =      0x5007;
+    static const u16 MVLC    =      0x5008;
+    static const u16 MVHV_4  =      0x5009;
+    static const u16 MDLL_v2 =      0x500a;
+    static const u16 MDPP_32_v2 =   0x500c;
 };
 
 // Firmware type is encoded in the highest nibble of the firmware register
@@ -59,14 +60,16 @@ inline std::string hardware_id_to_module_name(u16 hwid)
 {
     switch (hwid)
     {
-        case HardwareIds::MADC_32: return "MADC-32";
-        case HardwareIds::MQDC_32: return "MQDC-32";
-        case HardwareIds::MTDC_32: return "MTDC-32";
-        case HardwareIds::MDPP_16: return "MDPP-16";
-        case HardwareIds::VMMR_8:  return "VMMR-8/16";
-        case HardwareIds::MDPP_32: return "MDPP-32";
-        case HardwareIds::MVLC:    return "MVLC";
-        case HardwareIds::MVHV_4:  return "MVHV-4";
+        case HardwareIds::MADC_32:      return "MADC-32";
+        case HardwareIds::MQDC_32:      return "MQDC-32";
+        case HardwareIds::MTDC_32:      return "MTDC-32";
+        case HardwareIds::MDPP_16:      return "MDPP-16";
+        case HardwareIds::VMMR_8:       return "VMMR-8/16";
+        case HardwareIds::MDPP_32:      return "MDPP-32";
+        case HardwareIds::MVLC:         return "MVLC";
+        case HardwareIds::MVHV_4:       return "MVHV-4";
+        case HardwareIds::MDLL_v2:      return "MDLL_v2";
+        case HardwareIds::MDPP_32_v2:   return "MDPP-32_v2";
     }
     return {};
 }
@@ -85,7 +88,7 @@ inline std::string mdpp_firmware_name(int fwType)
 }
 
 inline bool is_mdpp16(u16 hwId) { return hwId == HardwareIds::MDPP_16; }
-inline bool is_mdpp32(u16 hwId) { return hwId == HardwareIds::MDPP_32; }
+inline bool is_mdpp32(u16 hwId) { return hwId == HardwareIds::MDPP_32 || hwId == HardwareIds::MDPP_32_v2; }
 inline bool is_mdpp(u16 hwId) { return is_mdpp16(hwId) || is_mdpp32(hwId); }
 
 }
