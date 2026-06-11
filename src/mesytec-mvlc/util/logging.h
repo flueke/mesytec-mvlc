@@ -34,7 +34,10 @@ std::vector<std::string> MESYTEC_MVLC_EXPORT get_logger_names(); // alias
 std::optional<spdlog::level::level_enum> MESYTEC_MVLC_EXPORT
     log_level_from_string(const std::string &levelName);
 
-std::string log_level_to_string(const spdlog::level::level_enum &level);
+std::string MESYTEC_MVLC_EXPORT log_level_to_string(const spdlog::level::level_enum &level);
+
+// Changes the global spdlog log pattern.
+void MESYTEC_MVLC_EXPORT set_log_pattern(const std::string &pattern);
 
 template<typename View>
 void log_buffer(const std::shared_ptr<spdlog::logger> &logger,

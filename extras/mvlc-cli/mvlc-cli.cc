@@ -1269,7 +1269,8 @@ int main(int argc, char *argv[])
 {
     std::string generalHelp = R"~(
 usage: mvlc-cli [-v | --version] [-h | --help [-a]]
-                [--log-level=(off|error|warn|info|debug|trace)] [--trace] [--debug] [--info]
+                [--log-level=(off|error|warn|info|debug|trace)]
+                [--trace] [--debug] [--info] [--show-log-timestamps]
                 [--mvlc <url> | --mvlc-usb | --mvlc-usb-index <index> |
                  --mvlc-usb-serial <serial> | --mvlc-eth <hostname>
                  --mvlc-force-connect] [--always-check-stack-exec-status]
@@ -1342,6 +1343,11 @@ MVLC connection URIs:
 
         if (!logLevelName.empty())
             spdlog::set_level(spdlog::level::from_str(logLevelName));
+
+        if (parser["--show-log-timestamps"])
+            mesytec::mvlc::set_log_pattern("[%Y-%m-%d %H:%M:%S.%e] [%^%l%$] %v foo");
+        else
+            mesytec::mvlc::set_log_pattern("[%^%l%$] %v bar");
     }
 
     trace_log_parser_info(parser, "mvlc-cli");

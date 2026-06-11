@@ -97,5 +97,10 @@ std::string log_level_to_string(const spdlog::level::level_enum &level)
     return spdlog::level::to_string_view(level).data();
 }
 
+void set_log_pattern(const std::string &pattern)
+{
+    spdlog::set_pattern(pattern);
+}
+
 } // end namespace mvlc
 } // end namespace mesytec
