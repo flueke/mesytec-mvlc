@@ -1345,9 +1345,9 @@ MVLC connection URIs:
             spdlog::set_level(spdlog::level::from_str(logLevelName));
 
         if (parser["--show-log-timestamps"])
-            mesytec::mvlc::set_log_pattern("[%Y-%m-%d %H:%M:%S.%e] [%^%l%$] %v foo");
+            mesytec::mvlc::set_log_pattern("[%Y-%m-%d %H:%M:%S.%e] [%^%l%$] %v");
         else
-            mesytec::mvlc::set_log_pattern("[%^%l%$] %v bar");
+            mesytec::mvlc::set_log_pattern("[%^%l%$] %v");
     }
 
     trace_log_parser_info(parser, "mvlc-cli");
