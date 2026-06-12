@@ -1113,13 +1113,14 @@ std::error_code CmdApi::readRegister(u16 address, u32 &value)
     auto logger = get_logger("mvlc");
 
     u16 ref = readerContext_.nextSuperReference++;
-    logger->debug("readRegister(addr=0x{:04x}): superRef=0x{:04x}", address, value, ref);
 
     SuperCommandBuilder scb;
     scb.addReferenceWord(ref);
     scb.addReadLocal(address);
     auto cmdBuffer = make_command_buffer(scb);
     std::vector<u32> responseBuffer;
+
+    logger->trace("readRegister(addr=0x{:04x}): superRef=0x{:04x}: command buffer: {:#010x}", address, ref, fmt::join(cmdBuffer, ", "));
 
     if (auto ec = superTransaction(ref, cmdBuffer, responseBuffer))
         return ec;
