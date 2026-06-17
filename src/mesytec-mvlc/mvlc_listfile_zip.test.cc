@@ -3,7 +3,6 @@
 #include <iostream>
 #include <thread>
 #include <mz.h>
-#include <mz_os.h>
 #include <mz_strm.h>
 #include <mz_strm_os.h>
 #include <mz_zip.h>
@@ -40,7 +39,6 @@ TEST(mvlc_listfile_zip, CreateOverwrite)
         ASSERT_NO_THROW(creator.createArchive(archiveName, OverwriteMode::Overwrite));
     }
 
-    //ASSERT_EQ(mz_os_unlink(archiveName.c_str()), MZ_OK);
     std::cerr << "archiveName=" << archiveName << "\n";
     ASSERT_TRUE(util::file_exists(archiveName));
     ASSERT_TRUE(util::delete_file(archiveName));
