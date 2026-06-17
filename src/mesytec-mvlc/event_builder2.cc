@@ -164,12 +164,14 @@ inline bool record_module_data(const ModuleData *moduleDataList, unsigned module
         if (!mcfg.ignored && !ts.has_value() && mdata.data.size > 0)
         {
             ++counters.stampFailed[mi];
+
             spdlog::trace(
                 "record_module_data: failed timestamp extraction, module{}, data.size={}, "
                 "data={:#010x}",
                 mi, mdata.data.size,
                 fmt::join(mdata.data.data, mdata.data.data + mdata.data.size, ", "));
         }
+        // no idea why i wanted to treat this case explicitly...
         else if (ts.has_value() && *ts == 0)
         {
             spdlog::trace(
@@ -200,31 +202,32 @@ std::string dump_counters(const EventCounters &counters)
                    std::begin(counters.discardsAge), std::begin(sumOutputsDiscards),
                    std::plus<size_t>());
 
-    oss << fmt::format("modules:            {}\n", fmt::join(counters.moduleNames, ", "));
-    oss << fmt::format("inputHits:          {}\n", fmt::join(counters.inputHits, ", "));
-    oss << fmt::format("discardsAge:        {}\n", fmt::join(counters.discardsAge, ", "));
-    oss << fmt::format("outputHits:         {}\n", fmt::join(counters.outputHits, ", "));
-    oss << fmt::format("sumOutputsDiscards: {}\n", fmt::join(sumOutputsDiscards, ", "));
-    oss << fmt::format("emptyInputs:        {}\n", fmt::join(counters.emptyInputs, ", "));
-    oss << fmt::format("stampFailed:        {}\n", fmt::join(counters.stampFailed, ", "));
+    oss << fmt::format("module names:                  {}\n", fmt::join(counters.moduleNames, ", "));
+    oss << fmt::format("incoming module data frames:   {}\n", fmt::join(counters.inputHits, ", "));
+    oss << fmt::format("outgoing module data frames:   {}\n", fmt::join(counters.outputHits, ", "));
+    oss << fmt::format("discards due to age:           {}\n", fmt::join(counters.discardsAge, ", "));
+    oss << fmt::format("sum of outputs and discards:   {}\n", fmt::join(sumOutputsDiscards, ", "));
+    oss << fmt::format("emptyInputs:                   {}\n", fmt::join(counters.emptyInputs, ", "));
+    oss << fmt::format("timestamp extraction failures: {}\n", fmt::join(counters.stampFailed, ", "));
 
-    oss << fmt::format("currentEvents:      {}\n", fmt::join(counters.currentEvents, ", "));
-    oss << fmt::format("maxEvents:          {}\n", fmt::join(counters.maxEvents, ", "));
+    oss << fmt::format("\n===== internal stats =====\n\n");
+    oss << fmt::format("currentEvents:                 {}\n", fmt::join(counters.currentEvents, ", "));
+    oss << fmt::format("maxEvents:                     {}\n", fmt::join(counters.maxEvents, ", "));
 
-    oss << fmt::format("currentMem:         {}\n", fmt::join(counters.currentMem, ", "));
-    oss << fmt::format("maxMem:             {}\n", fmt::join(counters.maxMem, ", "));
-    oss << fmt::format("recordingFailed:    {}\n", counters.recordingFailed);
-    oss << fmt::format("discardsNoStamp:    {}\n", counters.discardsNoStamp);
-    oss << fmt::format("allTimestamps.size: {}\n", counters.allTimestamps.size());
-    oss << fmt::format("allTimestampsMaxSize: {}\n", counters.allTimestampsMaxSize);
+    oss << fmt::format("currentMem:                    {}\n", fmt::join(counters.currentMem, ", "));
+    oss << fmt::format("maxMem:                        {}\n", fmt::join(counters.maxMem, ", "));
+    oss << fmt::format("recordingFailed:               {}\n", counters.recordingFailed);
+    oss << fmt::format("discardsNoStamp:               {}\n", counters.discardsNoStamp);
+    oss << fmt::format("allTimestamps.size:            {}\n", counters.allTimestamps.size());
+    oss << fmt::format("allTimestampsMaxSize:          {}\n", counters.allTimestampsMaxSize);
 
-    oss << fmt::format("first 10 stamps:    {}\n",
+    oss << fmt::format("first 10 stamps: {}\n",
                        fmt::join(counters.allTimestamps.begin(),
                                  counters.allTimestamps.begin() +
                                      std::min<size_t>(10, counters.allTimestamps.size()),
                                  ", "));
 
-    oss << fmt::format("last 10 stamps:     {}\n",
+    oss << fmt::format("last 10 stamps:  {}\n",
                        fmt::join(counters.allTimestamps.end() -
                                      std::min<size_t>(10, counters.allTimestamps.size()),
                                  counters.allTimestamps.end(), ", "));

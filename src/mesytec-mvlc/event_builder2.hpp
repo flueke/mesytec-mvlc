@@ -155,7 +155,7 @@ struct MESYTEC_MVLC_EXPORT EventCounters
     std::vector<size_t> inputHits;
     std::vector<size_t> outputHits;
     std::vector<size_t> emptyInputs;
-    std::vector<size_t> discardsAge;        // number of event discarded due to stamp age
+    std::vector<size_t> discardsAge;        // number of events discarded due to stamp age
     std::vector<size_t> stampFailed;        // number of failed stamp extractions
     std::vector<std::string> moduleNames;
 
