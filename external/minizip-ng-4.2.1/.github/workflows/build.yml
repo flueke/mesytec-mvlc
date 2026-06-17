@@ -1,0 +1,415 @@
+name: Build
+on: [push, pull_request, workflow_dispatch]
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Ubuntu GCC ASAN
+            os: ubuntu-latest
+            compiler: gcc
+            cxx-compiler: g++
+            cmake-args: -D MZ_SANITIZER=Address
+            codecov: ubuntu_gcc_asan
+
+          - name: Ubuntu GCC UBSAN
+            os: ubuntu-latest
+            compiler: gcc
+            cxx-compiler: g++
+            cmake-args: -D MZ_SANITIZER=Undefined
+            codecov: ubuntu_gcc_undefined
+
+          - name: Ubuntu Clang MSAN
+            os: ubuntu-latest
+            compiler: clang-20
+            cxx-compiler: clang++-20
+            # Disable OpenSSL since it is not built with MSAN
+            # Fetch third-party libraries and don't use system libraries so they can be intrumented
+            cmake-args: -GNinja -DMZ_SANITIZER=Memory -DMZ_OPENSSL=OFF -DMZ_FORCE_FETCH_LIBS=ON
+            packages: ninja-build clang-20 llvm-20 libclang-rt-20-dev
+            gcov-exec: llvm-cov-20 gcov
+            build-config: Debug
+            # https://github.com/llvm/llvm-project/issues/55785
+            msan-options: use_sigaltstack=0
+            # Coverage disabled for clang-20, errors
+
+          # No code coverage on release builds
+          - name: Ubuntu 22 Clang
+            os: ubuntu-22.04
+            compiler: clang
+            cxx-compiler: clang++
+            deploy: true
+            deploy-name: linux
+
+          - name: Ubuntu 22 Clang 11
+            os: ubuntu-22.04
+            compiler: clang-11
+            cxx-compiler: clang++-11
+            version: "11"
+            packages: llvm-11 clang-11
+
+          - name: Ubuntu GCC
+            os: ubuntu-latest
+            compiler: gcc
+            cxx-compiler: g++
+            cmake-args: -D MZ_CODE_COVERAGE=ON
+            codecov: ubuntu_gcc
+
+          # out-of-source build
+          - name: Ubuntu GCC OSB
+            os: ubuntu-latest
+            compiler: gcc
+            cxx-compiler: g++
+            build-dir: ../build
+
+          - name: Ubuntu Clang
+            os: ubuntu-latest
+            compiler: clang-14
+            cxx-compiler: clang++-14
+            cmake-args: -D MZ_CODE_COVERAGE=ON
+            codecov: ubuntu_clang
+            packages: clang-14 llvm-14
+            gcov-exec: llvm-cov-14 gcov
+
+          - name: Ubuntu Clang No Zlib
+            os: ubuntu-latest
+            compiler: clang-14
+            cxx-compiler: clang++-14
+            cmake-args: -D MZ_CODE_COVERAGE=ON -D MZ_ZLIB=OFF
+            codecov: ubuntu_clang_no_zlib
+            packages: clang-14 llvm-14
+            gcov-exec: llvm-cov-14 gcov
+
+          - name: Ubuntu Clang No Bzip2
+            os: ubuntu-latest
+            compiler: clang-14
+            cxx-compiler: clang++-14
+            cmake-args: -D MZ_CODE_COVERAGE=ON  -D MZ_BZIP=OFF
+            codecov: ubuntu_clang_no_bzip2
+            packages: clang-14 llvm-14
+            gcov-exec: llvm-cov-14 gcov
+
+          - name: Ubuntu Clang No LZMA
+            os: ubuntu-latest
+            compiler: clang-14
+            cxx-compiler: clang++-14
+            cmake-args: -D MZ_CODE_COVERAGE=ON -D MZ_LZMA=OFF
+            codecov: ubuntu_clang_no_lzma
+            packages: clang-14 llvm-14
+            gcov-exec: llvm-cov-14 gcov
+
+          - name: Ubuntu Clang No Zstd
+            os: ubuntu-latest
+            compiler: clang-14
+            cxx-compiler: clang++-14
+            cmake-args: -D MZ_CODE_COVERAGE=ON -D MZ_ZSTD=OFF
+            codecov: ubuntu_clang_no_zstd
+            packages: clang-14 llvm-14
+            gcov-exec: llvm-cov-14 gcov
+
+          - name: Ubuntu Clang No Ppmd
+            os: ubuntu-latest
+            compiler: clang-14
+            cxx-compiler: clang++-14
+            cmake-args: -D MZ_CODE_COVERAGE=ON -D MZ_PPMD=OFF
+            codecov: ubuntu_clang_no_ppmd
+            packages: clang-14 llvm-14
+            gcov-exec: llvm-cov-14 gcov
+
+          - name: Ubuntu Clang No Pkcrypt
+            os: ubuntu-latest
+            compiler: clang-14
+            cxx-compiler: clang++-14
+            cmake-args: -D MZ_CODE_COVERAGE=ON -D MZ_PKCRYPT=OFF
+            codecov: ubuntu_clang_no_pkcrypt
+            packages: clang-14 llvm-14
+            gcov-exec: llvm-cov-14 gcov
+
+          - name: Ubuntu Clang No Winzip AES
+            os: ubuntu-latest
+            compiler: clang-14
+            cxx-compiler: clang++-14
+            cmake-args: -D MZ_CODE_COVERAGE=ON -D MZ_WZAES=OFF
+            codecov: ubuntu_clang_no_winzip_aes
+            packages: clang-14 llvm-14
+            gcov-exec: llvm-cov-14 gcov
+
+          - name: Ubuntu Clang No Encryption
+            os: ubuntu-latest
+            compiler: clang-14
+            cxx-compiler: clang++-14
+            cmake-args: -D MZ_CODE_COVERAGE=ON -D MZ_PKCRYPT=OFF -D MZ_WZAES=OFF
+            codecov: ubuntu_clang_no_encryption
+            packages: clang-14 llvm-14
+            gcov-exec: llvm-cov-14 gcov
+
+          - name: Ubuntu Clang Compress Only
+            os: ubuntu-latest
+            compiler: clang-14
+            cxx-compiler: clang++-14
+            cmake-args: -D MZ_CODE_COVERAGE=ON -D MZ_COMPRESS_ONLY=ON
+            codecov: ubuntu_clang_compress_only
+            packages: clang-14 llvm-14
+            gcov-exec: llvm-cov-14 gcov
+
+          - name: Ubuntu Clang Decompress Only
+            os: ubuntu-latest
+            compiler: clang-14
+            cxx-compiler: clang++-14
+            cmake-args: -D MZ_CODE_COVERAGE=ON -D MZ_DECOMPRESS_ONLY=ON
+            codecov: ubuntu_clang_decompress_only
+            packages: clang-14 llvm-14
+            gcov-exec: llvm-cov-14 gcov
+
+          - name: Ubuntu Clang OpenSSL
+            os: ubuntu-latest
+            compiler: clang-14
+            cxx-compiler: clang++-14
+            cmake-args: -D MZ_CODE_COVERAGE=ON -D MZ_OPENSSL=ON
+            codecov: ubuntu_clang_openssl
+            packages: clang-14 llvm-14
+            gcov-exec: llvm-cov-14 gcov
+
+          # No code coverage supported
+          - name: Windows MSVC
+            os: windows-latest
+            compiler: cl
+            # Don't use find_package for 3rd party libraries which are installed incorrectly on GitHub CI instances
+            cmake-args: -D MZ_FORCE_FETCH_LIBS=ON
+            deploy: true
+            deploy-name: windows
+
+          # # No code coverage supported
+          # - name: Windows MSVC XP
+          #   os: windows-latest
+          #   compiler: cl
+          #   # Don't use find_package for 3rd party libraries which are installed incorrectly on GitHub CI instances
+          #   cmake-args: -D MZ_FORCE_FETCH_LIBS=ON -D CMAKE_C_FLAGS="-D_WIN32_WINNT=0x501" -D CMAKE_CXX_FLAGS="-D_WIN32_WINNT=0x501"
+          #   deploy: true
+          #   deploy-name: windowsxp
+
+          - name: Windows GCC Code Coverage
+            os: windows-latest
+            compiler: gcc
+            cxx-compiler: g++
+            # Don't use find_package for 3rd party libraries which are installed incorrectly on GitHub CI instances
+            cmake-args: -D MZ_CODE_COVERAGE=ON -D MZ_FORCE_FETCH_LIBS=ON -G Ninja
+            codecov: windows_gcc
+
+          # No code coverage on release builds
+          - name: macOS Xcode
+            os: macos-latest
+            deploy: true
+            deploy-name: macos
+
+          - name: macOS Xcode Code Coverage
+            os: macOS-latest
+            cmake-args: -D MZ_CODE_COVERAGE=ON
+            codecov: macos_xcode
+
+          - name: macOS Xcode LibCompression
+            os: macOS-latest
+            cmake-args: -D MZ_CODE_COVERAGE=ON -D MZ_LIBCOMP=ON
+            codecov: macos_xcode_libcompression
+
+          - name: macOS Xcode OpenSSL
+            os: macos-latest
+            cmake-args: -D MZ_CODE_COVERAGE=ON -D MZ_OPENSSL=ON
+            codecov: macos_xcode_openssl
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v6
+
+    - name: Install packages (macOS)
+      if: runner.os == 'macOS'
+      run: brew install pkgconfig ${{ matrix.packages }}
+
+    - name: Install packages (Ubuntu)
+      if: runner.os == 'Linux' && matrix.packages
+      run: |
+        sudo apt-get update
+        sudo apt-get install ${{ matrix.packages }}
+
+    - name: Install packages (Windows)
+      if: runner.os == 'Windows' && matrix.compiler == 'gcc'
+      run: |
+        # strawberryperl installs incompatible libraries so remove it
+        choco uninstall --no-progress strawberryperl
+        choco install ninja --no-progress
+
+    - name: Set LLVM_BUILD_DIR for LLVM C++ libraries (MSAN)
+      if: contains(matrix.name, 'MSAN') && startsWith(matrix.compiler, 'clang')
+      run: |
+        echo "LLVM_BUILD_DIR=`pwd`/llvm-project/build" >> $GITHUB_ENV
+
+    - name: Get latest hash change for LLVM C++ libraries (MSAN)
+      if: contains(matrix.name, 'MSAN') && startsWith(matrix.compiler, 'clang')
+      id: llvm-remote-hash
+      run: |
+        HASH=$(git ls-remote https://github.com/llvm/llvm-project refs/heads/release/20.x | cut -f1)
+        if [ -z "$HASH" ]; then
+          echo "Failed to fetch LLVM remote hash"
+          exit 1
+        fi
+        echo "value=$HASH" >> $GITHUB_OUTPUT
+
+    - name: Cache LLVM C++ libraries (MSAN)
+      if: contains(matrix.name, 'MSAN') && startsWith(matrix.compiler, 'clang')
+      id: cache-llvm
+      uses: actions/cache@v5
+      with:
+        path: |
+          ${{ env.LLVM_BUILD_DIR }}/lib
+          ${{ env.LLVM_BUILD_DIR }}/include
+        key: cache-llvm-${{ matrix.os }}-${{ runner.arch }}-${{ matrix.compiler }}-${{ steps.llvm-remote-hash.outputs.value }}
+
+    - name: Compile LLVM C++ libraries (MSAN)
+      if: contains(matrix.name, 'MSAN') && startsWith(matrix.compiler, 'clang') && steps.cache-llvm.outputs.cache-hit != 'true'
+      run: |
+        # Sparse-checkout only the folders we need
+        git clone --depth=1 --filter=blob:none https://github.com/llvm/llvm-project --no-checkout --branch release/20.x
+        cd llvm-project
+        git sparse-checkout set cmake runtimes libc libcxx libcxxabi llvm/cmake
+        git checkout
+        cmake -S runtimes -B build -G Ninja \
+          -DCMAKE_BUILD_TYPE=Release \
+          -DLLVM_ENABLE_RUNTIMES="libcxx;libcxxabi" \
+          -DLLVM_USE_SANITIZER=MemoryWithOrigins \
+          -DLIBCXXABI_USE_LLVM_UNWINDER=OFF \
+          -DLIBCXX_ENABLE_STATIC=OFF \
+          -DLIBCXX_INCLUDE_BENCHMARKS=OFF \
+          -DLLVM_INCLUDE_TESTS=OFF \
+          -DLLVM_INCLUDE_DOCS=OFF
+        cmake --build build -j5 -- cxx cxxabi
+      env:
+        CFLAGS: -O2
+        CC: ${{ matrix.compiler }}
+        CXX: ${{ matrix.cxx-compiler }}
+
+    - name: Generate project files
+      shell: bash
+      run: |
+        cmake -S . -B ${{ matrix.build-dir || '.' }} ${{ matrix.cmake-args }} \
+          -D MZ_BUILD_TESTS=ON \
+          -D MZ_BUILD_UNIT_TESTS=ON \
+          -D BUILD_SHARED_LIBS=OFF \
+          -D CMAKE_BUILD_TYPE=Release
+      env:
+        CC: ${{ matrix.compiler }}
+        CXX: ${{ matrix.cxx-compiler }}
+        CFLAGS: ${{ matrix.cflags }}
+        LDFLAGS: ${{ matrix.ldflags }}
+
+    - name: Compile source code
+      run: cmake --build ${{ matrix.build-dir || '.' }} --config ${{ matrix.build-config || 'Release' }}
+
+    - name: Run test cases
+      run: ctest --output-on-failure -C ${{ matrix.build-config || 'Release' }}
+      working-directory: ${{ matrix.build-dir }}
+      env:
+        MSAN_OPTIONS: ${{ matrix.msan-options || 'verbosity=0' }}
+
+    - name: Setup python
+      uses: actions/setup-python@v6
+      if: always() && matrix.codecov
+      with:
+        python-version: '3.x'
+
+    - name: Generate coverage report
+      shell: bash
+      if: always() && matrix.codecov
+      run: |
+        pip install gcovr
+        python -m gcovr \
+          --exclude-unreachable-branches \
+          --gcov-ignore-parse-errors \
+          --gcov-executable "${{ matrix.gcov-exec || 'gcov' }}" \
+          --root . \
+          --xml \
+          --output coverage-${{ matrix.codecov }}.xml \
+          --verbose
+
+    - name: Upload coverage report
+      uses: actions/upload-artifact@v6
+      if: always() && matrix.codecov
+      with:
+        name: Coverage Report - ${{ matrix.name }}
+        path: coverage-${{ matrix.codecov }}.xml
+        if-no-files-found: ignore
+        retention-days: 2
+
+    - name: Package release (Ubuntu/macOS)
+      if: (runner.os == 'Linux' || runner.os == 'macOS') && matrix.deploy && startsWith(github.ref, 'refs/tags/')
+      run: ls -R mini*zip | tar -czvf minizip-ng-${{ matrix.deploy-name }}.tar.gz -T -
+
+    - name: Upload release (Ubuntu/macOS)
+      uses: svenstaro/upload-release-action@2.11.5
+      if: (runner.os == 'Linux' || runner.os == 'macOS') && matrix.deploy && startsWith(github.ref, 'refs/tags/') && env.GITHUB_TOKEN != ''
+      with:
+        asset_name: minizip-ng-${{ matrix.deploy-name }}.tar.gz
+        file: ${{ matrix.build-dir || '.' }}/minizip-ng-${{ matrix.deploy-name }}.tar.gz
+        tag: ${{ github.ref }}
+        repo_token: ${{ secrets.GITHUB_TOKEN }}
+        overwrite: true
+      env:
+        GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+
+    - name: Package release (Windows)
+      if: runner.os == 'Windows' && matrix.deploy && startsWith(github.ref, 'refs/tags/')
+      run: 7z a -tzip minizip-ng-${{ matrix.deploy-name }}.zip ./Release/mini*zip.exe
+
+    - name: Upload release (Windows)
+      uses: svenstaro/upload-release-action@2.11.5
+      if: runner.os == 'Windows' && matrix.deploy && startsWith(github.ref, 'refs/tags/') && env.GITHUB_TOKEN != ''
+      with:
+        asset_name: minizip-ng-${{ matrix.deploy-name }}.zip
+        file: ${{ matrix.build-dir || '.' }}/minizip-ng-${{ matrix.deploy-name }}.zip
+        tag: ${{ github.ref }}
+        repo_token: ${{ secrets.GITHUB_TOKEN }}
+        overwrite: true
+      env:
+        GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+
+  coverage:
+    name: Upload Coverage Reports
+    runs-on: ubuntu-latest
+    needs: build
+    if: always() && !cancelled()
+    steps:
+      - name: Download all reports
+        uses: actions/download-artifact@v7
+        with:
+          pattern: Coverage Report - *
+          merge-multiple: true
+
+      - name: Collect coverage report paths
+        shell: bash
+        run: |
+          shopt -s nullglob
+          files=(coverage-*.xml)
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "No coverage reports found, skipping upload."
+            exit 0
+          fi
+          printf '%s\n' "${files[@]}"
+          IFS=','
+          echo "COVERAGE_REPORTS=${files[*]}" >> $GITHUB_ENV
+
+      - name: Publish coverage reports
+        uses: codecov/codecov-action@v6
+        if: env.COVERAGE_REPORTS != '' && env.CODECOV_TOKEN != ''
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ${{ env.COVERAGE_REPORTS }}
+          name: ${{ github.workflow }}-${{ github.event_name }}
+          verbose: true
+          fail_ci_if_error: true
+        env:
+          CODECOV_TOKEN: "${{ secrets.CODECOV_TOKEN }}"

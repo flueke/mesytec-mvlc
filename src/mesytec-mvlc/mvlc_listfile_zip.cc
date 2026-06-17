@@ -11,7 +11,6 @@
 
 #include <lz4frame.h>
 #include <mz.h>
-#include <mz_compat.h>
 #include <mz_os.h>
 #include <mz_strm.h>
 #include <mz_strm_buf.h>
@@ -96,11 +95,12 @@ struct ZipCreator::Private
 
     explicit Private()
     {
-        mz_stream_os_create(&mz_osStream);
-        mz_stream_buffered_create(&mz_bufStream);
+        mz_osStream = mz_stream_os_create();
+        mz_bufStream = mz_stream_buffered_create();
         mz_stream_set_base(mz_bufStream, mz_osStream);
+        mz_stream_buffered_open(mz_bufStream, NULL, MZ_OPEN_MODE_WRITE);
 
-        mz_zip_writer_create(&mz_zipWriter);
+        mz_zipWriter = mz_zip_writer_create();
         mz_zip_writer_set_follow_links(mz_zipWriter, true);
     }
 
@@ -672,8 +672,8 @@ struct ZipReader::Private
 ZipReader::ZipReader()
     : d(std::make_unique<Private>(this))
 {
-    mz_zip_reader_create(&d->reader);
-    mz_stream_os_create(&d->osStream);
+    d->reader = mz_zip_reader_create();
+    d->osStream = mz_stream_os_create();
 }
 
 ZipReader::~ZipReader()

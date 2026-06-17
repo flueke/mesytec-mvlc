@@ -193,7 +193,7 @@ configure_package_config_file(
     ${project_config}
     INSTALL_DESTINATION lib/cmake/mesytec-mvlc)
 
-set(INSTALL_TARGETS mesytec-mvlc spdlog argh)
+set(INSTALL_TARGETS mesytec-mvlc spdlog argh minizip)
 export(TARGETS ${INSTALL_TARGETS} NAMESPACE mesytec-mvlc::
     FILE ${PROJECT_BINARY_DIR}/${targets_export_name}.cmake)
 

@@ -4,10 +4,12 @@
 add_subdirectory(ftdi-d3xx)
 
 # minizip options
+set(BUILD_SHARED_LIBS ON)
 option(MZ_COMPAT "Enables compatibility layer" ON)
 option(MZ_ZLIB "Enables ZLIB compression" ON)
 option(MZ_BZIP2 "Enables BZIP2 compression" OFF)
 option(MZ_LZMA "Enables LZMA & XZ compression" ON)
+option(MZ_PPMD "Enables PPMD compression" ON)
 option(MZ_ZSTD "Enables ZSTD compression" OFF)
 option(MZ_PKCRYPT "Enables PKWARE traditional encryption" OFF)
 option(MZ_WZAES "Enables WinZIP AES encryption" OFF)
@@ -23,14 +25,15 @@ option(MZ_BUILD_FUZZ_TEST "Builds minizip fuzzer executables" OFF)
 option(MZ_CODE_COVERAGE "Builds with code coverage flags" OFF)
 set(SKIP_INSTALL_ALL ON)
 
-add_subdirectory(minizip-ng-3.0.10)
+add_subdirectory(minizip-ng-4.2.1)
+set(BUILD_SHARED_LIBS OFF)
 
-target_compile_options(minizip
-    PRIVATE $<${not-msvc}:-Wno-unused-variable -Wno-unused-but-set-variable>
-    PRIVATE $<${not-msvc}:-Wno-unused-parameter -Wno-cast-function-type -Wno-unused-local-typedefs>)
-
-target_include_directories(minizip
-    PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/minizip-ng-3.0.10>)
+#target_compile_options(minizip
+#    PRIVATE $<${not-msvc}:-Wno-unused-variable -Wno-unused-but-set-variable>
+#    PRIVATE $<${not-msvc}:-Wno-unused-parameter -Wno-cast-function-type -Wno-unused-local-typedefs>)
+#
+#target_include_directories(minizip
+#    PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/minizip-ng-3.0.10>)
 
 find_package(Python 3.12 COMPONENTS Interpreter Development Development.Module GLOBAL)
 
