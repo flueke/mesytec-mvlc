@@ -13,7 +13,7 @@
 #include <vector>
 
 #ifdef MESYTEC_MVLC_PLATFORM_WINDOWS
-using ssize_t = std::uint64_t;
+using ssize_t = std::int64_t;
 #endif
 
 // TODO:
