@@ -658,16 +658,6 @@ struct EventBuilder2::Private
             auto &moduleDatas = eventData.moduleDatas.at(mi);
 
             outputModuleStorage_[mi] = ModuleStorage();
-            // Set attributes from the config and resize data in case we do not
-            // actually get real input data for this module. This way the output
-            // arrays always have the expected size and structure.
-            #if 0
-            outputModuleStorage_[mi].prefixSize = moduleConfig.prefixSize;
-            outputModuleStorage_[mi].hasDynamic = moduleConfig.hasDynamic;
-            outputModuleStorage_[mi].data.resize(moduleConfig.prefixSize);
-            std::fill(std::begin(outputModuleStorage_[mi].data),
-                      std::end(outputModuleStorage_[mi].data), 0);
-            #endif
 
             while (!moduleDatas.empty())
             {
@@ -750,9 +740,10 @@ struct EventBuilder2::Private
                 assert(size_consistency_check(outputModuleStorage_[mi]));
                 if (outputModuleStorage_[mi].data.empty())
                 {
-                    // don't have real data for this module. fixup the structure
-                    // based on the input config (only has an effect if
-                    // moduleConfig.prefixSize != 0)
+                    // We do not have real data for this module.
+                    // Set attributes from the config and resize data in case we do not
+                    // actually get real input data for this module. This way the output
+                    // arrays always have the expected size and structure.
                     auto &moduleConfig = eventCfg.moduleConfigs.at(mi);
                     outputModuleStorage_[mi].prefixSize = moduleConfig.prefixSize;
                     outputModuleStorage_[mi].hasDynamic = moduleConfig.hasDynamic;
