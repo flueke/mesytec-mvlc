@@ -658,11 +658,13 @@ struct EventBuilder2::Private
             // Set attributes from the config and resize data in case we do not
             // actually get real input data for this module. This way the output
             // arrays always have the expected size and structure.
+            #if 0
             outputModuleStorage_[mi].prefixSize = moduleConfig.prefixSize;
             outputModuleStorage_[mi].hasDynamic = moduleConfig.hasDynamic;
             outputModuleStorage_[mi].data.resize(moduleConfig.prefixSize);
             std::fill(std::begin(outputModuleStorage_[mi].data),
                       std::end(outputModuleStorage_[mi].data), 0);
+            #endif
 
             while (!moduleDatas.empty())
             {
@@ -727,21 +729,52 @@ struct EventBuilder2::Private
         spdlog::trace("tryFlush: eventIndex={}, refTs={}, outputStamps={}", eventIndex, refTs,
                       fmt::join(debugStamps, ", "));
 
-        outputModuleData_.resize(moduleCount);
 
-        for (size_t mi = 0; mi < moduleCount; ++mi)
+        const bool hasOutputData = std::any_of(outputModuleStorage_.begin(), outputModuleStorage_.end(),
+                                       [](const ModuleStorage &ms)
+                                       { return !ms.data.empty(); });
+
+        if (hasOutputData)
         {
-            if (!size_consistency_check(outputModuleStorage_[mi]))
-            {
-                spdlog::error("  tryFlush: mi={}, size_consistency_check failed", mi);
-            }
-            assert(size_consistency_check(outputModuleStorage_[mi]));
-            outputModuleData_[mi] = outputModuleStorage_[mi].to_module_data();
-            assert(mvlc::readout_parser::size_consistency_check(outputModuleData_[mi]));
-        }
+            outputModuleData_.resize(moduleCount);
 
-        callbacks_.eventData(userContext_, cfg_.outputCrateIndex, eventIndex,
-                             outputModuleData_.data(), moduleCount);
+            for (size_t mi = 0; mi < moduleCount; ++mi)
+            {
+                if (!size_consistency_check(outputModuleStorage_[mi]))
+                {
+                    spdlog::error("  tryFlush: mi={}, size_consistency_check failed", mi);
+                }
+                assert(size_consistency_check(outputModuleStorage_[mi]));
+                if (outputModuleStorage_[mi].data.empty())
+                {
+                    // don't have real data for this module. fixup the structure
+                    // based on the input config (only has an effect if
+                    // moduleConfig.prefixSize != 0)
+                    auto &moduleConfig = eventCfg.moduleConfigs.at(mi);
+                    outputModuleStorage_[mi].prefixSize = moduleConfig.prefixSize;
+                    outputModuleStorage_[mi].hasDynamic = moduleConfig.hasDynamic;
+                    outputModuleStorage_[mi].data.resize(moduleConfig.prefixSize);
+                    // fill with zeros
+                    std::fill(std::begin(outputModuleStorage_[mi].data),
+                            std::end(outputModuleStorage_[mi].data), 0);
+                }
+                else
+                {
+                    // we do have real data for this module. the structure
+                    // should match what the input config says by definition
+                    outputModuleData_[mi] = outputModuleStorage_[mi].to_module_data();
+                }
+                assert(mvlc::readout_parser::size_consistency_check(outputModuleData_[mi]));
+            }
+
+            callbacks_.eventData(userContext_, cfg_.outputCrateIndex, eventIndex,
+                                outputModuleData_.data(), moduleCount);
+        }
+        else
+        {
+            spdlog::trace("tryFlush: eventIndex={} -> no output data in any module after flushing "
+                          "-> not calling callback", eventIndex);
+        }
 
         return true;
     }
