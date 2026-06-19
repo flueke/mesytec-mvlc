@@ -550,6 +550,8 @@ TEST(mvlc_listfile_zip, Split_Read)
 
         for (size_t i=0; i < get_filemagic_len(); ++i)
             ASSERT_EQ(buffer[i], get_filemagic_usb()[i]);
+
+        ASSERT_EQ(archiveChanges, 3); // 3 archives, initial opening is counted as a change
     }
 
     //cleanup
