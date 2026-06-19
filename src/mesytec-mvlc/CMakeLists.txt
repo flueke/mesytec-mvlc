@@ -54,6 +54,7 @@ add_library(mesytec-mvlc SHARED
     util/ticketmutex.cc
     util/udp_sockets.cc
     util/yaml_json.cc
+    util/zip_archive_updater.cc
     )
 
 if (MESYTEC_MVLC_PLATFORM_LINUX)
@@ -250,6 +251,7 @@ if (MVLC_BUILD_TESTS)
     add_gtest(test_mvlc_readout_worker mvlc_readout_worker.test.cc)
     add_gtest(test_mvlc_util mvlc_util.test.cc)
     add_gtest(test_readout_buffer readout_buffer.test.cc)
+    add_gtest(test_zip_archive_updater util/zip_archive_updater.test.cc)
 
     #target_link_libraries(test_mvlc_error PRIVATE ftd3xx)
     if (ZMQ_FOUND)
