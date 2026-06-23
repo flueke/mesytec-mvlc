@@ -340,7 +340,6 @@ struct MESYTEC_MVLC_EXPORT ZipUpdateConfig
 {
     std::string input_zip_path;             // e.g. "/data/run123/listmode.zip"
     std::vector<ZipOperation> ops;          // 1–N operations on the same ZIP
-    bool validate_output = true;            // whether to test the new ZIP before replacing
 
     // Want a bit more free space than the size of the input archive as we copy
     // the data instead of modifying the input archive directly.
@@ -362,6 +361,8 @@ struct MESYTEC_MVLC_EXPORT ZipUpdateResult
     bool was_cancelled() const { return ec == std::errc::operation_canceled; }
 };
 
+// FIXME: two ways to report errors: ZipUpdateResult.ec and exceptions. The
+// latter are thrown from ZipCreator/ZipReader and friends. Pretty messy to use as is.
 MESYTEC_MVLC_EXPORT ZipUpdateResult update_zip_archive(const ZipUpdateConfig &config);
 
 }

@@ -4,6 +4,7 @@
 #include <chrono>
 #include <cstdlib>
 #include <cstring>
+#include <filesystem>
 #include <iostream>
 #include <regex>
 #include <stdexcept>
@@ -1121,19 +1122,29 @@ void SplitZipReader::setArchiveChangedCallback(ArchiveChangedCallback cb)
 // replacing mvme .analysis files in existing listmode ZIPs.
 std::string get_filename(const ZipOperation &op)
 {
-    return std::visit(
-        [](const auto &operation) -> const std::string & { return operation.filename; }, op);
+    return std::visit([](const auto &operation) { return operation.filename; }, op);
 }
 
-ZipUpdateResult update_zip_archive(const ZipUpdateConfig &config)
+std::optional<std::string> get_description(const ZipOperation &op)
+{
+    return std::visit([](const auto &operation) { return operation.description; }, op);
+}
+
+size_t get_bytes_to_write(const ZipOperation &op)
+{
+    return std::visit(
+        util::overloaded{[&](const AddOperation &addOp) { return addOp.contents.size(); },
+                         [&](const UpdateOperation &updateOp) { return updateOp.contents.size(); },
+                         [&](const DeleteOperation &) { return std::size_t{0u}; }},
+        op);
+}
+
+// some simple validity checks
+ZipUpdateResult pre_check(listfile::ZipReader &reader, const ZipUpdateConfig &config)
 {
     ZipUpdateResult result;
-
-    listfile::ZipReader reader;
-    reader.openArchive(config.input_zip_path);
     auto readerEntries = reader.entryNameList();
 
-    // simple validity checks
     for (const auto &op: config.ops)
     {
         std::visit(
@@ -1171,7 +1182,23 @@ ZipUpdateResult update_zip_archive(const ZipUpdateConfig &config)
             return result;
     }
 
+    return result;
+}
+
+ZipUpdateResult update_zip_archive(const ZipUpdateConfig &config)
+{
+    ZipUpdateResult result;
+
+    listfile::ZipReader reader;
+    reader.openArchive(config.input_zip_path);
+
+    result = pre_check(reader, config);
+
+    if (result.ec)
+        return result;
+
     std::unordered_map<std::string, ZipOperation> opsMap;
+
     for (const auto &op: config.ops)
     {
         auto filename = get_filename(op);
@@ -1183,6 +1210,37 @@ ZipUpdateResult update_zip_archive(const ZipUpdateConfig &config)
             return result;
         }
         opsMap[filename] = op;
+    }
+
+    const auto readerEntries = reader.entryNameList();
+
+    // Calculate the total number of bytes we need to write to the output archive.
+    size_t totalBytesToWrite = 0;
+
+    for (const auto &entryName: readerEntries)
+    {
+        const auto opIt = opsMap.find(entryName);
+        const bool hasOperation = opIt != opsMap.end();
+
+        if (hasOperation)
+        {
+            totalBytesToWrite += get_bytes_to_write(opIt->second);
+        }
+        else
+        {
+            // No operation for this entry -> copy it to the new archive.
+            reader.openEntry(entryName);
+            totalBytesToWrite += reader.entryInfo().uncompressedSize;
+            reader.closeCurrentEntry();
+        }
+    }
+
+    for (const auto &op: config.ops)
+    {
+        if (std::holds_alternative<AddOperation>(op))
+        {
+            totalBytesToWrite += get_bytes_to_write(op);
+        }
     }
 
     // Hacky tempfile stuff starts here...
@@ -1217,10 +1275,21 @@ ZipUpdateResult update_zip_archive(const ZipUpdateConfig &config)
 
     // Copy entries from the old archive to the new one, applying operations
     std::vector<uint8_t> buffer(util::Megabytes(1)); // 1MB buffer for copying
+    size_t totalBytesWritten = 0;
 
-    for (const auto &entryName : readerEntries)
+    for (const auto &entryName: readerEntries)
     {
-        // Check if this entry has an operation
+        // Check for cancellation
+        if (config.is_cancelled && config.is_cancelled())
+        {
+            result.ec = std::make_error_code(std::errc::operation_canceled);
+            result.error_detail = "Operation was cancelled by user";
+            writer.closeArchive();
+            reader.closeArchive();
+            util::delete_file(tmpNameTemplate);
+            return result;
+        }
+
         const auto opIt = opsMap.find(entryName);
         const bool hasOperation = opIt != opsMap.end();
 
@@ -1248,10 +1317,25 @@ ZipUpdateResult update_zip_archive(const ZipUpdateConfig &config)
             auto readHandle = reader.openEntry(entryName);
             auto writeHandle = writer.createZIPEntry(entryName, 0); // uncompressed
 
+            auto readEntryInfo = reader.entryInfo();
+
             size_t bytesRead;
             while ((bytesRead = readHandle->read(buffer.data(), buffer.size())) > 0)
             {
-                writeHandle->write(buffer.data(), bytesRead);
+                size_t bytesWritten = writeHandle->write(buffer.data(), bytesRead);
+                totalBytesWritten += bytesWritten;
+
+                if (config.on_progress)
+                {
+                    double progress = static_cast<double>(totalBytesWritten) / totalBytesToWrite;
+                    ProgressEvent event;
+                    event.step = fmt::format("Copying entry '{}'", entryName);
+                    event.progress = progress;
+                    event.bytes_copied = totalBytesWritten;
+                    event.bytes_total = totalBytesToWrite;
+
+                    config.on_progress(event);
+                }
             }
 
             writer.closeCurrentEntry();
@@ -1269,8 +1353,18 @@ ZipUpdateResult update_zip_archive(const ZipUpdateConfig &config)
     }
 
     // Now process Add and Update operations
-    for (const auto &op : config.ops)
+    for (const auto &op: config.ops)
     {
+        if (config.is_cancelled && config.is_cancelled())
+        {
+            result.ec = std::make_error_code(std::errc::operation_canceled);
+            result.error_detail = "Operation was cancelled by user";
+            writer.closeArchive();
+            reader.closeArchive();
+            util::delete_file(tmpNameTemplate);
+            return result;
+        }
+
         std::visit(
             util::overloaded{
                 [&](const AddOperation &addOp)
@@ -1278,7 +1372,9 @@ ZipUpdateResult update_zip_archive(const ZipUpdateConfig &config)
                     try
                     {
                         auto writeHandle = writer.createZIPEntry(addOp.filename, 0);
-                        writeHandle->write(addOp.contents.data(), addOp.contents.size());
+                        size_t bytesWritten =
+                            writeHandle->write(addOp.contents.data(), addOp.contents.size());
+                        totalBytesWritten += bytesWritten;
                         writer.closeCurrentEntry();
                         result.ops_descriptions.push_back(
                             fmt::format("Added file '{}' to ZIP", addOp.filename));
@@ -1295,7 +1391,9 @@ ZipUpdateResult update_zip_archive(const ZipUpdateConfig &config)
                     try
                     {
                         auto writeHandle = writer.createZIPEntry(updateOp.filename, 0);
-                        writeHandle->write(updateOp.contents.data(), updateOp.contents.size());
+                        size_t bytesWritten =
+                            writeHandle->write(updateOp.contents.data(), updateOp.contents.size());
+                        totalBytesWritten += bytesWritten;
                         writer.closeCurrentEntry();
                         result.ops_descriptions.push_back(
                             fmt::format("Updated file '{}' in ZIP", updateOp.filename));
@@ -1303,8 +1401,8 @@ ZipUpdateResult update_zip_archive(const ZipUpdateConfig &config)
                     catch (const std::exception &e)
                     {
                         result.ec = std::make_error_code(std::errc::io_error);
-                        result.error_detail =
-                            fmt::format("Failed to update file '{}': {}", updateOp.filename, e.what());
+                        result.error_detail = fmt::format("Failed to update file '{}': {}",
+                                                          updateOp.filename, e.what());
                     }
                 },
                 [&](const DeleteOperation &)
@@ -1319,6 +1417,18 @@ ZipUpdateResult update_zip_archive(const ZipUpdateConfig &config)
             reader.closeArchive();
             util::delete_file(tmpNameTemplate);
             return result;
+        }
+
+        if (config.on_progress)
+        {
+            double progress = static_cast<double>(totalBytesWritten) / totalBytesToWrite;
+            ProgressEvent event;
+            event.step = get_description(op).value_or(get_filename(op));
+            event.progress = progress;
+            event.bytes_copied = totalBytesWritten;
+            event.bytes_total = totalBytesToWrite;
+
+            config.on_progress(event);
         }
     }
 
@@ -1340,8 +1450,8 @@ ZipUpdateResult update_zip_archive(const ZipUpdateConfig &config)
     if (std::rename(tmpNameTemplate.c_str(), config.input_zip_path.c_str()) != 0)
     {
         result.ec = std::error_code(errno, std::system_category());
-        result.error_detail = fmt::format(
-            "Failed to replace original ZIP file: {}", result.ec.message());
+        result.error_detail =
+            fmt::format("Failed to replace original ZIP file: {}", result.ec.message());
         util::delete_file(tmpNameTemplate);
         return result;
     }

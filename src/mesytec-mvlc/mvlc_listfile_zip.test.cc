@@ -1260,18 +1260,24 @@ TEST(mvlc_listfile_zip, CompressionTests)
 }
 #endif
 
-TEST(mvlc_listfile_zip, ZipArchiveUpdater)
+class ZipArchiveUpdaterTest: public testing::Test
 {
-    const std::vector<u8> outData0 = {0x12, 0x34, 0x56, 0x78};
-    const std::vector<u8> outData1 = {0xff, 0xfe, 0xfd, 0xfc, 0xfb, 0xfa, 0xf9, 0xf8};
-    const std::vector<u8> outData2 = {0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a};
+    public:
+        const std::string archiveName = "ziparchiveupdater.test.zip";
 
-    const std::vector<u8> outData1_updated = {0x1f, 0x2e, 0x3d, 0x4c, 0x5b, 0x6a, 0x79, 0x88, 0x99};
-    const std::vector<u8> outData3 = {0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88};
+        const std::vector<u8> outData0 = {0x12, 0x34, 0x56, 0x78};
+        const std::vector<u8> outData1 = {0xff, 0xfe, 0xfd, 0xfc, 0xfb, 0xfa, 0xf9, 0xf8};
+        const std::vector<u8> outData2 = {0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a};
 
+        const std::vector<u8> outData1_updated = {0x1f, 0x2e, 0x3d, 0x4c, 0x5b, 0x6a, 0x79, 0x88, 0x99};
+        const std::vector<u8> outData3 = {0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88};
+
+
+    protected:
+    ZipArchiveUpdaterTest()
     {
         ZipCreator writer;
-        writer.createArchive("ziparchiveupdater.test.zip");
+        writer.createArchive(archiveName);
 
         {
             auto writeHandle = writer.createZIPEntry("entry0.data", 1);
@@ -1292,8 +1298,35 @@ TEST(mvlc_listfile_zip, ZipArchiveUpdater)
         }
     }
 
+    ~ZipArchiveUpdaterTest() override
+    {
+        util::delete_file(archiveName);
+    }
+};
+
+TEST_F(ZipArchiveUpdaterTest, Operations)
+{
     ZipUpdateConfig updateConfig;
-    updateConfig.input_zip_path = "ziparchiveupdater.test.zip";
+    updateConfig.input_zip_path = archiveName;
+
+    size_t callbackCount_isCancelled = 0;
+    size_t callbackCount_progress = 0;
+
+    auto is_cancelled = [&] () -> bool
+    {
+        ++callbackCount_isCancelled;
+        return false;
+    };
+
+    auto on_progress = [&] (const ProgressEvent &progress) -> void
+    {
+        ++callbackCount_progress;
+        //fmt::print("Progress: step={}, progress={}, bytesWritten={}, totalBytesToWrite={}\n",
+        //    progress.step, progress.progress, progress.bytes_copied.value_or(0), progress.bytes_total.value_or(0));
+    };
+
+    updateConfig.on_progress = on_progress;
+    updateConfig.is_cancelled = is_cancelled;
 
     {
         UpdateOperation op;
@@ -1323,6 +1356,8 @@ TEST(mvlc_listfile_zip, ZipArchiveUpdater)
     ASSERT_FALSE(updateResult.ec);
     ASSERT_TRUE(updateResult.error_detail.empty());
     ASSERT_EQ(updateResult.ops_descriptions.size(), 3u);
+    ASSERT_GE(callbackCount_isCancelled, 1u);
+    ASSERT_EQ(callbackCount_progress, 4u);
 
     //fmt::print("Ops descriptions:\n  {}\n", fmt::join(updateResult.ops_descriptions, "\n  "));
 
@@ -1358,6 +1393,68 @@ TEST(mvlc_listfile_zip, ZipArchiveUpdater)
             ASSERT_EQ(readBuffer, outData3);
         }
     }
+}
 
-    ASSERT_TRUE(util::delete_file(updateConfig.input_zip_path));
+TEST_F(ZipArchiveUpdaterTest, BadConfig)
+{
+    ZipUpdateConfig updateConfig;
+    updateConfig.input_zip_path = "foobar.blob";
+
+    ASSERT_THROW(update_zip_archive(updateConfig), std::runtime_error);
+
+    updateConfig.input_zip_path = archiveName;
+
+    {
+        AddOperation op;
+        op.filename = "entry0.data";
+        op.description = "Attempt to add an entry that already exists";
+        op.contents = outData0;
+        updateConfig.ops = { std::move(op) };
+    }
+
+    auto res = update_zip_archive(updateConfig);
+    ASSERT_TRUE(res.ec);
+    //fmt::print("Error detail: {}\n", res.error_detail);
+
+    {
+        DeleteOperation op;
+        op.filename = "nonexistent.data";
+        op.description = "Attempt to delete a non-existent entry";
+        updateConfig.ops = { std::move(op) };
+    }
+
+    res = update_zip_archive(updateConfig);
+    ASSERT_TRUE(res.ec);
+    //fmt::print("Error detail: {}\n", res.error_detail);
+
+    {
+        UpdateOperation op;
+        op.filename = "nonexistent.data";
+        op.description = "Attempt to update a non-existent entry";
+        op.contents = outData1_updated;
+        updateConfig.ops = { std::move(op) };
+    }
+
+    res = update_zip_archive(updateConfig);
+    ASSERT_TRUE(res.ec);
+    //fmt::print("Error detail: {}\n", res.error_detail);
+
+    updateConfig.ops.clear();
+
+    {
+        DeleteOperation op;
+        op.filename = "entry0.data";
+        updateConfig.ops.emplace_back(std::move(op));
+    }
+
+    {
+        UpdateOperation op;
+        op.filename = "entry0.data";
+        op.contents = outData1_updated;
+        updateConfig.ops.emplace_back(std::move(op));
+    }
+
+    res = update_zip_archive(updateConfig);
+    ASSERT_TRUE(res.ec);
+    //fmt::print("Error detail: {}\n", res.error_detail);
 }
