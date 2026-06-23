@@ -629,7 +629,7 @@ TEST(EventBuilder2, OneModuleEmptyEvents)
 
 TEST(EventBuilder2, TwoModulesOneFailedStamp)
 {
-    set_global_log_level(spdlog::level::info);
+    set_global_log_level(spdlog::level::trace);
     ModuleConfig mod0;
     mod0.name = "mod0";
     mod0.tsExtractor = bitprefixed_timestamp_extractor;
@@ -658,10 +658,11 @@ TEST(EventBuilder2, TwoModulesOneFailedStamp)
         ++dataCallbackCount;
         spdlog::trace("eventDataCallback: crateIndex={}, eventIndex={}, moduleCount={}", crateIndex,
                       eventIndex, moduleCount);
+
         for (size_t i = 0; i < moduleCount; ++i)
         {
             spdlog::trace(
-                "eventDataCallback: module{}: size={}, data={}", i, moduleDataList[i].data.size,
+                "eventDataCallback: module{}: size={}, data={:#010x}", i, moduleDataList[i].data.size,
                 fmt::join(moduleDataList[i].data.data,
                           moduleDataList[i].data.data + moduleDataList[i].data.size, ", "));
         }
@@ -740,6 +741,12 @@ TEST(EventBuilder2, TwoModulesOneFailedStamp)
     }
 
     ASSERT_EQ(eb.flush(), 5);
-    ASSERT_EQ(dataCallbackCount, 17);
+    // XXX: This was 17 before the last batch of changes. 12 from the prev test + 5 from flushing == 17.
+    // What changed: the eb does not invoke the data callback if none of the
+    // module in the output event have any data. This is the case for the first
+    // iteration flush does internally. So now we do have 5 flushed events but
+    // only 4 data callbacks. It's a bit confusing. Maybe the data callbacks
+    // should always be called and the user then has to check for empty events.
+    ASSERT_EQ(dataCallbackCount, 16);
     fmt::print(eb.debugDump("final2"));
 }
