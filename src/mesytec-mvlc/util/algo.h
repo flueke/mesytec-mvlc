@@ -36,6 +36,30 @@ bool contains(const M &map, const K &key)
     return map.find(key) != map.end();
 }
 
+// non-string sequence contains()
+template <class, class = void>
+struct is_indexed_range : std::false_type {};
+
+template <class T>
+struct is_indexed_range<T, std::void_t<
+    decltype(std::declval<T&>().begin()),
+    decltype(std::declval<T&>().end()),
+    decltype(std::declval<T&>()[std::size_t{}])
+>> : std::true_type {};
+
+template <class T>
+struct is_string_like : std::false_type {};
+
+template <>
+struct is_string_like<std::string> : std::true_type {};
+
+template<class C, class V,
+std::enable_if_t<is_indexed_range<C>::value && !is_string_like<C>::value, bool> = true>
+bool contains(const C &container, const V &value)
+{
+    return std::find(container.begin(), container.end(), value) != container.end();
+}
+
 }
 
 #endif /* BBB831A8_65B0_4E06_BE5B_CB69AE21959D */
