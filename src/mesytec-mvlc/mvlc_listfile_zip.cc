@@ -1139,6 +1139,26 @@ size_t get_bytes_to_write(const ZipOperation &op)
         op);
 }
 
+ZipUpdateResult check_free_space(const ZipUpdateConfig &config)
+{
+    auto spaceInfo = std::filesystem::space(config.input_zip_path);
+    auto freeSpace = spaceInfo.available;
+
+    auto inputArchiveSize = std::filesystem::file_size(config.input_zip_path);
+    auto requiredSpace = inputArchiveSize * config.min_available_space_ratio;
+
+    if (freeSpace < requiredSpace)
+    {
+        ZipUpdateResult result;
+        result.ec = std::make_error_code(std::errc::no_space_on_device);
+        result.error_detail = fmt::format(
+            "Not enough free space to update ZIP archive. Required: {} bytes, available: {} bytes",
+            requiredSpace, freeSpace);
+        return result;
+    }
+    return ZipUpdateResult{};
+}
+
 // some simple validity checks
 ZipUpdateResult pre_check(listfile::ZipReader &reader, const ZipUpdateConfig &config)
 {
@@ -1188,6 +1208,11 @@ ZipUpdateResult pre_check(listfile::ZipReader &reader, const ZipUpdateConfig &co
 ZipUpdateResult update_zip_archive(const ZipUpdateConfig &config)
 {
     ZipUpdateResult result;
+
+    result = check_free_space(config);
+
+    if (result.ec)
+        return result;
 
     listfile::ZipReader reader;
     reader.openArchive(config.input_zip_path);
