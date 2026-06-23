@@ -6,11 +6,7 @@
 #include <mz.h>
 #include <mz_os.h>
 
-namespace mesytec
-{
-namespace mvlc
-{
-namespace util
+namespace mesytec::mvlc::util
 {
 
 std::string basename(const std::string &filepath)
@@ -45,6 +41,4 @@ bool delete_file(const std::string &filepath)
     return mz_os_unlink(filepath.c_str()) == MZ_OK;
 }
 
-}
-}
 }
