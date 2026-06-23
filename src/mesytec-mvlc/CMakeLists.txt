@@ -54,7 +54,6 @@ add_library(mesytec-mvlc SHARED
     util/ticketmutex.cc
     util/udp_sockets.cc
     util/yaml_json.cc
-    util/zip_archive_updater.cc
     )
 
 if (MESYTEC_MVLC_PLATFORM_LINUX)

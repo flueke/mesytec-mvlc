@@ -18,9 +18,11 @@
 #include <mz_zip.h>
 #include <mz_zip_rw.h>
 
+#include "util/algo.h"
 #include "util/filesystem.h"
 #include "util/fmt.h"
 #include "util/logging.h"
+#include "util/overloaded.hpp"
 #include "util/storage_sizes.h"
 #include "util/string_view.hpp"
 
@@ -28,11 +30,7 @@ using namespace nonstd;
 using std::cout;
 using std::endl;
 
-namespace mesytec
-{
-namespace mvlc
-{
-namespace listfile
+namespace mesytec::mvlc::listfile
 {
 
 //
@@ -41,10 +39,10 @@ namespace listfile
 
 ZipEntryWriteHandle::ZipEntryWriteHandle(ZipCreator *creator)
     : m_zipCreator(creator)
-{ }
+{
+}
 
-ZipEntryWriteHandle::~ZipEntryWriteHandle()
-{ }
+ZipEntryWriteHandle::~ZipEntryWriteHandle() {}
 
 size_t ZipEntryWriteHandle::write(const u8 *data, size_t size)
 {
@@ -64,14 +62,13 @@ struct ZipCreator::Private
 
         static constexpr size_t ChunkSize = util::Megabytes(1);
 
-        LZ4F_preferences_t lz4Prefs =
-        {
-            { LZ4F_max4MB, LZ4F_blockLinked, LZ4F_noContentChecksum, LZ4F_frame,
-              0 /* unknown content size */, 0 /* no dictID */ , LZ4F_noBlockChecksum },
-            0,   /* compression level; 0 == default */
-            0,   /* autoflush */
-            0,   /* favor decompression speed */
-            { 0, 0, 0 },  /* reserved, must be set to 0 */
+        LZ4F_preferences_t lz4Prefs = {
+            {LZ4F_max4MB, LZ4F_blockLinked, LZ4F_noContentChecksum, LZ4F_frame,
+             0 /* unknown content size */, 0 /* no dictID */, LZ4F_noBlockChecksum},
+            0,         /* compression level; 0 == default */
+            0,         /* autoflush */
+            0,         /* favor decompression speed */
+            {0, 0, 0}, /* reserved, must be set to 0 */
         };
 
         LZ4F_compressionContext_t ctx = {};
@@ -87,10 +84,7 @@ struct ZipCreator::Private
             buffer = std::vector<u8>(bufferSize);
         }
 
-        void end()
-        {
-            LZ4F_freeCompressionContext(ctx);   /* supports free on NULL */
-        }
+        void end() { LZ4F_freeCompressionContext(ctx); /* supports free on NULL */ }
     };
 
     explicit Private()
@@ -138,7 +132,8 @@ struct ZipCreator::Private
 
 ZipCreator::ZipCreator()
     : d(std::make_unique<Private>())
-{}
+{
+}
 
 ZipCreator::~ZipCreator()
 {
@@ -147,19 +142,19 @@ ZipCreator::~ZipCreator()
         closeCurrentEntry();
     }
     catch (...)
-    {}
+    {
+    }
 
     try
     {
         closeArchive();
     }
     catch (...)
-    {}
+    {
+    }
 }
 
-void ZipCreator::createArchive(
-    const std::string &zipFilename,
-    const OverwriteMode &mode)
+void ZipCreator::createArchive(const std::string &zipFilename, const OverwriteMode &mode)
 {
     if (isOpen())
         throw std::runtime_error("ZipCreator has an open archive");
@@ -189,17 +184,12 @@ void ZipCreator::closeArchive()
     d->archiveName = {};
 }
 
-bool ZipCreator::isOpen() const
-{
-    return mz_stream_is_open(d->mz_bufStream) == MZ_OK;
-}
+bool ZipCreator::isOpen() const { return mz_stream_is_open(d->mz_bufStream) == MZ_OK; }
 
-std::string ZipCreator::archiveName() const
-{
-    return d->archiveName;
-}
+std::string ZipCreator::archiveName() const { return d->archiveName; }
 
-std::unique_ptr<WriteHandle> ZipCreator::createZIPEntry(const std::string &entryName, int compressLevel)
+std::unique_ptr<WriteHandle> ZipCreator::createZIPEntry(const std::string &entryName,
+                                                        int compressLevel)
 {
     if (hasOpenEntry())
         throw std::runtime_error("ZipCreator has open archive entry");
@@ -227,7 +217,8 @@ std::unique_ptr<WriteHandle> ZipCreator::createZIPEntry(const std::string &entry
     return std::unique_ptr<ZipEntryWriteHandle>(new ZipEntryWriteHandle(this));
 }
 
-std::unique_ptr<WriteHandle> ZipCreator::createLZ4Entry(const std::string &entryName_, int compressLevel)
+std::unique_ptr<WriteHandle> ZipCreator::createLZ4Entry(const std::string &entryName_,
+                                                        int compressLevel)
 {
     if (hasOpenEntry())
         throw std::runtime_error("ZipCreator has open archive entry");
@@ -256,11 +247,8 @@ std::unique_ptr<WriteHandle> ZipCreator::createLZ4Entry(const std::string &entry
     d->lz4Ctx.begin(compressLevel);
 
     // write the LZ4 frame header
-    size_t lz4BufferBytes = LZ4F_compressBegin(
-        d->lz4Ctx.ctx,
-        d->lz4Ctx.buffer.data(),
-        d->lz4Ctx.buffer.size(),
-        &d->lz4Ctx.lz4Prefs);
+    size_t lz4BufferBytes = LZ4F_compressBegin(d->lz4Ctx.ctx, d->lz4Ctx.buffer.data(),
+                                               d->lz4Ctx.buffer.size(), &d->lz4Ctx.lz4Prefs);
 
     if (LZ4F_isError(lz4BufferBytes))
         throw std::runtime_error("LZ4F_compressBegin: " + std::to_string(lz4BufferBytes));
@@ -275,15 +263,9 @@ std::unique_ptr<WriteHandle> ZipCreator::createLZ4Entry(const std::string &entry
     return std::unique_ptr<ZipEntryWriteHandle>(new ZipEntryWriteHandle(this));
 }
 
-bool ZipCreator::hasOpenEntry() const
-{
-    return d->entryInfo.isOpen;
-}
+bool ZipCreator::hasOpenEntry() const { return d->entryInfo.isOpen; }
 
-const ZipEntryInfo &ZipCreator::entryInfo() const
-{
-    return d->entryInfo;
-}
+const ZipEntryInfo &ZipCreator::entryInfo() const { return d->entryInfo; }
 
 size_t ZipCreator::writeToCurrentEntry(const u8 *inputData, size_t inputSize)
 {
@@ -294,38 +276,36 @@ size_t ZipCreator::writeToCurrentEntry(const u8 *inputData, size_t inputSize)
 
     switch (d->entryInfo.type)
     {
-        case ZipEntryInfo::ZIP:
-            bytesWritten = d->writeToCurrentZIPEntry(inputData, inputSize);
-            d->entryInfo.bytesWritten += bytesWritten;
-            break;
+    case ZipEntryInfo::ZIP:
+        bytesWritten = d->writeToCurrentZIPEntry(inputData, inputSize);
+        d->entryInfo.bytesWritten += bytesWritten;
+        break;
 
-        case ZipEntryInfo::LZ4:
-            while (bytesWritten < inputSize)
-            {
-                size_t bytesLeft = inputSize - bytesWritten;
-                size_t chunkBytes = std::min(bytesLeft, d->lz4Ctx.buffer.size());
+    case ZipEntryInfo::LZ4:
+        while (bytesWritten < inputSize)
+        {
+            size_t bytesLeft = inputSize - bytesWritten;
+            size_t chunkBytes = std::min(bytesLeft, d->lz4Ctx.buffer.size());
 
-                assert(inputData + bytesWritten + chunkBytes <= inputData + inputSize);
-                assert(chunkBytes <= LZ4F_compressBound(d->lz4Ctx.ChunkSize, &d->lz4Ctx.lz4Prefs));
+            assert(inputData + bytesWritten + chunkBytes <= inputData + inputSize);
+            assert(chunkBytes <= LZ4F_compressBound(d->lz4Ctx.ChunkSize, &d->lz4Ctx.lz4Prefs));
 
-                // compress the chunk into the LZ4WriteContext buffer
-                size_t compressedSize = LZ4F_compressUpdate(
-                    d->lz4Ctx.ctx,
-                    d->lz4Ctx.buffer.data(), d->lz4Ctx.buffer.size(),
-                    inputData + bytesWritten, chunkBytes,
-                    nullptr);
+            // compress the chunk into the LZ4WriteContext buffer
+            size_t compressedSize =
+                LZ4F_compressUpdate(d->lz4Ctx.ctx, d->lz4Ctx.buffer.data(), d->lz4Ctx.buffer.size(),
+                                    inputData + bytesWritten, chunkBytes, nullptr);
 
-                if (LZ4F_isError(compressedSize))
-                    throw std::runtime_error("LZ4F_compressUpdate: " + std::to_string(compressedSize));
+            if (LZ4F_isError(compressedSize))
+                throw std::runtime_error("LZ4F_compressUpdate: " + std::to_string(compressedSize));
 
-                // flush the LZ4 buffer contents to the ZIP
-                d->writeToCurrentZIPEntry(d->lz4Ctx.buffer.data(), compressedSize);
+            // flush the LZ4 buffer contents to the ZIP
+            d->writeToCurrentZIPEntry(d->lz4Ctx.buffer.data(), compressedSize);
 
-                bytesWritten += chunkBytes;
-                d->entryInfo.bytesWritten += chunkBytes;
-                d->entryInfo.lz4CompressedBytesWritten += compressedSize;
-            }
-            break;
+            bytesWritten += chunkBytes;
+            d->entryInfo.bytesWritten += chunkBytes;
+            d->entryInfo.lz4CompressedBytesWritten += compressedSize;
+        }
+        break;
     };
 
     return bytesWritten;
@@ -339,10 +319,8 @@ void ZipCreator::closeCurrentEntry()
     if (d->entryInfo.type == ZipEntryInfo::LZ4)
     {
         // flush whatever remains within internal buffers
-        size_t const compressedSize = LZ4F_compressEnd(
-            d->lz4Ctx.ctx,
-            d->lz4Ctx.buffer.data(), d->lz4Ctx.buffer.size(),
-            nullptr);
+        size_t const compressedSize = LZ4F_compressEnd(d->lz4Ctx.ctx, d->lz4Ctx.buffer.data(),
+                                                       d->lz4Ctx.buffer.size(), nullptr);
 
         if (LZ4F_isError(compressedSize))
             throw std::runtime_error("LZ4F_compressEnd: " + std::to_string(compressedSize));
@@ -375,7 +353,8 @@ struct SplitZipCreator::Private
 
     Private(SplitZipCreator *q_)
         : q(q_)
-    { }
+    {
+    }
 
     void createNextArchive();
 };
@@ -438,24 +417,20 @@ void SplitZipCreator::closeArchive()
     d->zipCreator.closeArchive();
 }
 
-bool SplitZipCreator::isOpen() const
-{
-    return d->zipCreator.isOpen();
-}
+bool SplitZipCreator::isOpen() const { return d->zipCreator.isOpen(); }
 
-std::string SplitZipCreator::archiveName() const
-{
-    return d->zipCreator.archiveName();
-}
+std::string SplitZipCreator::archiveName() const { return d->zipCreator.archiveName(); }
 
-std::unique_ptr<WriteHandle> SplitZipCreator::createZIPEntry(const std::string &entryName, int compressLevel)
+std::unique_ptr<WriteHandle> SplitZipCreator::createZIPEntry(const std::string &entryName,
+                                                             int compressLevel)
 {
     auto ret = d->zipCreator.createZIPEntry(entryName, compressLevel);
     d->isSplitEntry = false;
     return ret;
 }
 
-std::unique_ptr<WriteHandle> SplitZipCreator::createLZ4Entry(const std::string &entryName, int compressLevel)
+std::unique_ptr<WriteHandle> SplitZipCreator::createLZ4Entry(const std::string &entryName,
+                                                             int compressLevel)
 {
     auto ret = d->zipCreator.createLZ4Entry(entryName, compressLevel);
     d->isSplitEntry = false;
@@ -479,13 +454,13 @@ std::unique_ptr<WriteHandle> SplitZipCreator::createListfileEntry()
 
     switch (d->setup.entryType)
     {
-        case ZipEntryInfo::ZIP:
-            wh = d->zipCreator.createZIPEntry(memberName, d->setup.compressLevel);
-            break;
+    case ZipEntryInfo::ZIP:
+        wh = d->zipCreator.createZIPEntry(memberName, d->setup.compressLevel);
+        break;
 
-        case ZipEntryInfo::LZ4:
-            wh = d->zipCreator.createLZ4Entry(memberName, d->setup.compressLevel);
-            break;
+    case ZipEntryInfo::LZ4:
+        wh = d->zipCreator.createLZ4Entry(memberName, d->setup.compressLevel);
+        break;
     }
 
     d->isSplitEntry = d->setup.splitMode != ZipSplitMode::DontSplit;
@@ -535,37 +510,22 @@ size_t SplitZipCreator::writeToCurrentEntry(const u8 *data, size_t size)
     return d->zipCreator.writeToCurrentEntry(data, size);
 }
 
-void SplitZipCreator::closeCurrentEntry()
-{
-    d->zipCreator.closeCurrentEntry();
-}
+void SplitZipCreator::closeCurrentEntry() { d->zipCreator.closeCurrentEntry(); }
 
-bool SplitZipCreator::hasOpenEntry() const
-{
-    return d->zipCreator.hasOpenEntry();
-}
+bool SplitZipCreator::hasOpenEntry() const { return d->zipCreator.hasOpenEntry(); }
 
-const ZipEntryInfo &SplitZipCreator::entryInfo() const
-{
-    return d->zipCreator.entryInfo();
-}
+const ZipEntryInfo &SplitZipCreator::entryInfo() const { return d->zipCreator.entryInfo(); }
 
-bool SplitZipCreator::isSplitEntry() const
-{
-    return hasOpenEntry() ? d->isSplitEntry : false;
-}
+bool SplitZipCreator::isSplitEntry() const { return hasOpenEntry() ? d->isSplitEntry : false; }
 
-ZipCreator *SplitZipCreator::getZipCreator()
-{
-    return &d->zipCreator;
-}
+ZipCreator *SplitZipCreator::getZipCreator() { return &d->zipCreator; }
 
 SplitZipWriteHandle::SplitZipWriteHandle(SplitZipCreator *creator)
     : creator_(creator)
-{ }
+{
+}
 
-SplitZipWriteHandle::~SplitZipWriteHandle()
-{ }
+SplitZipWriteHandle::~SplitZipWriteHandle() {}
 
 size_t SplitZipWriteHandle::write(const u8 *data, size_t size)
 {
@@ -595,7 +555,7 @@ size_t ZipReadHandle::seek(size_t pos)
 
     while (totalBytesRead < pos)
     {
-        auto bytesRead = read(buffer.data(), std::min(buffer.size(), pos-totalBytesRead));
+        auto bytesRead = read(buffer.data(), std::min(buffer.size(), pos - totalBytesRead));
         totalBytesRead += bytesRead;
         if (bytesRead == 0u)
             break;
@@ -623,10 +583,7 @@ struct ZipReader::Private
                 throw std::runtime_error("LZ4F_createDecompressionContext: " + std::to_string(err));
         }
 
-        ~LZ4ReadContext()
-        {
-            LZ4F_freeDecompressionContext(ctx);
-        }
+        ~LZ4ReadContext() { LZ4F_freeDecompressionContext(ctx); }
 
         void clear()
         {
@@ -648,8 +605,8 @@ struct ZipReader::Private
     {
         s32 res = mz_zip_reader_entry_read(this->reader, dest, maxSize);
 
-        //cout << PRETTY_FUNCTION << " maxSize=" << maxSize
-        //    << ", res=" << res << endl;
+        // cout << PRETTY_FUNCTION << " maxSize=" << maxSize
+        //     << ", res=" << res << endl;
 
         if (res < 0)
             throw std::runtime_error("mz_zip_reader_entry_read: " + std::to_string(res));
@@ -664,7 +621,7 @@ struct ZipReader::Private
     // linkname are set to nullptr for the mz_zip_entry structures stored in
     // the vector.
     std::vector<mz_zip_entry> entryInfoCache;
-    ZipReadHandle entryReadHandle { nullptr };
+    ZipReadHandle entryReadHandle{nullptr};
     ZipEntryInfo entryInfo;
     LZ4ReadContext lz4Ctx;
 };
@@ -685,17 +642,15 @@ ZipReader::~ZipReader()
     {
         closeArchive();
     }
-    catch(...)
-    { }
+    catch (...)
+    {
+    }
 
     mz_zip_reader_delete(&d->reader);
     mz_stream_os_delete(&d->osStream);
 }
 
-ZipReader::ZipReader(ZipReader &&o)
-{
-    std::swap(d, o.d);
-}
+ZipReader::ZipReader(ZipReader &&o) { std::swap(d, o.d); }
 
 ZipReader &ZipReader::operator=(ZipReader &&o)
 {
@@ -734,7 +689,8 @@ void ZipReader::openArchive(const std::string &archiveName)
         entryCopy.comment = nullptr;
         entryCopy.linkname = nullptr;
         d->entryInfoCache.push_back(entryCopy);
-    } while ((err = mz_zip_reader_goto_next_entry(d->reader)) == MZ_OK);
+    }
+    while ((err = mz_zip_reader_goto_next_entry(d->reader)) == MZ_OK);
 
     if (err != MZ_END_OF_LIST)
         throw std::runtime_error("mz_zip_reader_goto_next_entry: " + std::to_string(err));
@@ -751,30 +707,31 @@ void ZipReader::closeArchive()
     d->entryNameCache = {};
 }
 
-std::vector<std::string> ZipReader::entryNameList()
-{
-    return d->entryNameCache;
-}
+std::vector<std::string> ZipReader::entryNameList() { return d->entryNameCache; }
 
 namespace
 {
 
-inline size_t get_block_size(const LZ4F_frameInfo_t* info)
+inline size_t get_block_size(const LZ4F_frameInfo_t *info)
 {
     switch (info->blockSizeID)
     {
-        case LZ4F_default:
-        case LZ4F_max64KB:  return 1 << 16;
-        case LZ4F_max256KB: return 1 << 18;
-        case LZ4F_max1MB:   return 1 << 20;
-        case LZ4F_max4MB:   return 1 << 22;
-        default:
-                            throw std::runtime_error(
-                                "impossible LZ4 block size with current frame specification (<=v1.6.1)");
+    case LZ4F_default:
+    case LZ4F_max64KB:
+        return 1 << 16;
+    case LZ4F_max256KB:
+        return 1 << 18;
+    case LZ4F_max1MB:
+        return 1 << 20;
+    case LZ4F_max4MB:
+        return 1 << 22;
+    default:
+        throw std::runtime_error(
+            "impossible LZ4 block size with current frame specification (<=v1.6.1)");
     }
 }
 
-} // end anon namespace
+} // namespace
 
 ZipReadHandle *ZipReader::openEntry(const std::string &name)
 {
@@ -807,18 +764,19 @@ ZipReadHandle *ZipReader::openEntry(const std::string &name)
 
     if (d->entryInfo.type == ZipEntryInfo::LZ4)
     {
-        size_t bytesRead = d->readFromCurrentZipEntry(
-            d->lz4Ctx.compressedBuffer.data(),
-            d->lz4Ctx.compressedBuffer.size());
+        size_t bytesRead = d->readFromCurrentZipEntry(d->lz4Ctx.compressedBuffer.data(),
+                                                      d->lz4Ctx.compressedBuffer.size());
 
-        //cout << PRETTY_FUNCTION << ": initial read from zip yielded " << bytesRead << " bytes" << endl;
+        // cout << PRETTY_FUNCTION << ": initial read from zip yielded " << bytesRead << " bytes" <<
+        // endl;
 
         d->entryInfo.lz4CompressedBytesRead += bytesRead;
 
         if (bytesRead == 0)
-            throw std::runtime_error("ZipReader::openEntry: not enough data to initialise LZ4 decompression");
+            throw std::runtime_error(
+                "ZipReader::openEntry: not enough data to initialise LZ4 decompression");
 
-        d->lz4Ctx.compressedView = { d->lz4Ctx.compressedBuffer.data(), bytesRead };
+        d->lz4Ctx.compressedView = {d->lz4Ctx.compressedBuffer.data(), bytesRead};
 
         assert(d->lz4Ctx.compressedView.size() == bytesRead);
 
@@ -826,25 +784,27 @@ ZipReadHandle *ZipReader::openEntry(const std::string &name)
 
         size_t bytesConsumed = bytesRead;
 
-        size_t res = LZ4F_getFrameInfo(
-            d->lz4Ctx.ctx, &info, d->lz4Ctx.compressedView.data(), &bytesConsumed);
+        size_t res = LZ4F_getFrameInfo(d->lz4Ctx.ctx, &info, d->lz4Ctx.compressedView.data(),
+                                       &bytesConsumed);
 
         if (LZ4F_isError(res))
             throw std::runtime_error("LZ4F_getFrameInfo: " + std::to_string(res));
 
         assert(d->lz4Ctx.compressedView.size() >= bytesConsumed);
 
-        //cout << PRETTY_FUNCTION << " LZ4F_getFrameInfo consumed " << bytesConsumed << " bytes" << endl;
-        //for (size_t i=0; i<bytesConsumed; ++i)
-        //    cout << PRETTY_FUNCTION << "   " << i << ": "
-        //      << std::hex << static_cast<unsigned>(d->lz4Ctx.compressedView[i]) << std::dec << endl;
+        // cout << PRETTY_FUNCTION << " LZ4F_getFrameInfo consumed " << bytesConsumed << " bytes" <<
+        // endl; for (size_t i=0; i<bytesConsumed; ++i)
+        //     cout << PRETTY_FUNCTION << "   " << i << ": "
+        //       << std::hex << static_cast<unsigned>(d->lz4Ctx.compressedView[i]) << std::dec <<
+        //       endl;
 
         d->lz4Ctx.compressedView.remove_prefix(bytesConsumed);
 
         size_t dstCapacity = get_block_size(&info);
 
-        //cout << PRETTY_FUNCTION << " dstCapacity from LZ4 frameInfo: " << dstCapacity << endl;
-        //cout << PRETTY_FUNCTION << " compressedView.size() for first read is " << d->lz4Ctx.compressedView.size() << endl;
+        // cout << PRETTY_FUNCTION << " dstCapacity from LZ4 frameInfo: " << dstCapacity << endl;
+        // cout << PRETTY_FUNCTION << " compressedView.size() for first read is " <<
+        // d->lz4Ctx.compressedView.size() << endl;
 
         d->lz4Ctx.decompressedBuffer.resize(dstCapacity);
     }
@@ -856,10 +816,7 @@ ZipReadHandle *ZipReader::openEntry(const std::string &name)
     return result;
 }
 
-ZipReadHandle *ZipReader::currentEntry()
-{
-    return &d->entryReadHandle;
-}
+ZipReadHandle *ZipReader::currentEntry() { return &d->entryReadHandle; }
 
 void ZipReader::closeCurrentEntry()
 {
@@ -883,19 +840,22 @@ size_t ZipReader::readCurrentEntry(u8 *dest, size_t maxSize)
     {
         if (d->lz4Ctx.decompressedView.empty())
         {
-            //cout << PRETTY_FUNCTION << " loop #" << loop << ": decompressedView is empty, decompressing more data" << endl;
-            //cout << PRETTY_FUNCTION << " loop #" << loop << ": compressedView.size()=" << d->lz4Ctx.compressedView.size() << endl;
+            // cout << PRETTY_FUNCTION << " loop #" << loop << ": decompressedView is empty,
+            // decompressing more data" << endl; cout << PRETTY_FUNCTION << " loop #" << loop << ":
+            // compressedView.size()=" << d->lz4Ctx.compressedView.size() << endl;
 
             if (d->lz4Ctx.compressedView.empty())
             {
-                //cout << PRETTY_FUNCTION << " loop #" << loop << ": compressedView is empty, reading more data from zip" << endl;
+                // cout << PRETTY_FUNCTION << " loop #" << loop << ": compressedView is empty,
+                // reading more data from zip" << endl;
 
-                size_t bytesRead = d->readFromCurrentZipEntry(
-                    d->lz4Ctx.compressedBuffer.data(), d->lz4Ctx.compressedBuffer.size());
+                size_t bytesRead = d->readFromCurrentZipEntry(d->lz4Ctx.compressedBuffer.data(),
+                                                              d->lz4Ctx.compressedBuffer.size());
 
-                d->lz4Ctx.compressedView = { d->lz4Ctx.compressedBuffer.data(), bytesRead };
+                d->lz4Ctx.compressedView = {d->lz4Ctx.compressedBuffer.data(), bytesRead};
 
-                //cout << PRETTY_FUNCTION << "read " << bytesRead << " bytes of uncompressed data" << endl;
+                // cout << PRETTY_FUNCTION << "read " << bytesRead << " bytes of uncompressed data"
+                // << endl;
 
                 if (bytesRead == 0)
                     break;
@@ -908,30 +868,30 @@ size_t ZipReader::readCurrentEntry(u8 *dest, size_t maxSize)
             size_t decompressedSize = d->lz4Ctx.decompressedBuffer.size();
             size_t compressedSize = d->lz4Ctx.compressedView.size();
 
-            s32 res = LZ4F_decompress(
-                d->lz4Ctx.ctx,
-                d->lz4Ctx.decompressedBuffer.data(), &decompressedSize, // dest
-                d->lz4Ctx.compressedView.data(), &compressedSize,  // source
-                nullptr); // options
+            s32 res = LZ4F_decompress(d->lz4Ctx.ctx, d->lz4Ctx.decompressedBuffer.data(),
+                                      &decompressedSize,                                // dest
+                                      d->lz4Ctx.compressedView.data(), &compressedSize, // source
+                                      nullptr);                                         // options
 
-            //if (res == 0)
-            //    cout << PRETTY_FUNCTION << " loop #" << loop << ": LZ4F_decompress returned " << res << endl;
+            // if (res == 0)
+            //     cout << PRETTY_FUNCTION << " loop #" << loop << ": LZ4F_decompress returned " <<
+            //     res << endl;
 
-            //cout << PRETTY_FUNCTION << " LZ4F_decompress: "
-            //    << ", compressedSize=" << compressedSize
-            //    << ", decompressedSize=" << decompressedSize
-            //    << ", res=" << res
-            //    << endl;
+            // cout << PRETTY_FUNCTION << " LZ4F_decompress: "
+            //     << ", compressedSize=" << compressedSize
+            //     << ", decompressedSize=" << decompressedSize
+            //     << ", res=" << res
+            //     << endl;
 
             if (LZ4F_isError(res))
                 throw std::runtime_error("LZ4F_decompress: " + std::to_string(res));
 
-            d->lz4Ctx.decompressedView = { d->lz4Ctx.decompressedBuffer.data(), decompressedSize };
+            d->lz4Ctx.decompressedView = {d->lz4Ctx.decompressedBuffer.data(), decompressedSize};
             d->lz4Ctx.compressedView.remove_prefix(compressedSize);
         }
 
         size_t toCopy = std::min(d->lz4Ctx.decompressedView.size(), maxSize - retval);
-        std::memcpy(dest+retval, d->lz4Ctx.decompressedView.data(), toCopy);
+        std::memcpy(dest + retval, d->lz4Ctx.decompressedView.data(), toCopy);
         d->lz4Ctx.decompressedView.remove_prefix(toCopy);
         retval += toCopy;
 
@@ -953,33 +913,26 @@ size_t ZipReader::readCurrentEntry(u8 *dest, size_t maxSize)
         ++loop;
     }
 
-    //cout << PRETTY_FUNCTION << "read of maxSize=" << maxSize
-    //    << " satisfied after " << loop << " loops" << endl;
+    // cout << PRETTY_FUNCTION << "read of maxSize=" << maxSize
+    //     << " satisfied after " << loop << " loops" << endl;
 
     return retval;
 }
 
-std::string ZipReader::currentEntryName() const
-{
-    return d->entryInfo.name;
-}
+std::string ZipReader::currentEntryName() const { return d->entryInfo.name; }
 
-const ZipEntryInfo &ZipReader::entryInfo() const
-{
-    return d->entryInfo;
-}
+const ZipEntryInfo &ZipReader::entryInfo() const { return d->entryInfo; }
 
 std::string ZipReader::firstListfileEntryName()
 {
     auto entryNames = entryNameList();
 
-    auto it = std::find_if(
-        std::begin(entryNames), std::end(entryNames),
-        [] (const std::string &entryName)
-        {
-            static const std::regex re(R"foo(.+\.mvlclst(\.lz4)?)foo");
-            return std::regex_search(entryName, re);
-        });
+    auto it = std::find_if(std::begin(entryNames), std::end(entryNames),
+                           [](const std::string &entryName)
+                           {
+                               static const std::regex re(R"foo(.+\.mvlclst(\.lz4)?)foo");
+                               return std::regex_search(entryName, re);
+                           });
 
     return (it != std::end(entryNames) ? *it : std::string{});
 }
@@ -1006,10 +959,7 @@ size_t SplitZipReadHandle::read(u8 *dest, size_t maxSize)
     return m_zipReader->readCurrentEntry(dest, maxSize);
 }
 
-size_t SplitZipReadHandle::seek(size_t pos)
-{
-    return m_zipReader->seek(pos);
-}
+size_t SplitZipReadHandle::seek(size_t pos) { return m_zipReader->seek(pos); }
 
 struct SplitZipReader::Private
 {
@@ -1033,7 +983,7 @@ struct SplitZipReader::Private
     {
         auto result = next_archive_name(currentArchiveName);
         logger->debug("firstArchiveName={}, currentArchvieName={}, nextArchiveName={}",
-            firstArchiveName, currentArchiveName, result);
+                      firstArchiveName, currentArchiveName, result);
         return result;
     }
 };
@@ -1043,9 +993,7 @@ SplitZipReader::SplitZipReader()
 {
 }
 
-SplitZipReader::~SplitZipReader()
-{
-}
+SplitZipReader::~SplitZipReader() {}
 
 void SplitZipReader::openArchive(const std::string &archiveName)
 {
@@ -1056,15 +1004,9 @@ void SplitZipReader::openArchive(const std::string &archiveName)
         d->archiveChangedCallback(this, d->currentArchiveName);
 }
 
-void SplitZipReader::closeArchive()
-{
-    d->zipReader.closeArchive();
-}
+void SplitZipReader::closeArchive() { d->zipReader.closeArchive(); }
 
-std::vector<std::string> SplitZipReader::entryNameList()
-{
-    return d->zipReader.entryNameList();
-}
+std::vector<std::string> SplitZipReader::entryNameList() { return d->zipReader.entryNameList(); }
 
 ZipReadHandle *SplitZipReader::openEntry(const std::string &name)
 {
@@ -1072,10 +1014,7 @@ ZipReadHandle *SplitZipReader::openEntry(const std::string &name)
     return d->zipReader.openEntry(name);
 }
 
-ZipReadHandle *SplitZipReader::currentEntry()
-{
-    return d->zipReader.currentEntry();
-}
+ZipReadHandle *SplitZipReader::currentEntry() { return d->zipReader.currentEntry(); }
 
 void SplitZipReader::closeCurrentEntry()
 {
@@ -1092,7 +1031,8 @@ size_t SplitZipReader::readCurrentEntry(u8 *dest, size_t maxSize)
 
     while (totalBytesRead < maxSize)
     {
-        auto bytesRead = d->zipReader.readCurrentEntry(dest + totalBytesRead, maxSize - totalBytesRead);
+        auto bytesRead =
+            d->zipReader.readCurrentEntry(dest + totalBytesRead, maxSize - totalBytesRead);
         totalBytesRead += bytesRead;
 
         if (bytesRead == 0)
@@ -1114,23 +1054,19 @@ size_t SplitZipReader::readCurrentEntry(u8 *dest, size_t maxSize)
             auto magic = read_magic_str(*readHandle);
 
             if (magic != get_filemagic_eth() && magic != get_filemagic_usb())
-                d->logger->warn("SplitZipReader: archive={}, entry={}: invalid magic bytes at start of file: '{}'!",
-                    d->currentArchiveName, d->zipReader.firstListfileEntryName(), magic);
+                d->logger->warn("SplitZipReader: archive={}, entry={}: invalid magic bytes at "
+                                "start of file: '{}'!",
+                                d->currentArchiveName, d->zipReader.firstListfileEntryName(),
+                                magic);
         }
     }
 
     return totalBytesRead;
 }
 
-std::string SplitZipReader::currentEntryName() const
-{
-    return d->zipReader.currentEntryName();
-}
+std::string SplitZipReader::currentEntryName() const { return d->zipReader.currentEntryName(); }
 
-const ZipEntryInfo &SplitZipReader::entryInfo() const
-{
-    return d->zipReader.entryInfo();
-}
+const ZipEntryInfo &SplitZipReader::entryInfo() const { return d->zipReader.entryInfo(); }
 
 std::string SplitZipReader::firstListfileEntryName()
 {
@@ -1162,7 +1098,6 @@ size_t SplitZipReader::seek(size_t pos)
     d->zipReader.closeCurrentEntry();
     d->zipReader.openEntry(d->zipReader.firstListfileEntryName());
 
-
     size_t totalBytesRead = 0;
 
     while (totalBytesRead < pos)
@@ -1182,6 +1117,90 @@ void SplitZipReader::setArchiveChangedCallback(ArchiveChangedCallback cb)
     d->archiveChangedCallback = cb;
 }
 
-} // end namespace listfile
-} // end namespace mvlc
-} // end namespace mesytec
+// A small utility for safely updating files in ZIP archives. Main use case is
+// replacing mvme .analysis files in existing listmode ZIPs.
+std::string get_filename(const ZipOperation &op)
+{
+    return std::visit(
+        [](const auto &operation) -> const std::string & { return operation.filename; }, op);
+}
+
+ZipUpdateResult update_zip_archive(const ZipUpdateConfig &config)
+{
+    ZipUpdateResult result;
+
+    listfile::ZipReader reader;
+    reader.openArchive(config.input_zip_path);
+    auto readerEntries = reader.entryNameList();
+
+    // simple validity checks
+    for (const auto &op: config.ops)
+    {
+        std::visit(
+            util::overloaded{
+                [&](const AddOperation &op)
+                {
+                    if (util::contains(readerEntries, op.filename))
+                    {
+                        result.ec = std::make_error_code(std::errc::file_exists);
+                        result.error_detail =
+                            fmt::format("AddOperation: file {} already exists in ZIP", op.filename);
+                    }
+                },
+                [&](const UpdateOperation &op)
+                {
+                    if (!util::contains(readerEntries, op.filename))
+                    {
+                        result.ec = std::make_error_code(std::errc::no_such_file_or_directory);
+                        result.error_detail = fmt::format(
+                            "UpdateOperation: file {} does not exist in ZIP", op.filename);
+                    }
+                },
+                [&](const DeleteOperation &op)
+                {
+                    if (!util::contains(readerEntries, op.filename))
+                    {
+                        result.ec = std::make_error_code(std::errc::no_such_file_or_directory);
+                        result.error_detail = fmt::format(
+                            "DeleteOperation: file {} does not exist in ZIP", op.filename);
+                    }
+                }},
+            op);
+
+        if (result.ec)
+            return result;
+    }
+
+    std::unordered_map<std::string, ZipOperation> opsMap;
+    for (const auto &op: config.ops)
+    {
+        auto filename = get_filename(op);
+
+        if (util::contains(opsMap, filename))
+        {
+            result.ec = std::make_error_code(std::errc::invalid_argument);
+            result.error_detail = fmt::format("Duplicate operation for file {} in ZIP", filename);
+            return result;
+        }
+        opsMap[filename] = op;
+    }
+
+    // create a temp zip archive
+    std::string tmpNameTemplate = "mvlc_zip_updater.XXXXXX";
+    auto tmpFd = util::make_fd_deleter(::mkstemp(tmpNameTemplate.data()));
+
+    if (!tmpFd || *tmpFd == -1)
+    {
+        result.ec = std::error_code(errno, std::system_category());
+        result.error_detail =
+            fmt::format("Failed to create temporary file for new ZIP: {}", result.ec.message());
+        return result;
+    }
+
+    listfile::ZipCreator writer;
+    writer.createArchive(tmpNameTemplate);
+
+    return result;
+}
+
+} // namespace mesytec::mvlc::listfile
