@@ -1176,7 +1176,7 @@ ZipUpdateResult update_zip_archive(const ZipUpdateConfig &config)
     {
         auto filename = get_filename(op);
 
-        if (util::contains(opsMap, filename))
+        if (opsMap.find(filename) != opsMap.end())
         {
             result.ec = std::make_error_code(std::errc::invalid_argument);
             result.error_detail = fmt::format("Duplicate operation for file {} in ZIP", filename);
@@ -1185,7 +1185,8 @@ ZipUpdateResult update_zip_archive(const ZipUpdateConfig &config)
         opsMap[filename] = op;
     }
 
-    // create a temp zip archive
+    // Hacky tempfile stuff starts here...
+    // Create a temp file in the current directory.
     std::string tmpNameTemplate = "mvlc_zip_updater.XXXXXX";
     auto tmpFd = util::make_fd_deleter(::mkstemp(tmpNameTemplate.data()));
 
@@ -1197,8 +1198,153 @@ ZipUpdateResult update_zip_archive(const ZipUpdateConfig &config)
         return result;
     }
 
-    listfile::ZipCreator writer;
-    writer.createArchive(tmpNameTemplate);
+    // Close the fd; ZipCreator will reopen the file by path. Insecure as can be.
+    tmpFd.reset();
+
+    // Create the new archive
+    ZipCreator writer;
+    try
+    {
+        writer.createArchive(tmpNameTemplate, OverwriteMode::Overwrite);
+    }
+    catch (const std::exception &e)
+    {
+        result.ec = std::make_error_code(std::errc::io_error);
+        result.error_detail = fmt::format("Failed to create writer archive: {}", e.what());
+        util::delete_file(tmpNameTemplate);
+        return result;
+    }
+
+    // Copy entries from the old archive to the new one, applying operations
+    std::vector<uint8_t> buffer(util::Megabytes(1)); // 1MB buffer for copying
+
+    for (const auto &entryName : readerEntries)
+    {
+        // Check if this entry has an operation
+        const auto opIt = opsMap.find(entryName);
+        const bool hasOperation = opIt != opsMap.end();
+
+        if (hasOperation)
+        {
+            const auto &op = opIt->second;
+            // For Delete: skip copying this entry
+            // For Update: skip copying, we'll write the new version later
+            if (std::holds_alternative<DeleteOperation>(op))
+            {
+                result.ops_descriptions.push_back(
+                    fmt::format("Deleted file '{}' from ZIP", entryName));
+                continue;
+            }
+            else if (std::holds_alternative<UpdateOperation>(op))
+            {
+                // Skip the old version; we'll write the new one after the loop
+                continue;
+            }
+        }
+
+        // Copy this entry from reader to writer
+        try
+        {
+            auto readHandle = reader.openEntry(entryName);
+            auto writeHandle = writer.createZIPEntry(entryName, 0); // uncompressed
+
+            size_t bytesRead;
+            while ((bytesRead = readHandle->read(buffer.data(), buffer.size())) > 0)
+            {
+                writeHandle->write(buffer.data(), bytesRead);
+            }
+
+            writer.closeCurrentEntry();
+            reader.closeCurrentEntry();
+        }
+        catch (const std::exception &e)
+        {
+            result.ec = std::make_error_code(std::errc::io_error);
+            result.error_detail = fmt::format("Failed to copy entry '{}': {}", entryName, e.what());
+            writer.closeArchive();
+            reader.closeArchive();
+            util::delete_file(tmpNameTemplate);
+            return result;
+        }
+    }
+
+    // Now process Add and Update operations
+    for (const auto &op : config.ops)
+    {
+        std::visit(
+            util::overloaded{
+                [&](const AddOperation &addOp)
+                {
+                    try
+                    {
+                        auto writeHandle = writer.createZIPEntry(addOp.filename, 0);
+                        writeHandle->write(addOp.contents.data(), addOp.contents.size());
+                        writer.closeCurrentEntry();
+                        result.ops_descriptions.push_back(
+                            fmt::format("Added file '{}' to ZIP", addOp.filename));
+                    }
+                    catch (const std::exception &e)
+                    {
+                        result.ec = std::make_error_code(std::errc::io_error);
+                        result.error_detail =
+                            fmt::format("Failed to add file '{}': {}", addOp.filename, e.what());
+                    }
+                },
+                [&](const UpdateOperation &updateOp)
+                {
+                    try
+                    {
+                        auto writeHandle = writer.createZIPEntry(updateOp.filename, 0);
+                        writeHandle->write(updateOp.contents.data(), updateOp.contents.size());
+                        writer.closeCurrentEntry();
+                        result.ops_descriptions.push_back(
+                            fmt::format("Updated file '{}' in ZIP", updateOp.filename));
+                    }
+                    catch (const std::exception &e)
+                    {
+                        result.ec = std::make_error_code(std::errc::io_error);
+                        result.error_detail =
+                            fmt::format("Failed to update file '{}': {}", updateOp.filename, e.what());
+                    }
+                },
+                [&](const DeleteOperation &)
+                {
+                    // Already handled above
+                }},
+            op);
+
+        if (result.ec)
+        {
+            writer.closeArchive();
+            reader.closeArchive();
+            util::delete_file(tmpNameTemplate);
+            return result;
+        }
+    }
+
+    // Close both archives
+    try
+    {
+        writer.closeArchive();
+        reader.closeArchive();
+    }
+    catch (const std::exception &e)
+    {
+        result.ec = std::make_error_code(std::errc::io_error);
+        result.error_detail = fmt::format("Failed to close archives: {}", e.what());
+        util::delete_file(tmpNameTemplate);
+        return result;
+    }
+
+    // Replace the original file with the new one
+    if (std::rename(tmpNameTemplate.c_str(), config.input_zip_path.c_str()) != 0)
+    {
+        result.ec = std::error_code(errno, std::system_category());
+        result.error_detail = fmt::format(
+            "Failed to replace original ZIP file: {}", result.ec.message());
+        util::delete_file(tmpNameTemplate);
+        return result;
+    }
 
     return result;
 }

@@ -1259,3 +1259,105 @@ TEST(mvlc_listfile_zip, CompressionTests)
 #endif
 }
 #endif
+
+TEST(mvlc_listfile_zip, ZipArchiveUpdater)
+{
+    const std::vector<u8> outData0 = {0x12, 0x34, 0x56, 0x78};
+    const std::vector<u8> outData1 = {0xff, 0xfe, 0xfd, 0xfc, 0xfb, 0xfa, 0xf9, 0xf8};
+    const std::vector<u8> outData2 = {0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a};
+
+    const std::vector<u8> outData1_updated = {0x1f, 0x2e, 0x3d, 0x4c, 0x5b, 0x6a, 0x79, 0x88, 0x99};
+    const std::vector<u8> outData3 = {0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88};
+
+    {
+        ZipCreator writer;
+        writer.createArchive("ziparchiveupdater.test.zip");
+
+        {
+            auto writeHandle = writer.createZIPEntry("entry0.data", 1);
+            writeHandle->write(outData0.data(), outData0.size());
+            writer.closeCurrentEntry();
+        }
+
+        {
+            auto writeHandle = writer.createZIPEntry("entry1.data", 1);
+            writeHandle->write(outData1.data(), outData1.size());
+            writer.closeCurrentEntry();
+        }
+
+        {
+            auto writeHandle = writer.createZIPEntry("entry2.data", 1);
+            writeHandle->write(outData2.data(), outData2.size());
+            writer.closeCurrentEntry();
+        }
+    }
+
+    ZipUpdateConfig updateConfig;
+    updateConfig.input_zip_path = "ziparchiveupdater.test.zip";
+
+    {
+        UpdateOperation op;
+        op.filename = "entry1.data";
+        op.description = "Update entry1.data with new data";
+        op.contents = outData1_updated;
+        updateConfig.ops.emplace_back(std::move(op));
+    }
+
+    {
+        DeleteOperation op;
+        op.filename = "entry2.data";
+        op.description = "Delete entry2.data from the archive";
+        updateConfig.ops.emplace_back(std::move(op));
+    }
+
+    {
+        AddOperation op;
+        op.filename = "entry3.data";
+        op.description = "Add new entry3.data to the archive";
+        op.contents = outData3;
+        updateConfig.ops.emplace_back(std::move(op));
+    }
+
+    auto updateResult = update_zip_archive(updateConfig);
+
+    ASSERT_FALSE(updateResult.ec);
+    ASSERT_TRUE(updateResult.error_detail.empty());
+    ASSERT_EQ(updateResult.ops_descriptions.size(), 3u);
+
+    //fmt::print("Ops descriptions:\n  {}\n", fmt::join(updateResult.ops_descriptions, "\n  "));
+
+    {
+        ZipReader reader;
+        reader.openArchive(updateConfig.input_zip_path);
+
+        auto entryNames = reader.entryNameList();
+        ASSERT_EQ(entryNames.size(), 3u);
+        ASSERT_EQ(entryNames, std::vector<std::string>({"entry0.data", "entry1.data", "entry3.data"}));
+
+        {
+            auto &readHandle = *reader.openEntry("entry0.data");
+            std::vector<u8> readBuffer(outData0.size());
+            size_t bytesRead = readHandle.read(readBuffer.data(), readBuffer.size());
+            ASSERT_EQ(bytesRead, outData0.size());
+            ASSERT_EQ(readBuffer, outData0);
+        }
+
+        {
+            auto &readHandle = *reader.openEntry("entry1.data");
+            std::vector<u8> readBuffer(outData1_updated.size());
+            size_t bytesRead = readHandle.read(readBuffer.data(), readBuffer.size());
+            ASSERT_EQ(bytesRead, outData1_updated.size());
+            ASSERT_EQ(readBuffer, outData1_updated);
+        }
+
+        {
+            auto &readHandle = *reader.openEntry("entry3.data");
+            std::vector<u8> readBuffer(outData3.size());
+            size_t bytesRead = readHandle.read(readBuffer.data(), readBuffer.size());
+            ASSERT_EQ(bytesRead, outData3.size());
+            ASSERT_EQ(readBuffer, outData3);
+        }
+    }
+
+    ASSERT_TRUE(util::delete_file(updateConfig.input_zip_path));
+}

@@ -311,7 +311,7 @@ class MESYTEC_MVLC_EXPORT SplitZipReader
 // A small utility for safely updating files in ZIP archives. Main use case is
 // replacing mvme .analysis files in existing listmode ZIPs.
 
-struct ZipOperationBase
+struct MESYTEC_MVLC_EXPORT ZipOperationBase
 {
     // Filename inside the ZIP archive.
     std::string filename;
@@ -319,13 +319,13 @@ struct ZipOperationBase
     std::optional<std::string> description;
 };
 
-struct AddOperation: public ZipOperationBase { std::vector<uint8_t> contents; };
-struct UpdateOperation: public ZipOperationBase { std::vector<uint8_t> contents; };
-struct DeleteOperation: public ZipOperationBase {};
+struct MESYTEC_MVLC_EXPORT AddOperation: public ZipOperationBase { std::vector<uint8_t> contents; };
+struct MESYTEC_MVLC_EXPORT UpdateOperation: public ZipOperationBase { std::vector<uint8_t> contents; };
+struct MESYTEC_MVLC_EXPORT DeleteOperation: public ZipOperationBase {};
 
 using ZipOperation = std::variant<AddOperation, UpdateOperation, DeleteOperation>;
 
-struct ProgressEvent
+struct MESYTEC_MVLC_EXPORT ProgressEvent
 {
     std::string step; // e.g. "copying_listmode", "adding_analysis", "replacing_file"
     double progress;  // 0.0–1.0 for the current step
@@ -336,7 +336,7 @@ struct ProgressEvent
 using ProgressCallback = std::function<void(const ProgressEvent &)>;
 using CancelCallback = std::function<bool()>; // returns true if user requested cancel
 
-struct ZipUpdateConfig
+struct MESYTEC_MVLC_EXPORT ZipUpdateConfig
 {
     std::string input_zip_path;             // e.g. "/data/run123/listmode.zip"
     std::vector<ZipOperation> ops;          // 1–N operations on the same ZIP
@@ -352,7 +352,7 @@ struct ZipUpdateConfig
     CancelCallback is_cancelled;
 };
 
-struct ZipUpdateResult
+struct MESYTEC_MVLC_EXPORT ZipUpdateResult
 {
     std::error_code ec;
     std::string error_detail; // empty if !ec, otherwise animal-readable context
@@ -362,7 +362,7 @@ struct ZipUpdateResult
     bool was_cancelled() const { return ec == std::errc::operation_canceled; }
 };
 
-ZipUpdateResult update_zip_archive(const ZipUpdateConfig &config);
+MESYTEC_MVLC_EXPORT ZipUpdateResult update_zip_archive(const ZipUpdateConfig &config);
 
 }
 
