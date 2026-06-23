@@ -877,7 +877,7 @@ size_t ZipReader::readCurrentEntry(u8 *dest, size_t maxSize)
     assert(d->entryInfo.type == ZipEntryInfo::LZ4);
 
     size_t retval = 0u;
-    size_t loop = 0u;
+    [[maybe_unused]] size_t loop = 0u; // for printf debugging
 
     while (maxSize - retval > 0)
     {
