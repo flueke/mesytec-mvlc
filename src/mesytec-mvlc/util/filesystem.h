@@ -16,8 +16,8 @@ bool MESYTEC_MVLC_EXPORT delete_file(const std::string &filepath);
 
 // Scoped cleanup for file descriptors.
 // clang-format off
-auto fd_deleter = [](int* fd) { if (fd && *fd >= 0) ::close(*fd); delete fd; };
-auto make_fd_deleter = [](int fd) { return std::unique_ptr<int, decltype(fd_deleter)>(new int(fd), fd_deleter); };
+static auto fd_deleter = [](int* fd) { if (fd && *fd >= 0) ::close(*fd); delete fd; };
+static auto make_fd_deleter = [](int fd) { return std::unique_ptr<int, decltype(fd_deleter)>(new int(fd), fd_deleter); };
 // clang-format on
 
 // Example usage:
