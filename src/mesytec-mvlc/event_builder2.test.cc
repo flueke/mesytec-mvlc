@@ -741,12 +741,13 @@ TEST(EventBuilder2, TwoModulesOneFailedStamp)
     }
 
     ASSERT_EQ(eb.flush(), 5);
-    // XXX: This was 17 before the last batch of changes. 12 from the prev test + 5 from flushing == 17.
-    // What changed: the eb does not invoke the data callback if none of the
-    // module in the output event have any data. This is the case for the first
-    // iteration flush does internally. So now we do have 5 flushed events but
-    // only 4 data callbacks. It's a bit confusing. Maybe the data callbacks
-    // should always be called and the user then has to check for empty events.
+    // XXX: This was 17 before the last batch of changes (5/26). 12 from the
+    // prev test + 5 from flushing == 17.  What changed: the eb does not invoke
+    // the data callback if none of the modules in the output event have any
+    // data. This is the case for the first iteration flush() does internally.
+    // So now we do have 5 flushed events but only 4 data callbacks. It's a bit
+    // confusing. Maybe the data callbacks should always be called and the user
+    // then has to check for empty events.
     ASSERT_EQ(dataCallbackCount, 16);
     fmt::print(eb.debugDump("final2"));
 }
