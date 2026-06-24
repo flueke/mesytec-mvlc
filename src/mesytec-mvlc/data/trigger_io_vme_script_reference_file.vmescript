@@ -59,7 +59,7 @@ mvlc_stack_end
 mvlc_stack_begin
   0x0200 0x0004    # select L0.Unit4
   0x0380      0    # type: 0=IRQ, 1=SoftTrigger, 2=SyncTrigger
-  0x0300      0    # irq_index (zero-based: 0: IRQ1, .., 6: IRQ7)
+  0x0300      0    # IRQ: zero-based index: 0=IRQ1, .., 6=IRQ7
   0x0306      0    # SyncTrigger: delay [ns]
   0x0308      0    # SyncTrigger: width [ns]
   0x030a      0    # SyncTrigger: holdoff [ns]
@@ -71,7 +71,7 @@ mvlc_stack_end
 mvlc_stack_begin
   0x0200 0x0005    # select L0.Unit5
   0x0380      0    # type: 0=IRQ, 1=SoftTrigger, 2=SyncTrigger
-  0x0300      0    # irq_index (zero-based: 0: IRQ1, .., 6: IRQ7)
+  0x0300      0    # IRQ: zero-based index: 0=IRQ1, .., 6=IRQ7
   0x0306      0    # SyncTrigger: delay [ns]
   0x0308      0    # SyncTrigger: width [ns]
   0x030a      0    # SyncTrigger: holdoff [ns]
@@ -83,7 +83,7 @@ mvlc_stack_end
 mvlc_stack_begin
   0x0200 0x0006    # select L0.Unit6
   0x0380      0    # type: 0=IRQ, 1=SoftTrigger, 2=SyncTrigger
-  0x0300      0    # irq_index (zero-based: 0: IRQ1, .., 6: IRQ7)
+  0x0300      0    # IRQ: zero-based index: 0=IRQ1, .., 6=IRQ7
   0x0306      0    # SyncTrigger: delay [ns]
   0x0308      0    # SyncTrigger: width [ns]
   0x030a      0    # SyncTrigger: holdoff [ns]
@@ -95,7 +95,7 @@ mvlc_stack_end
 mvlc_stack_begin
   0x0200 0x0007    # select L0.Unit7
   0x0380      0    # type: 0=IRQ, 1=SoftTrigger, 2=SyncTrigger
-  0x0300      0    # irq_index (zero-based: 0: IRQ1, .., 6: IRQ7)
+  0x0300      0    # IRQ: zero-based index: 0=IRQ1, .., 6=IRQ7
   0x0306      0    # SyncTrigger: delay [ns]
   0x0308      0    # SyncTrigger: width [ns]
   0x030a      0    # SyncTrigger: holdoff [ns]
@@ -107,7 +107,7 @@ mvlc_stack_end
 mvlc_stack_begin
   0x0200 0x0008    # select L0.Unit8
   0x0380      0    # type: 0=IRQ, 1=SoftTrigger, 2=SyncTrigger
-  0x0300      0    # irq_index (zero-based: 0: IRQ1, .., 6: IRQ7)
+  0x0300      0    # IRQ: zero-based index: 0=IRQ1, .., 6=IRQ7
   0x0306      0    # SyncTrigger: delay [ns]
   0x0308      0    # SyncTrigger: width [ns]
   0x030a      0    # SyncTrigger: holdoff [ns]
@@ -119,7 +119,7 @@ mvlc_stack_end
 mvlc_stack_begin
   0x0200 0x0009    # select L0.Unit9
   0x0380      0    # type: 0=IRQ, 1=SoftTrigger, 2=SyncTrigger
-  0x0300      0    # irq_index (zero-based: 0: IRQ1, .., 6: IRQ7)
+  0x0300      0    # IRQ: zero-based index: 0=IRQ1, .., 6=IRQ7
   0x0306      0    # SyncTrigger: delay [ns]
   0x0308      0    # SyncTrigger: width [ns]
   0x030a      0    # SyncTrigger: holdoff [ns]
@@ -131,7 +131,7 @@ mvlc_stack_end
 mvlc_stack_begin
   0x0200 0x000a    # select L0.Unit10
   0x0380      0    # type: 0=IRQ, 1=SoftTrigger, 2=SyncTrigger
-  0x0300      0    # irq_index (zero-based: 0: IRQ1, .., 6: IRQ7)
+  0x0300      0    # IRQ: zero-based index: 0=IRQ1, .., 6=IRQ7
   0x0306      0    # SyncTrigger: delay [ns]
   0x0308      0    # SyncTrigger: width [ns]
   0x030a      0    # SyncTrigger: holdoff [ns]
@@ -143,7 +143,7 @@ mvlc_stack_end
 mvlc_stack_begin
   0x0200 0x000b    # select L0.Unit11
   0x0380      0    # type: 0=IRQ, 1=SoftTrigger, 2=SyncTrigger
-  0x0300      0    # irq_index (zero-based: 0: IRQ1, .., 6: IRQ7)
+  0x0300      0    # IRQ: zero-based index: 0=IRQ1, .., 6=IRQ7
   0x0306      0    # SyncTrigger: delay [ns]
   0x0308      0    # SyncTrigger: width [ns]
   0x030a      0    # SyncTrigger: holdoff [ns]
