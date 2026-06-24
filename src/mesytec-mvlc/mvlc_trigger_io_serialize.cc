@@ -1,5 +1,5 @@
 #include "mvlc_trigger_io_serialize.h"
-#include "mvlc_trigger_io_serialize_internal.h"
+#include "mvlc_trigger_io_serialize_util.h"
 
 #include <boost/range/adaptor/indexed.hpp>
 #include <map>

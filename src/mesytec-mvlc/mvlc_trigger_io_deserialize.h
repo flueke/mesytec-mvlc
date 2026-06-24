@@ -3,6 +3,7 @@
 
 #include <unordered_map>
 
+#include <mesytec-mvlc/mesytec-mvlc_export.h>
 #include <mesytec-mvlc/mvlc_trigger_io_port.h>
 #include <mesytec-mvlc/util/int_types.h>
 
@@ -23,7 +24,7 @@ namespace mesytec::mvlc::trigger_io
 // extracted from the concrete format and passed to the deserializer. This info
 // will then be applied to the resulting TriggerIO structure.
 
-struct WriteCommand
+struct MESYTEC_MVLC_EXPORT WriteCommand
 {
     u32 address;
     u32 value;
@@ -33,25 +34,25 @@ using FlatWrites = std::vector<WriteCommand>;
 
 // This goes from flat list of register writes + optional meta info to a fully
 // initialized TriggerIO structure.
-TriggerIO deserialize_trigger_io(const FlatWrites &writes, const std::string &metaYaml = {});
+TriggerIO MESYTEC_MVLC_EXPORT deserialize_trigger_io(const FlatWrites &writes, const std::string &metaYaml = {});
 
 // More detailed stuff for use by the implementation and concrete deserializers.
-void apply_meta_info_yaml(TriggerIO &ioCfg, const std::string &metaYaml);
+void MESYTEC_MVLC_EXPORT apply_meta_info_yaml(TriggerIO &ioCfg, const std::string &metaYaml);
 
 using RegisterWrites = std::unordered_map<u16, u16>;
 using UnitWrites = std::unordered_map<u16, RegisterWrites>;
 using LevelWrites = std::array<UnitWrites, 4>; // write commands grouped by trigger io level
 
 // Turns a flat list of writes into the nested LevelWrites structure.
-LevelWrites level_writes_from_flat_writes(const std::vector<WriteCommand> &writes);
+LevelWrites MESYTEC_MVLC_EXPORT level_writes_from_flat_writes(const std::vector<WriteCommand> &writes);
 
 // From nested per-level writes to TriggerIO.
-TriggerIO deserialize_trigger_io(const LevelWrites &levelWrites, const std::string &metaYaml = {});
+TriggerIO MESYTEC_MVLC_EXPORT deserialize_trigger_io(const LevelWrites &levelWrites, const std::string &metaYaml = {});
 
 // Helpers for certain unit types.
-IO parse_io(const RegisterWrites &writes, u16 offset = 0);
-LUT_RAM parse_lut_ram(const RegisterWrites &writes);
-LUT parse_lut(const RegisterWrites &writes);
+IO MESYTEC_MVLC_EXPORT parse_io(const RegisterWrites &writes, u16 offset = 0);
+LUT_RAM MESYTEC_MVLC_EXPORT parse_lut_ram(const RegisterWrites &writes);
+LUT MESYTEC_MVLC_EXPORT parse_lut(const RegisterWrites &writes);
 
 }
 

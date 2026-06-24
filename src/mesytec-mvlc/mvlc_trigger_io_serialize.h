@@ -26,7 +26,7 @@
 namespace mesytec::mvlc::trigger_io
 {
 
-struct RegisterWrite
+struct MESYTEC_MVLC_EXPORT RegisterWrite
 {
     // Opt_HexValue indicates that the register value should be printed in
     // hexadecimal instead of decimal.
@@ -74,7 +74,7 @@ using BasicParts = std::vector<BasicPart>;
 // Represents a single DSO unit in the script. In the output script this is
 // enclosed mvlc_stack_begin/end so that the unit setup is atomic (happening in
 // a single stack transaction).
-struct UnitBlock
+struct MESYTEC_MVLC_EXPORT UnitBlock
 {
     std::string comment;
     BasicParts parts;
@@ -91,9 +91,9 @@ struct UnitBlock
 using ScriptPart = std::variant<RegisterWrite, std::string, UnitBlock>;
 using ScriptParts = std::vector<ScriptPart>;
 
-ScriptParts generate_trigger_io_parts(const TriggerIO &ioCfg);
+ScriptParts MESYTEC_MVLC_EXPORT generate_trigger_io_parts(const TriggerIO &ioCfg);
 
-struct IScriptPartVisitor
+struct MESYTEC_MVLC_EXPORT IScriptPartVisitor
 {
     virtual void operator()(const RegisterWrite &write) = 0;
     virtual void operator()(const std::string &blockComment) = 0;
@@ -123,7 +123,7 @@ inline void visit(const TriggerIO &ioCfg, IScriptPartVisitor &visitor)
 
 // Serializes the unit names and 'soft activate' flags to a YAML string.
 // The reverse is apply_meta_info_yaml() in the deserializer.
-std::string generate_meta_info_yaml(const TriggerIO &ioCfg);
+std::string MESYTEC_MVLC_EXPORT generate_meta_info_yaml(const TriggerIO &ioCfg);
 
 } // namespace mesytec::mvlc::trigger_io
 

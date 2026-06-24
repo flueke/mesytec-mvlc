@@ -48,7 +48,7 @@ struct StackCommandBuilderGenerator: public IScriptPartVisitor
                 {
                     this->operator()(write);
                 },
-                [this](const std::string &/*comment*/)
+                [](const std::string &/*comment*/)
                 {
                     // Ignore comments that are parts of unit blocks. These are
                     // used to generate the standalone comments like
@@ -124,7 +124,7 @@ struct MvlcScriptGenerator: public IScriptPartVisitor
                 {
                     this->operator()(write);
                 },
-                [this](const std::string &/*comment*/)
+                [](const std::string &/*comment*/)
                 {
                     // Ignore comments that are parts of unit blocks. These are
                     // used to generate the standalone comments like
