@@ -145,7 +145,7 @@ class MESYTEC_MVLC_EXPORT Impl: public MVLCBasicInterface, public MVLC_USB_Inter
         bool m_disableTriggersOnConnect = true;
 };
 
-std::error_code set_endpoint_timeout(void *handle, u8 endpoint, unsigned ms);
+std::error_code MESYTEC_MVLC_EXPORT set_endpoint_timeout(void *handle, u8 endpoint, unsigned ms);
 
 constexpr u8 get_fifo_id(mesytec::mvlc::Pipe pipe)
 {
