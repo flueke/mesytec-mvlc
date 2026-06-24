@@ -277,9 +277,9 @@ struct MESYTEC_MVLC_EXPORT Level0
                                                      // 14 sysclock
                                                      // 15 daq_start
     std::array<IO, NIM_IO_Count> ioNIM;              // 16..29
-    // 30..32 is shared with the L3 ECL Outputs
-    std::array<IO, IRQ_Inputs_Count> ioIRQ; // 33..38 IRQ inputs
-                                            // 48 Digital Oscilloscope
+                                                     // 30..32 is shared with the L3 ECL Outputs
+    std::array<IO, IRQ_Inputs_Count> ioIRQ;          // 33..38 IRQ inputs
+                                                     // 48 Digital Oscilloscope
 
     std::vector<std::string> unitNames;
 

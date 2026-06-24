@@ -16,6 +16,14 @@
 
 using boost::adaptors::indexed;
 
+template <class Container>
+decltype(auto) safe_at(const Container& c,
+                       typename Container::size_type i,
+                       const typename Container::value_type& default_value = typename Container::value_type{})
+{
+    return (i < c.size()) ? c[i] : default_value;
+}
+
 namespace mesytec::mvlc::trigger_io
 {
 
@@ -566,16 +574,16 @@ unsigned get_connection_value(const TriggerIO &ioCfg, const UnitAddress &addr)
     case 0:
     case 1:
         if (addr[1] == 2)
-            return ioCfg.l1.lut2Connections.at(addr[2]);
+            return safe_at(ioCfg.l1.lut2Connections, addr[2]);
         return 0;
 
     case 2:
         if (addr[2] == LUT::InputBits)
-            return ioCfg.l2.strobeConnections.at(addr[1]);
-        return ioCfg.l2.lutConnections.at(addr[1]).at(addr[2]);
+            return safe_at(ioCfg.l2.strobeConnections, addr[1]);
+        return safe_at(safe_at(ioCfg.l2.lutConnections, addr[1]), addr[2]);
 
     case 3:
-        return ioCfg.l3.connections.at(addr[1]).at(addr[2]);
+        return safe_at(safe_at(ioCfg.l3.connections, addr[1]), addr[2]);
     }
 
     return 0;
@@ -590,18 +598,27 @@ UnitAddress get_connection_unit_address(const TriggerIO &ioCfg, const UnitAddres
     case 0:
     case 1:
         if (addr[1] == 2 && addr[2] < LUT_DynamicInputCount)
-            return ioCfg.l1.LUT2DynamicInputChoices.at(addr[2]).at(conValue);
+            return safe_at(ioCfg.l1.LUT2DynamicInputChoices.at(addr[2]), conValue);
         return {};
 
     case 2:
         if (addr[2] == LUT::StrobeGGInput)
-            return ioCfg.l2.DynamicInputChoices.at(addr[1]).strobeChoices.at(conValue);
+        {
+            auto tmp = safe_at(ioCfg.l2.DynamicInputChoices, addr[1]);
+            return safe_at(tmp.strobeChoices, conValue);
+        }
 
-        if (addr[2] < ioCfg.l2.DynamicInputChoices.at(addr[1]).lutChoices.size())
-            return ioCfg.l2.DynamicInputChoices.at(addr[1]).lutChoices.at(addr[2]).at(conValue);
+        if (addr[2] < safe_at(ioCfg.l2.DynamicInputChoices, addr[1]).lutChoices.size())
+        {
+            // return ioCfg.l2.DynamicInputChoices.at(addr[1]).lutChoices.at(addr[2]).at(conValue);
+            auto tmp = safe_at(ioCfg.l2.DynamicInputChoices, addr[1]);
+            return safe_at(tmp.lutChoices[addr[2]], conValue);
+        }
 
-        if (addr[2] < LUT::InputBits)
+        if (addr[2] < LUT::InputBits && addr[1] < ioCfg.l2.StaticConnections.size())
+        {
             return ioCfg.l2.StaticConnections.at(addr[1]).at(addr[2]).address;
+        }
 
         return {};
 
