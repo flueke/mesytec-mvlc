@@ -78,7 +78,7 @@ void listfile_write_system_event(
         throw std::runtime_error("system event subtype out of range");
 
     const u32 *endp  = buffp + totalWords;
-    u32 sectionCount = 0u;
+    [[maybe_unused]] u32 sectionCount = 0u;
 
     while (buffp < endp)
     {
