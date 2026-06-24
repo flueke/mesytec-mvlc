@@ -110,9 +110,20 @@ inline bool startswith(const std::string &str, const std::string &prefix)
     return str.rfind(prefix, 0) == 0;
 }
 
+inline bool startswith(std::string_view str, std::string_view prefix)
+{
+    return str.substr(0, prefix.size()) == prefix;
+}
+
 inline bool contains(const std::string &str, const std::string &needle)
 {
     return str.find(needle) != std::string::npos;
+}
+
+inline bool endswith(std::string_view str, std::string_view suffix)
+{
+    if (suffix.size() > str.size()) return false;
+    return str.substr(str.size() - suffix.size(), suffix.size()) == suffix;
 }
 
 }

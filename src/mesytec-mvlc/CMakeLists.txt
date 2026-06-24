@@ -1,4 +1,5 @@
 find_package(Threads REQUIRED)
+find_package(Boost REQUIRED)
 
 configure_file("git_version.cc.in" "git_version.cc" @ONLY)
 
@@ -36,6 +37,11 @@ add_library(mesytec-mvlc SHARED
     mvlc_replay_worker.cc
     mvlc_stack_errors.cc
     mvlc_stack_executor.cc
+    mvlc_trigger_io_deserialize.cc
+    mvlc_trigger_io_port.cc
+    mvlc_trigger_io_serialize.cc
+    mvlc_trigger_io_serialize_mvlcscript.cc
+    mvlc_trigger_io_serialize_vmescript.cc
     mvlc_usb_interface.cc
     mvlc_util.cc
     readout_buffer.cc
@@ -94,9 +100,12 @@ target_include_directories(mesytec-mvlc
     PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/..>
     PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/..>
     PUBLIC $<INSTALL_INTERFACE:include>
+    PRIVATE ${Boost_INCLUDE_DIRS}
     )
 
 target_link_libraries(mesytec-mvlc
+    PRIVATE asio
+    PRIVATE minbool
     PRIVATE minizip
     PRIVATE nlohmann_json::nlohmann_json
     PRIVATE uri-parser
@@ -250,7 +259,7 @@ if (MVLC_BUILD_TESTS)
     add_gtest(test_mvlc_readout_worker mvlc_readout_worker.test.cc)
     add_gtest(test_mvlc_util mvlc_util.test.cc)
     add_gtest(test_readout_buffer readout_buffer.test.cc)
-
+    add_gtest(test_mvlc_trigger_io_serialize mvlc_trigger_io_serialize.test.cc)
     #target_link_libraries(test_mvlc_error PRIVATE ftd3xx)
     if (ZMQ_FOUND)
         add_gtest(test_mvlc_listfile_zmq_ganil mvlc_listfile_zmq_ganil.test.cc)

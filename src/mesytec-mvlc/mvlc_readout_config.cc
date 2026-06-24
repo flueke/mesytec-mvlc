@@ -111,15 +111,29 @@ YAML::Emitter &operator<<(YAML::Emitter &out, const StackCommandBuilder &stack)
 
         out << YAML::BeginSeq;
         for (const auto &cmd: group.commands)
+        {
             out << to_string(cmd);
+            if (!cmd.comment.empty())
+                out << YAML::Comment(cmd.comment);
+        }
         out << YAML::EndSeq;
 
-        out << YAML::Key << "meta" << YAML::Value << group.meta;
+        // string -> string meta value map under the 'meta' key
+        if (!group.meta.empty())
+        {
+            out << YAML::Key << "meta" << YAML::Value << group.meta;
+        }
 
         out << YAML::EndMap;
     }
 
     out << YAML::EndSeq; // groups
+
+    for (const auto &kv: stack.getYamlMeta())
+    {
+        YAML::Node yamlNode = YAML::Load(kv.second);
+        out << YAML::Key << kv.first << YAML::Value << yamlNode;
+    }
 
     out << YAML::EndMap;
 
@@ -310,7 +324,7 @@ CrateConfig crate_config_from_yaml(std::istream &input)
     return crate_config_from_yaml(yRoot);
 }
 
-CrateConfig MESYTEC_MVLC_EXPORT crate_config_from_yaml_file(const std::string &filename)
+CrateConfig crate_config_from_yaml_file(const std::string &filename)
 {
     std::ifstream input(filename);
     input.exceptions(std::ios::failbit | std::ios::badbit);

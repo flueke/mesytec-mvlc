@@ -140,6 +140,7 @@ struct MESYTEC_MVLC_EXPORT StackCommand
     Blk2eSSTRate rate = {};
     std::vector<u32> customValues;
     bool lateRead = false;
+    std::string comment;
 
     bool operator==(const StackCommand &o) const noexcept
     {
@@ -299,6 +300,7 @@ class MESYTEC_MVLC_EXPORT StackCommandBuilder
         // Returns the group with the given groupIndex or a default constructed
         // group if the index is out of range.
         const Group &getGroup(size_t groupIndex) const;
+        Group &getGroup(size_t groupIndex);
 
         // Returns the group with the given groupName or a default constructed
         // group if the index is out of range.
@@ -345,12 +347,46 @@ class MESYTEC_MVLC_EXPORT StackCommandBuilder
             return getCommands()[i]; // expensive!
         }
 
+        std::optional<std::reference_wrapper<StackCommand>> getLastCommand()
+        {
+            if (m_groups.empty())
+                return std::nullopt;
+
+            auto &lastGroup = m_groups.back();
+            if (lastGroup.commands.empty())
+                return std::nullopt;
+
+            return lastGroup.commands.back();
+        }
+
         size_t commandCount() const;
         void clear() { m_groups.clear(); }
+
+        void setYamlMeta(const std::string &key, const std::string &yamlString)
+        {
+            yamlMeta[key] = yamlString;
+        }
+
+        const std::map<std::string, std::string> &getYamlMeta() const
+        {
+            return yamlMeta;
+        }
+
+        std::string getYamlMeta(const std::string &key) const
+        {
+            auto it = yamlMeta.find(key);
+            if (it != yamlMeta.end())
+                return it->second;
+            return {};
+        }
 
     private:
         std::string m_name;
         std::vector<Group> m_groups;
+        // Optional (key: yamlString) pairs. The keys are stored in the root
+        // node of the CommandBuilder yaml. The values are loaded as YAML nodes,
+        // then serialized back to string to make things work with yaml-cpp.
+        std::map<std::string, std::string> yamlMeta;
         bool m_suppressPipeOutput = false;
 };
 

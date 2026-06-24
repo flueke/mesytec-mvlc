@@ -820,6 +820,11 @@ const StackCommandBuilder::Group &StackCommandBuilder::getGroup(size_t groupInde
     return m_groups[groupIndex];
 }
 
+StackCommandBuilder::Group &StackCommandBuilder::getGroup(size_t groupIndex)
+{
+    return m_groups.at(groupIndex);
+}
+
 StackCommandBuilder::Group StackCommandBuilder::getGroup(const std::string &groupName) const
 {
     auto it = std::find_if(

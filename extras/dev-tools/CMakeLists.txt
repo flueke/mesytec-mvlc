@@ -59,6 +59,14 @@ if (MVLC_BUILD_DEV_TOOLS)
     else()
         target_link_libraries(mvlc_stream_test_server_asio PRIVATE pthread)
     endif(WIN32)
+
+    add_mvlc_dev_tool(mvlc_command_list_tools mvlc_command_list_tools.cc)
+    target_link_libraries(mvlc_command_list_tools PRIVATE argh yaml-cpp)
+
+    add_mvlc_dev_tool(mvlc_command_list_tools mvlc_command_list_tools.cc)
+    target_link_libraries(mvlc_command_list_tools PRIVATE argh yaml-cpp)
+
+    add_mvlc_dev_tool(mvlc_trigger_io_tool mvlc_trigger_io_tool.cc)
 endif(MVLC_BUILD_DEV_TOOLS)
 
 if (MVLC_BUILD_TOOLS)
