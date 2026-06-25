@@ -182,6 +182,31 @@ std::optional<VMEDataWidth> parse_vme_datawidth(const std::string &str)
 }
 #endif
 
+std::string MESYTEC_MVLC_EXPORT to_string(const SuperCommand &cmd)
+{
+    using CT = SuperCommandType;
+
+    switch (cmd.type)
+    {
+        case CT::ReferenceWord:
+            return fmt::format("reference_word {:#06x}", cmd.value);
+
+        case CT::ReadLocal:
+            return fmt::format("read_local {:#06x}", cmd.address);
+
+        case CT::ReadLocalBlock:
+            return fmt::format("read_local_block {:#06x} {}", cmd.address, cmd.value);
+
+        case CT::WriteLocal:
+            return fmt::format("write_local {:#06x} {:#010x}", cmd.address, cmd.value);
+
+        case CT::WriteReset:
+            return "write_reset";
+    }
+
+    throw std::runtime_error(fmt::format("invalid SuperCommandType '{}'", static_cast<unsigned>(cmd.type)));
+}
+
 std::string to_string(const StackCommand &cmd)
 {
     using CT = StackCommand::CommandType;

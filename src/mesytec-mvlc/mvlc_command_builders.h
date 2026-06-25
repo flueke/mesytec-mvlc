@@ -178,6 +178,7 @@ VMEDataWidth MESYTEC_MVLC_EXPORT vme_data_width_from_string(const std::string &s
 std::optional<VMEDataWidth> MESYTEC_MVLC_EXPORT parse_vme_datawidth(const std::string &str);
 #endif
 
+std::string MESYTEC_MVLC_EXPORT to_string(const SuperCommand &cmd);
 std::string MESYTEC_MVLC_EXPORT to_string(const StackCommand &cmd);
 StackCommand MESYTEC_MVLC_EXPORT stack_command_from_string(const std::string &str);
 
