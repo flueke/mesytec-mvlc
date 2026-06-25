@@ -188,6 +188,12 @@ std::string MESYTEC_MVLC_EXPORT to_string(const SuperCommand &cmd)
 
     switch (cmd.type)
     {
+        case CT::CmdBufferStart:
+            return "cmd_buffer_start";
+
+        case CT::CmdBufferEnd:
+            return "cmd_buffer_end";
+
         case CT::ReferenceWord:
             return fmt::format("reference_word {:#06x}", cmd.value);
 
@@ -204,7 +210,7 @@ std::string MESYTEC_MVLC_EXPORT to_string(const SuperCommand &cmd)
             return "write_reset";
     }
 
-    throw std::runtime_error(fmt::format("invalid SuperCommandType '{}'", static_cast<unsigned>(cmd.type)));
+    throw std::runtime_error(fmt::format("invalid SuperCommandType '{:#06x}'", static_cast<unsigned>(cmd.type)));
 }
 
 std::string to_string(const StackCommand &cmd)
