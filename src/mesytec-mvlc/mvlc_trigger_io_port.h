@@ -461,6 +461,11 @@ struct MESYTEC_MVLC_EXPORT IUnitVisitor
 // Visits all units in the given TriggerIO configuration in level order.
 void MESYTEC_MVLC_EXPORT visit(const TriggerIO &ioCfg, IUnitVisitor &visitor);
 
+// Creates a default TriggerIO configuration, initializing all unit properties
+// to zero. Using this structure to write the trigger IO config ensures that all
+// units are initialized.
+TriggerIO MESYTEC_MVLC_EXPORT load_default_trigger_io();
+
 } // namespace mesytec::mvlc::trigger_io
 
 #endif /* CA5CAB66_9998_4CFA_9112_29477B1C5541 */

@@ -13,8 +13,14 @@
 
 #include "util/fmt.h"
 #include "util/string_util.h"
+#include "mvlc_trigger_io_serialize_vmescript.h"
 
 using boost::adaptors::indexed;
+
+static const char *ReferenceVMEScript =
+#include "data/trigger_io_vme_script_reference_file.vmescript"
+    ;
+
 
 template <class Container>
 decltype(auto) safe_at(const Container& c,
@@ -764,6 +770,11 @@ void visit(const TriggerIO &ioCfg, IUnitVisitor &visitor)
         visitor.visit(kv.value(),
                       UnitAddress{3, static_cast<u8>(kv.index() + Level3::ECL_Unit_Offset)});
     }
+}
+
+TriggerIO load_default_trigger_io()
+{
+    return mesytec::mvlc::trigger_io::parse_trigger_io_vmescript(ReferenceVMEScript);
 }
 
 } // namespace mesytec::mvlc::trigger_io
