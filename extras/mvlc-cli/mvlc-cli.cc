@@ -830,15 +830,11 @@ DEF_EXEC_FUNC(vme_read_command)
             else if (vme_amods::is_2esst_mode(amod))
             {
                 if (!swapped)
-                {
                     ec = mvlc.vmeBlockRead(address, static_cast<Blk2eSSTRate>(e2sstRate),
                                            maxTransfers, destVector, fifo);
-                }
                 else
-                {
                     ec = mvlc.vmeBlockReadSwapped(address, static_cast<Blk2eSSTRate>(e2sstRate),
                                                   maxTransfers, destVector, fifo);
-                }
             }
             else
             {

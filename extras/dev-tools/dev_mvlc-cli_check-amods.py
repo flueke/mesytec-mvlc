@@ -6,6 +6,8 @@
 # Note: no module with the target address was present in the crate. All reads
 # timed out.
 
+import subprocess
+
 class VMEAddressModifiers:
     # a32
     a32UserData    = 0x09
@@ -40,8 +42,6 @@ mvlc="mvlc-0066"
 # Get list of (name, amod) pairs
 amods = [(name, getattr(VMEAddressModifiers, name))
          for name in dir(VMEAddressModifiers) if not name.startswith('_')]
-
-import subprocess
 
 # Run mvlc-cli for each amod
 for name, amod in amods:
