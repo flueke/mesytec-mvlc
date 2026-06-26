@@ -8,8 +8,8 @@
 #include <mesytec-mvlc/mvlc_impl_eth.h>
 #include <mesytec-mvlc/mvlc_impl_usb.h>
 #include <mesytec-mvlc/util/udp_sockets.h>
-#include <yaml-cpp/yaml.h>
 #include <yaml-cpp/emittermanip.h>
+#include <yaml-cpp/yaml.h>
 
 using namespace mesytec::mvlc;
 
@@ -37,13 +37,12 @@ std::pair<MVLC, std::error_code> make_and_connect_default_mvlc(argh::parser &par
     if (parser["--always-check-stack-exec-status"])
         mvlc.setAlwaysCheckStackExecStatus(true);
 
-
     auto ec = mvlc.connect();
 
     if (ec)
     {
-        std::cerr << fmt::format("Error connecting to MVLC {}: {}\n",
-            mvlc.connectionInfo(), ec.message());
+        std::cerr << fmt::format("Error connecting to MVLC {}: {}\n", mvlc.connectionInfo(),
+                                 ec.message());
     }
 
     return std::make_pair(mvlc, ec);
@@ -52,16 +51,17 @@ std::pair<MVLC, std::error_code> make_and_connect_default_mvlc(argh::parser &par
 struct CliContext;
 struct Command;
 
-#define DEF_EXEC_FUNC(name) int name(CliContext &ctx, const Command &self, int argc, const char **argv)
+#define DEF_EXEC_FUNC(name)                                                                        \
+    int name(CliContext &ctx, const Command &self, int argc, const char **argv)
 
 using Exec = std::function<DEF_EXEC_FUNC()>;
 
 struct Command
 {
-  std::string name ;
-  std::string description;
-  std::string help;
-  Exec exec;
+    std::string name;
+    std::string description;
+    std::string help;
+    Exec exec;
 };
 
 struct CommandNameLessThan
@@ -72,7 +72,7 @@ struct CommandNameLessThan
     }
 };
 
-using Commands = std::set<Command, CommandNameLessThan> ;
+using Commands = std::set<Command, CommandNameLessThan>;
 
 struct CliContext
 {
@@ -94,8 +94,7 @@ DEF_EXEC_FUNC(help_command)
             return 1;
         }
 
-        if (auto cmd = ctx.commands.find(Command{"list-commands"});
-            cmd != ctx.commands.end())
+        if (auto cmd = ctx.commands.find(Command{"list-commands"}); cmd != ctx.commands.end())
         {
             return cmd->exec(ctx, *cmd, argc, argv);
         }
@@ -104,8 +103,7 @@ DEF_EXEC_FUNC(help_command)
         return 1;
     }
 
-    if (auto cmd = ctx.commands.find(Command{ctx.parser[2]});
-        cmd != ctx.commands.end())
+    if (auto cmd = ctx.commands.find(Command{ctx.parser[2]}); cmd != ctx.commands.end())
     {
         std::cout << cmd->help;
         return 0;
@@ -115,8 +113,7 @@ DEF_EXEC_FUNC(help_command)
     return 1;
 }
 
-static const Command HelpCommand =
-{
+static const Command HelpCommand = {
     .name = "help",
     .description = "Print general help or help for a specific command",
     .help = R"~(Print general help or help for a specific command.
@@ -145,8 +142,7 @@ DEF_EXEC_FUNC(list_commands_command)
     return 0;
 }
 
-static const Command ListCmdsCommand =
-{
+static const Command ListCmdsCommand = {
     .name = "list-commands",
     .description = "List all registered commands",
     .help = R"~(Meta command to list all registered commands.
@@ -165,13 +161,12 @@ DEF_EXEC_FUNC(mvlc_version_command)
         return 1;
 
     std::cout << fmt::format("{}, hardwareId=0x{:04x}, firmwareRevision=0x{:04x}\n",
-        mvlc.connectionInfo(), mvlc.hardwareId(), mvlc.firmwareRevision());
+                             mvlc.connectionInfo(), mvlc.hardwareId(), mvlc.firmwareRevision());
 
     return 0;
 }
 
-static const Command MvlcVersionCommand =
-{
+static const Command MvlcVersionCommand = {
     .name = "version",
     .description = "Print MVLC hardware and firmware revisions",
     .help = R"~(print MVLC hardware and firmware revisions
@@ -223,7 +218,7 @@ DEF_EXEC_FUNC(mvlc_stack_info_command)
 
     std::vector<StackInfoEntry> stackInfos;
 
-    for (unsigned stackId=stackMin; stackId<stackMax; ++stackId)
+    for (unsigned stackId = stackMin; stackId < stackMax; ++stackId)
     {
         auto [stackInfo, ec] = read_stack_info(mvlc, stackId);
 
@@ -236,8 +231,8 @@ DEF_EXEC_FUNC(mvlc_stack_info_command)
 
         if (ec && ec != make_error_code(MVLCErrorCode::InvalidStackHeader))
         {
-            std::cerr << fmt::format("Error reading stack info for stack#{}: {}\n",
-                stackId, ec.message());
+            std::cerr << fmt::format("Error reading stack info for stack#{}: {}\n", stackId,
+                                     ec.message());
             return 1;
         }
     }
@@ -253,21 +248,21 @@ DEF_EXEC_FUNC(mvlc_stack_info_command)
         if (ec == make_error_code(MVLCErrorCode::InvalidStackHeader))
         {
 
-            std::cerr << fmt::format("- stack#{:2} (trig@0x{:04x}, off@0x{:04x}): triggers=0x{:02x} ({}), offset={}, startAddress=0x{:04x}"
+            std::cerr << fmt::format(
+                "- stack#{:2} (trig@0x{:04x}, off@0x{:04x}): triggers=0x{:02x} ({}), offset={}, "
+                "startAddress=0x{:04x}"
                 ", empty stack (does not start with a StackStart (0xF3) header)\n",
-                stackId, stackInfo.triggerAddress, stackInfo.offsetAddress,
-                 (u16)trigger.value,
-                 trigger_to_string(trigger),
-                stackInfo.offset, stackInfo.startAddress);
+                stackId, stackInfo.triggerAddress, stackInfo.offsetAddress, (u16)trigger.value,
+                trigger_to_string(trigger), stackInfo.offset, stackInfo.startAddress);
             continue;
         }
         else if (!ec)
         {
-            std::cout << fmt::format("- stack#{:2} (trig@0x{:04x}, off@0x{:04x}): triggers=0x{:02x} ({}), offset={}, startAddress=0x{:04x}, len={}:\n",
-                stackId, stackInfo.triggerAddress, stackInfo.offsetAddress,
-                (u16) trigger.value,
-                trigger_to_string(trigger),
-                stackInfo.offset, stackInfo.startAddress,
+            std::cout << fmt::format(
+                "- stack#{:2} (trig@0x{:04x}, off@0x{:04x}): triggers=0x{:02x} ({}), offset={}, "
+                "startAddress=0x{:04x}, len={}:\n",
+                stackId, stackInfo.triggerAddress, stackInfo.offsetAddress, (u16)trigger.value,
+                trigger_to_string(trigger), stackInfo.offset, stackInfo.startAddress,
                 stackInfo.contents.size());
 
             for (auto &word: stackInfo.contents)
@@ -283,7 +278,8 @@ DEF_EXEC_FUNC(mvlc_stack_info_command)
         }
         else
         {
-            std::cout << fmt::format("Error reading stack info for stack#{}: {}\n", stackId, ec.message());
+            std::cout << fmt::format("Error reading stack info for stack#{}: {}\n", stackId,
+                                     ec.message());
             return 1;
         }
     }
@@ -291,12 +287,11 @@ DEF_EXEC_FUNC(mvlc_stack_info_command)
     return 0;
 }
 
-static const Command MvlcStackInfoCommand =
-{
+static const Command MvlcStackInfoCommand = {
     .name = "stack_info",
     .description = "Read and print command stack info and contents",
     .help = unindent(
-R"~(usage: mvlc-cli stack_info [<stackId>]
+        R"~(usage: mvlc-cli stack_info [<stackId>]
 
     Read and print command stack info and contents. If no stackId is given all command
     stacks (stack0..15) are read.
@@ -313,14 +308,15 @@ DEF_EXEC_FUNC(scanbus_command)
     spdlog::trace("entered mvlc_scanbus_command()");
 
     auto &parser = ctx.parser;
-    parser.add_params({"--scan-begin", "--scan-end", "--probe-register", "--probe-amod", "--probe-datawidth", "--stack-max-words"});
+    parser.add_params({"--scan-begin", "--scan-end", "--probe-register", "--probe-amod",
+                       "--probe-datawidth", "--stack-max-words"});
     parser.parse(argv);
     trace_log_parser_info(parser, "mvlc_scanbus_command");
 
     u16 scanBegin = 0x0u;
-    u16 scanEnd   = 0xffffu;
+    u16 scanEnd = 0xffffu;
     u16 probeRegister = 0;
-    u8  probeAmod = 0x09;
+    u8 probeAmod = 0x09;
     VMEDataWidth probeDataWidth = VMEDataWidth::D16;
     // Maximum number of words to use for scanbus command stacks.
     u16 stackMaxWords = stacks::ImmediateStackReservedWords;
@@ -328,7 +324,10 @@ DEF_EXEC_FUNC(scanbus_command)
 
     if (parser("--scan-begin") >> str)
     {
-        try { scanBegin = std::stoul(str, nullptr, 0); }
+        try
+        {
+            scanBegin = std::stoul(str, nullptr, 0);
+        }
         catch (const std::exception &e)
         {
             std::cerr << "Error: could not parse address value for --scan-begin\n";
@@ -338,7 +337,10 @@ DEF_EXEC_FUNC(scanbus_command)
 
     if (parser("--scan-end") >> str)
     {
-        try { scanEnd = std::stoul(str, nullptr, 0); }
+        try
+        {
+            scanEnd = std::stoul(str, nullptr, 0);
+        }
         catch (const std::exception &e)
         {
             std::cerr << "Error: could not parse address value for --scan-end\n";
@@ -348,7 +350,10 @@ DEF_EXEC_FUNC(scanbus_command)
 
     if (parser("--probe-register") >> str)
     {
-        try { probeRegister = std::stoul(str, nullptr, 0); }
+        try
+        {
+            probeRegister = std::stoul(str, nullptr, 0);
+        }
         catch (const std::exception &e)
         {
             std::cerr << "Error: could not parse address value for --probe-register\n";
@@ -358,7 +363,10 @@ DEF_EXEC_FUNC(scanbus_command)
 
     if (parser("--probe-amod") >> str)
     {
-        try { probeAmod = std::stoul(str, nullptr, 0); }
+        try
+        {
+            probeAmod = std::stoul(str, nullptr, 0);
+        }
         catch (const std::exception &e)
         {
             std::cerr << "Error: could not parse value for --probe-amod\n";
@@ -402,21 +410,22 @@ DEF_EXEC_FUNC(scanbus_command)
 
     if (mvlc.firmwareRevision() < 0x0039)
     {
-        std::cerr << fmt::format("Error: scanbus command requires MVLC firmware revision FW0039 or higher, found revision 0x{:04x}\n",
-            mvlc.firmwareRevision());
+        std::cerr << fmt::format("Error: scanbus command requires MVLC firmware revision FW0039 or "
+                                 "higher, found revision 0x{:04x}\n",
+                                 mvlc.firmwareRevision());
         return 1;
     }
 
-    std::cout << fmt::format("scanbus scan range: [{:#06x}, {:#06x}), {} addresses, probeRegister={:#06x}"
+    std::cout << fmt::format(
+        "scanbus scan range: [{:#06x}, {:#06x}), {} addresses, probeRegister={:#06x}"
         ", probeAmod={:#04x}, probeDataWidth={}, stackMaxWords={}\n",
-        scanBegin, scanEnd, scanEnd - scanBegin, probeRegister,
-        probeAmod, probeDataWidth == VMEDataWidth::D16 ? "d16" : "d32",
-        stackMaxWords);
+        scanBegin, scanEnd, scanEnd - scanBegin, probeRegister, probeAmod,
+        probeDataWidth == VMEDataWidth::D16 ? "d16" : "d32", stackMaxWords);
 
     using namespace scanbus;
 
-    auto candidates = scan_vme_bus_for_candidates(mvlc, scanBegin, scanEnd,
-        probeRegister, probeAmod, probeDataWidth, stackMaxWords);
+    auto candidates = scan_vme_bus_for_candidates(mvlc, scanBegin, scanEnd, probeRegister,
+                                                  probeAmod, probeDataWidth, stackMaxWords);
 
     size_t moduleCount = 0;
 
@@ -424,10 +433,10 @@ DEF_EXEC_FUNC(scanbus_command)
     {
         if (candidates.size() == 1)
             std::cout << fmt::format("Found {} module candidate address: {:#010x}\n",
-                candidates.size(), fmt::join(candidates, ", "));
+                                     candidates.size(), fmt::join(candidates, ", "));
         else
             std::cout << fmt::format("Found {} module candidate addresses: {:#010x}\n",
-                candidates.size(), fmt::join(candidates, ", "));
+                                     candidates.size(), fmt::join(candidates, ", "));
 
         for (auto addr: candidates)
         {
@@ -435,12 +444,14 @@ DEF_EXEC_FUNC(scanbus_command)
 
             if (auto ec = read_module_info(mvlc, addr, moduleInfo))
             {
-                std::cout << fmt::format("Error checking address {:#010x}: {}\n", addr, ec.message());
+                std::cout << fmt::format("Error checking address {:#010x}: {}\n", addr,
+                                         ec.message());
                 continue;
             }
 
-            auto msg = fmt::format("Found module at {:#010x}: hwId={:#06x}, fwId={:#06x}, type={}",
-                addr, moduleInfo.hwId, moduleInfo.fwId, moduleInfo.moduleTypeName());
+            auto msg =
+                fmt::format("Found module at {:#010x}: hwId={:#06x}, fwId={:#06x}, type={}", addr,
+                            moduleInfo.hwId, moduleInfo.fwId, moduleInfo.moduleTypeName());
 
             if (vme_modules::is_mdpp(moduleInfo.hwId))
                 msg += fmt::format(", mdpp_fw_type={}", moduleInfo.mdppFirmwareTypeName());
@@ -458,8 +469,7 @@ DEF_EXEC_FUNC(scanbus_command)
     return 0;
 }
 
-static const Command ScanbusCommand
-{
+static const Command ScanbusCommand{
     .name = "scanbus",
     .description = "Scan the VME bus for mesytec VME modules",
     .help = unindent(R"~(
@@ -525,12 +535,11 @@ DEF_EXEC_FUNC(mvlc_set_id_command)
     return 0;
 }
 
-static const Command MvlcSetIdCommand
-{
+static const Command MvlcSetIdCommand{
     .name = "set_id",
     .description = "Set the MVLC controller id (aka crate id)",
     .help = unindent(
-R"~(usage: mvlc-cli set_id <ctrlId>
+        R"~(usage: mvlc-cli set_id <ctrlId>
 
     Sets the MVLC controller id which is transmitted with every command response and in
     readout data frames.
@@ -574,14 +583,13 @@ DEF_EXEC_FUNC(register_read_command)
         return 1;
     }
 
-    std::cout << fmt::format("register_read 0x{:04x} -> 0x{:08x} ({} decimal)\n",
-        address, value, value);
+    std::cout << fmt::format("register_read 0x{:04x} -> 0x{:08x} ({} decimal)\n", address, value,
+                             value);
 
     return 0;
 }
 
-static const Command RegisterReadCommand
-{
+static const Command RegisterReadCommand{
     .name = "register_read",
     .description = "Read one of the internal MVLC registers",
     .help = R"~(
@@ -642,14 +650,13 @@ DEF_EXEC_FUNC(register_write_command)
         return 1;
     }
 
-    std::cout << fmt::format("register_write 0x{:04x} -> 0x{:08x} ({} decimal) ok\n",
-        address, value, value);
+    std::cout << fmt::format("register_write 0x{:04x} -> 0x{:08x} ({} decimal) ok\n", address,
+                             value, value);
 
     return 0;
 }
 
-static const Command RegisterWriteCommand
-{
+static const Command RegisterWriteCommand{
     .name = "register_write",
     .description = "Write one of the internal MVLC registers",
     .help = R"~(
@@ -672,27 +679,27 @@ DEF_EXEC_FUNC(vme_read_command)
     spdlog::trace("entered vme_read_command()");
 
     auto &parser = ctx.parser;
-    parser.add_params({"--amod", "--datawidth", "--repeat"});
+    parser.add_params({"--amod", "--datawidth", "--no-fifo", "--word-swap", "--max-transfers",
+                       "--2esst-rate", "--repeat"});
     parser.parse(argv);
     trace_log_parser_info(parser, "vme_read_command");
 
     u8 amod = 0x09u;
     VMEDataWidth dataWidth = VMEDataWidth::D16;
     u32 address = 0x0u;
-    std::string str;
+    bool fifo = true;
+    u16 maxTransfers = 0xffffu;
+    unsigned e2sstRate = 3;
+    bool swapped = false;
     size_t repetitions = 1;
+
+    std::string str; // tmp arg holder
 
     if (parser("--amod") >> str)
     {
         if (auto val = parse_unsigned<u8>(str))
         {
             amod = *val;
-
-            if (vme_amods::is_block_mode(amod))
-            {
-                std::cerr << fmt::format("Error: expected non-block vme amod value.\n");
-                return 1;
-            }
         }
         else
         {
@@ -727,6 +734,45 @@ DEF_EXEC_FUNC(vme_read_command)
         }
     }
 
+    if (parser("--no-fifo"))
+        fifo = false;
+
+    if (parser("--word-swap"))
+        swapped = true;
+
+    if (parser("--max-transfers") >> str)
+    {
+        if (auto val = parse_unsigned<u16>(str))
+        {
+            maxTransfers = *val;
+        }
+        else
+        {
+            std::cerr << fmt::format("Error: invalid --max-transfers value given: {}\n", str);
+            return 1;
+        }
+    }
+
+    if (parser("--2esst-rate") >> str)
+    {
+        if (auto val = parse_unsigned<unsigned>(str))
+        {
+            if (*val > static_cast<unsigned>(Blk2eSSTRate::Rate320MB))
+            {
+                std::cerr << fmt::format(
+                    "Error: invalid --2esst-rate value given: {} (out of range, supports 0-2)\n",
+                    str);
+                return 1;
+            }
+            e2sstRate = *val;
+        }
+        else
+        {
+            std::cerr << fmt::format("Error: invalid --2esst-rate value given: {}\n", str);
+            return 1;
+        }
+    }
+
     auto addressStr = parser[2];
 
     if (auto val = parse_unsigned<u32>(addressStr))
@@ -740,47 +786,99 @@ DEF_EXEC_FUNC(vme_read_command)
     }
 
     spdlog::trace("vme_read_command: amod=0x{:02x}, dataWidth={}, address=0x{:08x}, repetitions={}",
-        amod, dataWidth == VMEDataWidth::D16 ? "d16" : "d32", address, repetitions);
+                  amod, dataWidth == VMEDataWidth::D16 ? "d16" : "d32", address, repetitions);
 
     auto [mvlc, ec] = make_and_connect_default_mvlc(parser);
 
     if (!mvlc || ec)
         return 1;
 
-    u32 value = 0;
+    u32 destValue = 0;
+    std::vector<u32> destVector;
 
-    for (size_t rep=0; rep < repetitions; ++rep)
+    for (size_t rep = 0; rep < repetitions; ++rep)
     {
-        if (auto ec = mvlc.vmeRead(address, value, amod, dataWidth))
+        if (!vme_amods::is_block_mode(amod))
         {
-            if (ec == MVLCErrorCode::StackSyntaxError)
+            if (auto ec = mvlc.vmeRead(address, destValue, amod, dataWidth))
             {
-                std::cerr << fmt::format("Error from VME read: {}. Check --amod value.\n",
-                    ec.message());
+                if (ec == MVLCErrorCode::StackSyntaxError)
+                {
+                    std::cerr << fmt::format("Error from VME read: {}. Check --amod value.\n",
+                                             ec.message());
+                }
+                else
+                {
+                    std::cerr << fmt::format("Error from VME read: {}\n", ec.message());
+                }
+                return 1;
+            }
+
+            std::cout << fmt::format("vme_read 0x{:02x} {} 0x{:08x} -> 0x{:08x} ({} decimal)\n",
+                                     amod, dataWidth == VMEDataWidth::D16 ? "d16" : "d32", address,
+                                     destValue, destValue);
+        }
+        else
+        {
+            if (vme_amods::is_blt_mode(amod) || vme_amods::is_mblt_mode(amod))
+            {
+                if (!swapped)
+                    ec = mvlc.vmeBlockRead(address, amod, maxTransfers, destVector, fifo);
+                else
+                    ec = mvlc.vmeBlockReadSwapped(address, amod, maxTransfers, destVector, fifo);
+            }
+            else if (vme_amods::is_2esst_mode(amod))
+            {
+                if (!swapped)
+                {
+                    ec = mvlc.vmeBlockRead(address, static_cast<Blk2eSSTRate>(e2sstRate),
+                                           maxTransfers, destVector, fifo);
+                }
+                else
+                {
+                    ec = mvlc.vmeBlockReadSwapped(address, static_cast<Blk2eSSTRate>(e2sstRate),
+                                                  maxTransfers, destVector, fifo);
+                }
             }
             else
             {
-                std::cerr << fmt::format("Error from VME read: {}\n", ec.message());
+                std::cerr << fmt::format("Error: unsupported block mode amod 0x{:02x}\n", amod);
+                return 1;
             }
-            return 1;
-        }
 
-        std::cout << fmt::format("vme_read 0x{:02x} {} 0x{:08x} -> 0x{:08x} ({} decimal)\n",
-            amod, dataWidth == VMEDataWidth::D16 ? "d16" : "d32", address, value, value);
+            if (ec == MVLCErrorCode::StackSyntaxError)
+            {
+                std::cerr << fmt::format("Error from VME block read: {}. Check --amod value.\n",
+                                         ec.message());
+                return 1;
+            }
+            else if (ec)
+            {
+                std::cerr << fmt::format("Error from VME block read: {}\n", ec.message());
+                return 1;
+            }
+
+            std::cout << fmt::format(
+                "vme_block_read --amod=0x{:02x} --datawidth={} --maxTransfers={} --fifo={}"
+                " --swapped={} address=0x{:08x} -> {} words read\n",
+                amod, dataWidth == VMEDataWidth::D16 ? "d16" : "d32", maxTransfers, fifo, swapped,
+                address, destVector.size());
+
+            std::cout << fmt::format("{:#010x}\n", fmt::join(destVector, "  \n"));
+        }
     }
 
-    #if 0 // TODO: make a generic option to print these on exit
+#if 0 // TODO: make a generic option to print these on exit
     auto counters = mvlc.getCmdPipeCounters();
     std::cout << fmt::format("cmd pipe counters 0: reads={}, bytes read={}, timeouts={}\n",
         counters.reads, counters.bytesRead, counters.timeouts);
     std::cout << fmt::format("cmd pipe counters 1: stackTxCount={}, stackExecRequestsLost={}, stackExecResponsesLost={}, stackTxRetries={}\n",
         counters.stackTransactionCount, counters.stackExecRequestsLost, counters.stackExecResponsesLost, counters.stackTransactionRetries);
-    #endif
+#endif
     return 0;
 }
 
-static const Command VmeReadCommand
-{
+static const Command VmeReadCommand{
     .name = "vme_read",
     .description = "Perform a single value vme read",
     .help = R"~(
@@ -790,17 +888,33 @@ usage: mvlc-cli vme_read [--amod=0x09] [--datawidth=16] <address>
 
 options:
     --amod=<amod> (default=0x09)
-        VME address modifier to send with the read command. Only non-block amods are allowed.
-        A list of address modifiers is available here: https://www.vita.com/page-1855176.
+        VME address modifier to send with the read command. Both non-block and block modes
+        are supported. A list of address modifiers is available here: https://www.vita.com/page-1855176.
 
-    --datawidth=(d16|16|d32|32) (default=d16)
-        VME datawidth to use for the read.
+    [--datawidth=(d16|16|d32|32) (default=d16)]
+        VME datawidth to use for the read. Required for non-block amods only.
+
+    [--repeat=<num>(default=1)]
+        Number of times to repeat the read command. Default is 1.
+
+    [--no-fifo]
+        Disable FIFO mode for block reads.
+
+    [--word-swap]
+        Enable word swapping for block reads.
+
+    [--max-transfers=<num> (default=65535)]
+        Maximum number of transfers to perform for block reads. Default is 65535.
+
+    [--2esst-rate=<rate> (default=3)]
+        For 2eSST block reads, specify the transfer rate. Valid values are:
+            0: 160 MB/s
+            1: 276 MB/s
+            2: 320 MB/s
 
     <address>
         32-bit VME address to read from.
 
-    [--repeat=<num>(default=1)]
-        Number of times to repeat the read command. Default is 1.
 )~",
     .exec = vme_read_command,
 };
@@ -866,7 +980,6 @@ DEF_EXEC_FUNC(vme_write_command)
         }
     }
 
-
     auto addressStr = parser[2];
     auto valueStr = parser[3];
 
@@ -890,22 +1003,23 @@ DEF_EXEC_FUNC(vme_write_command)
         return 1;
     }
 
-    spdlog::trace("vme_write_command: amod=0x{:02x}, dataWidth={}, address=0x{:08x}, value=0x{:08x}",
-        amod, dataWidth == VMEDataWidth::D16 ? "d16" : "d32", address, value);
+    spdlog::trace(
+        "vme_write_command: amod=0x{:02x}, dataWidth={}, address=0x{:08x}, value=0x{:08x}", amod,
+        dataWidth == VMEDataWidth::D16 ? "d16" : "d32", address, value);
 
     auto [mvlc, ec] = make_and_connect_default_mvlc(parser);
 
     if (!mvlc || ec)
         return 1;
 
-    for (size_t rep=0; rep < repetitions; ++rep)
+    for (size_t rep = 0; rep < repetitions; ++rep)
     {
         if (auto ec = mvlc.vmeWrite(address, value, amod, dataWidth))
         {
             if (ec == MVLCErrorCode::StackSyntaxError)
             {
                 std::cerr << fmt::format("Error from VME write: {}. Check --amod value.\n",
-                    ec.message());
+                                         ec.message());
             }
             else
             {
@@ -914,15 +1028,15 @@ DEF_EXEC_FUNC(vme_write_command)
             return 1;
         }
 
-        std::cout << fmt::format("vme_write 0x{:02x} {} 0x{:08x} 0x{:08x} ({} decimal) ok\n",
-            amod, dataWidth == VMEDataWidth::D16 ? "d16" : "d32", address, value, value);
+        std::cout << fmt::format("vme_write 0x{:02x} {} 0x{:08x} 0x{:08x} ({} decimal) ok\n", amod,
+                                 dataWidth == VMEDataWidth::D16 ? "d16" : "d32", address, value,
+                                 value);
     }
 
     return 0;
 }
 
-static const Command VmeWriteCommand
-{
+static const Command VmeWriteCommand{
     .name = "vme_write",
     .description = "Perform a single value vme write",
     .help = R"~(
@@ -952,93 +1066,87 @@ options:
 
 namespace
 {
-    struct RegisterMeta
-    {
-        std::string name;
-        std::string group;
-        u16 address;
-    };
+struct RegisterMeta
+{
+    std::string name;
+    std::string group;
+    u16 address;
+};
 
-    struct RegisterReadResult
-    {
-        RegisterMeta meta;
-        u32 value;
-        std::string info;
-    };
+struct RegisterReadResult
+{
+    RegisterMeta meta;
+    u32 value;
+    std::string info;
+};
 
-    using InfoDecoder = std::function<std::string (const std::vector<RegisterReadResult> &data)>;
+using InfoDecoder = std::function<std::string(const std::vector<RegisterReadResult> &data)>;
 
-    std::string decode_ipv4(const std::vector<RegisterReadResult> &data)
-    {
-        if (data.size() != 2)
-            return "invalid data";
+std::string decode_ipv4(const std::vector<RegisterReadResult> &data)
+{
+    if (data.size() != 2)
+        return "invalid data";
 
-        u32 addr = (data[1].value << 16) | data[0].value;
+    u32 addr = (data[1].value << 16) | data[0].value;
 
-        return fmt::format("{}.{}.{}.{}", (addr >> 24) & 0xff, (addr >> 16) & 0xff,
-            (addr >> 8) & 0xff, addr & 0xff);
-    }
-
-    std::string decode_mac(const std::vector<RegisterReadResult> &data)
-    {
-        if (data.size() != 3)
-            return "invalid data";
-
-        return fmt::format("{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}",
-            (data[2].value >> 8) & 0xff, data[2].value & 0xff,
-            (data[1].value >> 8) & 0xff, data[1].value & 0xff,
-            (data[0].value >> 8) & 0xff, data[0].value & 0xff);
-    }
-
-    std::string decode_stack_exec_status(const std::vector<RegisterReadResult> &data)
-    {
-        if (data.size() != 2)
-            return "invalid data";
-
-        auto frameFlags = extract_frame_flags(data[0].value);
-
-        return fmt::format("FrameFlags={}, StackReference={:#010x}",
-            format_frame_flags(frameFlags), data[1].value);
-    }
-
-    static const std::vector<RegisterMeta> RegistersData =
-    {
-        {"daq_mode", {}, 0x1300},
-        {"controller_id", {}, 0x1304},
-        {"stack_exec_status0", "stack_exec_status", 0x1400},
-        {"stack_exec_status1", "stack_exec_status", 0x1404},
-        {"own_ip_lo", "own_ip", 0x4400},
-        {"own_ip_hi", "own_ip", 0x4402},
-        {"dhcp_ip_lo", "dhcp_ip", 0x4408},
-        {"dhcp_ip_hi", "dhcp_ip", 0x440a},
-        {"data_ip_lo", "data_dest_ip", 0x4410},
-        {"data_ip_hi", "data_dest_ip", 0x4412},
-        {"cmd_mac_0", "cmd_dest_mac", 0x4414},
-        {"cmd_mac_1", "cmd_dest_mac", 0x4416},
-        {"cmd_mac_2", "cmd_dest_mac", 0x4418},
-        {"cmd_dest_port", {}, 0x441a},
-        {"data_dest_port", {}, 0x441c},
-        {"data_mac_0", "data_dest_mac", 0x441e},
-        {"data_mac_1", "data_dest_mac", 0x4420},
-        {"data_mac_2", "data_dest_mac", 0x4422},
-        {"jumbo_frame_enable", {}, 0x4430},
-        {"eth_delay_read", {}, 0x4432},
-        {"hardware_id", {}, 0x6008},
-        {"firmware_revision", {}, 0x600e},
-        {"mcst_enable", {}, 0x6020},
-        {"mcst_address", {}, 0x6024},
-    };
-
-    static const std::map<std::string, InfoDecoder> Decoders =
-    {
-        { "own_ip", decode_ipv4 },
-        { "dhcp_ip", decode_ipv4 },
-        { "data_dest_ip", decode_ipv4 },
-        { "cmd_dest_mac", decode_mac },
-        { "data_dest_mac", decode_mac },
-        { "stack_exec_status", decode_stack_exec_status },
-    };
+    return fmt::format("{}.{}.{}.{}", (addr >> 24) & 0xff, (addr >> 16) & 0xff, (addr >> 8) & 0xff,
+                       addr & 0xff);
 }
+
+std::string decode_mac(const std::vector<RegisterReadResult> &data)
+{
+    if (data.size() != 3)
+        return "invalid data";
+
+    return fmt::format("{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}", (data[2].value >> 8) & 0xff,
+                       data[2].value & 0xff, (data[1].value >> 8) & 0xff, data[1].value & 0xff,
+                       (data[0].value >> 8) & 0xff, data[0].value & 0xff);
+}
+
+std::string decode_stack_exec_status(const std::vector<RegisterReadResult> &data)
+{
+    if (data.size() != 2)
+        return "invalid data";
+
+    auto frameFlags = extract_frame_flags(data[0].value);
+
+    return fmt::format("FrameFlags={}, StackReference={:#010x}", format_frame_flags(frameFlags),
+                       data[1].value);
+}
+
+static const std::vector<RegisterMeta> RegistersData = {
+    {"daq_mode", {}, 0x1300},
+    {"controller_id", {}, 0x1304},
+    {"stack_exec_status0", "stack_exec_status", 0x1400},
+    {"stack_exec_status1", "stack_exec_status", 0x1404},
+    {"own_ip_lo", "own_ip", 0x4400},
+    {"own_ip_hi", "own_ip", 0x4402},
+    {"dhcp_ip_lo", "dhcp_ip", 0x4408},
+    {"dhcp_ip_hi", "dhcp_ip", 0x440a},
+    {"data_ip_lo", "data_dest_ip", 0x4410},
+    {"data_ip_hi", "data_dest_ip", 0x4412},
+    {"cmd_mac_0", "cmd_dest_mac", 0x4414},
+    {"cmd_mac_1", "cmd_dest_mac", 0x4416},
+    {"cmd_mac_2", "cmd_dest_mac", 0x4418},
+    {"cmd_dest_port", {}, 0x441a},
+    {"data_dest_port", {}, 0x441c},
+    {"data_mac_0", "data_dest_mac", 0x441e},
+    {"data_mac_1", "data_dest_mac", 0x4420},
+    {"data_mac_2", "data_dest_mac", 0x4422},
+    {"jumbo_frame_enable", {}, 0x4430},
+    {"eth_delay_read", {}, 0x4432},
+    {"hardware_id", {}, 0x6008},
+    {"firmware_revision", {}, 0x600e},
+    {"mcst_enable", {}, 0x6020},
+    {"mcst_address", {}, 0x6024},
+};
+
+static const std::map<std::string, InfoDecoder> Decoders = {
+    {"own_ip", decode_ipv4},       {"dhcp_ip", decode_ipv4},
+    {"data_dest_ip", decode_ipv4}, {"cmd_dest_mac", decode_mac},
+    {"data_dest_mac", decode_mac}, {"stack_exec_status", decode_stack_exec_status},
+};
+} // namespace
 
 DEF_EXEC_FUNC(dump_registers_command)
 {
@@ -1066,8 +1174,8 @@ DEF_EXEC_FUNC(dump_registers_command)
 
         if (auto ec = mvlc.readRegister(regMeta.address, result.value))
         {
-            fmt::print("Error reading register '{}' ({:#06x}): {}\n",
-                regMeta.name, regMeta.address, ec.message());
+            fmt::print("Error reading register '{}' ({:#06x}): {}\n", regMeta.name, regMeta.address,
+                       ec.message());
             return 1;
         }
 
@@ -1113,8 +1221,8 @@ DEF_EXEC_FUNC(dump_registers_command)
 
         for (const auto &rv: registerValues)
         {
-            fmt::print("{:20s} {:20s} {:#06x}  {:#010x} {}\n",
-                    rv.meta.name, rv.meta.group, rv.meta.address, rv.value, rv.info);
+            fmt::print("{:20s} {:20s} {:#06x}  {:#010x} {}\n", rv.meta.name, rv.meta.group,
+                       rv.meta.address, rv.value, rv.info);
         }
     }
     else
@@ -1143,8 +1251,7 @@ DEF_EXEC_FUNC(dump_registers_command)
     return 0;
 }
 
-static const Command DumpRegistersCommand
-{
+static const Command DumpRegistersCommand{
     .name = "dump_registers",
     .description = "Read and print internal MVLC registers",
     .help = R"~(
@@ -1170,8 +1277,8 @@ DEF_EXEC_FUNC(show_usb_devices)
 
     for (const auto &devInfo: allDevices)
     {
-        std::cout << fmt::format("index={}, serial='{}', description='{}'",
-            devInfo.index, devInfo.serial, devInfo.description);
+        std::cout << fmt::format("index={}, serial='{}', description='{}'", devInfo.index,
+                                 devInfo.serial, devInfo.description);
 
         if (util::contains(devInfo.description, "MVLC"))
         {
@@ -1184,8 +1291,7 @@ DEF_EXEC_FUNC(show_usb_devices)
     return 0;
 }
 
-static const Command ShowUsbDevicesCommand
-{
+static const Command ShowUsbDevicesCommand{
     .name = "show_usb_devices",
     .description = "List MVLC_USB devices present in the system",
     .help = R"~(
@@ -1212,7 +1318,7 @@ DEF_EXEC_FUNC(send_eth_delay_command)
 
     auto delay = parse_unsigned<u16>(parser[2]);
 
-    if(!delay)
+    if (!delay)
     {
         std::cerr << "Error: invalid delay value given\n";
         return 1;
@@ -1237,8 +1343,8 @@ DEF_EXEC_FUNC(send_eth_delay_command)
 
     if (ec || sock < 0)
     {
-        std::cerr << fmt::format("Error: could not connect to remote address '{}': {}\n",
-            remote, ec.message());
+        std::cerr << fmt::format("Error: could not connect to remote address '{}': {}\n", remote,
+                                 ec.message());
         return 1;
     }
 
@@ -1248,12 +1354,12 @@ DEF_EXEC_FUNC(send_eth_delay_command)
         return 1;
     }
 
-    std::cout << fmt::format("Sent EthDelay command to {} with delay {} µs\n", remote, delay.value());
+    std::cout << fmt::format("Sent EthDelay command to {} with delay {} µs\n", remote,
+                             delay.value());
     return 0;
 }
 
-static const Command SendEthDelayCommand
-{
+static const Command SendEthDelayCommand{
     .name = "send_eth_delay",
     .description = "Send an EthDelay command to the MVLC",
     .help = R"~(
@@ -1315,7 +1421,6 @@ MVLC connection URIs:
     evaluate the two stack_exec_status registers after every MVLC stack
     transaction. Use this to ensure correct behavior of the firmware.
 )~";
-
 
     spdlog::set_level(spdlog::level::warn);
     mesytec::mvlc::set_global_log_level(spdlog::level::warn);
@@ -1381,8 +1486,7 @@ MVLC connection URIs:
         std::string cmdName;
         if ((parser({"-h", "--help"}) >> cmdName))
         {
-            if (auto cmd = ctx.commands.find(Command{cmdName});
-                cmd != ctx.commands.end())
+            if (auto cmd = ctx.commands.find(Command{cmdName}); cmd != ctx.commands.end())
             {
                 std::cout << cmd->help;
                 return 0;
@@ -1397,13 +1501,13 @@ MVLC connection URIs:
 
     if (auto cmdName = parser[1]; !cmdName.empty())
     {
-        if (auto cmd = ctx.commands.find(Command{parser[1]});
-            cmd != ctx.commands.end())
+        if (auto cmd = ctx.commands.find(Command{parser[1]}); cmd != ctx.commands.end())
         {
             spdlog::trace("parsed cli: found cmd='{}'", cmd->name);
             if (parser[{"-h", "--help"}])
             {
-                spdlog::trace("parsed cli: found -h flag for command {}, directly displaying help text",
+                spdlog::trace(
+                    "parsed cli: found -h flag for command {}, directly displaying help text",
                     cmd->name);
                 std::cout << cmd->help;
                 return 0;
@@ -1428,7 +1532,8 @@ MVLC connection URIs:
     if (parser[{"-h", "--help"}])
     {
         if (parser["-a"])
-            return ListCmdsCommand.exec(ctx, ListCmdsCommand, argc, const_cast<const char **>(argv));
+            return ListCmdsCommand.exec(ctx, ListCmdsCommand, argc,
+                                        const_cast<const char **>(argv));
         std::cout << generalHelp << "\n";
         print_command_list(std::cout, ctx.commands);
         return 0;

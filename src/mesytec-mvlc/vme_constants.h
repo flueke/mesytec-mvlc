@@ -101,6 +101,11 @@ namespace vme_amods
     {
         return ((amod & VmeAmodMask) == Blk2eSST64);
     }
+
+    inline bool is_2esst_mode(u8 amod)
+    {
+        return is_esst64_mode(amod);
+    }
 }
 }
 }
