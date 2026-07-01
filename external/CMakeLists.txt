@@ -4,12 +4,11 @@
 add_subdirectory(ftdi-d3xx)
 
 # minizip options
-set(BUILD_SHARED_LIBS ON)
 option(MZ_COMPAT "Enables compatibility layer" ON)
 option(MZ_ZLIB "Enables ZLIB compression" ON)
 option(MZ_BZIP2 "Enables BZIP2 compression" OFF)
 option(MZ_LZMA "Enables LZMA & XZ compression" ON)
-option(MZ_PPMD "Enables PPMD compression" ON)
+option(MZ_PPMD "Enables PPMD compression" OFF)
 option(MZ_ZSTD "Enables ZSTD compression" OFF)
 option(MZ_PKCRYPT "Enables PKWARE traditional encryption" OFF)
 option(MZ_WZAES "Enables WinZIP AES encryption" OFF)
@@ -26,7 +25,6 @@ option(MZ_CODE_COVERAGE "Builds with code coverage flags" OFF)
 set(SKIP_INSTALL_ALL ON)
 
 add_subdirectory(minizip-ng-4.2.1)
-set(BUILD_SHARED_LIBS OFF)
 
 #target_compile_options(minizip
 #    PRIVATE $<${not-msvc}:-Wno-unused-variable -Wno-unused-but-set-variable>
