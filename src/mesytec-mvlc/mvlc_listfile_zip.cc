@@ -201,7 +201,11 @@ std::unique_ptr<WriteHandle> ZipCreator::createZIPEntry(const std::string &entry
     file_info.version_madeby = MZ_VERSION_MADEBY;
     file_info.compression_method = MZ_COMPRESS_METHOD_DEFLATE;
     file_info.zip64 = MZ_ZIP64_FORCE;
+#ifdef MESYTEC_MVLC_PLATFORM_POSIX
     file_info.external_fa = (S_IFREG) | (0644u << 16);
+#elif defined MESYTEC_MVLC_PLATFORM_WINDOWS
+    file_info.external_fa = (_S_IFREG) | (0644u << 16);
+#endif
 
     mz_zip_writer_set_compress_method(d->mz_zipWriter, MZ_COMPRESS_METHOD_DEFLATE);
     mz_zip_writer_set_compress_level(d->mz_zipWriter, compressLevel);
@@ -1268,33 +1272,19 @@ ZipUpdateResult update_zip_archive(const ZipUpdateConfig &config)
         }
     }
 
-    // Hacky tempfile stuff starts here...
-    // Create a temp file in the current directory.
-    std::string tmpNameTemplate = "mvlc_zip_updater.XXXXXX";
-    auto tmpFd = util::make_fd_deleter(::mkstemp(tmpNameTemplate.data()));
-
-    if (!tmpFd || *tmpFd == -1)
-    {
-        result.ec = std::error_code(errno, std::system_category());
-        result.error_detail =
-            fmt::format("Failed to create temporary file for new ZIP: {}", result.ec.message());
-        return result;
-    }
-
-    // Close the fd; ZipCreator will reopen the file by path. Insecure as can be.
-    tmpFd.reset();
+    auto tmpName = util::make_tempfile_name("mvlc_zip_updater");
 
     // Create the new archive
     ZipCreator writer;
     try
     {
-        writer.createArchive(tmpNameTemplate, OverwriteMode::Overwrite);
+        writer.createArchive(tmpName, OverwriteMode::Overwrite);
     }
     catch (const std::exception &e)
     {
         result.ec = std::make_error_code(std::errc::io_error);
         result.error_detail = fmt::format("Failed to create writer archive: {}", e.what());
-        util::delete_file(tmpNameTemplate);
+        util::delete_file(tmpName);
         return result;
     }
 
@@ -1311,7 +1301,7 @@ ZipUpdateResult update_zip_archive(const ZipUpdateConfig &config)
             result.error_detail = "Operation was cancelled by user";
             writer.closeArchive();
             reader.closeArchive();
-            util::delete_file(tmpNameTemplate);
+            util::delete_file(tmpName);
             return result;
         }
 
@@ -1372,7 +1362,7 @@ ZipUpdateResult update_zip_archive(const ZipUpdateConfig &config)
             result.error_detail = fmt::format("Failed to copy entry '{}': {}", entryName, e.what());
             writer.closeArchive();
             reader.closeArchive();
-            util::delete_file(tmpNameTemplate);
+            util::delete_file(tmpName);
             return result;
         }
     }
@@ -1386,7 +1376,7 @@ ZipUpdateResult update_zip_archive(const ZipUpdateConfig &config)
             result.error_detail = "Operation was cancelled by user";
             writer.closeArchive();
             reader.closeArchive();
-            util::delete_file(tmpNameTemplate);
+            util::delete_file(tmpName);
             return result;
         }
 
@@ -1440,7 +1430,7 @@ ZipUpdateResult update_zip_archive(const ZipUpdateConfig &config)
         {
             writer.closeArchive();
             reader.closeArchive();
-            util::delete_file(tmpNameTemplate);
+            util::delete_file(tmpName);
             return result;
         }
 
@@ -1467,17 +1457,17 @@ ZipUpdateResult update_zip_archive(const ZipUpdateConfig &config)
     {
         result.ec = std::make_error_code(std::errc::io_error);
         result.error_detail = fmt::format("Failed to close archives: {}", e.what());
-        util::delete_file(tmpNameTemplate);
+        util::delete_file(tmpName);
         return result;
     }
 
     // Replace the original file with the new one
-    if (std::rename(tmpNameTemplate.c_str(), config.input_zip_path.c_str()) != 0)
+    if (std::rename(tmpName.c_str(), config.input_zip_path.c_str()) != 0)
     {
         result.ec = std::error_code(errno, std::system_category());
         result.error_detail =
             fmt::format("Failed to replace original ZIP file: {}", result.ec.message());
-        util::delete_file(tmpNameTemplate);
+        util::delete_file(tmpName);
         return result;
     }
 
