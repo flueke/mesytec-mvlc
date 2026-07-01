@@ -1272,7 +1272,14 @@ ZipUpdateResult update_zip_archive(const ZipUpdateConfig &config)
         }
     }
 
-    auto tmpName = util::make_tempfile_name("mvlc_zip_updater");
+    // Create temp file in the same directory as the target to ensure rename works on Windows
+    namespace fs = std::filesystem;
+    auto targetPath = fs::path(config.input_zip_path);
+    auto targetDir = targetPath.parent_path();
+    if (targetDir.empty())
+        targetDir = fs::current_path();
+
+    auto tmpName = (targetDir / util::make_tempfile_name("mvlc_zip_updater")).string();
 
     // Create the new archive
     ZipCreator writer;
@@ -1462,13 +1469,28 @@ ZipUpdateResult update_zip_archive(const ZipUpdateConfig &config)
     }
 
     // Replace the original file with the new one
-    if (std::rename(tmpName.c_str(), config.input_zip_path.c_str()) != 0)
+    // Try rename first, fall back to copy+delete on Windows if it fails
+    std::error_code ec;
+    fs::rename(tmpName, config.input_zip_path, ec);
+
+    if (ec)
     {
-        result.ec = std::error_code(errno, std::system_category());
-        result.error_detail =
-            fmt::format("Failed to replace original ZIP file: {}", result.ec.message());
+        // Rename failed, try copy + delete (slower but works across filesystems)
+        spdlog::warn("rename failed (from={}, to={}, error={}), trying copy+delete fallback",
+                     tmpName, config.input_zip_path, ec.message());
+
+        fs::copy_file(tmpName, config.input_zip_path, fs::copy_options::overwrite_existing, ec);
+
+        if (ec)
+        {
+            result.ec = ec;
+            result.error_detail =
+                fmt::format("Failed to replace original ZIP file: {}", ec.message());
+            util::delete_file(tmpName);
+            return result;
+        }
+
         util::delete_file(tmpName);
-        return result;
     }
 
     return result;
