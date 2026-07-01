@@ -2,9 +2,11 @@
 
 #include <cstdint>
 #include <cstring>
+#include <filesystem>
 #include <memory>
 #include <mz.h>
 #include <mz_os.h>
+#include <random>
 
 namespace mesytec::mvlc::util
 {
@@ -36,9 +38,22 @@ bool file_exists(const std::string &filepath)
     return mz_os_file_exists(filepath.c_str()) == MZ_OK;
 }
 
-bool delete_file(const std::string &filepath)
+bool delete_file(const std::string &filepath) { return mz_os_unlink(filepath.c_str()) == MZ_OK; }
+
+std::string make_tempfile_name(const std::string &prefix)
 {
-    return mz_os_unlink(filepath.c_str()) == MZ_OK;
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_int_distribution<> dist(0, 999999);
+
+    std::string filename;
+    do
+    {
+        filename = prefix + std::to_string(dist(gen));
+    }
+    while (std::filesystem::exists(filename));
+
+    return filename;
 }
 
-}
+} // namespace mesytec::mvlc::util
