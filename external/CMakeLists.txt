@@ -26,6 +26,9 @@ set(SKIP_INSTALL_ALL ON)
 
 add_subdirectory(minizip-ng-4.2.1)
 
+# Enable the PIC flag to fix relocation errors when linking against minizip
+set_target_properties(minizip PROPERTIES POSITION_INDEPENDENT_CODE ON)
+
 #target_compile_options(minizip
 #    PRIVATE $<${not-msvc}:-Wno-unused-variable -Wno-unused-but-set-variable>
 #    PRIVATE $<${not-msvc}:-Wno-unused-parameter -Wno-cast-function-type -Wno-unused-local-typedefs>)
