@@ -71,6 +71,12 @@ struct MESYTEC_MVLC_EXPORT CmdPipeCounters
 
 };
 
+// High-level MVLC representation. Instances of this class can be copied and are
+// thread-safe. Copies will refer to the same underlying device, similar to
+// shared_ptr semantics.
+// Internally two locks are used to protect the cmd and data pipes respectively.
+// Use the function found in mvlc_factory.h to create MVLC instances, e.g.
+// make_mvlc_usb() or the generic make_mvlc(<url>).
 class MESYTEC_MVLC_EXPORT MVLC
 {
     public:
