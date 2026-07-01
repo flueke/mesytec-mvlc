@@ -8,6 +8,7 @@
 #include <mesytec-mvlc/mvlc_impl_eth.h>
 #include <mesytec-mvlc/mvlc_impl_usb.h>
 #include <mesytec-mvlc/util/udp_sockets.h>
+#include <mesytec-mvlc/util/env.hpp>
 #include <yaml-cpp/emittermanip.h>
 #include <yaml-cpp/yaml.h>
 
@@ -21,8 +22,8 @@ std::pair<MVLC, std::error_code> make_and_connect_default_mvlc(argh::parser &par
     if (!mvlc)
     {
         // try via the env variable
-        if (char *envAddr = std::getenv("MVLC_ADDRESS"))
-            mvlc = make_mvlc(envAddr);
+        if (auto envAddr = util::get_env_variable("MVLC_ADDRESS"))
+            mvlc = make_mvlc(*envAddr);
     }
 
     if (!mvlc)

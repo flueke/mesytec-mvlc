@@ -65,6 +65,7 @@
 #include "stream_server_asio.h"
 #include "util/algo.h"
 #include "util/counters.h"
+#include "util/env.hpp"
 #include "util/filesystem.h"
 #include "util/fmt.h"
 #include "util/int_types.h"

@@ -11,8 +11,8 @@ class MvlcEthTestBase: public ::testing::TestWithParam<const char *>
         {
             std::string address = GetParam();
 
-            if (char *envAddress = getenv("MVLC_TEST_ETH_ADDR"))
-                address = envAddress;
+            if (auto envAddr = util::get_env_variable("MVLC_TEST_ETH_ADDR"))
+                address = *envAddr;
 
             if (address.empty())
             {

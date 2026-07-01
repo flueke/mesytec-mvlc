@@ -28,6 +28,7 @@
 #include "mvlc_factory.h"
 #include "mvlc_impl_eth.h"
 #include "mvlc_impl_usb.h"
+#include "util/env.hpp"
 
 namespace mesytec::mvlc
 {
@@ -151,8 +152,8 @@ MVLC make_mvlc_from_standard_params(const argh::parser &parser)
     if (parser("--mvlc-eth") >> arg)
         return make_mvlc_eth(arg);
 
-    if (char *envAddr = std::getenv("MVLC_ADDRESS"))
-        return make_mvlc(envAddr);
+    if (auto envAddr = util::get_env_variable("MVLC_ADDRESS"))
+        return make_mvlc(*envAddr);
 
     return MVLC{};
 }
