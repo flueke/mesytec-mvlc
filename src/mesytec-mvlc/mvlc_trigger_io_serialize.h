@@ -9,6 +9,7 @@
 #define E8D6A3D4_9A71_4B1C_B4E0_55FF88FAC1E6
 
 #include <algorithm>
+#include <iterator>
 #include <variant>
 
 #include <mesytec-mvlc/mesytec-mvlc_export.h>
@@ -107,8 +108,7 @@ struct MESYTEC_MVLC_EXPORT IScriptPartVisitor
 // output code or structures.
 inline void visit(const ScriptParts &parts, IScriptPartVisitor &visitor)
 {
-    std::for_each(std::begin(parts), std::end(parts),
-                  [&visitor](const ScriptPart &part)
+    std::for_each(std::begin(parts), std::end(parts), [&visitor](const ScriptPart &part)
                   { std::visit([&visitor](auto &&arg) { visitor(arg); }, part); });
 }
 
