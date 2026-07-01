@@ -3,7 +3,8 @@
 namespace mesytec::mvlc::util
 {
 
-inline std::optional<std::string> get_env_variable(const char *name)
+#ifdef MESYTEC_MVLC_PLATFORM_WINDOWS
+std::optional<std::string> get_env_variable(const char *name)
 {
     char *pValue = nullptr;
     size_t len = 0;
@@ -16,5 +17,14 @@ inline std::optional<std::string> get_env_variable(const char *name)
 
     return ret;
 }
+#else
+std::optional<std::string> get_env_variable(const char *name)
+{
+    if (const char *value = std::getenv(name))
+        return std::string(value);
+
+    return std::nullopt;
+}
+#endif
 
 }
