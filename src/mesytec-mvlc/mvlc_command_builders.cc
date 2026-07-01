@@ -208,6 +208,10 @@ std::string MESYTEC_MVLC_EXPORT to_string(const SuperCommand &cmd)
 
         case CT::WriteReset:
             return "write_reset";
+
+        // For completeness. These message must be directed to the eth throttle port (0x8002).
+        case CT::EthDelay:
+            return "eth_delay";
     }
 
     throw std::runtime_error(fmt::format("invalid SuperCommandType '{:#06x}'", static_cast<unsigned>(cmd.type)));
