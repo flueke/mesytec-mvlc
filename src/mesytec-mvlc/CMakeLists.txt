@@ -51,6 +51,7 @@ add_library(mesytec-mvlc SHARED
     stream_server_interface.cc
     util/counters.cc
     util/data_filter.cc
+    util/env.cc
     util/filesystem.cc
     util/logging.cc
     util/protected.cc
