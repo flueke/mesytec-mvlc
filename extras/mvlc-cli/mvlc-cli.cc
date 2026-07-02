@@ -1444,7 +1444,11 @@ MVLC connection URIs:
             logLevelName = "info";
 
         if (!logLevelName.empty())
-            spdlog::set_level(spdlog::level::from_str(logLevelName));
+        {
+            const auto level = spdlog::level::from_str(logLevelName);
+            spdlog::set_level(level);
+            mesytec::mvlc::set_global_log_level(level);
+        }
 
         if (parser["--show-log-timestamps"])
             mesytec::mvlc::set_log_pattern("[%Y-%m-%d %H:%M:%S.%e] [%^%l%$] %v");
