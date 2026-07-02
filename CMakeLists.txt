@@ -14,23 +14,22 @@ set(MESYTEC_MVLC_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 # Taken from nng/CMakeLists.txt
 if (CMAKE_SYSTEM_NAME MATCHES "Linux")
     message(STATUS "mesytec-mvlc: Detected Linux platform")
-    add_compile_definitions(-DMESYTEC_MVLC_PLATFORM_POSIX)
-    add_compile_definitions(-DMESYTEC_MVLC_PLATFORM_LINUX)
+    # Platform definitions are set on the target in src/mesytec-mvlc/CMakeLists.txt
     # Windows subsystem for Linux -- smells like Linux, but it has
     # some differences (SO_REUSEADDR for one).
     if (CMAKE_SYSTEM_VERSION MATCHES "Microsoft")
-        add_compile_definitions(-DMESYTEC_MVLC_PLATFORM_WSL)
+        set(MESYTEC_MVLC_PLATFORM_WSL ON)
     endif ()
     set(MESYTEC_MVLC_PLATFORM_LINUX ON)
     set(MESYTEC_MVLC_PLATFORM_POSIX ON)
 elseif (CMAKE_SYSTEM_NAME MATCHES "Windows")
     message(STATUS "mesytec-mvlc: Detected Windows platform")
-    add_compile_definitions(-DMESYTEC_MVLC_PLATFORM_WINDOWS)
+    # Platform definitions are set on the target in src/mesytec-mvlc/CMakeLists.txt
     set(MESYTEC_MVLC_PLATFORM_WINDOWS ON)
 else ()
     message(AUTHOR_WARNING "WARNING: This platform may not be supported: ${CMAKE_SYSTEM_NAME}")
     # blithely hope for POSIX to work
-    add_compile_definitions(-DMESYTEC_MVLC_PLATFORM_POSIX)
+    # Platform definitions are set on the target in src/mesytec-mvlc/CMakeLists.txt
     set(MESYTEC_MVLC_PLATFORM_POSIX ON)
 endif ()
 
