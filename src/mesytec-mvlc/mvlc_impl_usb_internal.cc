@@ -133,7 +133,9 @@ std::pair<std::error_code, size_t> read_pipe_until_empty(
 {
     size_t totalBytesTransferred = 0;
     size_t bytesTransferred = 0;
-    std::array<u8, DataBufferSize> buffer;
+    // Allocate this on the heap to avoid overflowing the stack under windows.
+    auto bufferP = std::make_unique<std::array<u8, DataBufferSize>>();
+    auto &buffer = *bufferP;
     std::error_code ec = {};
     do
     {
