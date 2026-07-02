@@ -4,10 +4,11 @@
 #include "mesytec-mvlc/mesytec-mvlc_export.h"
 #include <memory>
 #include <string>
-#ifdef MESYTEC_MVLC_PLATFORM_POSIX
+#if defined(MESYTEC_MVLC_PLATFORM_POSIX)
 #include <unistd.h> // ::close()
-#elif defined MESYTEC_MVLC_PLATFORM_WINDOWS
+#elif defined(MESYTEC_MVLC_PLATFORM_WINDOWS)
 #include <io.h> // _close()
+#else
 #endif
 
 namespace mesytec::mvlc::util
@@ -20,9 +21,9 @@ bool MESYTEC_MVLC_EXPORT delete_file(const std::string &filepath);
 
 // Scoped cleanup for file descriptors.
 // clang-format off
-#ifdef MESYTEC_MVLC_PLATFORM_POSIX
+#if defined(MESYTEC_MVLC_PLATFORM_POSIX)
 static auto fd_deleter = [](int* fd) { if (fd && *fd >= 0) ::close(*fd); delete fd; };
-#elif defined MESYTEC_MVLC_PLATFORM_WINDOWS
+#elif defined(MESYTEC_MVLC_PLATFORM_WINDOWS)
 static auto fd_deleter = [](int* fd) { if (fd && *fd >= 0) ::_close(*fd); delete fd; };
 #endif
 
