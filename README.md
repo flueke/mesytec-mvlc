@@ -48,7 +48,7 @@ apt-get update && apt-get install -y --no-install-recommends \
   libzmq3-dev
 
 mkdir build && cd build
-cmake -GNinja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_INSTALL_PREFIX=~/local/mesytec-mvlc .. \
+cmake -GNinja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_INSTALL_PREFIX=~/local/mesytec-mvlc ..
 cmake --build . --target all
 ctest .
 ```
@@ -56,6 +56,16 @@ ctest .
 Dockerfiles can be found [here](tools/dockerfiles).
 
 Pass `-DMVLC_BUILD_DEV_TOOLS=ON -DMVLC_BUILD_TOOLS=ON` to cmake to build additional tools.
+
+#### Running the examples
+
+```sh
+cd ~/local/mesytec-mvlc/share/mesytec-mvlc/cmake-example
+mkdir build && cd build
+CMAKE_PREFIX_PATH=~/local/mesytec-mvlc cmake -GNinja .. && cmake --build . -j
+# Run the vme reads example (use --help for parameter docs):
+./mvlc-vme-reads mvlc-0066 0x10000000 0x6000 32 0x09 2
+```
 
 ### Windows
 
