@@ -1029,7 +1029,10 @@ std::error_code CmdApi::uploadStack(
 
     while (partIter != stackEnd)
     {
-        auto partEnd = std::min(partIter + PartMaxSize, stackEnd);
+        // Calculate remaining distance to avoid creating out-of-bounds iterators (MSVC debug builds)
+        auto remainingSize = std::distance(partIter, stackEnd);
+        auto partSize = std::min(static_cast<size_t>(remainingSize), PartMaxSize);
+        auto partEnd = partIter + partSize;
 
         //basic_string_view<u32> partView(&(*partIter), partEnd - partIter);
         //log_buffer(logger, spdlog::level::trace, partView, "stack part to upload");
