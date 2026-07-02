@@ -7,6 +7,7 @@ using namespace mesytec::mvlc;
 
 TEST(MvlcUsb, ConnectToFirstDevice)
 {
+    spdlog::set_level(spdlog::level::trace);
     usb::Impl mvlc;
 
     ASSERT_EQ(mvlc.connectionType(), ConnectionType::USB);
