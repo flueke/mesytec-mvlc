@@ -4,6 +4,7 @@
         "boost-range",
         "liblzma",
         "lz4",
+        "vcpkg-cmake",
         "zlib"
     ]
 }
