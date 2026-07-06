@@ -1279,6 +1279,7 @@ class ZipArchiveUpdaterTest: public testing::Test
         ZipCreator writer;
         writer.createArchive(archiveName);
 
+        // two zip entries, both compressed
         {
             auto writeHandle = writer.createZIPEntry("entry0.data", 1);
             writeHandle->write(outData0.data(), outData0.size());
@@ -1291,8 +1292,9 @@ class ZipArchiveUpdaterTest: public testing::Test
             writer.closeCurrentEntry();
         }
 
+        // one lz4 compressed entry
         {
-            auto writeHandle = writer.createZIPEntry("entry2.data", 1);
+            auto writeHandle = writer.createLZ4Entry("entry2.data");
             writeHandle->write(outData2.data(), outData2.size());
             writer.closeCurrentEntry();
         }
@@ -1338,8 +1340,8 @@ TEST_F(ZipArchiveUpdaterTest, Operations)
 
     {
         DeleteOperation op;
-        op.filename = "entry2.data";
-        op.description = "Delete entry2.data from the archive";
+        op.filename = "entry2.data.lz4";
+        op.description = "Delete entry2.data.lz4 from the archive";
         updateConfig.ops.emplace_back(std::move(op));
     }
 
@@ -1355,7 +1357,8 @@ TEST_F(ZipArchiveUpdaterTest, Operations)
 
     ASSERT_FALSE(updateResult.ec);
     ASSERT_TRUE(updateResult.error_detail.empty());
-    ASSERT_EQ(updateResult.ops_descriptions.size(), 3u);
+    // copy of entry0 plus three operations
+    ASSERT_EQ(updateResult.ops_descriptions.size(), 4u);
     ASSERT_GE(callbackCount_isCancelled, 1u);
     ASSERT_EQ(callbackCount_progress, 4u);
 

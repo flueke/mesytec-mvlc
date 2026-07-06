@@ -81,6 +81,9 @@ class MESYTEC_MVLC_EXPORT ZipCreator
         size_t writeToCurrentEntry(const u8 *data, size_t size);
         void closeCurrentEntry();
 
+        // Get raw minizip-ng writer handle for advanced operations
+        void *getRawWriterHandle() const;
+
     private:
         struct Private;
         std::unique_ptr<Private> d;
@@ -247,6 +250,9 @@ class MESYTEC_MVLC_EXPORT ZipReader
         const ZipEntryInfo &entryInfo() const;
 
         std::string firstListfileEntryName();
+
+        // Get raw minizip-ng reader handle for advanced operations
+        void *getRawReaderHandle() const;
 
     private:
         struct Private;
