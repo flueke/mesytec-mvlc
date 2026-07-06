@@ -236,7 +236,11 @@ std::unique_ptr<WriteHandle> ZipCreator::createLZ4Entry(const std::string &entry
     file_info.version_madeby = MZ_VERSION_MADEBY;
     file_info.compression_method = MZ_COMPRESS_METHOD_STORE;
     file_info.zip64 = MZ_ZIP64_FORCE;
+#ifdef MESYTEC_MVLC_PLATFORM_POSIX
     file_info.external_fa = (S_IFREG) | (0644u << 16);
+#elif defined MESYTEC_MVLC_PLATFORM_WINDOWS
+    file_info.external_fa = (_S_IFREG) | (0644u << 16);
+#endif
 
     mz_zip_writer_set_compress_method(d->mz_zipWriter, MZ_COMPRESS_METHOD_STORE);
     mz_zip_writer_set_compress_level(d->mz_zipWriter, 0);
