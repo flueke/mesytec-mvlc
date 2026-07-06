@@ -355,11 +355,15 @@ struct MESYTEC_MVLC_EXPORT ZipUpdateResult
 {
     std::error_code ec;
     std::exception_ptr ex; // set if an exception was thrown during the update process
-    std::string error_detail; // empty if !ec, otherwise animal-readable context
+    std::string error_detail; // empty if !ec && !ex, otherwise animal-readable context
     std::vector<std::string> ops_descriptions; // what was done, for logging
 
     bool did_succeed() const { return !ec && !ex; }
     bool was_cancelled() const { return ec == std::errc::operation_canceled; }
+    std::string error_message() const
+    {
+        return error_detail;
+    }
 };
 
 // FIXME: two ways to report errors: ZipUpdateResult.ec and exceptions. The
