@@ -19,18 +19,21 @@
 #include <mz_zip.h>
 #include <mz_zip_rw.h>
 
+#include <boost/scope_exit.hpp>
+
 #include "util/algo.h"
 #include "util/filesystem.h"
 #include "util/fmt.h"
 #include "util/logging.h"
 #include "util/overloaded.hpp"
 #include "util/storage_sizes.h"
-#include "util/string_view.hpp"
 #include "util/string_util.h"
+#include "util/string_view.hpp"
 
 using namespace nonstd;
 using std::cout;
 using std::endl;
+namespace fs = std::filesystem;
 
 namespace mesytec::mvlc::listfile
 {
@@ -1131,8 +1134,6 @@ void SplitZipReader::setArchiveChangedCallback(ArchiveChangedCallback cb)
     d->archiveChangedCallback = cb;
 }
 
-// A small utility for safely updating files in ZIP archives. Main use case is
-// replacing mvme .analysis files in existing listmode ZIPs.
 std::string get_filename(const ZipOperation &op)
 {
     return std::visit([](const auto &operation) { return operation.filename; }, op);
@@ -1141,15 +1142,6 @@ std::string get_filename(const ZipOperation &op)
 std::optional<std::string> get_description(const ZipOperation &op)
 {
     return std::visit([](const auto &operation) { return operation.description; }, op);
-}
-
-size_t get_bytes_to_write(const ZipOperation &op)
-{
-    return std::visit(
-        util::overloaded{[&](const AddOperation &addOp) { return addOp.contents.size(); },
-                         [&](const UpdateOperation &updateOp) { return updateOp.contents.size(); },
-                         [&](const DeleteOperation &) { return std::size_t{0u}; }},
-        op);
 }
 
 ZipUpdateResult check_free_space(const ZipUpdateConfig &config)
@@ -1220,6 +1212,7 @@ ZipUpdateResult pre_check(listfile::ZipReader &reader, const ZipUpdateConfig &co
 
 using OperationsMap = std::unordered_map<std::string, ZipOperation>;
 
+// filename -> op mapping and duplicate check
 ZipUpdateResult fill_operations_map(OperationsMap &opsMap, const std::vector<ZipOperation> &ops)
 {
     ZipUpdateResult result;
@@ -1238,6 +1231,15 @@ ZipUpdateResult fill_operations_map(OperationsMap &opsMap, const std::vector<Zip
     }
 
     return result;
+}
+
+size_t get_bytes_to_write(const ZipOperation &op)
+{
+    return std::visit(
+        util::overloaded{[&](const AddOperation &addOp) { return addOp.contents.size(); },
+                         [&](const UpdateOperation &updateOp) { return updateOp.contents.size(); },
+                         [&](const DeleteOperation &) { return std::size_t{0u}; }},
+        op);
 }
 
 size_t determine_total_bytes_to_write(ZipReader &reader, const OperationsMap &opsMap,
@@ -1275,8 +1277,6 @@ size_t determine_total_bytes_to_write(ZipReader &reader, const OperationsMap &op
     return totalBytesToWrite;
 }
 
-namespace fs = std::filesystem;
-
 std::string make_temp_zip_archive_name(const std::string &inputZipPath)
 {
     auto targetPath = fs::path(inputZipPath);
@@ -1287,81 +1287,74 @@ std::string make_temp_zip_archive_name(const std::string &inputZipPath)
     return (targetDir / util::make_tempfile_name("mvlc_zip_updater")).string();
 }
 
-// Helper function to copy a zip entry preserving compression settings
-// Note: Currently decompresses and recompresses; raw copying had issues with minizip-ng
-s32 copy_zip_entry(void *reader_handle, void *writer_handle, const std::string &entryName)
+// Helper function to copy a zip entry without recompressing it.
+// Returns a pair of minizip-ng error code or MZ_OK and the number of bytes
+// written. MZ_INTERNAL_ERROR is returned on cancellation.
+std::pair<s32, size_t> copy_zip_entry(void *reader_handle, void *writer_handle, const std::string &entryName,
+    ProgressCallback on_progress, CancelCallback is_cancelled)
 {
-    // Locate the entry
+    mz_zip_reader_set_raw(reader_handle, 1);
+    mz_zip_writer_set_raw(writer_handle, 1);
+
+    BOOST_SCOPE_EXIT(reader_handle, writer_handle)
+    {
+        mz_zip_reader_set_raw(reader_handle, 0);
+        mz_zip_writer_set_raw(writer_handle, 0);
+    } BOOST_SCOPE_EXIT_END;
+
     if (auto err = mz_zip_reader_locate_entry(reader_handle, entryName.c_str(), false))
-        return err;
+        return {err, 0};
 
     mz_zip_file *src_file_info = nullptr;
+
     if (auto err = mz_zip_reader_entry_get_info(reader_handle, &src_file_info))
-        return err;
+        return {err, 0};
 
-    // Open the source entry for reading (decompresses)
-    if (auto err = mz_zip_reader_entry_open(reader_handle))
-        return err;
-
-    // Get the underlying writer handle
-    void *zip_writer = nullptr;
-    if (auto err = mz_zip_writer_get_zip_handle(writer_handle, &zip_writer))
-    {
-        mz_zip_reader_entry_close(reader_handle);
-        return err;
-    }
-
-    // Prepare destination file info (preserve compression settings)
+    size_t total_bytes_to_write = src_file_info->compressed_size;
     mz_zip_file dst_file_info = *src_file_info;
-    dst_file_info.filename = entryName.c_str();
-    dst_file_info.extrafield = nullptr;
-    dst_file_info.extrafield_size = 0;
-    dst_file_info.comment = nullptr;
-    dst_file_info.comment_size = 0;
-    dst_file_info.linkname = nullptr;
 
-    // Determine compression level based on method
-    int16_t compress_level = 0;
-    if (src_file_info->compression_method == MZ_COMPRESS_METHOD_DEFLATE)
-        compress_level = 1; // Fast compression
+    if (auto err = mz_zip_reader_entry_open(reader_handle))
+        return {err, 0};
 
-    // Open destination entry for writing (will recompress)
-    if (auto err = mz_zip_entry_write_open(zip_writer, &dst_file_info, compress_level, 0 /* not raw */, nullptr))
-    {
-        mz_zip_reader_entry_close(reader_handle);
-        return err;
-    }
+    if (auto err = mz_zip_writer_entry_open(writer_handle, &dst_file_info))
+        return {err, 0};
 
-    // Copy the data
     std::vector<u8> buffer(util::Megabytes(1));
+    ProgressEvent progress_event;
+    progress_event.step = fmt::format("Copying entry '{}'", entryName);
+    progress_event.progress = 0.0;
+    progress_event.bytes_copied = 0;
+    progress_event.bytes_total = total_bytes_to_write;
     s32 bytes_read = 0;
 
     while ((bytes_read = mz_zip_reader_entry_read(reader_handle, buffer.data(), buffer.size())) > 0)
     {
-        s32 bytes_written = mz_zip_entry_write(zip_writer, buffer.data(), bytes_read);
-        if (bytes_written < 0)
+        s32 bytes_written = mz_zip_writer_entry_write(writer_handle, buffer.data(), bytes_read);
+
+        if (bytes_written > 0)
+            *progress_event.bytes_copied += bytes_written;
+
+        if (bytes_written < 0 || (is_cancelled && is_cancelled()))
         {
             mz_zip_reader_entry_close(reader_handle);
-            mz_zip_entry_write_close(zip_writer, 0, 0, 0);
-            return bytes_written;
+            mz_zip_writer_entry_close(writer_handle);
+
+            return {bytes_written < 0 ? bytes_written : MZ_INTERNAL_ERROR, *progress_event.bytes_copied};
+        }
+
+
+        if (on_progress)
+        {
+            progress_event.progress = static_cast<double>(*progress_event.bytes_copied) /
+                                      static_cast<double>(*progress_event.bytes_total);
+            on_progress(progress_event);
         }
     }
 
-    if (bytes_read < 0)
-    {
-        mz_zip_reader_entry_close(reader_handle);
-        mz_zip_entry_write_close(zip_writer, 0, 0, 0);
-        return bytes_read;
-    }
+    mz_zip_reader_entry_close(reader_handle);
+    mz_zip_writer_entry_close(writer_handle);
 
-    // Close both entries
-    if (auto err = mz_zip_reader_entry_close(reader_handle))
-        return err;
-
-    if (auto err = mz_zip_entry_close(zip_writer))
-        return err;
-
-    return MZ_OK;
+    return { bytes_read < 0 ? bytes_read : MZ_OK, *progress_event.bytes_copied };
 }
 
 ZipUpdateResult update_zip_archive(const ZipUpdateConfig &config)
@@ -1373,7 +1366,6 @@ ZipUpdateResult update_zip_archive(const ZipUpdateConfig &config)
 
     try
     {
-
         listfile::ZipReader reader;
         reader.openArchive(config.input_zip_path);
 
@@ -1389,21 +1381,19 @@ ZipUpdateResult update_zip_archive(const ZipUpdateConfig &config)
 
         // Calculate the total number of bytes we need to write to the output archive.
         size_t totalBytesToWrite = determine_total_bytes_to_write(reader, opsMap, config);
+        size_t totalBytesWritten = 0u;
 
-        // Create temp file in the same directory as the target to ensure rename works on Windows
+        // Create temp file in the same directory as the target.
         auto tmpName = make_temp_zip_archive_name(config.input_zip_path);
 
+        // Ensures auto cleanup of the temp file on error/exit.
         auto tmpFileDeleter = util::make_fn_deleter(tmpName);
 
         // Create the new archive
         ZipCreator writer;
         writer.createArchive(tmpName, OverwriteMode::Overwrite);
 
-        // Copy entries from the old archive to the new one, applying operations
-        std::vector<uint8_t> buffer(util::Megabytes(1)); // 1MB buffer for copying
-        size_t totalBytesWritten = 0;
-
-        // Get raw minizip-ng handles for efficient raw copying
+        // Get the mz_zip_reader/writer handles (mz_zip_rw.h).
         void *mz_reader = reader.getRawReaderHandle();
         void *mz_writer = writer.getRawWriterHandle();
         assert(mz_reader);
@@ -1411,14 +1401,6 @@ ZipUpdateResult update_zip_archive(const ZipUpdateConfig &config)
 
         for (const auto &entryName: readerEntries)
         {
-            // Check for cancellation
-            if (config.is_cancelled && config.is_cancelled())
-            {
-                result.ec = std::make_error_code(std::errc::operation_canceled);
-                result.error_detail = "Operation was cancelled by user";
-                return result;
-            }
-
             const auto opIt = opsMap.find(entryName);
             const bool hasOperation = opIt != opsMap.end();
 
@@ -1440,37 +1422,25 @@ ZipUpdateResult update_zip_archive(const ZipUpdateConfig &config)
                 }
             }
 
-            // Copy this entry from reader to writer using raw mode (no decompression/recompression)
+            // Copy this entry from reader to writer.
             try
             {
-                // Get the compressed size for progress tracking
-                reader.openEntry(entryName);
-                auto compressedSize = reader.entryInfo().compressedSize;
-                reader.closeCurrentEntry();
+                auto copy_result = copy_zip_entry(mz_reader, mz_writer, entryName, config.on_progress, config.is_cancelled);
 
-                // Copy the entry preserving compression settings
-                if (auto err = copy_zip_entry(mz_reader, mz_writer, entryName))
+                if (auto err = copy_result.first; err != MZ_OK)
                 {
+                    if (err == MZ_INTERNAL_ERROR)
+                    {
+                        result.ec = std::make_error_code(std::errc::operation_canceled);
+                        result.error_detail = "Operation was cancelled by user";
+                        return result;
+                    }
                     throw std::runtime_error("copy_zip_entry: " + std::to_string(err));
                 }
 
-                totalBytesWritten += compressedSize;
-
-                if (config.on_progress)
-                {
-                    double progress =
-                        static_cast<double>(totalBytesWritten) / totalBytesToWrite;
-                    ProgressEvent event;
-                    event.step = fmt::format("Copying entry '{}'", entryName);
-                    event.progress = progress;
-                    event.bytes_copied = totalBytesWritten;
-                    event.bytes_total = totalBytesToWrite;
-
-                    config.on_progress(event);
-                }
-
                 result.ops_descriptions.push_back(
-                    fmt::format("Copied entry '{}' to new ZIP", entryName));
+                    fmt::format("Copied entry '{}' to new ZIP ({} bytes)", entryName, copy_result.second));
+                totalBytesWritten += copy_result.second;
             }
             catch (const std::exception &e)
             {
@@ -1497,7 +1467,7 @@ ZipUpdateResult update_zip_archive(const ZipUpdateConfig &config)
                     {
                         try
                         {
-                            auto writeHandle = writer.createZIPEntry(addOp.filename, 0);
+                            auto writeHandle = writer.createZIPEntry(addOp.filename, addOp.compression_level);
                             size_t bytesWritten =
                                 writeHandle->write(addOp.contents.data(), addOp.contents.size());
                             totalBytesWritten += bytesWritten;

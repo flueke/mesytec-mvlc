@@ -325,7 +325,7 @@ struct MESYTEC_MVLC_EXPORT ZipOperationBase
     std::optional<std::string> description;
 };
 
-struct MESYTEC_MVLC_EXPORT AddOperation: public ZipOperationBase { std::vector<uint8_t> contents; };
+struct MESYTEC_MVLC_EXPORT AddOperation: public ZipOperationBase { std::vector<uint8_t> contents; int compression_level = 0; };
 struct MESYTEC_MVLC_EXPORT UpdateOperation: public ZipOperationBase { std::vector<uint8_t> contents; };
 struct MESYTEC_MVLC_EXPORT DeleteOperation: public ZipOperationBase {};
 
