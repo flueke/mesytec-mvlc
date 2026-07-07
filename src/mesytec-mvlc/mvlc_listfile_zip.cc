@@ -1536,43 +1536,15 @@ ZipUpdateResult update_zip_archive(const ZipUpdateConfig &config)
             return result;
         }
 
-        // Replace the original file with the new one
-        // Try rename first, fall back to copy+delete on Windows if it fails
-        std::error_code ec;
-        for (int i=0; i<10; ++i)
+        try
         {
-            // Replace the original file with the new one
-            // Try rename first, fall back to copy+delete on Windows if it fails
-            fs::rename(tmpName, config.input_zip_path, ec);
-            if (!ec)
-                break;
-            else
-            {
-                std::this_thread::sleep_for(std::chrono::milliseconds(100));
-                spdlog::warn("rename failed (from={}, to={}, error={}), retrying ({}/3)",
-                             tmpName, config.input_zip_path, ec.message(), i + 1);
-            }
+            util::rename_file(tmpName, config.input_zip_path);
         }
-
-        if (ec)
+        catch (const std::exception &e)
         {
-            // Rename failed, try copy + delete (slower but works across filesystems)
-            spdlog::warn("rename failed (from={}, to={}, error={}), trying copy+delete fallback",
-                         tmpName, config.input_zip_path, ec.message());
-
-            fs::copy_file(tmpName, config.input_zip_path, fs::copy_options::overwrite_existing, ec);
-
-            if (ec)
-            {
-                result.ec = ec;
-                result.error_detail =
-                    fmt::format("Failed to replace original ZIP file: {}", ec.message());
-                return result;
-            }
-        }
-        else
-        {
-            spdlog::warn("Rename was ok! {} -> {}", tmpName, config.input_zip_path);
+            result.ex = std::current_exception();
+            result.error_detail =
+                fmt::format("Failed to rename '{}' to {}: {}", tmpName, config.input_zip_path, e.what());
         }
     }
     catch (const std::exception &e)

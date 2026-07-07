@@ -48,6 +48,8 @@ static auto make_fn_deleter = [](const std::string &fn)
 // The file is _not_ created by this function, so this is prone to race conditions!
 std::string make_tempfile_name(const std::string &prefix);
 
+void MESYTEC_MVLC_EXPORT rename_file(const std::string &src, const std::string &dst);
+
 } // namespace mesytec::mvlc::util
 
 #endif /* __MESYTEC_MVLC_UTIL_FILESYSTEM_H__ */
