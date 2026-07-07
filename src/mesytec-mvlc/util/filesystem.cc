@@ -93,7 +93,7 @@ void rename_file(const std::string &src_, const std::string &dst_)
     }
 #else
     std::error_code ec;
-    fs::rename(tmp, dst, ec);
+    fs::rename(src_, dst_, ec);
     if (ec) throw std::runtime_error("fs::rename failed: " + ec.message());
 #endif
 }
