@@ -6,9 +6,15 @@ jobs:
   build-ubuntu:
 
     runs-on: ubuntu-latest
-    
+
     steps:
     - uses: actions/checkout@v1
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libboost-all-dev
+
     - name: configure
       run: mkdir build && cd build && cmake ..
     - name: build
