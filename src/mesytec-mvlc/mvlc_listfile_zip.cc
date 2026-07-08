@@ -1512,15 +1512,27 @@ ZipUpdateResult update_zip_archive(const ZipUpdateConfig &config)
 
             if (config.on_progress)
             {
-                double progress = static_cast<double>(totalBytesWritten) / totalBytesToWrite;
                 ProgressEvent event;
                 event.step = get_description(op).value_or(get_filename(op));
-                event.progress = progress;
+                event.progress = static_cast<double>(totalBytesWritten) / totalBytesToWrite;
                 event.bytes_copied = totalBytesWritten;
                 event.bytes_total = totalBytesToWrite;
 
                 config.on_progress(event);
             }
+        }
+
+        // Progress event with indeterminate progress for the final flush to
+        // disk.
+        if (config.on_progress)
+        {
+            ProgressEvent event;
+            event.step = "Finalizing ZIP archive";
+            event.progress = 0.0;
+            event.bytes_copied = std::nullopt;
+            event.bytes_total = std::nullopt;
+
+            config.on_progress(event);
         }
 
         // Close both archives
@@ -1553,6 +1565,8 @@ ZipUpdateResult update_zip_archive(const ZipUpdateConfig &config)
         result.error_detail = fmt::format("Exception during ZIP update: {}", e.what());
         return result;
     }
+
+    spdlog::debug("update_zip_archive: completed successfully, returning result");
 
     return result;
 }
