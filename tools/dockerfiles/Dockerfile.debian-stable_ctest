@@ -11,7 +11,7 @@ FROM debian:stable
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates build-essential git cmake ninja-build zlib1g-dev \
-    libzmq3-dev cppzmq-dev
+    libzmq3-dev cppzmq-dev libboost-all-dev
 
 COPY . /sources
 WORKDIR /build
