@@ -1360,7 +1360,7 @@ TEST_F(ZipArchiveUpdaterTest, Operations)
     // copy of entry0 plus three operations
     ASSERT_EQ(updateResult.ops_descriptions.size(), 4u);
     ASSERT_GE(callbackCount_isCancelled, 1u);
-    ASSERT_EQ(callbackCount_progress, 4u);
+    ASSERT_EQ(callbackCount_progress, 5u);
 
     //fmt::print("Ops descriptions:\n  {}\n", fmt::join(updateResult.ops_descriptions, "\n  "));
 
