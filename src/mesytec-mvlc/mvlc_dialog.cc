@@ -110,7 +110,7 @@ std::error_code MVLCDialog_internal::doWrite(const std::vector<u32> &buffer)
 
     if (!ec && bytesToTransfer != bytesTransferred)
     {
-        LOG_WARN("tried to write %lu bytes, wrote %lu bytes",
+        LOG_WARN("tried to write %zu bytes, wrote %zu bytes",
                  bytesToTransfer, bytesTransferred);
         return make_error_code(MVLCErrorCode::ShortWrite);
     }
@@ -537,7 +537,7 @@ std::error_code MVLCDialog_internal::uploadStack(
 
         auto request = make_command_buffer(part);
 
-        LOG_DEBUG("part #%lu, size=%lu words", partCount, request.size());
+        LOG_DEBUG("part #%zu, size=%zu words", partCount, request.size());
 
         assert(request.size() >= 2u); // CmdBufferStart and CmdBufferEnd
         assert(request.size() <= MirrorTransactionMaxWords);
@@ -551,7 +551,7 @@ std::error_code MVLCDialog_internal::uploadStack(
 
     assert(firstCommand == endOfBuffer);
 
-    LOG_DEBUG("stack upload done in %lu parts", partCount);
+    LOG_DEBUG("stack upload done in %zu parts", partCount);
 
     return {};
 }
