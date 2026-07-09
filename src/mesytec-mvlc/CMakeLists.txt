@@ -115,7 +115,6 @@ target_link_libraries(mesytec-mvlc
     PRIVATE minbool
     PRIVATE minizip
     PRIVATE nlohmann_json::nlohmann_json
-    PRIVATE uri-parser
     PRIVATE yaml-cpp
     PUBLIC argh
     PUBLIC spdlog::spdlog
@@ -244,7 +243,6 @@ if (MVLC_BUILD_TESTS)
             PRIVATE gtest
             PRIVATE gtest_main
             PRIVATE spdlog::spdlog
-            PRIVATE uri-parser
             )
 
         add_test(NAME ${exe_name} COMMAND $<TARGET_FILE:${exe_name}>)

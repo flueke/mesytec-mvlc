@@ -32,9 +32,6 @@ set_target_properties(minizip PROPERTIES POSITION_INDEPENDENT_CODE ON)
 #target_compile_options(minizip
 #    PRIVATE $<${not-msvc}:-Wno-unused-variable -Wno-unused-but-set-variable>
 #    PRIVATE $<${not-msvc}:-Wno-unused-parameter -Wno-cast-function-type -Wno-unused-local-typedefs>)
-#
-#target_include_directories(minizip
-#    PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/minizip-ng-3.0.10>)
 
 find_package(Python 3.12 COMPONENTS Interpreter Development Development.Module GLOBAL)
 
@@ -100,26 +97,9 @@ add_subdirectory(argh)
 install(FILES "${CMAKE_CURRENT_LIST_DIR}/argh/argh.h" DESTINATION include/mesytec-mvlc)
 target_include_directories(argh INTERFACE $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/argh> $<INSTALL_INTERFACE:include/mesytec-mvlc>)
 
-
-# nng - nanomsg-next-gen - https://github.com/nanomsg/nng
-if(FALSE)
-find_package(nng QUIET)
-if(NOT nng AND NOT TARGET nng)
-    set(nng_sources "${CMAKE_CURRENT_SOURCE_DIR}/nng-1.11")
-    message(STATUS "${CMAKE_PROJECT_NAME}: Using nng from ${CMAKE_CURRENT_SOURCE_DIR}/${nng_sources}")
-    option(NNG_SETSTACKSIZE "Use rlimit for thread stack size" ON)
-    set(NNG_TESTS OFF)
-    set(NNG_ENABLE_NNGCAT ON)
-    set(BUILD_SHARED_LIBS ON) # FIXME: relocation errors without this flag but it's a global setting. not good.
-    add_subdirectory(${nng_sources})
-endif()
-endif(FALSE)
 # asio (non-boost)
 add_library(asio INTERFACE)
 target_include_directories(asio INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/asio-1.30.2/include)
-
-# simple uri parser
-add_subdirectory(simple-uri-parser)
 
 # minbool
 add_library(minbool INTERFACE)
