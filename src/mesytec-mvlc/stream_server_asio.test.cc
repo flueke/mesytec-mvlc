@@ -27,7 +27,7 @@ TEST(StreamServerTest, CanListenAndStop)
 
     auto ipcPath =
         fmt::format("ipc://{}.ipc", (std::filesystem::temp_directory_path() /
-                                     ("mvlc_test_stream_server_asio-" + std::to_string(_getpid())))
+                                     ("mvlc_test_stream_server_asio-" + std::to_string(getpid())))
                                         .string());
 
     for (size_t i = 0; i < 10; ++i)
@@ -64,7 +64,7 @@ TEST(StreamServerTest, CanListenWithNewInstance)
 
         auto ipcPath = fmt::format("ipc://{}.ipc",
                                    (std::filesystem::temp_directory_path() /
-                                    ("mvlc_test_stream_server_asio-" + std::to_string(_getpid())))
+                                    ("mvlc_test_stream_server_asio-" + std::to_string(getpid())))
                                        .string());
 
         for (size_t i = 0; i < 10; ++i)
