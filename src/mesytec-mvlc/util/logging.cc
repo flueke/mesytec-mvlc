@@ -10,37 +10,60 @@ namespace mesytec
 namespace mvlc
 {
 
+namespace
+{
+
+// Shared by all loggers created without explicit sinks. Guarded by g_mutex.
+std::vector<spdlog::sink_ptr> &default_sinks_unlocked()
+{
+    static std::vector<spdlog::sink_ptr> sinks = { std::make_shared<spdlog::sinks::stderr_color_sink_mt>() };
+    return sinks;
+}
+
+}
+
 std::shared_ptr<spdlog::logger>
     create_logger(const std::string &name, const std::vector<spdlog::sink_ptr> &sinks)
 {
     std::unique_lock<std::mutex> lock(g_mutex);
     auto logger = spdlog::get(name);
 
-    //fmt::print(stderr, "mvlc::create_logger: name={}, logger={}\n", name, fmt::ptr(logger.get()));
-
     if (!logger)
     {
-        if (!sinks.empty())
-        {
-            logger = std::make_shared<spdlog::logger>(name, std::begin(sinks), std::end(sinks));
-        }
-        else
-        {
-            logger = spdlog::stdout_color_mt(name);
-        }
+        const auto &loggerSinks = sinks.empty() ? default_sinks_unlocked() : sinks;
+        logger = std::make_shared<spdlog::logger>(name, std::begin(loggerSinks), std::end(loggerSinks));
 
-        if (logger)
+        try
         {
-            try
-            {
-                spdlog::register_logger(logger);
-            }
-            catch (const std::exception &e)
-            { }
+            // Registers the logger and applies the global level, pattern and flush settings.
+            spdlog::initialize_logger(logger);
         }
+        catch (const std::exception &e)
+        { }
     }
 
     return logger;
+}
+
+std::vector<spdlog::sink_ptr> get_default_sinks()
+{
+    std::unique_lock<std::mutex> lock(g_mutex);
+    return default_sinks_unlocked();
+}
+
+void set_default_sinks(const std::vector<spdlog::sink_ptr> &sinks)
+{
+    std::unique_lock<std::mutex> lock(g_mutex);
+    auto &defaultSinks = default_sinks_unlocked();
+    const auto oldSinks = defaultSinks;
+    defaultSinks = sinks;
+
+    spdlog::apply_all(
+        [&] (std::shared_ptr<spdlog::logger> logger)
+        {
+            if (logger->sinks() == oldSinks)
+                logger->sinks() = sinks;
+        });
 }
 
 std::shared_ptr<spdlog::logger>

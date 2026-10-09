@@ -3,6 +3,7 @@
 
 #include <optional>
 #include <string>
+#include <vector>
 #include <spdlog/spdlog.h>
 
 #include "mesytec-mvlc/mesytec-mvlc_export.h"
@@ -11,6 +12,9 @@ namespace mesytec
 {
 namespace mvlc
 {
+
+// Loggers created by get_logger() or by create_logger() without explicit sinks share a
+// common set of default sinks. Initially this is a single colored stderr sink.
 
 // Creates a new named, thread safe logger or returns the existing instance.
 std::shared_ptr<spdlog::logger> MESYTEC_MVLC_EXPORT
@@ -21,6 +25,15 @@ std::shared_ptr<spdlog::logger> MESYTEC_MVLC_EXPORT
 // is created the provided sinks are attached to the new instance.
 std::shared_ptr<spdlog::logger> MESYTEC_MVLC_EXPORT
     create_logger(const std::string &name, const std::vector<spdlog::sink_ptr> &sinks = {});
+
+// Returns the sinks used for loggers created without explicit sinks.
+std::vector<spdlog::sink_ptr> MESYTEC_MVLC_EXPORT get_default_sinks();
+
+// Replaces the default sinks. Existing loggers still using the previous default
+// sinks are switched to the new ones, loggers with custom sinks are not
+// modified. Modifying the sinks of existing loggers is not thread-safe: call
+// this early, before loggers are used from other threads.
+void MESYTEC_MVLC_EXPORT set_default_sinks(const std::vector<spdlog::sink_ptr> &sinks);
 
 std::shared_ptr<spdlog::logger> MESYTEC_MVLC_EXPORT
     default_logger();
