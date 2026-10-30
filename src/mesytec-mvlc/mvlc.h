@@ -133,6 +133,12 @@ class MESYTEC_MVLC_EXPORT MVLC
         void setDisableTriggersOnConnect(bool b);
         bool disableTriggersOnConnect() const;
 
+        // If enabled write 0 to the udp_packet_limit register on connect, disabling
+        // UDP packet allowance left over from a previous session. Enabled by
+        // default. Requires FW0048 or later.
+        void setResetPacketAllowanceOnConnect(bool b);
+        bool resetPacketAllowanceOnConnect() const;
+
         // If enabled verify the contents of the stack_exec_status registers
         // after each stack transaction. Disabled by default, used to test for
         // correct behavior of the firmware.

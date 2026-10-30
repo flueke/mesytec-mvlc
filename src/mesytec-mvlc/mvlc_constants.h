@@ -613,6 +613,12 @@ namespace registers
     static const u16 ptp_time_ns            = 0x4440;
     static const u16 ptp_time_s             = 0x4444;
 
+    // UDP packet allowance (FW0048). See doc/dev/MVLC UDP Packet Allowance.pdf.
+    // Status: STOP[31], HOLD[30], next data packet number[15:0].
+    static const u16 udp_packet_status      = 0x4500;
+    // Limit: EN[31], HOLD[30], packet limit[15:0]. 0 disables the allowance.
+    static const u16 udp_packet_limit       = 0x4504;
+
     // Mask specifying what should be reset on a write to 0x6090.
     // TODO: document the bits and find out what works and what doesn't
     static const u16 reset_register_mask    = 0x0202;

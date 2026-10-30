@@ -1471,6 +1471,7 @@ struct MVLC::Private
         , isConnected_(false)
         , hardwareId_(0)
         , firmwareRevision_(0)
+        , resetPacketAllowanceOnConnect_(true)
     {
 #if 0 // #ifndef NDEBUG // TODO: enable this once the firmware is fixed
         cmdApi_.setAlwaysCheckStackExecStatus(true);
@@ -1526,6 +1527,8 @@ struct MVLC::Private
     std::atomic<bool> isConnected_;
     std::atomic<u32> hardwareId_;
     std::atomic<u32> firmwareRevision_;
+
+    std::atomic<bool> resetPacketAllowanceOnConnect_;
 };
 
 MVLC::MVLC()
@@ -1600,6 +1603,18 @@ std::error_code MVLC::connect()
             logger->warn("WARNING: Firmware FW{:04x} is recommended for this module (hardwareId={:04x}), but found FW{:04x}!",
                 firmware_checks::minimum_recommended_firmware(hwId), hwId, fwRev);
             logger->warn("WARNING: Please update the firmware to the recommended version. See https://mesytec.com/ for details.");
+        }
+
+        if (d->resetPacketAllowanceOnConnect_ && fwRev >= 0x0048u)
+        {
+            logger->debug("resetting udp_packet_limit register");
+            if (auto ec = d->cmdApi_.writeRegister(registers::udp_packet_limit, 0))
+            {
+                logger->error("error resetting udp_packet_limit register: {}", ec.message());
+                d->isConnected_ = false;
+                d->stopCmdReader();
+                return ec;
+            }
         }
 
         logger->info("Connected to MVLC ({}, firmware=FW{:04x})", connectionInfo(), firmwareRevision());
@@ -1688,6 +1703,16 @@ bool MVLC::disableTriggersOnConnect() const
 {
     auto guards = d->locks_.lockBoth();
     return d->impl_->disableTriggersOnConnect();
+}
+
+void MVLC::setResetPacketAllowanceOnConnect(bool b)
+{
+    d->resetPacketAllowanceOnConnect_ = b;
+}
+
+bool MVLC::resetPacketAllowanceOnConnect() const
+{
+    return d->resetPacketAllowanceOnConnect_;
 }
 
 void MVLC::setAlwaysCheckStackExecStatus(bool b)

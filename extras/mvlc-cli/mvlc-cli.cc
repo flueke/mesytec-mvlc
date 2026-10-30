@@ -38,6 +38,9 @@ std::pair<MVLC, std::error_code> make_and_connect_default_mvlc(argh::parser &par
     if (parser["--always-check-stack-exec-status"])
         mvlc.setAlwaysCheckStackExecStatus(true);
 
+    if (parser["--mvlc-keep-packet-allowance"])
+        mvlc.setResetPacketAllowanceOnConnect(false);
+
     auto ec = mvlc.connect();
 
     if (ec)
@@ -1384,6 +1387,7 @@ usage: mvlc-cli [-v | --version] [-h | --help [-a]]
                 [--mvlc <url> | --mvlc-usb | --mvlc-usb-index <index> |
                  --mvlc-usb-serial <serial> | --mvlc-eth <hostname>
                  --mvlc-force-connect] [--always-check-stack-exec-status]
+                [--mvlc-keep-packet-allowance]
                 <command> [<args>]
 
 Core Commands:
@@ -1424,6 +1428,10 @@ MVLC connection URIs:
     If --always-check-stack-exec-status is given the library will read and
     evaluate the two stack_exec_status registers after every MVLC stack
     transaction. Use this to ensure correct behavior of the firmware.
+
+    By default the UDP packet allowance (register 0x4504) is disabled on connect.
+    Use --mvlc-keep-packet-allowance to leave it unchanged, e.g. when setting it
+    up using multiple mvlc-cli invocations.
 )~";
 
     spdlog::set_level(spdlog::level::warn);

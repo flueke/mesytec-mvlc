@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.3-rc
+
+### API
+- UDP packet allowance (FW0048): register constants `udp_packet_status` and `udp_packet_limit`.
+  `MVLC::connect()` writes 0 to `udp_packet_limit` by default, see
+  `MVLC::setResetPacketAllowanceOnConnect()`.
+
+### mvlc-cli
+- New switch `--mvlc-keep-packet-allowance`.
+
 ## v0.2
 
 ### USB / FTDI D3XX
