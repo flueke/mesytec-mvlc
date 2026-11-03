@@ -1,10 +1,16 @@
 // Fore some info on how to use argh effectively see
 // https://a4z.gitlab.io/blog/2019/04/30/Git-like-sub-commands-with-argh.html
 
+#include <algorithm>
 #include <argh.h>
+#include <array>
+#include <chrono>
+#include <functional>
 #include <string>
+#include <thread>
 
 #include <mesytec-mvlc/mesytec-mvlc.h>
+#include <mesytec-mvlc/mvlc_mvp.h>
 #include <mesytec-mvlc/mvlc_impl_eth.h>
 #include <mesytec-mvlc/mvlc_impl_usb.h>
 #include <mesytec-mvlc/util/udp_sockets.h>
@@ -1378,6 +1384,243 @@ usage: mvlc-cli [--mvlc <url/ip>] send_eth_delay <delay_µs>
     .exec = send_eth_delay_command,
 };
 
+// Sends a single register read to the ETH command port and returns true if any
+// answer arrives within timeout_ms. Cheap compared to MVLC::connect() which
+// retries for several seconds if the MVLC is offline.
+bool probe_mvlc_eth(const std::string &host, unsigned timeout_ms)
+{
+    int sock = eth::connect_udp_socket(host, eth::CommandPort);
+
+    if (sock < 0)
+        return false;
+
+    eth::set_socket_read_timeout(sock, timeout_ms);
+
+    auto request = make_command_buffer(
+        SuperCommandBuilder().addReferenceWord(0x1337u).addReadLocal(registers::hardware_id));
+
+    std::array<u8, eth::JumboFrameMaxSize> response;
+    size_t bytesTransferred = 0;
+    bool alive = false;
+
+    if (!eth::write_to_socket(sock, reinterpret_cast<const u8 *>(request.data()),
+                              request.size() * sizeof(u32), bytesTransferred))
+    {
+        alive = !eth::receive_one_packet(sock, response.data(), response.size(), bytesTransferred,
+                                         timeout_ms) &&
+                bytesTransferred > 0;
+    }
+
+    eth::close_socket(sock);
+    return alive;
+}
+
+bool probe_mvlc_usb(const std::string &serial)
+{
+    auto devices = usb::get_device_info_list(usb::ListOptions::MVLCDevices);
+    return std::any_of(std::begin(devices), std::end(devices),
+                       [&serial](const auto &dev) { return dev.serial == serial; });
+}
+
+DEF_EXEC_FUNC(reboot_command)
+{
+    spdlog::trace("entered reboot_command()");
+
+    auto &parser = ctx.parser;
+    parser.add_params({"--area", "--timeout"});
+    parser.parse(argv);
+    trace_log_parser_info(parser, "reboot_command");
+
+    u8 area = 0;
+    unsigned timeout_s = 10;
+    std::string str;
+
+    if (parser("--area") >> str)
+    {
+        auto val = parse_unsigned<u8>(str);
+
+        if (!val || *val > mvp::AreaMax)
+        {
+            std::cerr << fmt::format("Error: invalid --area value given: {}\n", str);
+            return 1;
+        }
+
+        area = *val;
+    }
+
+    if (parser("--timeout") >> str)
+    {
+        auto val = parse_unsigned<unsigned>(str);
+
+        if (!val)
+        {
+            std::cerr << fmt::format("Error: invalid --timeout value given: {}\n", str);
+            return 1;
+        }
+
+        timeout_s = *val;
+    }
+
+    auto [mvlc, ec] = make_and_connect_default_mvlc(parser);
+
+    if (!mvlc || ec)
+        return 1;
+
+    if (mvlc.firmwareRevision() < mvp::MVLCMinFirmwareRevision)
+    {
+        std::cerr << fmt::format(
+            "Error: rebooting through VME requires MVLC firmware >= FW{:04x}, found FW{:04x}."
+            " Power cycle the crate instead.\n",
+            mvp::MVLCMinFirmwareRevision, mvlc.firmwareRevision());
+        return 1;
+    }
+
+    // The MVLC re-enumerates on USB and may get a new FTDI index. The serial
+    // stays the same.
+    std::function<bool ()> probe;
+    std::function<MVLC ()> makeMvlc;
+
+    if (auto usbImpl = dynamic_cast<usb::Impl *>(mvlc.getImpl()))
+    {
+        auto serial = usbImpl->getDeviceInfo().serial;
+        probe = [serial] { return probe_mvlc_usb(serial); };
+        makeMvlc = [serial] { return make_mvlc_usb(serial); };
+    }
+    else if (auto ethImpl = dynamic_cast<eth::Impl *>(mvlc.getImpl()))
+    {
+        auto host = ethImpl->getHost();
+        probe = [host] { return probe_mvlc_eth(host, 200); };
+        makeMvlc = [host] { return make_mvlc_eth(host); };
+    }
+    else
+    {
+        std::cerr << "Error: unsupported MVLC connection type\n";
+        return 1;
+    }
+
+    const auto connectionInfo = mvlc.connectionInfo();
+    const u32 base = SelfVMEAddress;
+
+    if (auto ec = mvp::enable_flash_interface(mvlc, base))
+    {
+        std::cerr << fmt::format("Error enabling the MVP flash interface: {}\n", ec.message());
+        return 1;
+    }
+
+    auto checkEc = mvp::clear_output_fifo(mvlc, base);
+
+    if (!checkEc)
+        checkEc = mvp::nop(mvlc, base);
+
+    if (checkEc)
+    {
+        std::cerr << fmt::format("Error: MVP flash interface check (NOP) failed: {}\n",
+                                 checkEc.message());
+        mvp::disable_flash_interface(mvlc, base);
+        return 1;
+    }
+
+    if (auto ec = mvp::send_boot_instruction(mvlc, base, area))
+    {
+        std::cerr << fmt::format("Error sending the boot instruction: {}\n", ec.message());
+        return 1;
+    }
+
+    mvlc.disconnect();
+
+    std::cout << fmt::format("Sent boot command to MVLC {} (area={})\n", connectionInfo, area);
+
+    if (parser["--no-wait"])
+        return 0;
+
+    using Clock = std::chrono::steady_clock;
+    const auto PollInterval = std::chrono::milliseconds(250);
+    const auto tStart = Clock::now();
+    const auto deadline = tStart + std::chrono::seconds(timeout_s);
+    bool seenOffline = false;
+    bool backOnline = false;
+
+    while (Clock::now() < deadline)
+    {
+        auto tPoll = Clock::now();
+        bool online = probe();
+
+        if (!online)
+            seenOffline = true;
+        else if (seenOffline)
+        {
+            backOnline = true;
+            break;
+        }
+
+        std::this_thread::sleep_until(tPoll + PollInterval);
+    }
+
+    if (!seenOffline)
+    {
+        std::cerr << fmt::format(
+            "Error: MVLC did not go offline within {} s, the reboot probably failed.\n", timeout_s);
+        return 1;
+    }
+
+    MVLC newMvlc;
+    std::error_code connectEc = make_error_code(MVLCErrorCode::IsDisconnected);
+
+    while (backOnline && Clock::now() < deadline)
+    {
+        newMvlc = makeMvlc();
+
+        if (!(connectEc = newMvlc.connect()))
+            break;
+
+        std::this_thread::sleep_for(PollInterval);
+    }
+
+    if (connectEc)
+    {
+        std::cerr << fmt::format(
+            "Error: MVLC did not come back within {} s (last connect error: {})."
+            " Use --timeout to wait longer.\n",
+            timeout_s, connectEc.message());
+        return 1;
+    }
+
+    auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(Clock::now() - tStart);
+
+    std::cout << fmt::format("MVLC {} back online after {:.1f} s, hardwareId={:#06x}, firmware=FW{:04x}\n",
+                             newMvlc.connectionInfo(), elapsed.count() / 1000.0,
+                             newMvlc.hardwareId(), newMvlc.firmwareRevision());
+
+    return 0;
+}
+
+static const Command RebootCommand{
+    .name = "reboot",
+    .description = "Reboot the MVLC into the given flash area",
+    .help = unindent(
+        R"~(usage: mvlc-cli reboot [--area=<area>] [--timeout=<seconds>] [--no-wait]
+
+    Reboots the MVLC through its VME <-> MVP flash interface at 0xffff0000.
+    Requires MVLC firmware FW0036 or later.
+
+    After sending the boot command mvlc-cli waits for the MVLC to go offline and
+    come back, then reconnects and prints the firmware revision. USB connections
+    are reopened by serial number, ETH connections by hostname/IP. With DHCP the
+    MVLC may come back with a different IP address.
+
+options:
+    --area=<area> (default=0)
+        Flash area to boot into. Range [0, 3].
+
+    --timeout=<seconds> (default=10)
+        Max time to wait for the MVLC to reboot and accept a new connection.
+
+    --no-wait
+        Exit right after sending the boot command.
+)~"),
+    .exec = reboot_command,
+};
+
 int main(int argc, char *argv[])
 {
     std::string generalHelp = R"~(
@@ -1484,6 +1727,7 @@ MVLC connection URIs:
     ctx.commands.insert(MvlcSetIdCommand);
     ctx.commands.insert(RegisterReadCommand);
     ctx.commands.insert(RegisterWriteCommand);
+    ctx.commands.insert(RebootCommand);
     ctx.commands.insert(VmeReadCommand);
     ctx.commands.insert(VmeWriteCommand);
     ctx.commands.insert(DumpRegistersCommand);

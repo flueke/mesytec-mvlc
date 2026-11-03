@@ -29,6 +29,7 @@ add_library(mesytec-mvlc SHARED
     mvlc_listfile_stream_server.cc
     mvlc_listfile_util.cc
     mvlc_listfile_zip.cc
+    mvlc_mvp.cc
     mvlc_readout.cc
     mvlc_readout_config.cc
     mvlc_readout_parser.cc
@@ -246,6 +247,7 @@ if (MVLC_BUILD_TESTS)
     add_gtest(test_mvlc_command_builders mvlc_command_builders.test.cc)
     add_gtest(test_mvlc_listfile_zip mvlc_listfile_zip.test.cc)
     target_link_libraries(test_mvlc_listfile_zip PRIVATE minizip)
+    add_gtest(test_mvlc_mvp mvlc_mvp.test.cc)
     add_gtest(test_mvlc_stack_executor mvlc_stack_executor.test.cc)
     add_gtest(test_mvlc_readout_config mvlc_readout_config.test.cc)
     add_gtest(test_threadsafequeue util/threadsafequeue.test.cc)
