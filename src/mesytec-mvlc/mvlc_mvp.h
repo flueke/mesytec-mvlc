@@ -43,6 +43,17 @@ namespace status_flags
     static const unsigned DipswitchShift = 3;
 }
 
+inline u8 area_from_status(u8 statusByte)
+{
+    return (statusByte & status_flags::AreaMask) >> status_flags::AreaShift;
+}
+
+// Dipswitch setting = area booted at power-up.
+inline u8 dipswitch_from_status(u8 statusByte)
+{
+    return (statusByte & status_flags::DipswitchMask) >> status_flags::DipswitchShift;
+}
+
 static const u8 AccessCode[] = { 0xCD, 0xAB };
 static const unsigned AreaMax = 3;
 

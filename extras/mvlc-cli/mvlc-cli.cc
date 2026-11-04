@@ -6,6 +6,7 @@
 #include <array>
 #include <chrono>
 #include <functional>
+#include <optional>
 #include <string>
 #include <thread>
 
@@ -1422,18 +1423,21 @@ bool probe_mvlc_usb(const std::string &serial)
                        [&serial](const auto &dev) { return dev.serial == serial; });
 }
 
-bool enable_and_check_mvp_flash_interface(MVLC &mvlc, u32 base, const std::string &deviceInfo)
+// Returns the status byte of the NOP response on success.
+std::optional<u8> enable_and_check_mvp_flash_interface(MVLC &mvlc, u32 base,
+                                                       const std::string &deviceInfo)
 {
     if (auto ec = mvp::enable_flash_interface(mvlc, base))
     {
         std::cerr << fmt::format("Error enabling the MVP flash interface: {}\n", ec.message());
-        return false;
+        return {};
     }
 
+    u8 statusByte = 0;
     auto ec = mvp::clear_output_fifo(mvlc, base);
 
     if (!ec)
-        ec = mvp::nop(mvlc, base);
+        ec = mvp::nop(mvlc, base, &statusByte);
 
     if (ec)
     {
@@ -1441,10 +1445,20 @@ bool enable_and_check_mvp_flash_interface(MVLC &mvlc, u32 base, const std::strin
             "Error: no valid MVP response from {} ({}). The device probably does not support MVP.\n",
             deviceInfo, ec.message());
         mvp::disable_flash_interface(mvlc, base);
-        return false;
+        return {};
     }
 
-    return true;
+    return statusByte;
+}
+
+// Uses the dipswitch setting from the MVP status byte if no area was given.
+std::pair<u8, std::string> select_boot_area(std::optional<u8> area, u8 statusByte)
+{
+    if (area)
+        return { *area, fmt::format("area={}", *area) };
+
+    auto dips = mvp::dipswitch_from_status(statusByte);
+    return { dips, fmt::format("area={} from dipswitch", dips) };
 }
 
 std::string module_info_string(const scanbus::VMEModuleInfo &info)
@@ -1462,7 +1476,7 @@ std::string module_info_string(const scanbus::VMEModuleInfo &info)
 
 // Reboots a mesytec VME module through its MVP flash interface, then polls the
 // module via VME until it went offline and responds again.
-int reboot_module(MVLC &mvlc, u32 base, u8 area, unsigned timeout_s, bool wait)
+int reboot_module(MVLC &mvlc, u32 base, std::optional<u8> areaArg, unsigned timeout_s, bool wait)
 {
     scanbus::VMEModuleInfo info{};
 
@@ -1473,8 +1487,12 @@ int reboot_module(MVLC &mvlc, u32 base, u8 area, unsigned timeout_s, bool wait)
         return 1;
     }
 
-    if (!enable_and_check_mvp_flash_interface(mvlc, base, module_info_string(info)))
+    auto statusByte = enable_and_check_mvp_flash_interface(mvlc, base, module_info_string(info));
+
+    if (!statusByte)
         return 1;
+
+    const auto [area, areaInfo] = select_boot_area(areaArg, *statusByte);
 
     // The module may reboot before acknowledging the last byte of the boot
     // instruction, so a missing VME response is accepted for that write.
@@ -1500,7 +1518,7 @@ int reboot_module(MVLC &mvlc, u32 base, u8 area, unsigned timeout_s, bool wait)
         return 1;
     }
 
-    std::cout << fmt::format("Sent boot command to {} (area={})\n", module_info_string(info), area);
+    std::cout << fmt::format("Sent boot command to {} ({})\n", module_info_string(info), areaInfo);
 
     if (!wait)
         return 0;
@@ -1574,7 +1592,7 @@ DEF_EXEC_FUNC(reboot_command)
     parser.parse(argv);
     trace_log_parser_info(parser, "reboot_command");
 
-    u8 area = 0;
+    std::optional<u8> areaArg;
     unsigned timeout_s = 10;
     std::string str;
 
@@ -1588,7 +1606,7 @@ DEF_EXEC_FUNC(reboot_command)
             return 1;
         }
 
-        area = *val;
+        areaArg = *val;
     }
 
     if (parser("--timeout") >> str)
@@ -1626,7 +1644,7 @@ DEF_EXEC_FUNC(reboot_command)
         return 1;
 
     if (base != SelfVMEAddress)
-        return reboot_module(mvlc, base, area, timeout_s, !parser["--no-wait"]);
+        return reboot_module(mvlc, base, areaArg, timeout_s, !parser["--no-wait"]);
 
     if (mvlc.firmwareRevision() < mvp::MVLCMinFirmwareRevision)
     {
@@ -1662,8 +1680,13 @@ DEF_EXEC_FUNC(reboot_command)
 
     const auto connectionInfo = mvlc.connectionInfo();
 
-    if (!enable_and_check_mvp_flash_interface(mvlc, base, fmt::format("MVLC {}", connectionInfo)))
+    auto statusByte =
+        enable_and_check_mvp_flash_interface(mvlc, base, fmt::format("MVLC {}", connectionInfo));
+
+    if (!statusByte)
         return 1;
+
+    const auto [area, areaInfo] = select_boot_area(areaArg, *statusByte);
 
     // The USB read thread warns about the vanishing device during the reboot.
     // Silence it unless a more verbose log level was requested.
@@ -1683,7 +1706,7 @@ DEF_EXEC_FUNC(reboot_command)
 
     mvlc.disconnect();
 
-    std::cout << fmt::format("Sent boot command to MVLC {} (area={})\n", connectionInfo, area);
+    std::cout << fmt::format("Sent boot command to MVLC {} ({})\n", connectionInfo, areaInfo);
 
     if (parser["--no-wait"])
         return 0;
@@ -1771,8 +1794,10 @@ static const Command RebootCommand{
     Example: mvlc-cli reboot 0x01000000
 
 options:
-    --area=<area> (default=0)
-        Flash area to boot into. Range [0, 3].
+    --area=<area>
+        Flash area to boot into. Range [0, 3]. Defaults to the area selected by
+        the device's dipswitch, i.e. the area booted at power-up. The currently
+        running area cannot be read through MVP.
 
     --timeout=<seconds> (default=10)
         Max time to wait for the device to reboot and respond again.

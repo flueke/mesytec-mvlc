@@ -13,7 +13,8 @@
 - New switch `--mvlc-keep-packet-allowance`.
 - New command `reboot`: reboots the MVLC (FW >= FW0036) through its MVP interface, waits for it
   to come back and reconnects. Optional positional `<vme-address>` reboots a mesytec VME module
-  instead and polls it via VME until it responds again.
+  instead and polls it via VME until it responds again. Without `--area` the dipswitch area
+  (power-up default) is booted.
 
 ## v0.2
 

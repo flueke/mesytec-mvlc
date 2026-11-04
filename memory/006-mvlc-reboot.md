@@ -12,7 +12,8 @@ on hardware.
   run into `stackTransaction` retries (3 x 2 s) because the MVLC reboots before answering.
 - Namespace `mesytec::mvlc::mvp`, header not in `mesytec-mvlc.h`: libmvp has `mesytec::mvp` with the
   same function names and uses `using namespace mesytec::mvlc`.
-- Default area 0. Earlier assumption that the dipswitch bits are wrong over VME was disproven, see
+- Default area = dipswitch value from the NOP status byte (decided 2026-11-04, what most customers
+  run into), `--area` overrides. Was area 0 before. Earlier assumption that the dipswitch bits are wrong over VME was disproven, see
   the dipswitch check below. Min firmware FW0036.
 - Reboot detection: the device must go offline and come back within `--timeout` (default 10 s,
   MVLC boots in ~2 s, DHCP may take longer). ETH uses a raw UDP register read probe (200 ms
