@@ -1422,6 +1422,149 @@ bool probe_mvlc_usb(const std::string &serial)
                        [&serial](const auto &dev) { return dev.serial == serial; });
 }
 
+bool enable_and_check_mvp_flash_interface(MVLC &mvlc, u32 base, const std::string &deviceInfo)
+{
+    if (auto ec = mvp::enable_flash_interface(mvlc, base))
+    {
+        std::cerr << fmt::format("Error enabling the MVP flash interface: {}\n", ec.message());
+        return false;
+    }
+
+    auto ec = mvp::clear_output_fifo(mvlc, base);
+
+    if (!ec)
+        ec = mvp::nop(mvlc, base);
+
+    if (ec)
+    {
+        std::cerr << fmt::format(
+            "Error: no valid MVP response from {} ({}). The device probably does not support MVP.\n",
+            deviceInfo, ec.message());
+        mvp::disable_flash_interface(mvlc, base);
+        return false;
+    }
+
+    return true;
+}
+
+std::string module_info_string(const scanbus::VMEModuleInfo &info)
+{
+    auto typeName = info.moduleTypeName();
+    auto result = fmt::format("{} at {:#010x}, hwId={:#06x}, fwId={:#06x}",
+                              typeName.empty() ? "unknown module" : typeName, info.address,
+                              info.hwId, info.fwId);
+
+    if (vme_modules::is_mdpp(info.hwId))
+        result += fmt::format(", mdpp_fw_type={}", info.mdppFirmwareTypeName());
+
+    return result;
+}
+
+// Reboots a mesytec VME module through its MVP flash interface, then polls the
+// module via VME until it went offline and responds again.
+int reboot_module(MVLC &mvlc, u32 base, u8 area, unsigned timeout_s, bool wait)
+{
+    scanbus::VMEModuleInfo info{};
+
+    if (auto ec = scanbus::read_module_info(mvlc, base, info))
+    {
+        std::cerr << fmt::format("Error: could not read module info from {:#010x}: {}\n", base,
+                                 ec.message());
+        return 1;
+    }
+
+    if (!enable_and_check_mvp_flash_interface(mvlc, base, module_info_string(info)))
+        return 1;
+
+    // The module may reboot before acknowledging the last byte of the boot
+    // instruction, so a missing VME response is accepted for that write.
+    const std::vector<u8> instr = { mvp::opcodes::BFP, mvp::AccessCode[0], mvp::AccessCode[1] };
+
+    auto ec = mvp::write_instruction(mvlc, base, instr);
+
+    if (!ec)
+    {
+        ec = mvlc.vmeWrite(base + mvp::InputFifoRegister, area, vme_amods::A32,
+                           VMEDataWidth::D16);
+
+        if (ec == MVLCErrorCode::NoVMEResponse)
+        {
+            spdlog::debug("reboot_module: no VME response to the last boot instruction byte");
+            ec = {};
+        }
+    }
+
+    if (ec)
+    {
+        std::cerr << fmt::format("Error sending the boot instruction: {}\n", ec.message());
+        return 1;
+    }
+
+    std::cout << fmt::format("Sent boot command to {} (area={})\n", module_info_string(info), area);
+
+    if (!wait)
+        return 0;
+
+    using Clock = std::chrono::steady_clock;
+    const auto PollInterval = std::chrono::milliseconds(250);
+    const auto tStart = Clock::now();
+    const auto deadline = tStart + std::chrono::seconds(timeout_s);
+    bool seenOffline = false;
+    bool backOnline = false;
+    scanbus::VMEModuleInfo newInfo{};
+
+    while (Clock::now() < deadline)
+    {
+        auto tPoll = Clock::now();
+        auto readEc = scanbus::read_module_info(mvlc, base, newInfo);
+
+        spdlog::debug("reboot_module: poll {:#010x}: {}", base,
+                      readEc ? readEc.message() : module_info_string(newInfo));
+
+        if (readEc)
+        {
+            if (readEc != MVLCErrorCode::NoVMEResponse && readEc != MVLCErrorCode::VMEBusError)
+            {
+                std::cerr << fmt::format("Error polling module {:#010x}: {}\n", base,
+                                         readEc.message());
+                return 1;
+            }
+
+            seenOffline = true;
+        }
+        else if (seenOffline)
+        {
+            backOnline = true;
+            break;
+        }
+
+        std::this_thread::sleep_until(tPoll + PollInterval);
+    }
+
+    if (!seenOffline)
+    {
+        std::cerr << fmt::format(
+            "Error: module {:#010x} did not go offline within {} s, the reboot probably failed.\n",
+            base, timeout_s);
+        return 1;
+    }
+
+    if (!backOnline)
+    {
+        std::cerr << fmt::format(
+            "Error: module {:#010x} did not come back within {} s. Use --timeout to wait longer.\n",
+            base, timeout_s);
+        return 1;
+    }
+
+    auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(Clock::now() - tStart);
+
+    std::cout << fmt::format("{} back online after {:.1f} s\n", module_info_string(newInfo),
+                             elapsed.count() / 1000.0);
+
+    return 0;
+}
+
 DEF_EXEC_FUNC(reboot_command)
 {
     spdlog::trace("entered reboot_command()");
@@ -1461,10 +1604,29 @@ DEF_EXEC_FUNC(reboot_command)
         timeout_s = *val;
     }
 
+    u32 base = SelfVMEAddress;
+
+    if (auto addressStr = parser[2]; !addressStr.empty())
+    {
+        auto val = parse_unsigned<u32>(addressStr);
+
+        if (!val || (*val & 0xffffu))
+        {
+            std::cerr << fmt::format(
+                "Error: invalid <vme-address> given: {} (low 16 bits must be zero)\n", addressStr);
+            return 1;
+        }
+
+        base = *val;
+    }
+
     auto [mvlc, ec] = make_and_connect_default_mvlc(parser);
 
     if (!mvlc || ec)
         return 1;
+
+    if (base != SelfVMEAddress)
+        return reboot_module(mvlc, base, area, timeout_s, !parser["--no-wait"]);
 
     if (mvlc.firmwareRevision() < mvp::MVLCMinFirmwareRevision)
     {
@@ -1499,26 +1661,19 @@ DEF_EXEC_FUNC(reboot_command)
     }
 
     const auto connectionInfo = mvlc.connectionInfo();
-    const u32 base = SelfVMEAddress;
 
-    if (auto ec = mvp::enable_flash_interface(mvlc, base))
-    {
-        std::cerr << fmt::format("Error enabling the MVP flash interface: {}\n", ec.message());
+    if (!enable_and_check_mvp_flash_interface(mvlc, base, fmt::format("MVLC {}", connectionInfo)))
         return 1;
-    }
 
-    auto checkEc = mvp::clear_output_fifo(mvlc, base);
+    // The USB read thread warns about the vanishing device during the reboot.
+    // Silence it unless a more verbose log level was requested.
+    auto usbLogger = get_logger("mvlc_usb");
+    const auto usbLogLevel = usbLogger->level();
+    std::shared_ptr<void> restoreUsbLogLevel(nullptr, [&](void *)
+                                             { usbLogger->set_level(usbLogLevel); });
 
-    if (!checkEc)
-        checkEc = mvp::nop(mvlc, base);
-
-    if (checkEc)
-    {
-        std::cerr << fmt::format("Error: MVP flash interface check (NOP) failed: {}\n",
-                                 checkEc.message());
-        mvp::disable_flash_interface(mvlc, base);
-        return 1;
-    }
+    if (usbLogLevel == spdlog::level::warn)
+        usbLogger->set_level(spdlog::level::err);
 
     if (auto ec = mvp::send_boot_instruction(mvlc, base, area))
     {
@@ -1596,24 +1751,31 @@ DEF_EXEC_FUNC(reboot_command)
 
 static const Command RebootCommand{
     .name = "reboot",
-    .description = "Reboot the MVLC into the given flash area",
+    .description = "Reboot the MVLC or a mesytec VME module into the given flash area",
     .help = unindent(
-        R"~(usage: mvlc-cli reboot [--area=<area>] [--timeout=<seconds>] [--no-wait]
+        R"~(usage: mvlc-cli reboot [--area=<area>] [--timeout=<seconds>] [--no-wait] [<vme-address>]
 
-    Reboots the MVLC through its VME <-> MVP flash interface at 0xffff0000.
-    Requires MVLC firmware FW0036 or later.
+    Reboots the MVLC or a mesytec VME module through its VME <-> MVP flash
+    interface. <vme-address> defaults to 0xffff0000, the MVLC itself.
 
-    After sending the boot command mvlc-cli waits for the MVLC to go offline and
-    come back, then reconnects and prints the firmware revision. USB connections
-    are reopened by serial number, ETH connections by hostname/IP. With DHCP the
-    MVLC may come back with a different IP address.
+    MVLC: requires MVLC firmware FW0036 or later. After sending the boot command
+    mvlc-cli waits for the MVLC to go offline and come back, then reconnects and
+    prints the firmware revision. USB connections are reopened by serial number,
+    ETH connections by hostname/IP. With DHCP the MVLC may come back with a
+    different IP address.
+
+    Module: the module at <vme-address> must support MVP access through VME. The
+    MVLC stays connected and polls the module until it stops responding and
+    comes back, then prints the module type and firmware revision.
+
+    Example: mvlc-cli reboot 0x01000000
 
 options:
     --area=<area> (default=0)
         Flash area to boot into. Range [0, 3].
 
     --timeout=<seconds> (default=10)
-        Max time to wait for the MVLC to reboot and accept a new connection.
+        Max time to wait for the device to reboot and respond again.
 
     --no-wait
         Exit right after sending the boot command.

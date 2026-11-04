@@ -45,7 +45,7 @@ std::error_code clear_output_fifo(MVLC &mvlc, u32 moduleBase)
     auto logger = get_logger("mvlc_mvp");
     auto tStart = std::chrono::steady_clock::now();
 
-    while (true)
+    for (unsigned i = 0; i < OutputFifoMaxClearReads; ++i)
     {
         u32 fifoValue = 0;
 
@@ -55,11 +55,14 @@ std::error_code clear_output_fifo(MVLC &mvlc, u32 moduleBase)
         if (fifoValue & output_fifo_flags::InvalidRead)
             return {};
 
-        logger->debug("clear_output_fifo: discarding {:#06x}", fifoValue);
+        logger->trace("clear_output_fifo: discarding {:#06x}", fifoValue);
 
         if (std::chrono::steady_clock::now() - tStart >= MaxResponseWaitTime)
             return std::make_error_code(std::errc::timed_out);
     }
+
+    logger->debug("clear_output_fifo: fifo not empty after {} reads", OutputFifoMaxClearReads);
+    return std::make_error_code(std::errc::protocol_error);
 }
 
 std::error_code write_instruction(MVLC &mvlc, u32 moduleBase, const std::vector<u8> &instruction)
@@ -156,7 +159,7 @@ bool check_response(const std::vector<u8> &request, const std::vector<u8> &respo
     return true;
 }
 
-std::error_code nop(MVLC &mvlc, u32 moduleBase)
+std::error_code nop(MVLC &mvlc, u32 moduleBase, u8 *statusByte)
 {
     const std::vector<u8> instr = { opcodes::NOP };
     std::vector<u8> response;
@@ -170,6 +173,28 @@ std::error_code nop(MVLC &mvlc, u32 moduleBase)
     if (!check_response(instr, response))
         return std::make_error_code(std::errc::protocol_error);
 
+    if (statusByte)
+        *statusByte = response.back();
+
+    return {};
+}
+
+std::error_code read_area_index(MVLC &mvlc, u32 moduleBase, u8 &area)
+{
+    const std::vector<u8> instr = { opcodes::RAI };
+    std::vector<u8> response;
+
+    if (auto ec = write_instruction(mvlc, moduleBase, instr))
+        return ec;
+
+    if (auto ec = read_response(mvlc, moduleBase, response))
+        return ec;
+
+    // Expected response: RAI, area, 0xff, status
+    if (response.size() < 4 || !check_response(instr, response))
+        return std::make_error_code(std::errc::protocol_error);
+
+    area = *(response.end() - 3);
     return {};
 }
 

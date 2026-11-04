@@ -29,7 +29,18 @@ namespace output_fifo_flags
 namespace opcodes
 {
     static const u8 NOP = 0x00;
+    static const u8 RAI = 0x30; // read area index
     static const u8 BFP = 0x70; // set FPGA boot area index and boot
+}
+
+// Status byte at the end of each instruction response.
+namespace status_flags
+{
+    static const u8 InstSuccess = 0x01;
+    static const u8 AreaMask = 0x06;
+    static const unsigned AreaShift = 1;
+    static const u8 DipswitchMask = 0x18;
+    static const unsigned DipswitchShift = 3;
 }
 
 static const u8 AccessCode[] = { 0xCD, 0xAB };
@@ -41,7 +52,13 @@ static const u16 MVLCMinFirmwareRevision = 0x0036;
 std::error_code MESYTEC_MVLC_EXPORT enable_flash_interface(MVLC &mvlc, u32 moduleBase);
 std::error_code MESYTEC_MVLC_EXPORT disable_flash_interface(MVLC &mvlc, u32 moduleBase);
 
-// Reads from the output fifo until it is empty.
+// Max number of reads clear_output_fifo() performs. Modules without MVP
+// support never report an empty fifo.
+static const unsigned OutputFifoMaxClearReads = 1024;
+
+// Reads from the output fifo until it is empty. Returns
+// std::errc::protocol_error if the fifo is not empty after
+// OutputFifoMaxClearReads reads.
 std::error_code MESYTEC_MVLC_EXPORT clear_output_fifo(MVLC &mvlc, u32 moduleBase);
 
 std::error_code MESYTEC_MVLC_EXPORT write_instruction(
@@ -56,8 +73,13 @@ std::error_code MESYTEC_MVLC_EXPORT read_response(
 bool MESYTEC_MVLC_EXPORT check_response(
     const std::vector<u8> &request, const std::vector<u8> &response);
 
-// NOP instruction round trip. The flash interface must be enabled.
-std::error_code MESYTEC_MVLC_EXPORT nop(MVLC &mvlc, u32 moduleBase);
+// NOP instruction round trip. The flash interface must be enabled. Optionally
+// returns the status byte of the response.
+std::error_code MESYTEC_MVLC_EXPORT nop(MVLC &mvlc, u32 moduleBase, u8 *statusByte = nullptr);
+
+// RAI instruction: reads the currently selected area index. The flash
+// interface must be enabled.
+std::error_code MESYTEC_MVLC_EXPORT read_area_index(MVLC &mvlc, u32 moduleBase, u8 &area);
 
 // Returns a super command buffer that uploads and immediately executes a stack
 // writing the BFP instruction to the input fifo.

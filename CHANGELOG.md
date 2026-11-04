@@ -7,12 +7,13 @@
   `MVLC::connect()` writes 0 to `udp_packet_limit` by default, see
   `MVLC::setResetPacketAllowanceOnConnect()`.
 - New `mvlc_mvp.h`: minimal VME <-> MVP flash interface access (NOP check, fire and forget boot
-  instruction). Not part of `mesytec-mvlc.h`.
+  instruction, RAI, status byte flags). Not part of `mesytec-mvlc.h`.
 
 ### mvlc-cli
 - New switch `--mvlc-keep-packet-allowance`.
 - New command `reboot`: reboots the MVLC (FW >= FW0036) through its MVP interface, waits for it
-  to come back and reconnects.
+  to come back and reconnects. Optional positional `<vme-address>` reboots a mesytec VME module
+  instead and polls it via VME until it responds again.
 
 ## v0.2
 
