@@ -61,11 +61,16 @@ string(REGEX REPLACE "^v" "" GIT_VERSION ${GIT_VERSION})
 string(REGEX MATCH "^[0-9.]+(-beta[0-9]*|-rc[0-9]*|-dev[0-9]*)?(-[0-9]+)?" GIT_VERSION_SHORT ${GIT_VERSION})
 string(REGEX MATCH "^[0-9.]+" GIT_VERSION_TAG ${GIT_VERSION})
 
-execute_process(
-    COMMAND ${GIT_EXECUTABLE} rev-parse --abbrev-ref HEAD
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-    OUTPUT_VARIABLE GIT_BRANCH
-    OUTPUT_STRIP_TRAILING_WHITESPACE)
+# CI checkouts may be on a detached HEAD, prefer the branch name passed in BUILD_BRANCH.
+if (NOT "$ENV{BUILD_BRANCH}" STREQUAL "")
+    set(GIT_BRANCH "$ENV{BUILD_BRANCH}")
+else()
+    execute_process(
+        COMMAND ${GIT_EXECUTABLE} rev-parse --abbrev-ref HEAD
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+        OUTPUT_VARIABLE GIT_BRANCH
+        OUTPUT_STRIP_TRAILING_WHITESPACE)
+endif()
 
 #message("-- GIT_VERSION=${GIT_VERSION}")
 #message("-- GIT_VERSION_SHORT=${GIT_VERSION_SHORT}")
